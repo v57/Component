@@ -7,6 +7,16 @@ extension EnvironmentValues {
   @Entry public var kitWindowIsActive: Bool = true
   /// The idiom the kit lays out for: rows and controls grow on iPad and iPhone.
   @Entry public var kitIdiom: KitIdiom = .current
+  /// Draws the kit as under Increase Contrast whatever the system's setting (previews, the catalog). The system's
+  /// own setting still applies when this is off.
+  ///
+  /// ```swift
+  /// Preview().environment(\.kitIncreaseContrast, true)
+  /// ```
+  @Entry public var kitIncreaseContrast: Bool = false
+
+  /// Whether the kit draws its Increase Contrast values: the system's setting, or `kitIncreaseContrast`.
+  var kitMoreContrast: Bool { kitIncreaseContrast || colorSchemeContrast == .increased }
 }
 
 /// Where the kit is laid out: the Mac's dense metrics, or touch sizes.

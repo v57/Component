@@ -22,7 +22,7 @@ public struct KitColor: ShapeStyle, Hashable, Sendable {
   }
 
   func rgba(in environment: EnvironmentValues) -> RGBA {
-    let more = environment.colorSchemeContrast == .increased
+    let more = environment.kitMoreContrast
     if environment.colorScheme == .dark { return more ? darkMore ?? dark : dark }
     return more ? lightMore ?? light : light
   }

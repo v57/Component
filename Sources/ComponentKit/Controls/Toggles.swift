@@ -75,7 +75,7 @@ struct CtlSwitchTrack: View {
   let isOn: Bool
   let isFocused: Bool
   @Environment(\.kitIdiom) private var idiom
-  @Environment(\.colorSchemeContrast) private var contrast
+  @Environment(\.kitMoreContrast) private var moreContrast
 
   var body: some View {
     let (width, height, inset): (CGFloat, CGFloat, CGFloat) =
@@ -88,7 +88,7 @@ struct CtlSwitchTrack: View {
     Capsule()
       .fill(isOn ? AnyShapeStyle(Hue.accent.fill) : AnyShapeStyle(.kitFill))
       .overlay {
-        if contrast == .increased { Capsule().strokeBorder(.kitBorder, lineWidth: 1) }
+        if moreContrast { Capsule().strokeBorder(.kitBorder, lineWidth: 1) }
       }
       .overlay(alignment: isOn ? .trailing : .leading) {
         Circle()

@@ -104,7 +104,7 @@ public struct RefChip: View {
   @Environment(\.controlSize) private var controlSize
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.isEnabled) private var isEnabled
-  @Environment(\.colorSchemeContrast) private var contrast
+  @Environment(\.kitMoreContrast) private var moreContrast
 
   public init(name: String, kind: Kind = .branch, isCurrent: Bool = false, hasUpstream: Bool = false) {
     self.init(Ref(name: name, kind: kind, isCurrent: isCurrent, hasUpstream: hasUpstream))
@@ -144,7 +144,7 @@ public struct RefChip: View {
     .modifier(CappedWidth(maxWidth: maxWidth))
     .background(BadgeTint(hue: hue, light: 0.16, dark: 0.22), in: m.shape)
     .overlay {
-      if contrast == .increased { m.shape.strokeBorder(hue.fill.opacity(0.6), lineWidth: 1) }
+      if moreContrast { m.shape.strokeBorder(hue.fill.opacity(0.6), lineWidth: 1) }
     }
     .fixedSize(horizontal: false, vertical: true)
     .opacity(isEnabled ? 1 : 0.45)

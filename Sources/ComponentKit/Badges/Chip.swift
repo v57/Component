@@ -29,7 +29,7 @@ public struct Chip: View {
   @Environment(\.controlSize) private var controlSize
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.isEnabled) private var isEnabled
-  @Environment(\.colorSchemeContrast) private var contrast
+  @Environment(\.kitMoreContrast) private var moreContrast
 
   /// A chip with a title, an optional leading SF Symbol and the hue of its meaning.
   public init(_ title: some StringProtocol, systemImage: String? = nil, hue: Hue? = nil, style: Style = .soft) {
@@ -77,7 +77,7 @@ public struct Chip: View {
     .frame(height: m.height)
     .background(ground, in: m.shape)
     .overlay {
-      if contrast == .increased, style != .solid {
+      if moreContrast, style != .solid {
         m.shape.strokeBorder((hue ?? .gray).fill.opacity(0.6), lineWidth: 1)
       }
     }

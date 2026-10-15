@@ -67,11 +67,11 @@ struct CtlFieldRing: View {
   var isOn: Bool
   var hue: Hue
   var cornerRadius: CGFloat
-  @Environment(\.colorSchemeContrast) private var contrast
+  @Environment(\.kitMoreContrast) private var moreContrast
 
   var body: some View {
     RoundedRectangle(cornerRadius: cornerRadius + 1, style: .continuous)
-      .stroke(hue.soft(contrast == .increased ? 1 : 0.5), lineWidth: 2)
+      .stroke(hue.soft(moreContrast ? 1 : 0.5), lineWidth: 2)
       .padding(-1)
       .opacity(isOn ? 1 : 0)
       .allowsHitTesting(false)
@@ -84,7 +84,7 @@ struct CtlRaisedCard: View {
   var cornerRadius: CGFloat
   /// Pressing settles the card: flat, no shadow (Hover A).
   var flat = false
-  @Environment(\.colorSchemeContrast) private var contrast
+  @Environment(\.kitMoreContrast) private var moreContrast
 
   var body: some View {
     let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -96,7 +96,7 @@ struct CtlRaisedCard: View {
       }
     }
     .overlay {
-      if contrast == .increased { shape.strokeBorder(Hue.accent.fill, lineWidth: 1.5) }
+      if moreContrast { shape.strokeBorder(Hue.accent.fill, lineWidth: 1.5) }
     }
   }
 }

@@ -47,12 +47,12 @@ struct SurfaceShape: View {
   let surface: Surface
   let cornerRadius: CGFloat
   @Environment(\.colorScheme) private var scheme
-  @Environment(\.colorSchemeContrast) private var contrast
+  @Environment(\.kitMoreContrast) private var moreContrast
 
   var body: some View {
     let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     let dark = scheme == .dark
-    let more = contrast == .increased
+    let more = moreContrast
     switch surface {
     case .card:
       shape.fill(.kitCard)
