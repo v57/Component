@@ -24,3 +24,6 @@ AGENTS.md
 .commandcode/
 .hermes/
 KANBAN*.md
+
+# Per-agent SwiftPM scratch folders
+.build-*/
