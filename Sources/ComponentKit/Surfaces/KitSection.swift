@@ -1,0 +1,303 @@
+import SwiftUI
+
+/// How a `KitSection` draws: a raised card with the rich header (the default: sidebars, inspectors, list groups), or
+/// plain on its ground with a small header (compact sidebars like Code's navigator).
+public enum KitSectionStyle: Hashable, Sendable {
+  /// A raised card whose header names what it holds: an icon tile, the name, one line of counts or status.
+  case card
+  /// No card: a quiet 11pt header with the chevron in front, and compact rows (plain icons, 24pt on the Mac).
+  case plain
+}
+
+extension EnvironmentValues {
+  /// How the `KitSection`s below draw (`.kitSectionStyle(_:)`).
+  @Entry public var kitSectionStyle: KitSectionStyle = .card
+}
+
+extension View {
+  /// Sets how the sections below draw: `.card` (the default) or `.plain` for a compact sidebar.
+  ///
+  /// ```swift
+  /// KitSidebar(selection: $file) { KitSection("Atlas", systemImage: "folder") { … } }
+  ///   .kitSectionStyle(.plain)
+  /// ```
+  public func kitSectionStyle(_ style: KitSectionStyle) -> some View {
+    environment(\.kitSectionStyle, style)
+  }
+}
+
+/// A group of rows under the kit's rich header: the icon tile (a live icon while work runs), the name, one meta line
+/// that sums the group up, and trailing actions. As a card it's the sidebar's section, the inspector's section and a
+/// list's group; it collapses from its header, and a closed section still shows its meta.
+///
+/// ```swift
+/// KitSection("Repositories", meta: ["5 repositories", "2 with changes"], systemImage: "folder", hue: .blue) {
+///   SidebarRow(value: repo.id, repo.name, systemImage: "shippingbox")
+/// } accessory: {
+///   Button("Add Repository", systemImage: "plus") { … }
+/// }
+/// ```
+///
+/// Pass `isExpanded` to own the open state (to remember it); without it the section keeps its own.
+public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>: View {
+  var title: Text
+  var isExpanded: Binding<Bool>?
+  @ViewBuilder var icon: Icon
+  @ViewBuilder var meta: Meta
+  @ViewBuilder var content: Content
+  @ViewBuilder var accessory: Accessory
+  @State private var ownExpanded = true
+  @State private var isHovered = false
+  @Environment(\.kitSectionStyle) private var style
+  @Environment(\.kitIdiom) private var idiom
+
+  /// A section with any icon, meta and accessory views.
+  public init(
+    _ title: Text, isExpanded: Binding<Bool>? = nil, @ViewBuilder content: () -> Content,
+    @ViewBuilder icon: () -> Icon, @ViewBuilder meta: () -> Meta, @ViewBuilder accessory: () -> Accessory
+  ) {
+    self.title = title
+    self.isExpanded = isExpanded
+    self.content = content()
+    self.icon = icon()
+    self.meta = meta()
+    self.accessory = accessory()
+  }
+
+  private var expanded: Bool { isExpanded?.wrappedValue ?? ownExpanded }
+
+  private func toggle() {
+    withKitAnimation {
+      if let isExpanded { isExpanded.wrappedValue.toggle() } else { ownExpanded.toggle() }
+    }
+  }
+
+  public var body: some View {
+    switch style {
+    case .card: card
+    case .plain: plain
+    }
+  }
+
+  // MARK: Card
+
+  private var card: some View {
+    let radius = ContMetrics.cardRadius(idiom)
+    return VStack(alignment: .leading, spacing: 0) {
+      RichHeader(title, icon: { icon }, meta: { meta }, accessory: { cardAccessory })
+        .contentShape(Rectangle())
+        .onTapGesture(perform: toggle)
+        .padding([.horizontal, .top], KitMetrics.cardPadding)
+        .padding(.bottom, expanded ? 0 : KitMetrics.cardPadding)
+        .modifier(SectionHeaderAccessibility(title: title, expanded: expanded, toggle: toggle))
+      ContRevealLayout(progress: expanded ? 1 : 0) {
+        if expanded {
+          VStack(alignment: .leading, spacing: 2) { content }
+            .padding(.top, 2)
+            .padding([.horizontal, .bottom], KitMetrics.cardPadding)
+            .transition(.opacity)
+        }
+      }
+      .clipped()
+    }
+    .kitSurface(.card, cornerRadius: radius)
+    .onHover { isHovered = $0 }
+  }
+
+  private var cardAccessory: some View {
+    HStack(spacing: 2) {
+      if isHovered || !expanded || idiom.isTouch {
+        Image(systemName: "chevron.down")
+          .font(.system(size: idiom.isTouch ? 12 : 10, weight: .semibold))
+          .foregroundStyle(.kitTertiary)
+          .rotationEffect(.degrees(expanded ? 0 : -90))
+          .frame(width: idiom.isTouch ? 24 : 16)
+          .transition(.opacity)
+          .accessibilityHidden(true)
+      }
+      accessory
+    }
+    .animation(.kitFast, value: isHovered)
+  }
+
+  // MARK: Plain
+
+  private var plain: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      HStack(spacing: 4) {
+        Image(systemName: "chevron.down")
+          .font(.system(size: 9, weight: .bold))
+          .foregroundStyle(.kitTertiary)
+          .rotationEffect(.degrees(expanded ? 0 : -90))
+          .frame(width: 12)
+          .accessibilityHidden(true)
+        title
+          .kitFont(idiom.isTouch ? .headline : .sectionHeader)
+          .foregroundStyle(KitColor.sectionHeader)
+          .lineLimit(1)
+          .frame(maxWidth: .infinity, alignment: .leading)
+        accessory
+          .buttonStyle(.kitIcon)
+          .controlSize(.small)
+          .opacity(isHovered || idiom.isTouch ? 1 : 0)
+      }
+      .padding(.leading, 4)
+      .padding(.trailing, 2)
+      .frame(minHeight: idiom.isTouch ? 34 : 22)
+      .contentShape(Rectangle())
+      .onTapGesture(perform: toggle)
+      .onHover { isHovered = $0 }
+      .modifier(SectionHeaderAccessibility(title: title, expanded: expanded, toggle: toggle))
+      ContRevealLayout(progress: expanded ? 1 : 0) {
+        if expanded {
+          VStack(alignment: .leading, spacing: 0) { content }
+            .padding(.top, 1)
+            .transition(.opacity)
+        }
+      }
+      .clipped()
+      if !expanded {
+        // What a closed section holds, in one line.
+        meta
+          .kitFont(.caption)
+          .lineLimit(1)
+          .padding(.leading, 20)
+          .padding(.bottom, 4)
+          .transition(.opacity)
+      }
+    }
+  }
+}
+
+/// The header reads as a heading that opens and closes its section.
+private struct SectionHeaderAccessibility: ViewModifier {
+  let title: Text
+  let expanded: Bool
+  let toggle: () -> Void
+
+  func body(content: Content) -> some View {
+    content
+      .accessibilityElement(children: .contain)
+      .accessibilityAddTraits(.isHeader)
+      .accessibilityAction(named: expanded ? "Collapse" : "Expand", toggle)
+  }
+}
+
+// MARK: - Convenience
+
+extension KitSection where Icon == LiveIcon<Image>, Meta == MetaLine {
+  /// A section with an SF Symbol tile (carrying `status`), a meta line of parts and trailing actions.
+  public init(
+    _ title: some StringProtocol, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, isExpanded: Binding<Bool>? = nil, @ViewBuilder content: () -> Content,
+    @ViewBuilder accessory: () -> Accessory
+  ) {
+    self.init(
+      Text(title), isExpanded: isExpanded, content: content,
+      icon: { LiveIcon(systemImage: systemImage, hue: hue, status: status, size: 24) }, meta: { MetaLine(meta) },
+      accessory: accessory)
+  }
+
+  /// A section with a one-part meta line and trailing actions.
+  public init(
+    _ title: some StringProtocol, meta: String, systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, isExpanded: Binding<Bool>? = nil, @ViewBuilder content: () -> Content,
+    @ViewBuilder accessory: () -> Accessory
+  ) {
+    self.init(
+      title, meta: [meta], systemImage: systemImage, hue: hue, status: status, isExpanded: isExpanded,
+      content: content, accessory: accessory)
+  }
+}
+
+extension KitSection where Icon == LiveIcon<Image>, Meta == MetaLine, Accessory == EmptyView {
+  /// A section with an SF Symbol tile and a meta line of parts.
+  ///
+  /// ```swift
+  /// KitSection("Remotes", meta: ["origin", "fetched 2 hr ago"], systemImage: "cloud") { … }
+  /// ```
+  public init(
+    _ title: some StringProtocol, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, isExpanded: Binding<Bool>? = nil, @ViewBuilder content: () -> Content
+  ) {
+    self.init(
+      title, meta: meta, systemImage: systemImage, hue: hue, status: status, isExpanded: isExpanded,
+      content: content, accessory: { EmptyView() })
+  }
+
+  /// A section with an SF Symbol tile and a one-part meta line.
+  public init(
+    _ title: some StringProtocol, meta: String, systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, isExpanded: Binding<Bool>? = nil, @ViewBuilder content: () -> Content
+  ) {
+    self.init(
+      title, meta: [meta], systemImage: systemImage, hue: hue, status: status, isExpanded: isExpanded,
+      content: content, accessory: { EmptyView() })
+  }
+}
+
+// MARK: - Reveal
+
+/// A slot as tall as its content times `progress`, the content pinned to the top and revealed downward, so opening
+/// or closing a section slides the views below instead of jumping (from Shell's `SidebarRowLine`). The cache keeps
+/// the content's last height for the frames of a collapse after it left the tree.
+struct ContRevealLayout: Layout {
+  var progress: Double
+
+  var animatableData: Double {
+    get { progress }
+    set { progress = newValue }
+  }
+
+  func makeCache(subviews: Subviews) -> CGFloat { 0 }
+  func updateCache(_ cache: inout CGFloat, subviews: Subviews) {}
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout CGFloat) -> CGSize {
+    var width: CGFloat = 0
+    var height: CGFloat = 0
+    for subview in subviews {
+      let size = subview.sizeThatFits(ProposedViewSize(width: proposal.width, height: nil))
+      width = max(width, size.width)
+      height = max(height, size.height)
+    }
+    if !subviews.isEmpty { cache = height }
+    // Opening: the content is there and grows in; closing: it may already be gone, so the cached height shrinks.
+    return CGSize(width: proposal.width ?? width, height: cache * progress)
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout CGFloat) {
+    for subview in subviews {
+      subview.place(
+        at: CGPoint(x: bounds.minX, y: bounds.minY), anchor: .topLeading,
+        proposal: ProposedViewSize(width: bounds.width, height: nil))
+    }
+  }
+}
+
+#Preview("Sections") {
+  @Previewable @State var open = true
+  VStack(spacing: 10) {
+    KitSection("Repositories", meta: ["5 repositories", "2 with changes"], systemImage: "folder", hue: .indigo) {
+      Text("atlas").padding(.horizontal, 12).frame(height: 32)
+      Text("beacon").padding(.horizontal, 12).frame(height: 32)
+    } accessory: {
+      Button("Add", systemImage: "plus") {}
+    }
+    KitSection("Branches", meta: "3 local · 1 merged", systemImage: "arrow.triangle.branch", hue: .orange, isExpanded: $open) {
+      Text("main").padding(.horizontal, 12).frame(height: 32)
+    }
+    KitSection("Downloads", meta: ["2 downloading", "27.7 MB/s"], systemImage: "arrow.down", hue: .red, status: .working(progress: 0.4)) {
+      Text("ubuntu.iso").padding(.horizontal, 12).frame(height: 32)
+    }
+    VStack(alignment: .leading, spacing: 8) {
+      KitSection("Sources", meta: "4 files", systemImage: "folder") {
+        Text("Trip.swift").frame(height: 24)
+      }
+    }
+    .kitSectionStyle(.plain)
+  }
+  .padding(10)
+  .frame(width: 260)
+  .background(.kitSidebar)
+  .componentKit()
+}
