@@ -207,41 +207,21 @@ extension KitSidebar where BottomBar == EmptyView {
 // MARK: - Bottom bar
 
 /// The sidebar's bar at the bottom safe area: the square search button leads; the actions and the sidebar toggle share
-/// one card at the end. While searching, the search line takes the whole bar, its close button at the end.
+/// one card at the end. While searching, the search line (the controls' `SidebarSearchButton`) takes the whole bar.
 struct ContSidebarBar<Actions: View>: View {
   let searchText: Binding<String>?
   let prompt: String
   let toggle: (@MainActor () -> Void)?
   @ViewBuilder let actions: Actions
   @State private var isSearching = false
-  @FocusState private var fieldFocused: Bool
   @Environment(\.kitIdiom) private var idiom
 
   var body: some View {
-    let size = ContMetrics.barHeight(idiom)
-    let radius = ContMetrics.barRadius(idiom)
     HStack(spacing: idiom.isTouch ? 10 : 8) {
-      if isSearching, let searchText {
-        searchLine(searchText, size: size, radius: radius)
-          .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .leading)))
-      } else {
-        if searchText != nil {
-          Button {
-            withKitAnimation { isSearching = true }
-            // The field arrives with this change; focus it once it's there.
-            Task { @MainActor in fieldFocused = true }
-          } label: {
-            Image(systemName: "magnifyingglass")
-              .font(.system(size: idiom.isTouch ? 17 : 13, weight: .medium))
-              .foregroundStyle(.kitSecondary)
-              .frame(width: size, height: size)
-              .kitSurface(.card, cornerRadius: radius)
-              .contentShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
-          }
-          .buttonStyle(.plain)
-          .accessibilityLabel(prompt)
-          .transition(.opacity)
-        }
+      if let searchText {
+        SidebarSearchButton(text: searchText, isSearching: $isSearching, prompt: prompt)
+      }
+      if !isSearching {
         Spacer(minLength: 0)
         if Actions.self != EmptyView.self || toggle != nil {
           ContBarCard {
@@ -259,44 +239,6 @@ struct ContSidebarBar<Actions: View>: View {
     .padding(.top, idiom == .phone ? 10 : idiom == .pad ? 8 : 6)
     .padding(.horizontal, idiom == .phone ? 20 : idiom == .pad ? 12 : 10)
     .padding(.bottom, idiom == .phone ? 10 : idiom == .pad ? 14 : 10)
-  }
-
-  private func searchLine(_ text: Binding<String>, size: CGFloat, radius: CGFloat) -> some View {
-    HStack(spacing: 8) {
-      Image(systemName: "magnifyingglass")
-        .font(.system(size: idiom.isTouch ? 15 : 12, weight: .medium))
-        .foregroundStyle(.kitSecondary)
-        .accessibilityHidden(true)
-      TextField(prompt, text: text)
-        .textFieldStyle(.plain)
-        .kitFont(.body)
-        .focused($fieldFocused)
-        .onKeyPress(.escape) {
-          close(text)
-          return .handled
-        }
-      Button {
-        close(text)
-      } label: {
-        Image(systemName: "xmark")
-          .font(.system(size: idiom.isTouch ? 13 : 10, weight: .bold))
-          .frame(width: idiom.isTouch ? 30 : 22, height: idiom.isTouch ? 30 : 22)
-          .contentShape(Rectangle())
-      }
-      .buttonStyle(ContBarButtonStyle())
-      .accessibilityLabel("Close Search")
-      .padding(.trailing, -6)
-    }
-    .padding(.horizontal, 12)
-    .frame(height: size)
-    .frame(maxWidth: .infinity)
-    .kitSurface(.card, cornerRadius: radius)
-  }
-
-  private func close(_ text: Binding<String>) {
-    text.wrappedValue = ""
-    fieldFocused = false
-    withKitAnimation { isSearching = false }
   }
 }
 
