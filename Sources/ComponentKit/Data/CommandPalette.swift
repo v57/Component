@@ -1,0 +1,407 @@
+import SwiftUI
+
+/// The command palette and quick open (Code's Open Quickly, Markdown's commands, Shell's quick actions ⌘R): a card on
+/// the panel ground with 20pt corners. The search line starts with an optional scope pop-up and ends with the live
+/// icon (an arc while searching or indexing, a check when done, red when nothing matched); results are group cards
+/// with rich headers; the selected row is raised and Return runs it; a card bar of key hints closes it.
+/// ↑↓ move through every group's items, Return runs the selected one, Escape calls `dismiss`.
+///
+/// ```swift
+/// KitPalette(query: $query, prompt: "Run an action or search", status: .done, dismiss: { isOpen = false }) {
+///   PaletteMenu("atlas", systemImage: "folder") { Button("atlas") {}; Button("pebble") {} }
+/// } content: {
+///   PaletteGroup("Atlas", meta: ["Xcode", "Atlas.xcodeproj"], systemImage: "hammer") {
+///     PaletteMenu("Atlas", systemImage: "hammer") { Button("Atlas") {}; Button("AtlasKit") {} }
+///   } items: {
+///     PaletteItem("Build", systemImage: "hammer", hue: .orange, detail: "xcodebuild … build", shortcut: "⌘B") { build() }
+///     PaletteItem("Test", systemImage: "testtube.2", hue: .purple, note: "Stops Build first") { test() }
+///   }
+/// }
+/// ```
+public struct KitPalette<Scope: View, Content: View>: View {
+  @Binding var query: String
+  var prompt: String
+  var status: WorkStatus
+  var hints: [PaletteHint]
+  var maxHeight: CGFloat
+  var dismiss: (() -> Void)?
+  var scope: Scope
+  var content: Content
+  @State private var nav = DataNavModel()
+  @State private var contentHeight: CGFloat = 0
+  @FocusState private var isFocused: Bool
+  @Environment(\.dataRendersFlat) private var flat
+  @Environment(\.kitIdiom) private var idiom
+
+  public init(
+    query: Binding<String>, prompt: String = "Search", status: WorkStatus = .idle,
+    hints: [PaletteHint] = PaletteHint.standard, maxHeight: CGFloat = 440, dismiss: (() -> Void)? = nil,
+    @ViewBuilder scope: () -> Scope, @ViewBuilder content: () -> Content
+  ) {
+    self._query = query
+    self.prompt = prompt
+    self.status = status
+    self.hints = hints
+    self.maxHeight = maxHeight
+    self.dismiss = dismiss
+    self.scope = scope()
+    self.content = content()
+  }
+
+  public var body: some View {
+    VStack(spacing: KitMetrics.gutter) {
+      searchLine
+      results
+      if !hints.isEmpty { footer }
+    }
+    .padding(KitMetrics.gutter)
+    .background {
+      let shape = RoundedRectangle(cornerRadius: KitMetrics.radiusOverlay, style: .continuous)
+      SurfaceShape(surface: .floating, cornerRadius: KitMetrics.radiusOverlay)
+        .overlay(shape.fill(.kitPanel))
+        .overlay(shape.strokeBorder(.kitBorder, lineWidth: 0.5))
+    }
+    .environment(nav)
+    .environment(\.dataPaletteQuery, query)
+    .onPreferenceChange(DataNavItemsKey.self) { ids in
+      MainActor.assumeIsolated { nav.update(ids: ids) }
+    }
+    .onChange(of: query) { nav.selected = nav.ids.first }
+    .onAppear { isFocused = true }
+  }
+
+  private var searchLine: some View {
+    HStack(spacing: 8) {
+      scope
+      TextField(prompt, text: $query)
+        .textFieldStyle(.plain)
+        .font(.system(size: idiom.isTouch ? 20 : 17))
+        .focused($isFocused)
+        .onSubmit { nav.activate() }
+        .onKeyPress(.upArrow) {
+          nav.move(by: -1)
+          return .handled
+        }
+        .onKeyPress(.downArrow) {
+          nav.move(by: 1)
+          return .handled
+        }
+        .onKeyPress(.escape) {
+          guard let dismiss else { return .ignored }
+          dismiss()
+          return .handled
+        }
+      LiveIcon(systemImage: "magnifyingglass", status: status, size: 20)
+        .padding(.trailing, 4)
+    }
+    .padding(.leading, 8)
+    .padding(.trailing, 6)
+    .frame(height: idiom.isTouch ? 52 : 44)
+    .background {
+      let shape = RoundedRectangle(cornerRadius: KitMetrics.radiusCard, style: .continuous)
+      SurfaceShape(surface: .raised, cornerRadius: KitMetrics.radiusCard)
+        .overlay(shape.strokeBorder(Hue.accent.soft(0.5), lineWidth: isFocused ? 2 : 0))
+    }
+    .animation(.kitFast, value: isFocused)
+  }
+
+  @ViewBuilder
+  private var results: some View {
+    let stack = VStack(spacing: KitMetrics.gutter) { content }
+    if flat {
+      stack
+    } else {
+      ScrollViewReader { proxy in
+        ScrollView {
+          stack.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+        }
+        .scrollIndicators(.never)
+        .frame(height: min(contentHeight, maxHeight))
+        .onChange(of: nav.selected) { _, id in
+          guard let id else { return }
+          withKitAnimation(.kitFast) { proxy.scrollTo(id) }
+        }
+      }
+    }
+  }
+
+  private var footer: some View {
+    HStack(spacing: 14) {
+      ForEach(hints) { hint in
+        HStack(spacing: 6) {
+          HStack(spacing: 2) { ForEach(hint.keys, id: \.self) { Keycaps($0) } }
+          Text(hint.label)
+        }
+      }
+      Spacer(minLength: 0)
+    }
+    .font(.system(size: 12))
+    .foregroundStyle(.kitSecondary)
+    .padding(.horizontal, 8)
+    .frame(minHeight: 32)
+    .kitSurface(.card)
+  }
+}
+
+extension KitPalette where Scope == EmptyView {
+  /// A palette without a scope pop-up.
+  public init(
+    query: Binding<String>, prompt: String = "Search", status: WorkStatus = .idle,
+    hints: [PaletteHint] = PaletteHint.standard, maxHeight: CGFloat = 440, dismiss: (() -> Void)? = nil,
+    @ViewBuilder content: () -> Content
+  ) {
+    self.init(
+      query: query, prompt: prompt, status: status, hints: hints, maxHeight: maxHeight, dismiss: dismiss,
+      scope: { EmptyView() }, content: content)
+  }
+}
+
+extension EnvironmentValues {
+  @Entry var dataPaletteQuery: String = ""
+}
+
+/// A key hint in the palette's footer: keycaps and what they do.
+///
+/// ```swift
+/// PaletteHint(["⌘", "↩"], "Beside")
+/// ```
+public struct PaletteHint: Identifiable, Hashable, Sendable {
+  public var keys: [String]
+  public var label: String
+  public var id: String { label }
+
+  public init(_ keys: [String], _ label: String) {
+    self.keys = keys
+    self.label = label
+  }
+
+  /// ↑↓ Move, ↩ Open, esc Close.
+  public static let standard = [PaletteHint(["↑", "↓"], "Move"), PaletteHint(["↩"], "Open"), PaletteHint(["esc"], "Close")]
+}
+
+// MARK: - Groups
+
+/// A group of palette results as a card: a rich header (tile or live icon, the name, a meta line, an optional
+/// pop-up that covers the whole group, such as the scheme or host) over its items.
+///
+/// ```swift
+/// PaletteGroup("Running in atlas", meta: ["Build · 0:42"], systemImage: "bolt", status: .working) {
+///   PaletteItem("Build", systemImage: "hammer", status: .working, returnLabel: "Stop") { stop() }
+/// }
+/// ```
+public struct PaletteGroup<Accessory: View, Items: View>: View {
+  var title: String
+  var meta: [String]
+  var systemImage: String
+  var hue: Hue
+  var status: WorkStatus
+  var accessory: Accessory
+  var items: Items
+
+  public init(
+    _ title: String, meta: [String] = [], systemImage: String, hue: Hue = .accent, status: WorkStatus = .idle,
+    @ViewBuilder accessory: () -> Accessory, @ViewBuilder items: () -> Items
+  ) {
+    self.title = title
+    self.meta = meta
+    self.systemImage = systemImage
+    self.hue = hue
+    self.status = status
+    self.accessory = accessory()
+    self.items = items()
+  }
+
+  public var body: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      RichHeader(title, meta: meta, systemImage: systemImage, hue: hue, status: status) { accessory }
+      items
+    }
+    .kitCard()
+  }
+}
+
+extension PaletteGroup where Accessory == EmptyView {
+  public init(
+    _ title: String, meta: [String] = [], systemImage: String, hue: Hue = .accent, status: WorkStatus = .idle,
+    @ViewBuilder items: () -> Items
+  ) {
+    self.init(title, meta: meta, systemImage: systemImage, hue: hue, status: status, accessory: { EmptyView() },
+      items: items)
+  }
+}
+
+// MARK: - Items
+
+/// One result in a palette: a solid tile (or a live icon while it runs), the title with the query's match in bold,
+/// a mono detail (the command it runs, the folder), a note in orange ("Stops Build first"), the shortcut; the
+/// selected row is raised and shows ↩ (with `returnLabel`, what Return does).
+public struct PaletteItem: View {
+  var title: String
+  var id: String
+  var systemImage: String
+  var hue: Hue
+  var detail: String?
+  var note: String?
+  var shortcut: String?
+  var status: WorkStatus
+  var returnLabel: String?
+  var isEnabled: Bool
+  var action: () -> Void
+  @Environment(DataNavModel.self) private var nav: DataNavModel?
+  @Environment(\.dataPaletteQuery) private var query
+  @Environment(\.kitIdiom) private var idiom
+  @State private var isHovered = false
+
+  public init(
+    _ title: String, id: String? = nil, systemImage: String, hue: Hue = .accent, detail: String? = nil,
+    note: String? = nil, shortcut: String? = nil, status: WorkStatus = .idle, returnLabel: String? = nil,
+    isEnabled: Bool = true, action: @escaping () -> Void
+  ) {
+    self.title = title
+    self.id = id ?? title + (detail ?? "")
+    self.systemImage = systemImage
+    self.hue = hue
+    self.detail = detail
+    self.note = note
+    self.shortcut = shortcut
+    self.status = status
+    self.returnLabel = returnLabel
+    self.isEnabled = isEnabled
+    self.action = action
+  }
+
+  private var isSelected: Bool { nav?.selected == id }
+
+  public var body: some View {
+    HStack(spacing: 10) {
+      Group {
+        if status == .idle {
+          Tile(systemImage: systemImage, hue: hue, size: 20, style: .solid)
+        } else {
+          LiveIcon(systemImage: systemImage, hue: hue, status: status, size: 20)
+        }
+      }
+      .opacity(isEnabled ? 1 : 0.45)
+      Text(PaletteMatch.marked(title, query: query))
+        .foregroundStyle(isEnabled ? AnyShapeStyle(.kitLabel) : AnyShapeStyle(.kitTertiary))
+        .lineLimit(1)
+        .layoutPriority(1)
+      if let detail {
+        Text(detail)
+          .font(.system(size: 11, design: .monospaced))
+          .foregroundStyle(.kitSecondary)
+          .lineLimit(1)
+          .truncationMode(.middle)
+      }
+      Spacer(minLength: 6)
+      if let note {
+        Text(note).font(.system(size: 11, weight: .medium)).foregroundStyle(Hue.orange.text).lineLimit(1).fixedSize()
+      }
+      if let shortcut, !isSelected {
+        Text(shortcut).font(.system(size: 12)).foregroundStyle(.kitQuiet).fixedSize()
+      }
+      if isSelected {
+        HStack(spacing: 5) {
+          Keycap("↩")
+          if let returnLabel { Text(returnLabel).font(.system(size: 11)).foregroundStyle(.kitSecondary) }
+        }
+        .transition(.opacity)
+      } else if let returnLabel, status.isWorking {
+        Text(returnLabel).font(.system(size: 11)).foregroundStyle(.kitSecondary)
+      }
+    }
+    .padding(.horizontal, 8)
+    .frame(minHeight: idiom.isTouch ? 44 : 36)
+    .background {
+      if isSelected {
+        SurfaceShape(surface: .raised, cornerRadius: KitMetrics.radius)
+      } else if isHovered {
+        RoundedRectangle(cornerRadius: KitMetrics.radius, style: .continuous).fill(.kitHover)
+      }
+    }
+    .contentShape(Rectangle())
+    .onHover { isHovered = $0 }
+    .onTapGesture { if isEnabled { nav?.activate(id) ?? action() } }
+    .dataNavItem(id, model: nav, action: isEnabled ? action : nil)
+    .id(id)
+    .animation(.kitFast, value: isSelected)
+    .accessibilityElement(children: .combine)
+    .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+  }
+}
+
+enum PaletteMatch {
+  /// The title with the first case-insensitive occurrence of `query` in semibold.
+  static func marked(_ title: String, query: String) -> AttributedString {
+    var text = AttributedString(title)
+    let needle = query.trimmingCharacters(in: .whitespaces)
+    guard !needle.isEmpty, let range = text.range(of: needle, options: .caseInsensitive) else { return text }
+    text[range].inlinePresentationIntent = .stronglyEmphasized
+    return text
+  }
+}
+
+// MARK: - Pop-up
+
+/// The palette's pop-ups: the scope at the start of the search line ("atlas"), and the scheme or host in a group's
+/// header ("Atlas"). A raised pill with a glyph, the title and a chevron; its content is the menu.
+///
+/// ```swift
+/// PaletteMenu("atlas-web-1", systemImage: "globe") { ForEach(hosts) { host in Button(host.name) { pick(host) } } }
+/// ```
+public struct PaletteMenu<Content: View>: View {
+  var title: String
+  var systemImage: String?
+  var content: Content
+
+  public init(_ title: String, systemImage: String? = nil, @ViewBuilder content: () -> Content) {
+    self.title = title
+    self.systemImage = systemImage
+    self.content = content()
+  }
+
+  public var body: some View {
+    Menu {
+      content
+    } label: {
+      HStack(spacing: 5) {
+        if let systemImage { Image(systemName: systemImage).font(.system(size: 10, weight: .semibold)) }
+        Text(title).font(.system(size: 12, weight: .medium)).lineLimit(1)
+        Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).foregroundStyle(.kitSecondary)
+      }
+      .foregroundStyle(.kitLabel)
+      .padding(.horizontal, 8)
+      .frame(height: 26)
+      .background { SurfaceShape(surface: .raised, cornerRadius: KitMetrics.radiusSmall) }
+      .contentShape(Rectangle())
+    }
+    .menuStyle(.button)
+    .buttonStyle(.plain)
+    .menuIndicator(.hidden)
+    .fixedSize()
+    .accessibilityLabel(title)
+  }
+}
+
+#Preview("Palette") {
+  @Previewable @State var query = "build"
+  KitPalette(query: $query, prompt: "Run an action or search", status: .done) {
+    PaletteMenu("atlas", systemImage: "folder") { Button("atlas") {} }
+  } content: {
+    PaletteGroup("Running in atlas", meta: ["Build · 0:42"], systemImage: "bolt", status: .working) {
+      PaletteItem(
+        "Build", systemImage: "hammer", hue: .orange, detail: "Atlas · Building … · 0:42", status: .working,
+        returnLabel: "Stop") {}
+    }
+    PaletteGroup("Atlas", meta: ["Xcode", "Atlas.xcodeproj"], systemImage: "hammer") {
+      PaletteMenu("Atlas", systemImage: "hammer") { Button("Atlas") {} }
+    } items: {
+      PaletteItem("Run", systemImage: "play.fill", hue: .green, detail: "xcodebuild -scheme Atlas build", shortcut: "⌘R") {}
+      PaletteItem("Build", systemImage: "hammer", hue: .orange, detail: "xcodebuild -scheme Atlas build", shortcut: "⌘B") {}
+      PaletteItem("Test", systemImage: "testtube.2", hue: .purple, note: "Stops Build first") {}
+    }
+  }
+  .frame(width: 560)
+  .padding(30)
+  .componentKit()
+}
