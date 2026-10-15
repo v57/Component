@@ -1,5 +1,17 @@
 import SwiftUI
 
+/// Header sizes: a section's 24pt tile, the toolbar's or inspector's 28pt tile, a sheet's 30pt one.
+public enum RichHeaderSize: Hashable, Sendable {
+  case section, title, sheet
+
+  func tile(_ idiom: KitIdiom) -> CGFloat {
+    switch self {
+    case .section: idiom == .phone ? 32 : idiom == .pad ? 30 : 24
+    case .title: 28
+    case .sheet: 30
+    }
+  }
+}
 /// The kit's header for anything that groups: an icon tile (a live icon when work runs), the name, one line of
 /// meta (counts, status, progress) and trailing actions. Sidebar sections, list groups, inspector sections, the
 /// toolbar's title and sheets all use it.
@@ -17,18 +29,7 @@ public struct RichHeader<Icon: View, Meta: View, Accessory: View>: View {
   @ViewBuilder var accessory: Accessory
   @Environment(\.kitIdiom) private var idiom
 
-  /// Header sizes: a section's 24pt tile, the toolbar's or inspector's 28pt tile, a sheet's 30pt one.
-  public enum Size: Hashable, Sendable {
-    case section, title, sheet
-
-    var tile: CGFloat {
-      switch self {
-      case .section: 24
-      case .title: 28
-      case .sheet: 30
-      }
-    }
-  }
+  public typealias Size = RichHeaderSize
 
   public init(
     _ title: Text, size: Size = .section, @ViewBuilder icon: () -> Icon, @ViewBuilder meta: () -> Meta,
@@ -63,19 +64,19 @@ public struct RichHeader<Icon: View, Meta: View, Accessory: View>: View {
   }
 }
 
-extension RichHeader where Icon == LiveIcon<Image> {
+extension RichHeader where Icon == SizedLiveIcon {
   /// A header with an SF Symbol tile that carries `status`.
   public init(
     _ title: some StringProtocol, size: Size = .section, systemImage: String, hue: Hue = .accent,
     status: WorkStatus = .idle, @ViewBuilder meta: () -> Meta, @ViewBuilder accessory: () -> Accessory
   ) {
     self.init(
-      Text(title), size: size, icon: { LiveIcon(systemImage: systemImage, hue: hue, status: status, size: size.tile) },
+      Text(title), size: size, icon: { SizedLiveIcon(systemImage: systemImage, hue: hue, status: status, size: size) },
       meta: meta, accessory: accessory)
   }
 }
 
-extension RichHeader where Icon == LiveIcon<Image>, Meta == MetaLine {
+extension RichHeader where Icon == SizedLiveIcon, Meta == MetaLine {
   /// A header whose meta is a line of parts joined with " · ": `meta: ["5 repositories", "2 with changes"]`.
   public init(
     _ title: some StringProtocol, meta: [String] = [], size: Size = .section, systemImage: String,
@@ -93,7 +94,7 @@ extension RichHeader where Icon == LiveIcon<Image>, Meta == MetaLine {
   }
 }
 
-extension RichHeader where Icon == LiveIcon<Image>, Meta == MetaLine, Accessory == EmptyView {
+extension RichHeader where Icon == SizedLiveIcon, Meta == MetaLine, Accessory == EmptyView {
   public init(
     _ title: some StringProtocol, meta: [String] = [], size: Size = .section, systemImage: String,
     hue: Hue = .accent, status: WorkStatus = .idle
@@ -120,5 +121,18 @@ public struct MetaLine: View {
     parts.enumerated().reduce(Text("")) { text, item in
       item.offset == 0 ? text + Text(item.element) : text + Text("  ·  ").foregroundStyle(.kitTertiary) + Text(item.element)
     }
+  }
+}
+
+/// A header's live icon, sized for the idiom it's drawn in.
+public struct SizedLiveIcon: View {
+  var systemImage: String
+  var hue: Hue
+  var status: WorkStatus
+  var size: RichHeaderSize
+  @Environment(\.kitIdiom) private var idiom
+
+  public var body: some View {
+    LiveIcon(systemImage: systemImage, hue: hue, status: status, size: size.tile(idiom))
   }
 }
