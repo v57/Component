@@ -35,6 +35,8 @@ final class CatalogModel {
   var idiom: KitIdiom?
   var increaseContrast = false
   var inactiveWindow = false
+  /// The kit's toolbar as a `safeAreaBar` instead of a plain inset (`--toolbar-bar`).
+  var toolbarBar = false
   /// The section a page opens scrolled to (`--section <title>`).
   var section: String?
   /// A fixed window width (`--width <points>`), to capture the toolbar as it compacts.
@@ -50,7 +52,7 @@ final class CatalogModel {
 
   #if DEBUG
     /// `--page <id>`, `--section <title>`, `--dark`, `--light`, `--idiom mac|pad|phone`, `--accent <id>`, `--contrast`, `--inactive`,
-    /// `--width <points>`, `--no-sidebar`: opens any page in any state without clicking (for window captures).
+    /// `--toolbar-bar`, `--width <points>`, `--no-sidebar`: opens any page in any state without clicking (for window captures).
     func applyLaunchArguments(_ arguments: [String]) {
       func value(after flag: String) -> String? {
         guard let index = arguments.firstIndex(of: flag), index + 1 < arguments.count else { return nil }
@@ -68,6 +70,7 @@ final class CatalogModel {
       if let id = value(after: "--accent"), let accent = Accent(rawValue: id) { self.accent = accent }
       if arguments.contains("--contrast") { increaseContrast = true }
       if arguments.contains("--inactive") { inactiveWindow = true }
+      if arguments.contains("--toolbar-bar") { toolbarBar = true }
       section = value(after: "--section")
       windowWidth = value(after: "--width").flatMap(Double.init).map { CGFloat($0) }
       hidesSidebar = arguments.contains("--no-sidebar")
