@@ -2,11 +2,11 @@ import SwiftUI
 
 // Pop-ups: `KitPicker` (the forms' select, a filled field naming the value with the up-down chevrons) and
 // `KitMenuButton` (a raised pill with a chevron that opens any menu: Find options, a scheme, a host). Both open the
-// system menu, so keyboard, VoiceOver and the menu itself stay the platform's.
+// kit's menu (`Menu.swift`), so the menu looks the same on every platform.
 
 /// The kit's pop-up picker (the select): the picked value's title on the field well, 30pt (36 on iPad, 44 on
-/// iPhone), 9pt corners, the up-down chevrons at the end; it opens the system menu of options, the picked one
-/// checked. For settings and forms: `FormRow("Theme") { KitPicker(selection: $theme) }`.
+/// iPhone), 9pt corners, the up-down chevrons at the end; it opens the kit's menu of options under it, at least as
+/// wide, the picked one checked. For settings and forms: `FormRow("Theme") { KitPicker(selection: $theme) }`.
 ///
 /// ```swift
 /// KitPicker("Theme", selection: $theme)                                         // a KitOption & CaseIterable enum
@@ -23,6 +23,7 @@ public struct KitPicker<Value: Hashable>: View {
   @Environment(\.isEnabled) private var isEnabled
   @FocusState private var isFocused: Bool
   @State private var isHovered = false
+  @State private var isOpen = false
 
   /// A picker over `segments` (titles, values, optional glyphs; disabled ones can't be picked).
   public init(_ title: String = "", selection: Binding<Value>, segments: [KitSegment<Value>]) {
@@ -41,22 +42,8 @@ public struct KitPicker<Value: Hashable>: View {
   public var body: some View {
     let metrics = KitPickerMetrics(idiom)
     let shape = RoundedRectangle(cornerRadius: metrics.radius, style: .continuous)
-    Menu {
-      Picker(title, selection: $selection) {
-        ForEach(segments) { segment in
-          Group {
-            if let systemImage = segment.systemImage {
-              Label(segment.title, systemImage: systemImage)
-            } else {
-              Text(segment.title)
-            }
-          }
-          .tag(segment.value)
-          .disabled(!segment.isEnabled)
-        }
-      }
-      .pickerStyle(.inline)
-      .labelsHidden()
+    Button {
+      isOpen.toggle()
     } label: {
       HStack(spacing: 6) {
         if let systemImage = current?.systemImage {
@@ -78,14 +65,15 @@ public struct KitPicker<Value: Hashable>: View {
       .frame(minWidth: metrics.minWidth, minHeight: metrics.height)
       .background {
         shape.fill(.kitField)
-        if isHovered && isEnabled { shape.fill(.kitHover) }
+        if (isHovered || isOpen) && isEnabled { shape.fill(.kitHover) }
       }
       .contentShape(shape)
     }
-    .menuStyle(.button)
     .buttonStyle(.plain)
-    .menuIndicator(.hidden)
     .fixedSize(horizontal: true, vertical: false)
+    .kitMenu(isPresented: $isOpen, matchesWidth: true) {
+      KitMenuOptions(selection: $selection, segments: segments)
+    }
     .opacity(isEnabled ? 1 : 0.45)
     .focused($isFocused)
     .focusEffectDisabled()
@@ -132,8 +120,9 @@ struct KitPickerMetrics {
 
 // MARK: - Menu button
 
-/// A pop-up button: a raised pill with an optional glyph, the title and a chevron; its content is the menu (Find
-/// options, the scheme, a host, "Sort by"). 26pt on the Mac (`.controlSize(.small)` 22), 32 on touch.
+/// A pop-up button: a raised pill with an optional glyph, the title and a chevron; its content is the kit's menu
+/// under it (Find options, the scheme, a host, "Sort by"): `Button`, `Toggle`, `Divider`, `KitMenuOptions`,
+/// `KitSubmenu`. 26pt on the Mac (`.controlSize(.small)` 22), 32 on touch.
 ///
 /// ```swift
 /// KitMenuButton("Options", systemImage: "slider.horizontal.3") {
@@ -141,6 +130,7 @@ struct KitPickerMetrics {
 ///   Toggle("Whole Words", isOn: $wholeWords)
 /// }
 /// KitMenuButton(scheme.name, systemImage: "hammer") { ForEach(schemes) { s in Button(s.name) { pick(s) } } }
+/// KitMenuButton("Match") { KitMenuOptions(selection: $match, options: [("Contains", .contains), ("Exact", .exact)]) }
 /// ```
 public struct KitMenuButton<Content: View>: View {
   var title: String
@@ -150,6 +140,7 @@ public struct KitMenuButton<Content: View>: View {
   @Environment(\.controlSize) private var controlSize
   @Environment(\.isEnabled) private var isEnabled
   @State private var isHovered = false
+  @State private var isOpen = false
 
   public init(_ title: String, systemImage: String? = nil, @ViewBuilder content: () -> Content) {
     self.title = title
@@ -160,8 +151,8 @@ public struct KitMenuButton<Content: View>: View {
   public var body: some View {
     let small = controlSize == .small || controlSize == .mini
     let height: CGFloat = idiom.isTouch ? (small ? 28 : 32) : (small ? 22 : 26)
-    Menu {
-      content
+    Button {
+      isOpen.toggle()
     } label: {
       HStack(spacing: 5) {
         if let systemImage {
@@ -181,15 +172,14 @@ public struct KitMenuButton<Content: View>: View {
         CtlRaisedCard(cornerRadius: height * 0.3)
           .overlay {
             RoundedRectangle(cornerRadius: height * 0.3, style: .continuous)
-              .fill(Color.primary.opacity(isHovered && isEnabled ? 0.04 : 0))
+              .fill(Color.primary.opacity((isHovered || isOpen) && isEnabled ? 0.04 : 0))
           }
       }
       .contentShape(Rectangle())
     }
-    .menuStyle(.button)
     .buttonStyle(.plain)
-    .menuIndicator(.hidden)
     .fixedSize()
+    .kitMenu(isPresented: $isOpen) { content }
     .opacity(isEnabled ? 1 : 0.45)
     .onHover { isHovered = $0 }
     .animation(.kitFast, value: isHovered)

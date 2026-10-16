@@ -19,6 +19,7 @@ struct PageContent: View {
     case .buttons: ButtonsPage()
     case .toggles: TogglesPage()
     case .segmented: SegmentedPage()
+    case .menus: MenusPage()
     case .tabs: TabsPage()
     case .fields: FieldsPage()
     case .search: SearchPage()

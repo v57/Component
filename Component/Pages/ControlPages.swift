@@ -219,9 +219,6 @@ struct SegmentedPage: View {
   @State private var layout = "Unified"
   @State private var refs = "Local"
   @State private var tab = "Results"
-  @State private var indent = 4
-  @State private var matchCase = true
-  @State private var wholeWords = false
 
   var body: some View {
     CatalogPage(page: .segmented) {
@@ -270,10 +267,94 @@ struct SegmentedPage: View {
           KitSegmented(selection: $mode).disabled(true)
         }
       }
-      SpecimenSection("Pop-ups", note: "When the options don't fit on a track: the select on the field well, and a raised menu button for options.") {
+    }
+  }
+}
+
+// MARK: - Menus
+
+struct MenusPage: View {
+  @State private var mode = DiffMode.changes
+  @State private var indent = 4
+  @State private var matchCase = true
+  @State private var wholeWords = false
+  @State private var sort = "Name"
+  @State private var foldersFirst = true
+  @State private var showsMore = ProcessInfo.processInfo.arguments.contains("--open-menu")
+  @State private var showsRowMenu = false
+
+  var body: some View {
+    CatalogPage(page: .menus) {
+      SpecimenSection(
+        "Menu",
+        note: "The kit draws its menus: a floating card, 26pt rows (44 on touch) with an icon column, the title and a "
+          + "hint; the highlighted row is the accent. Inside, Button, Toggle and Divider become rows."
+      ) {
+        SpecimenGrid(minWidth: 280) {
+          Specimen(
+            "Actions", note: "Icons, hints, a destructive row",
+            code: "Button(\"Rename…\", systemImage: \"pencil\") { … }.kitMenuHint(\"↩\")\nDivider()\nButton(\"Delete\", systemImage: \"trash\", role: .destructive) { … }"
+          ) {
+            KitMenu {
+              Button("New Tab", systemImage: "plus.square.on.square") {}.kitMenuHint("⌘T")
+              Button("Rename…", systemImage: "pencil") {}.kitMenuHint("↩").kitMenuHighlighted()
+              Button("Duplicate", systemImage: "plus.square.on.square") {}.kitMenuHint("⌘D")
+              Button("Paste", systemImage: "doc.on.clipboard") {}.kitMenuHint("⌘V").disabled(true)
+              Divider()
+              Button("Delete", systemImage: "trash", role: .destructive) {}.kitMenuHint("⌫")
+            }
+          }
+          Specimen(
+            "Checks", note: "Toggles and one-of-many options",
+            code: "KitMenuOptions(selection: $sort, options: [(\"Name\", \"Name\"), …])\nDivider()\nToggle(\"Folders First\", isOn: $foldersFirst)"
+          ) {
+            KitMenu {
+              KitMenuOptions(selection: $sort, options: [("Name", "Name"), ("Date Modified", "Date"), ("Size", "Size")])
+              Divider()
+              Toggle("Folders First", isOn: $foldersFirst)
+              Toggle("Match Case", isOn: $matchCase).kitMenuHighlighted()
+            }
+          }
+          Specimen(
+            "Submenu", note: "Opens beside its row on hover, a click or →",
+            code: "KitSubmenu(\"Open With\", systemImage: \"arrow.up.forward.app\") {\n  Button(\"Code\") { … }\n}"
+          ) {
+            KitMenu {
+              Button("Open", systemImage: "arrow.up.right.square") {}.kitMenuHint("⌘O")
+              KitSubmenu("Open With", systemImage: "arrow.up.forward.app") {
+                Button("Code", systemImage: "chevron.left.forwardslash.chevron.right") {}
+                Button("Markdown", systemImage: "doc.richtext") {}
+                Button("Shell", systemImage: "terminal") {}
+              }
+              KitSubmenu("Sort by", systemImage: "arrow.up.arrow.down") {
+                KitMenuOptions(selection: $sort, options: [("Name", "Name"), ("Date Modified", "Date"), ("Size", "Size")])
+              }
+              Divider()
+              Button("Show in Finder", systemImage: "folder") {}
+            }
+          }
+          Specimen(
+            "Footer", note: "What the menu acts on (Shell's drop menu)",
+            code: "Divider()\nKitMenuFooter(\"harbor.png\", subtitle: \"Dropped on prod-db\", systemImage: \"doc\")"
+          ) {
+            KitMenu(minWidth: 244) {
+              Button("Copy Here", systemImage: "doc.on.doc") {}.kitMenuHint("↩").kitMenuHighlighted()
+              Button("Upload", systemImage: "arrow.up.doc") {}.kitMenuHint("2")
+              Button("Insert Path", systemImage: "character.cursor.ibeam") {}.kitMenuHint("3")
+              Divider()
+              KitMenuFooter("harbor.png", subtitle: "Dropped on prod-db", systemImage: "doc")
+            }
+          }
+        }
+      }
+      SpecimenSection(
+        "Pop-ups",
+        note: "When the options don't fit on a track: the select on the field well, and a raised menu button. Both "
+          + "open the kit's menu under them."
+      ) {
         SpecimenGrid(minWidth: 320) {
           Specimen(
-            "KitPicker",
+            "KitPicker", note: "The menu is at least as wide as the field",
             code: "KitPicker(\"Mode\", selection: $mode)   // a KitOption & CaseIterable enum\nKitPicker(\"Indent\", selection: $indent, options: [(\"2 spaces\", 2), (\"4 spaces\", 4), (\"Tabs\", 0)])\nFormRow(\"Indent\") { KitPicker(…) }"
           ) {
             VStack(alignment: .leading, spacing: 12) {
@@ -290,16 +371,63 @@ struct SegmentedPage: View {
             }
           }
           Specimen(
-            "KitMenuButton",
-            code: "KitMenuButton(\"Options\", systemImage: \"slider.horizontal.3\") {\n  Toggle(\"Match Case\", isOn: $matchCase)\n}\nKitMenuButton(\"Atlas\", systemImage: \"hammer\") { … }.controlSize(.small)"
+            "KitMenuButton", note: "Any rows: toggles, options, submenus",
+            code: "KitMenuButton(\"Options\", systemImage: \"slider.horizontal.3\") {\n  Toggle(\"Match Case\", isOn: $matchCase)\n}\nKitMenuButton(\"Sort\") { KitMenuOptions(selection: $sort, options: …) }.controlSize(.small)"
           ) {
             HStack(spacing: 10) {
               KitMenuButton("Options", systemImage: "slider.horizontal.3") {
                 Toggle("Match Case", isOn: $matchCase)
                 Toggle("Whole Words", isOn: $wholeWords)
               }
-              KitMenuButton("Atlas", systemImage: "hammer") { Button("Atlas") {}; Button("AtlasKit") {} }
-              KitMenuButton("Sort", systemImage: "arrow.up.arrow.down") { Button("Name") {} }.controlSize(.small)
+              KitMenuButton("Atlas", systemImage: "hammer") {
+                Button("Atlas", systemImage: "app") {}
+                Button("AtlasKit", systemImage: "shippingbox") {}
+                Divider()
+                KitSubmenu("Destination", systemImage: "desktopcomputer") {
+                  Button("My Mac") {}
+                  Button("iPhone 17") {}
+                }
+              }
+              KitMenuButton(sort, systemImage: "arrow.up.arrow.down") {
+                KitMenuOptions(selection: $sort, options: [("Name", "Name"), ("Date Modified", "Date"), ("Size", "Size")])
+                Divider()
+                Toggle("Folders First", isOn: $foldersFirst)
+              }
+              .controlSize(.small)
+            }
+          }
+        }
+      }
+      SpecimenSection("Anywhere", note: ".kitMenu(isPresented:) opens the menu under any view.") {
+        SpecimenGrid(minWidth: 320) {
+          Specimen(
+            "On a button",
+            code: "Button(\"More\", systemImage: \"ellipsis\") { showsMenu = true }\n  .kitMenu(isPresented: $showsMenu) { … }"
+          ) {
+            Button("More", systemImage: "ellipsis") { showsMore = true }
+              .buttonStyle(.kitIcon)
+              .kitMenu(isPresented: $showsMore) {
+                Button("Share…", systemImage: "square.and.arrow.up") {}
+                Button("Copy Link", systemImage: "link") {}.kitMenuHint("⌥⌘C")
+                Divider()
+                Button("Move to Trash", systemImage: "trash", role: .destructive) {}
+              }
+          }
+          Specimen("On a row", code: "row.onTapGesture { showsMenu = true }.kitMenu(isPresented: $showsMenu) { … }") {
+            HStack {
+              Label("TripStore.swift", systemImage: "swift")
+              Spacer()
+              Image(systemName: "chevron.down").foregroundStyle(.kitSecondary)
+            }
+            .padding(.horizontal, 12)
+            .frame(width: 240, height: 34)
+            .kitSurface(.card)
+            .contentShape(Rectangle())
+            .onTapGesture { showsRowMenu = true }
+            .kitMenu(isPresented: $showsRowMenu, matchesWidth: true) {
+              Button("Open", systemImage: "arrow.up.right.square") {}
+              Button("Reveal in Sidebar", systemImage: "sidebar.left") {}
+              Button("Copy Path", systemImage: "doc.on.doc") {}
             }
           }
         }

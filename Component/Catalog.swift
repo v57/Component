@@ -52,7 +52,7 @@ enum Area: String, CaseIterable, Identifiable {
 enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
   case colours, hues, type, surfaces, motion, metrics
   case liveIcon = "live-icon", workStatus = "work-status", effects
-  case buttons, toggles, segmented, tabs, fields, search, stepper, keycaps, choiceCards = "choice-cards"
+  case buttons, toggles, segmented, menus, tabs, fields, search, stepper, keycaps, choiceCards = "choice-cards"
   case counts, chips, refs, lineCounts = "line-counts", avatars
   case sections, sidebar, toolbar, window, inspector, forms, sheets, feedback, tooltips, dragDrop = "drag-drop"
   case grid, changes, diffs, runBlocks = "run-blocks", palette, welcome, settings, meters
@@ -65,7 +65,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     switch self {
     case .colours, .hues, .type, .surfaces, .motion, .metrics: .foundations
     case .liveIcon, .workStatus, .effects: .status
-    case .buttons, .toggles, .segmented, .tabs, .fields, .search, .stepper, .keycaps, .choiceCards: .controls
+    case .buttons, .toggles, .segmented, .menus, .tabs, .fields, .search, .stepper, .keycaps, .choiceCards: .controls
     case .counts, .chips, .refs, .lineCounts, .avatars: .badges
     case .sections, .sidebar, .toolbar, .window, .inspector, .forms, .sheets, .feedback, .tooltips, .dragDrop:
       .containers
@@ -88,6 +88,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     case .buttons: "Buttons"
     case .toggles: "Toggles & Chips"
     case .segmented: "Segmented"
+    case .menus: "Menus & Pop-ups"
     case .tabs: "Tabs & Path Bar"
     case .fields: "Text Fields"
     case .search: "Search"
@@ -140,6 +141,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     case .buttons: "button.horizontal"
     case .toggles: "switch.2"
     case .segmented: "rectangle.split.3x1"
+    case .menus: "filemenu.and.selection"
     case .tabs: "menubar.rectangle"
     case .fields: "character.cursor.ibeam"
     case .search: "magnifyingglass"
@@ -192,7 +194,8 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     case .effects: "Feedback, flourishes, light and moves"
     case .buttons: "Secondary, primary, plain, icon; sizes, roles, disabled"
     case .toggles: "Switch, checkbox, chip and the chip track"
-    case .segmented: "Field track, wide and pop-ups"
+    case .segmented: "Field track and wide"
+    case .menus: "The kit's menu, pickers and menu buttons"
     case .tabs: "Editor tabs and breadcrumbs"
     case .fields: "Filled fields with a ring, an error and a live icon"
     case .search: "Search with a scope, a count and its live icon"
