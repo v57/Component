@@ -66,6 +66,23 @@ struct ButtonsPage: View {
           }
         }
       }
+      SpecimenSection("Round", note: "A button on its own in a toolbar, on the tool groups' card ground and height.") {
+        Specimen(
+          "kitRound",
+          code: "Button(\"Move to Trash\", systemImage: \"trash\", role: .destructive) { … }.buttonStyle(.kitRound)\nButton(\"Close\", systemImage: \"xmark\") { … }.buttonStyle(.kitRound).controlSize(.small)"
+        ) {
+          HStack(spacing: 12) {
+            Button("Move to Trash", systemImage: "trash", role: .destructive) {}.buttonStyle(.kitRound)
+            Button("Share", systemImage: "square.and.arrow.up") {}.buttonStyle(.kitRound)
+            Button("Close", systemImage: "xmark") {}.buttonStyle(.kitRound).controlSize(.small)
+            Button("Add", systemImage: "plus") {}.buttonStyle(.kitRound).disabled(true)
+            ToolGroup {
+              Button("Play", systemImage: "play.fill") {}
+              Button("Next", systemImage: "forward.fill") {}
+            }
+          }
+        }
+      }
       SpecimenSection("Grounds and long text") {
         SpecimenGrid(minWidth: 300) {
           ForEach([StageGround.window, .panel, .sidebar], id: \.self) { ground in

@@ -135,3 +135,69 @@ struct KitButtonLabelStyle: LabelStyle {
     }
   }
 }
+
+// MARK: - Round
+
+/// A round button on its own, on the card ground of the toolbar's tool groups (32pt, 44 on touch, the same height):
+/// Trash in a player's toolbar, a close button, a share button. Shows the icon alone (the title stays for
+/// accessibility and the tooltip); `role: .destructive` turns it red. `.controlSize(.small)` is 28pt.
+///
+/// ```swift
+/// Button("Move to Trash", systemImage: "trash", role: .destructive) { … }.buttonStyle(.kitRound)
+/// ```
+public struct KitRoundButtonStyle: ButtonStyle {
+  public init() {}
+
+  public func makeBody(configuration: Configuration) -> some View {
+    KitRoundButton(configuration: configuration)
+  }
+}
+
+extension ButtonStyle where Self == KitRoundButtonStyle {
+  public static var kitRound: KitRoundButtonStyle { KitRoundButtonStyle() }
+}
+
+struct KitRoundButton: View {
+  let configuration: ButtonStyleConfiguration
+  @Environment(\.isEnabled) private var isEnabled
+  @Environment(\.controlSize) private var controlSize
+  @Environment(\.kitIdiom) private var idiom
+  @State private var isHovered = false
+
+  var body: some View {
+    let size = KitRoundButton.size(idiom: idiom, small: controlSize == .small || controlSize == .mini)
+    configuration.label
+      .labelStyle(.iconOnly)
+      .font(.system(size: size * 0.42, weight: .medium))
+      .foregroundStyle(
+        configuration.role == .destructive ? AnyShapeStyle(Hue.red.text)
+          : isEnabled ? AnyShapeStyle(.kitLabel) : AnyShapeStyle(.kitTertiary))
+      .frame(width: size, height: size)
+      .background { SurfaceShape(surface: .card, cornerRadius: size / 2) }
+      .overlay {
+        Circle().fill(Color.primary.opacity(configuration.isPressed ? 0.1 : isHovered && isEnabled ? 0.04 : 0))
+      }
+      .contentShape(Circle())
+      .scaleEffect(configuration.isPressed ? 0.97 : 1)
+      .onHover { isHovered = $0 }
+      .animation(.kitFast, value: isHovered)
+      .animation(.kitFast, value: configuration.isPressed)
+  }
+
+  /// 32pt (28 small) on the Mac, 44 (36 small) on touch.
+  static func size(idiom: KitIdiom, small: Bool) -> CGFloat {
+    idiom.isTouch ? (small ? 36 : 44) : (small ? 28 : 32)
+  }
+}
+
+#Preview("Round") {
+  HStack(spacing: 12) {
+    Button("Move to Trash", systemImage: "trash", role: .destructive) {}.buttonStyle(.kitRound)
+    Button("Share", systemImage: "square.and.arrow.up") {}.buttonStyle(.kitRound)
+    Button("Close", systemImage: "xmark") {}.buttonStyle(.kitRound).controlSize(.small)
+    Button("Add", systemImage: "plus") {}.buttonStyle(.kitRound).disabled(true)
+  }
+  .padding(20)
+  .background(.kitWindow)
+  .componentKit()
+}
