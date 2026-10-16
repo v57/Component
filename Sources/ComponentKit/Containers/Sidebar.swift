@@ -146,7 +146,7 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   public var body: some View {
     let selection = getSelection()
     let inset = ContMetrics.sidebarInset(idiom)
-    // The rows run on under the title bar and the bottom bar (safe area, not padding), so the system's scroll edge
+    // The rows run on under the title bar and the bottom bar (both safe area), so the system's scroll edge
     // blurs them there; the bar's cards carry their own shadows over the rows, and a fade of the sidebar's ground
     // softens both edges.
     ScrollView {
@@ -154,9 +154,10 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
         content
       }
       .padding(.horizontal, inset)
+      // The ends' gaps are padding, not safe area: a `safeAreaBar`'s band covers the whole safe area at its edge.
+      .padding(.top, 2)
+      .padding(.bottom, inset)
     }
-    .safeAreaPadding(.top, 2)
-    .safeAreaPadding(.bottom, inset)
     .focusable()
     .focusEffectDisabled()
     .focused($focused)
@@ -481,7 +482,9 @@ struct ContSidebarBar<Actions: View>: View {
         }
       }
     }
-    .padding(.top, idiom == .phone ? 10 : idiom == .pad ? 8 : 6)
+    // On the Mac the card sits 10pt from the bar's top and the window's bottom, as from the sidebar's edge (52pt, the
+    // title bar's height).
+    .padding(.top, idiom == .phone ? 10 : idiom == .pad ? 8 : 10)
     .padding(.horizontal, idiom == .phone ? 20 : idiom == .pad ? 12 : 10)
     .padding(.bottom, idiom == .phone ? 10 : idiom == .pad ? 14 : 10)
   }

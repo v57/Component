@@ -248,6 +248,7 @@ struct CatalogView: View {
       CatalogSidebar(search: $search, columns: platformIdiom.isTouch ? $columns : nil)
         .toolbar(removing: .sidebarToggle)
         .navigationSplitViewColumnWidth(min: 250, ideal: 270, max: 340)
+        .defaultScrollAnchor(model.sidebarMiddle ? .center : nil)
     } detail: {
       PageContent(page: model.page)
         .id(model.page)

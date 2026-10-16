@@ -155,22 +155,32 @@ private struct ContEdgeBar<Bar: View>: ViewModifier {
 
   func body(content: Content) -> some View {
     if #available(macOS 26.0, iOS 26.0, *) {
+      // macOS draws a bottom `safeAreaBar`'s edge hard, with a separator, whatever its style; there the kit keeps the
+      // inset and draws the soft blur itself, as the title bar's.
+      let drawsOwnEdge = ContPlatform.isMac && edge == .bottom
+      let systemBar = mode == .bar && !drawsOwnEdge
       content
         .safeAreaInset(edge: edge, spacing: 0) {
-          if mode == .inset { bar }
+          if !systemBar {
+            bar.background {
+              if mode == .bar { ContSoftBlur(edge: edge) }
+            }
+          }
         }
         .safeAreaBar(edge: edge, spacing: 0) {
-          if mode == .bar { bar }
+          if systemBar { bar }
         }
-        .modifier(ContEdgeEffect(edge: edge))
+        .modifier(ContEdgeEffect(edge: edge, isHidden: !systemBar))
     } else {
       content.safeAreaInset(edge: edge, spacing: 0) { bar }
     }
   }
 }
 
+/// The system's scroll edge at `edge`: soft, or off.
 private struct ContEdgeEffect: ViewModifier {
   let edge: VerticalEdge
+  var isHidden: Bool? = nil
   @Environment(\.contBarMode) private var mode
 
   func body(content: Content) -> some View {
@@ -178,10 +188,28 @@ private struct ContEdgeEffect: ViewModifier {
       let edges: Edge.Set = edge == .top ? .top : .bottom
       content
         .scrollEdgeEffectStyle(.soft, for: edges)
-        .scrollEdgeEffectHidden(mode == .inset, for: edges)
+        .scrollEdgeEffectHidden(isHidden ?? (mode == .inset), for: edges)
     } else {
       content
     }
+  }
+}
+
+/// A soft scroll edge the kit draws: a blur that is full at the window's edge and gone at the bar's inner edge, no
+/// separator.
+struct ContSoftBlur: View {
+  var edge: VerticalEdge
+
+  var body: some View {
+    Rectangle()
+      .fill(.ultraThinMaterial)
+      .mask {
+        LinearGradient(
+          colors: [.black, .clear], startPoint: edge == .top ? .top : .bottom, endPoint: edge == .top ? .bottom : .top)
+      }
+      .ignoresSafeArea(.container, edges: edge == .top ? .top : .bottom)
+      .allowsHitTesting(false)
+      .accessibilityHidden(true)
   }
 }
 
@@ -490,6 +518,15 @@ enum ContPlatform {
       UIPasteboard.general.hasStrings ? UIPasteboard.general.string : nil
     #else
       nil
+    #endif
+  }
+
+  /// Whether this runs on the Mac (not the idiom a view is drawn for).
+  static var isMac: Bool {
+    #if os(macOS)
+      true
+    #else
+      false
     #endif
   }
 
