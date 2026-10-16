@@ -216,6 +216,9 @@ struct SegmentedPage: View {
   @State private var refs = "Local"
   @State private var page = 0
   @State private var tab = "Results"
+  @State private var indent = 4
+  @State private var matchCase = true
+  @State private var wholeWords = false
 
   var body: some View {
     CatalogPage(page: .segmented) {
@@ -274,6 +277,40 @@ struct SegmentedPage: View {
             ]
           )
           .kitSegmentedStyle(.capsule)
+        }
+      }
+      SpecimenSection("Pop-ups", note: "When the options don't fit on a track: the select on the field well, and a raised menu button for options.") {
+        SpecimenGrid(minWidth: 320) {
+          Specimen(
+            "KitPicker",
+            code: "KitPicker(\"Mode\", selection: $mode)   // a KitOption & CaseIterable enum\nKitPicker(\"Indent\", selection: $indent, options: [(\"2 spaces\", 2), (\"4 spaces\", 4), (\"Tabs\", 0)])\nFormRow(\"Indent\") { KitPicker(…) }"
+          ) {
+            VStack(alignment: .leading, spacing: 12) {
+              HStack(spacing: 10) {
+                KitPicker("Mode", selection: $mode)
+                KitPicker("Indent", selection: $indent, options: [("2 spaces", 2), ("4 spaces", 4), ("Tabs", 0)])
+                KitPicker("Disabled", selection: $indent, options: [("4 spaces", 4)]).disabled(true)
+              }
+              FormCard {
+                FormRow("Indent", systemImage: "increase.indent", hue: .blue) {
+                  KitPicker("Indent", selection: $indent, options: [("2 spaces", 2), ("4 spaces", 4), ("Tabs", 0)])
+                }
+              }
+            }
+          }
+          Specimen(
+            "KitMenuButton",
+            code: "KitMenuButton(\"Options\", systemImage: \"slider.horizontal.3\") {\n  Toggle(\"Match Case\", isOn: $matchCase)\n}\nKitMenuButton(\"Atlas\", systemImage: \"hammer\") { … }.controlSize(.small)"
+          ) {
+            HStack(spacing: 10) {
+              KitMenuButton("Options", systemImage: "slider.horizontal.3") {
+                Toggle("Match Case", isOn: $matchCase)
+                Toggle("Whole Words", isOn: $wholeWords)
+              }
+              KitMenuButton("Atlas", systemImage: "hammer") { Button("Atlas") {}; Button("AtlasKit") {} }
+              KitMenuButton("Sort", systemImage: "arrow.up.arrow.down") { Button("Name") {} }.controlSize(.small)
+            }
+          }
         }
       }
     }

@@ -192,7 +192,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     case .effects: "Success, failure, pop, wash and pulse"
     case .buttons: "Secondary, primary, plain, icon; sizes, roles, disabled"
     case .toggles: "Switch, checkbox, chip and the chip track"
-    case .segmented: "Field track, wide and the toolbar capsule"
+    case .segmented: "Field track, wide, the toolbar capsule and pop-ups"
     case .tabs: "Editor tabs and breadcrumbs"
     case .fields: "Filled fields with a ring, an error and a live icon"
     case .search: "Search with a scope, a count and its live icon"
