@@ -178,3 +178,92 @@ extension Hue {
   .padding()
   .componentKit()
 }
+
+// MARK: - Filter token
+
+/// An active filter in a filter bar: the condition on a soft accent token (24pt, 32 on touch) with its remove button
+/// at the end. The whole condition reads as one element to VoiceOver, with a Remove action.
+///
+/// ```swift
+/// HStack {
+///   ForEach(filters) { filter in FilterToken(filter.summary) { remove(filter) } }
+/// }
+/// FilterToken(Text("status = ") + Text("shipped").bold(), hue: .green) { … }
+/// ```
+public struct FilterToken: View {
+  var title: Text
+  var systemImage: String?
+  var hue: Hue
+  var onRemove: () -> Void
+  @Environment(\.kitIdiom) private var idiom
+  @Environment(\.isEnabled) private var isEnabled
+  @State private var isHovered = false
+
+  public init(
+    _ title: some StringProtocol, systemImage: String? = "line.3.horizontal.decrease", hue: Hue = .accent,
+    onRemove: @escaping () -> Void
+  ) {
+    self.init(Text(title), systemImage: systemImage, hue: hue, onRemove: onRemove)
+  }
+
+  /// A token with styled text (the value in bold).
+  public init(
+    _ title: Text, systemImage: String? = "line.3.horizontal.decrease", hue: Hue = .accent,
+    onRemove: @escaping () -> Void
+  ) {
+    self.title = title
+    self.systemImage = systemImage
+    self.hue = hue
+    self.onRemove = onRemove
+  }
+
+  public var body: some View {
+    let height: CGFloat = idiom.isTouch ? 32 : 24
+    let radius: CGFloat = idiom.isTouch ? 10 : 7
+    let close = height - 6
+    HStack(spacing: 5) {
+      if let systemImage {
+        Image(systemName: systemImage)
+          .font(.system(size: idiom.isTouch ? 12 : 10, weight: .semibold))
+          .imageScale(.small)
+      }
+      title
+        .kitFont(.callout)
+        .fontWeight(.medium)
+        .lineLimit(1)
+        .truncationMode(.middle)
+      Button(action: onRemove) {
+        Image(systemName: "xmark")
+          .font(.system(size: close * 0.45, weight: .bold))
+          .frame(width: close, height: close)
+          .background {
+            RoundedRectangle(cornerRadius: radius - 3, style: .continuous)
+              .fill(isHovered ? AnyShapeStyle(hue.soft(0.22)) : AnyShapeStyle(Color.clear))
+          }
+          .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .onHover { isHovered = $0 }
+      .accessibilityLabel("Remove")
+    }
+    .foregroundStyle(BadgeInk(hue: hue))
+    .padding(.leading, idiom.isTouch ? 10 : 8)
+    .padding(.trailing, 3)
+    .frame(height: height)
+    .background(BadgeTint(hue: hue), in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+    .opacity(isEnabled ? 1 : 0.45)
+    .animation(.kitFast, value: isHovered)
+    .accessibilityElement(children: .combine)
+    .accessibilityAction(named: "Remove", onRemove)
+  }
+}
+
+#Preview("Filter tokens") {
+  HStack {
+    FilterToken("status = shipped") {}
+    FilterToken(Text("total > ") + Text("100").bold(), hue: .orange) {}
+    FilterToken("Any column contains “Lisbon”", systemImage: "magnifyingglass") {}
+  }
+  .padding(20)
+  .componentKit()
+}
