@@ -35,7 +35,7 @@ final class CatalogModel {
   var idiom: KitIdiom?
   var increaseContrast = false
   var inactiveWindow = false
-  /// The kit's toolbar as a `safeAreaBar` instead of a plain inset (`--toolbar-bar`).
+  /// The kit's bars (toolbar, sidebar) as `safeAreaBar`s instead of plain insets (`--toolbar-bar`).
   var toolbarBar = false
   /// The section a page opens scrolled to (`--section <title>`).
   var section: String?

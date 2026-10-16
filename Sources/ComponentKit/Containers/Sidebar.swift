@@ -163,7 +163,9 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     .modifier(ContRowKeyboard(current: selection, select: setSelection, onReturn: returnAction, onPrimary: primary))
     // A click on a row focuses the sidebar, like a click into a `List`.
     .simultaneousGesture(TapGesture().onEnded { focused = true })
-    .safeAreaInset(edge: .bottom, spacing: 0) {
+    // The title bar's scroll edge (the system's bar), and the bottom bar, per `KitBarMode`.
+    .contEdgeEffect(.top)
+    .contEdgeBar(.bottom) {
       if showsBar {
         ContSidebarBar(
           searchText: searchText, prompt: searchPrompt, isSearching: isSearching, toggle: barToggle,
@@ -363,6 +365,17 @@ enum ContSplitVisibility {
     Mirror(reflecting: visibility).children.first { $0.label == "isAutomatic" }?.value as? Bool ?? false
   }
 
+  /// Shows the hidden sidebar. On the Mac through the window's split view, as the sidebar's own hide button does:
+  /// once AppKit has collapsed the sidebar, setting the binding back to `.all` doesn't bring it back.
+  @MainActor
+  static func showSidebar(_ columnVisibility: Binding<NavigationSplitViewVisibility>) {
+    if ContPlatform.canToggleSidebar {
+      ContPlatform.toggleSidebar()
+    } else {
+      withAnimation(.kitSlow) { columnVisibility.wrappedValue = .all }
+    }
+  }
+
   /// The bar's toggle: hide the sidebar (the sidebar alone in a three-column split), or show every column.
   static func toggled(_ visibility: NavigationSplitViewVisibility, threeColumns: Bool) -> NavigationSplitViewVisibility {
     let automatic = isAutomatic(visibility)
@@ -406,7 +419,7 @@ private struct ContShowSidebar: ViewModifier {
   }
 
   private func showSidebar() {
-    withAnimation(.kitSlow) { columnVisibility = .all }
+    ContSplitVisibility.showSidebar($columnVisibility)
   }
 }
 
@@ -418,7 +431,7 @@ private struct ContShowSidebarItem: ToolbarContent {
     ToolbarItem(placement: .navigation) {
       if isHidden {
         Button("Show Sidebar", systemImage: "sidebar.left") {
-          withAnimation(.kitSlow) { columnVisibility = .all }
+          ContSplitVisibility.showSidebar($columnVisibility)
         }
         .help("Show Sidebar")
       }

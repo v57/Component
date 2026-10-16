@@ -107,6 +107,84 @@ enum ContFlow {
   }
 }
 
+// MARK: - Bars the content scrolls under
+
+/// How the kit's bars (the toolbar, the sidebar's title bar and bottom bar) sit over the content that scrolls under
+/// them.
+public enum KitBarMode: Hashable, Sendable {
+  /// A plain safe-area inset, the same on every OS (what macOS 14 and iOS 17 show): the system's scroll edge stays
+  /// off on macOS 26 and iOS 26 (on the Mac it would draw AppKit's hairline under the title bar).
+  case inset
+  /// A `safeAreaBar` with the system's soft scroll edge on macOS 26 and iOS 26; the inset before.
+  case bar
+}
+
+extension EnvironmentValues {
+  @Entry var contBarMode = KitBarMode.inset
+}
+
+extension View {
+  /// Picks how the kit's bars below (the toolbar, the sidebar's) sit over their content: `.inset` (the default) or
+  /// `.bar` (`safeAreaBar` on macOS 26 and iOS 26). Put it on the split view so every column follows.
+  ///
+  /// ```swift
+  /// NavigationSplitView { … } detail: { … }.kitBarMode(.bar)
+  /// ```
+  public func kitBarMode(_ mode: KitBarMode) -> some View {
+    environment(\.contBarMode, mode)
+  }
+
+  /// A bar at `edge` the content scrolls under, per `KitBarMode`.
+  func contEdgeBar<Bar: View>(_ edge: VerticalEdge, @ViewBuilder bar: () -> Bar) -> some View {
+    modifier(ContEdgeBar(edge: edge, bar: bar()))
+  }
+
+  /// The system's scroll edge at `edge` per `KitBarMode` (off for `.inset`, soft for `.bar`), for an edge whose bar
+  /// the system draws (the title bar over a sidebar).
+  func contEdgeEffect(_ edge: VerticalEdge) -> some View {
+    modifier(ContEdgeEffect(edge: edge))
+  }
+}
+
+/// On macOS 26 and iOS 26 both the inset and the bar stay in place and only the bar moves between them, so switching
+/// modes keeps the content (its scroll position, the control being clicked) instead of rebuilding it.
+private struct ContEdgeBar<Bar: View>: ViewModifier {
+  let edge: VerticalEdge
+  let bar: Bar
+  @Environment(\.contBarMode) private var mode
+
+  func body(content: Content) -> some View {
+    if #available(macOS 26.0, iOS 26.0, *) {
+      content
+        .safeAreaInset(edge: edge, spacing: 0) {
+          if mode == .inset { bar }
+        }
+        .safeAreaBar(edge: edge, spacing: 0) {
+          if mode == .bar { bar }
+        }
+        .modifier(ContEdgeEffect(edge: edge))
+    } else {
+      content.safeAreaInset(edge: edge, spacing: 0) { bar }
+    }
+  }
+}
+
+private struct ContEdgeEffect: ViewModifier {
+  let edge: VerticalEdge
+  @Environment(\.contBarMode) private var mode
+
+  func body(content: Content) -> some View {
+    if #available(macOS 26.0, iOS 26.0, *) {
+      let edges: Edge.Set = edge == .top ? .top : .bottom
+      content
+        .scrollEdgeEffectStyle(.soft, for: edges)
+        .scrollEdgeEffectHidden(mode == .inset, for: edges)
+    } else {
+      content
+    }
+  }
+}
+
 // MARK: - Scroll edge
 
 /// A fade of a ground behind a bar the content scrolls under (the kit's toolbar, the sidebar's bars): 40% at the

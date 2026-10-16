@@ -259,8 +259,8 @@ struct CatalogView: View {
           CatalogToolbar.tools(model)
         }
         .kitSidebarToggle(columnVisibility: $columns)
-        .kitToolbarMode(model.toolbarBar ? .bar : .inset)
     }
+    .kitBarMode(model.toolbarBar ? .bar : .inset)
     .onChange(of: model.page) { compactColumn = .detail }
     .onAppear { if model.hidesSidebar { columns = .detailOnly } }
   }
@@ -364,11 +364,11 @@ enum CatalogToolbar {
         Toggle("Inactive", isOn: $model.inactiveWindow)
         Toggle("Bar", isOn: $model.toolbarBar)
       }
-      .help("Increase Contrast, an inactive window, and the toolbar as a safeAreaBar (off: a plain inset)")
+      .help("Increase Contrast, an inactive window, and the kit's bars (toolbar, sidebar) as safeAreaBars (off: plain insets)")
     } menu: {
       Toggle("Increase Contrast", isOn: $model.increaseContrast)
       Toggle("Inactive Window", isOn: $model.inactiveWindow)
-      Toggle("Toolbar as safeAreaBar", isOn: $model.toolbarBar)
+      Toggle("Bars as safeAreaBar", isOn: $model.toolbarBar)
     }
   }
 }

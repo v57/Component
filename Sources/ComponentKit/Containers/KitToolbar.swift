@@ -178,7 +178,7 @@ extension View {
   }
 }
 
-/// Places the bar: a top bar the content scrolls under (`KitToolbarMode`), over the title bar on the Mac and in place
+/// Places the bar: a top bar the content scrolls under (`KitBarMode`), over the title bar on the Mac and in place
 /// of the navigation bar on iPhone and iPad.
 private struct ContKitToolbar<Title: View>: ViewModifier {
   let windowTitle: String
@@ -193,62 +193,17 @@ private struct ContKitToolbar<Title: View>: ViewModifier {
   }
 }
 
-/// How the kit's toolbar sits over the content that scrolls under it.
-public enum KitToolbarMode: Hashable, Sendable {
-  /// A plain top safe-area inset, the same on every OS (what macOS 14 and iOS 17 show): no background, and the
-  /// system's top scroll edge off on macOS 26 and iOS 26 (on the Mac it would draw AppKit's hairline).
-  case inset
-  /// A `safeAreaBar` with the system's soft scroll edge on macOS 26 and iOS 26; the inset before.
-  case bar
-}
-
-extension EnvironmentValues {
-  @Entry var contToolbarMode = KitToolbarMode.inset
-}
-
-extension View {
-  /// Picks how the kit's toolbars below sit over their content: `.inset` (the default) or `.bar` (`safeAreaBar` on
-  /// macOS 26 and iOS 26).
-  ///
-  /// ```swift
-  /// ContentView().kitToolbarMode(.bar)
-  /// ```
-  public func kitToolbarMode(_ mode: KitToolbarMode) -> some View {
-    environment(\.contToolbarMode, mode)
-  }
-}
-
-/// The bar as a top bar the content scrolls under, per `KitToolbarMode`. On the Mac the view runs up into the title
-/// bar, so the bar takes its place.
+/// The bar as a top bar the content scrolls under, per `KitBarMode`, on the window's ground. On the Mac the view
+/// runs up into the title bar, so the bar takes its place.
 private struct ContTopBar<Bar: View>: ViewModifier {
   @ViewBuilder var bar: Bar
-  @Environment(\.contToolbarMode) private var mode
 
   func body(content: Content) -> some View {
-    placed(content)
+    content
+      .contEdgeBar(.top) { bar.background { ContEdgeFade(edge: .top, ground: .kitWindow) } }
     #if os(macOS)
       .ignoresSafeArea(.container, edges: .top)
     #endif
-  }
-
-  /// On macOS 26 and iOS 26 both bars stay in place and only the bar moves between them, so switching modes keeps
-  /// the content (its scroll position, the control being clicked) instead of rebuilding it.
-  @ViewBuilder
-  private func placed(_ content: Content) -> some View {
-    let fade = ContEdgeFade(edge: .top, ground: .kitWindow)
-    if #available(macOS 26.0, iOS 26.0, *) {
-      content
-        .safeAreaInset(edge: .top, spacing: 0) {
-          if mode == .inset { bar.background { fade } }
-        }
-        .safeAreaBar(edge: .top, spacing: 0) {
-          if mode == .bar { bar.background { fade } }
-        }
-        .scrollEdgeEffectStyle(.soft, for: .top)
-        .scrollEdgeEffectHidden(mode == .inset, for: .top)
-    } else {
-      content.safeAreaInset(edge: .top, spacing: 0) { bar.background { fade } }
-    }
   }
 }
 
