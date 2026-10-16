@@ -4,7 +4,7 @@ import Foundation
 /// toolbar title. State and progress live in the icon, never in a spinner or a bare bar.
 public enum WorkStatus: Hashable, Sendable {
   case idle
-  /// Running; `progress` is 0…1 when it's known, `nil` for an indeterminate arc.
+  /// Running; `progress` is 0…1 when it's known, `nil` for the work indicator (amount unknown).
   case working(progress: Double? = nil)
   /// Stopped part way, waiting to resume.
   case paused(progress: Double? = nil)

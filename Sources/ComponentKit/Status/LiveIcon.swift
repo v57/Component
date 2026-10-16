@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The kit's icon tile: a glyph on a soft rounded square in its hue (15%), or solid for apps.
-/// A `LiveIcon` is the same tile wearing a ring that carries work: progress, an indeterminate arc, done or failed.
+/// A `LiveIcon` is the same tile wearing a ring that carries work: progress, the work indicator (`.kitWorkIndicator(_:)`), done or failed.
 public struct Tile<Content: View>: View {
   public enum Style: Hashable, Sendable {
     /// The hue at 15% under the hue: things, sections, rows.
@@ -90,7 +90,7 @@ public enum KitShape: Hashable, Sendable {
   }
 }
 
-/// A tile that carries work: the ring shows progress (or turns while indeterminate), settles green with a check when
+/// A tile that carries work: the ring shows progress (or the work indicator while indeterminate), settles green with a check when
 /// done and red when it failed. Put a `WorkStatus` on it and the kit does the rest.
 ///
 /// ```swift

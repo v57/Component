@@ -120,7 +120,7 @@ public struct MeterLegend: View {
   }
 }
 
-/// A usage figure as a live icon: the ring carries the amount (or turns while it's unknown), the value and its name
+/// A usage figure as a live icon: the ring carries the amount (or the work indicator while it's unknown), the value and its name
 /// beside it (Shell's CPU and GPU, a board's progress, a scan).
 ///
 /// ```swift

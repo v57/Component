@@ -2,7 +2,7 @@ import SwiftUI
 
 /// How a `LiveIcon` shows work whose amount is unknown. Every style follows the tile's shape (circle or rounded square).
 public enum KitWorkIndicator: String, Hashable, Sendable, CaseIterable {
-  /// An arc that runs around the ring, along the shape (the default).
+  /// An arc that runs around the ring, along the shape.
   case trace
   /// The running arc with a tail that fades behind it.
   case comet
@@ -16,7 +16,7 @@ public enum KitWorkIndicator: String, Hashable, Sendable, CaseIterable {
   case ripple
   /// A soft halo of the hue around the tile breathes in and out.
   case glow
-  /// A filled ripple: a band of the hue grows out of the tile's edge and fades.
+  /// A filled ripple: a soft band of the hue grows out of the tile's edge and fades (the default).
   case bloom
   /// The band around the tile beats twice, then rests.
   case heartbeat
@@ -26,12 +26,12 @@ public enum KitWorkIndicator: String, Hashable, Sendable, CaseIterable {
 
 extension EnvironmentValues {
   /// How the `LiveIcon`s below show indeterminate work (`.kitWorkIndicator(_:)`).
-  @Entry public var kitWorkIndicator: KitWorkIndicator = .trace
+  @Entry public var kitWorkIndicator: KitWorkIndicator = .bloom
 }
 
 extension View {
-  /// Sets how the live icons below show work of unknown length: `.trace` (the default), `.comet`, `.pulse`,
-  /// `.breathe`, `.march`, `.ripple`, `.glow`, `.bloom`, `.heartbeat` or `.sonar`.
+  /// Sets how the live icons below show work of unknown length: `.bloom` (the default), `.trace`, `.comet`,
+  /// `.pulse`, `.breathe`, `.march`, `.ripple`, `.glow`, `.heartbeat` or `.sonar`.
   ///
   /// ```swift
   /// LiveIcon(systemImage: "sparkles", status: .working).kitWorkIndicator(.pulse)
@@ -175,10 +175,10 @@ struct RingDrawing: View, Animatable {
           .opacity((0.25 + wave * 0.55) * running)
         progressArc(ring)
       case .bloom:
-        ForEach(0..<2, id: \.self) { i in
+        ForEach(0..<1, id: \.self) { i in
           let t = phase(period: 1.6, offset: Double(i) * 0.8)
           band(outset: 1 + t * 8)
-            .fill(hue.fill, style: FillStyle(eoFill: true))
+            .fill(hue.soft(0.3), style: FillStyle(eoFill: true))
             .opacity((1 - t) * (1 - t) * 0.75 * running)
         }
         progressArc(ring)

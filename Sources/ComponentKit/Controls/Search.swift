@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// A search inside content: the forms' filled field. It starts with its scope as a small raised pop-up (or the
-/// magnifier when there is none) and ends with the search's live icon: the arc turns while it searches, a green
+/// magnifier when there is none) and ends with the search's live icon: the work indicator while it searches, a green
 /// check when it's done, red (and a red ring) when nothing matched. The match count sits before the icon; a clear
 /// button shows while there is text and no search runs. Esc clears the text.
 ///

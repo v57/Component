@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// What a text field says about its value: nothing, wrong (a red ring), or a piece of work shown by a live icon at
-/// the field's end (an arc while checking, a green check when it's good, red when it failed).
+/// the field's end (the work indicator while checking, a green check when it's good, red when it failed).
 ///
 /// ```swift
 /// TextField("https://", text: $url).kitField(status: isChecking ? .checking : isValid ? .valid : .none)
@@ -13,7 +13,7 @@ public enum FieldStatus: Hashable, Sendable {
   /// A live icon at the end carries work on the value; a failed one also rings the field red.
   case live(WorkStatus, systemImage: String = "ellipsis")
 
-  /// Checking the value: the live icon's turning arc.
+  /// Checking the value: the live icon's work indicator.
   public static let checking = FieldStatus.live(.working)
   /// The value checked out: a green check.
   public static let valid = FieldStatus.live(.done)

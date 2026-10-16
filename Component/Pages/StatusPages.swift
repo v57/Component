@@ -95,7 +95,7 @@ struct LiveIconPage: View {
         }
       }
       SpecimenSection(
-        "States", note: "State lives in the icon: an arc while the amount is unknown, a ring with progress, then a check or red."
+        "States", note: "State lives in the icon: a bloom while the amount is unknown, a ring with progress, then a check or red."
       ) {
         Specimen("Rounded", code: "LiveIcon(systemImage: \"arrow.up\", status: .working(progress: 0.4))") {
           statesRow(shape: .rounded, size: 24)
@@ -103,7 +103,7 @@ struct LiveIconPage: View {
         Specimen("Circle, 32pt", code: "LiveIcon(systemImage: \"arrow.down\", hue: .green, status: .done, size: 32, shape: .circle)") {
           statesRow(shape: .circle, size: 32)
         }
-        Specimen("Inactive window", note: "The arc stops turning", code: "view.environment(\\.kitWindowIsActive, false)") {
+        Specimen("Inactive window", note: "The indicator holds still", code: "view.environment(\\.kitWindowIsActive, false)") {
           statesRow(shape: .rounded, size: 24).environment(\.kitWindowIsActive, false)
         }
       }

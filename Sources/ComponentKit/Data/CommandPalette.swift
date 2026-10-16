@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The command palette and quick open (Code's Open Quickly, Markdown's commands, Shell's quick actions ⌘R): a card on
 /// the panel ground with 20pt corners. The search line starts with an optional scope pop-up and ends with the live
-/// icon (an arc while searching or indexing, a check when done, red when nothing matched); results are group cards
+/// icon (the work indicator while searching or indexing, a check when done, red when nothing matched); results are group cards
 /// with rich headers; the selected row is raised and Return runs it; a card bar of key hints closes it.
 /// ↑↓ move through every group's items, Return runs the selected one, Escape calls `dismiss`.
 ///
