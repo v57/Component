@@ -114,6 +114,8 @@ extension View {
 
   /// Puts any title view (a `KitTitle`, a `RichHeader(…, size: .title)` with an avatar) at the toolbar's navigation
   /// placement without the glass, and takes the system title out of the toolbar; `windowTitle` stays the window's.
+  /// On macOS 26 a flexible space follows the title, so the view's tools sit at the trailing edge (without the
+  /// system title, the toolbar would line them up right after it).
   ///
   /// ```swift
   /// Detail().kitToolbarTitle(host.name) { RichHeader(host.name, size: .title, icon: { Avatar(…) }, meta: { … }, accessory: {}) }
@@ -122,7 +124,10 @@ extension View {
     -> some View
   {
     navigationTitle(windowTitle)
-      .toolbar { KitToolbarItem(placement: .navigation, content: content) }
+      .toolbar {
+        KitToolbarItem(placement: .navigation, content: content)
+        ContTitleSpace()
+      }
       .kitHidesSystemTitle()
   }
 
@@ -145,6 +150,17 @@ extension View {
   /// ```
   public func kitToolOn(_ isOn: Bool) -> some View {
     environment(\.contToolIsOn, isOn)
+  }
+}
+
+/// The flexible space after the kit's title on macOS 26, which keeps the tools at the trailing edge.
+struct ContTitleSpace: ToolbarContent {
+  var body: some ToolbarContent {
+    #if os(macOS)
+      if #available(macOS 26.0, *) {
+        ToolbarSpacer(.flexible)
+      }
+    #endif
   }
 }
 

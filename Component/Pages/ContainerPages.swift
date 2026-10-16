@@ -503,6 +503,7 @@ struct ToolbarPage: View {
           code: """
             Detail()
               .kitToolbarTitle("History", meta: ["main", "2 to push"], systemImage: "clock", status: fetch)
+              // macOS 26: a flexible space follows the title, so the tools below sit at the trailing edge
               .toolbar {
                 KitToolbarItem(placement: .primaryAction) {
                   ToolGroup {
