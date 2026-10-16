@@ -12,21 +12,16 @@ struct ScenarioPage<App: View, Panes: View>: View {
   var paneTitles: [String] = []
   @ViewBuilder var app: App
   @ViewBuilder var panes: Panes
-  @State private var width: CGFloat?
   @State private var pane: String?
 
   var body: some View {
     CatalogPage(page: page, maxWidth: 1240) {
       SpecimenSection("The screen", note: note) {
-        Group {
-          if (width ?? 0) < minWidth, !paneTitles.isEmpty {
-            paged
-          } else {
-            WindowFrame(height: height, minWidth: minWidth) { app }
-          }
+        WidthSwitch(minWidth: paneTitles.isEmpty ? 0 : minWidth) {
+          WindowFrame(height: height, minWidth: minWidth) { app }
+        } narrow: {
+          paged
         }
-        .frame(maxWidth: .infinity)
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
       }
       SpecimenSection("Its code", note: "Kit views and modifiers only: no colours, sizes or controls of the app's own.") {
         CodeSnippet(code)
@@ -59,6 +54,35 @@ struct ScenarioPage<App: View, Panes: View>: View {
 extension ScenarioPage where Panes == EmptyView {
   init(page: Page, height: CGFloat = 680, note: String, code: String, @ViewBuilder app: () -> App) {
     self.init(page: page, height: height, note: note, code: code, app: app, panes: { EmptyView() })
+  }
+}
+
+/// `wide` when it has `minWidth`, else `narrow`; until measured, the page's width decides, so a scenario's app isn't
+/// built paged for the first frame and whole for the next.
+private struct WidthSwitch<Wide: View, Narrow: View>: View {
+  var minWidth: CGFloat
+  // Closures: only the side that shows is made.
+  var wide: () -> Wide
+  var narrow: () -> Narrow
+  @State private var width: CGFloat?
+  @Environment(\.pageWidth) private var pageWidth
+
+  init(minWidth: CGFloat, @ViewBuilder wide: @escaping () -> Wide, @ViewBuilder narrow: @escaping () -> Narrow) {
+    self.minWidth = minWidth
+    self.wide = wide
+    self.narrow = narrow
+  }
+
+  var body: some View {
+    Group {
+      if (width ?? pageWidth ?? 0) < minWidth {
+        narrow()
+      } else {
+        wide()
+      }
+    }
+    .frame(maxWidth: .infinity)
+    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
   }
 }
 
