@@ -293,15 +293,32 @@ struct Columns: Layout {
   var minWidth: CGFloat = 640
   var spacing: CGFloat = 20
 
-  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-    let frames = frames(proposal.width, subviews)
+  /// The frames worked out for each width since the subviews last changed: measuring takes three passes over the
+  /// subviews, and placing them would take three more (every time lazy content below them grows, while scrolling).
+  struct Cache {
+    var frames: [CGFloat?: [CGRect]] = [:]
+  }
+
+  func makeCache(subviews: Subviews) -> Cache { Cache() }
+
+  func updateCache(_ cache: inout Cache, subviews: Subviews) { cache.frames = [:] }
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
+    let frames = frames(proposal.width, subviews, &cache)
     return CGSize(width: proposal.width ?? frames.map(\.maxX).max() ?? 0, height: frames.map(\.maxY).max() ?? 0)
   }
 
-  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-    for (subview, frame) in zip(subviews, frames(bounds.width, subviews)) {
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) {
+    for (subview, frame) in zip(subviews, frames(bounds.width, subviews, &cache)) {
       subview.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY), proposal: ProposedViewSize(frame.size))
     }
+  }
+
+  private func frames(_ width: CGFloat?, _ subviews: Subviews, _ cache: inout Cache) -> [CGRect] {
+    if let frames = cache.frames[width] { return frames }
+    let frames = frames(width, subviews)
+    cache.frames[width] = frames
+    return frames
   }
 
   /// Wide: the fixed views at their width and the flexible ones sharing the rest, tops aligned. Narrow: one under the
