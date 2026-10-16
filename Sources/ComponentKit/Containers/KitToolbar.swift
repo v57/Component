@@ -181,8 +181,8 @@ extension View {
   }
 }
 
-/// Places the bar: a top safe-area bar the content scrolls under (with the system's scroll edge on macOS 26 and iOS
-/// 26), over the title bar on the Mac and in place of the navigation bar on iPhone and iPad.
+/// Places the bar: a top safe-area inset the content scrolls under, over the title bar on the Mac and in place of the
+/// navigation bar on iPhone and iPad.
 private struct ContKitToolbar<Title: View>: ViewModifier {
   let windowTitle: String
   let bar: KitToolbar<Title>
@@ -196,62 +196,33 @@ private struct ContKitToolbar<Title: View>: ViewModifier {
   }
 }
 
-/// The bar as a top bar the content scrolls under. On the Mac the view runs up into the title bar, so the bar takes
-/// its place, and the kit draws the soft edge itself: the system's (AppKit's title bar pocket) would draw a hard
-/// hairline under the bar. On iOS 26 it is a `safeAreaBar` with the system's soft edge; before, an inset on the bar
-/// material.
+/// The bar as a top safe-area inset the content scrolls under, the same on every OS (what macOS 14 and iOS 17 show;
+/// `safeAreaBar` comes later). On the Mac the view runs up into the title bar, so the bar takes its place. The
+/// system's top scroll edge stays off (macOS 26 and iOS 26), so newer systems match the older ones; on the Mac it
+/// would also draw AppKit's hairline under the title bar.
 private struct ContTopBar<Bar: View>: ViewModifier {
   @ViewBuilder var bar: Bar
 
   func body(content: Content) -> some View {
+    content
+      .safeAreaInset(edge: .top, spacing: 0) { bar }
+      .modifier(ContTopEdgeEffectHidden())
     #if os(macOS)
-      content
-        .safeAreaInset(edge: .top, spacing: 0) { bar.background { ContSoftEdge() } }
-        .modifier(ContTopEdgeEffectHidden())
-        .ignoresSafeArea(.container, edges: .top)
-    #else
-      if #available(iOS 26.0, *) {
-        content
-          .safeAreaBar(edge: .top, spacing: 0) { bar }
-          .scrollEdgeEffectStyle(.soft, for: .top)
-      } else {
-        content.safeAreaInset(edge: .top, spacing: 0) { bar.background(.bar) }
-      }
+      .ignoresSafeArea(.container, edges: .top)
     #endif
   }
 }
 
-#if os(macOS)
-  /// The soft scroll edge behind the Mac's bar: a blur on the window ground that fades out 16pt below the bar, so
-  /// content scrolling under it softens instead of ending at a line.
-  private struct ContSoftEdge: View {
-    var body: some View {
-      ZStack {
-        Rectangle().fill(.ultraThinMaterial)
-        Rectangle().fill(.kitWindow.opacity(0.8))
-      }
-      .mask {
-        LinearGradient(
-          stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.6), .init(color: .clear, location: 1)],
-          startPoint: .top, endPoint: .bottom)
-      }
-      .padding(.bottom, -16)
-      .ignoresSafeArea(.container, edges: .top)
-      .allowsHitTesting(false)
+/// Takes the system's top scroll edge away from the content under the kit's bar (macOS 26 and iOS 26 on).
+private struct ContTopEdgeEffectHidden: ViewModifier {
+  func body(content: Content) -> some View {
+    if #available(macOS 26.0, iOS 26.0, *) {
+      content.scrollEdgeEffectHidden(true, for: .top)
+    } else {
+      content
     }
   }
-
-  /// Takes the system's top scroll edge away from the content under the kit's bar (macOS 26 on).
-  private struct ContTopEdgeEffectHidden: ViewModifier {
-    func body(content: Content) -> some View {
-      if #available(macOS 26.0, *) {
-        content.scrollEdgeEffectHidden(true, for: .top)
-      } else {
-        content
-      }
-    }
-  }
-#endif
+}
 
 /// Clears the system toolbar out of the kit's way. On the Mac one invisible item keeps the toolbar (so the title bar
 /// keeps its 52pt and the traffic lights sit centered on the kit's bar) while the title and the background go; clicks
