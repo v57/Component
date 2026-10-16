@@ -411,6 +411,7 @@ struct ShellScenarioPage: View {
   @State private var test = SimulatedWork()
   @State private var selection: String?
   @State private var project = "atlas"
+  @Environment(\.kitIdiom) private var idiom
 
   var body: some View {
     ScenarioPage(
@@ -454,7 +455,9 @@ struct ShellScenarioPage: View {
         .kitPane(.content)
         if isOpen {
           Rectangle().fill(Color.black.opacity(0.12)).ignoresSafeArea().onTapGesture { isOpen = false }
-          KitPalette(query: $query, prompt: "Run an action in \(project)", status: actions.isEmpty ? .failed : query.isEmpty ? .idle : .done, dismiss: { isOpen = false }) {
+          // On touch the keyboard would open with the page (and the first text field to take focus sets up text input
+          // for a second), so the palette open on the page waits for a tap.
+          KitPalette(query: $query, prompt: "Run an action in \(project)", status: actions.isEmpty ? .failed : query.isEmpty ? .idle : .done, dismiss: { isOpen = false }, focusesOnAppear: !idiom.isTouch) {
             PaletteMenu(project, systemImage: "folder") {
               ForEach(["atlas", "beacon", "pebble"], id: \.self) { name in Button(name) { project = name } }
             }
