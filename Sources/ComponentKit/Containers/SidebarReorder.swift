@@ -222,7 +222,9 @@ public struct ReorderableSection<Data: RandomAccessCollection, ID: Hashable, Row
   }
 
   /// Lets the rows take other drops too (files, URLs, text): a row under such a drag wears the drop target, and
-  /// `perform` gets the row's element and the drag's providers. Reordering goes on as before.
+  /// `perform` gets the row's element and the drag's providers, one per dragged item. Reordering goes on as before.
+  /// Drags from this app count too: on macOS, where SwiftUI describes them with no types or the wrong ones, the kit
+  /// reads the drag pasteboard for `types` (a file list's rows dropped on a sidebar row).
   ///
   /// ```swift
   /// ReorderableSection(hosts, move: { hosts.move(fromOffsets: $0, toOffset: $1) }) { host in
@@ -451,9 +453,10 @@ struct ContReorderDropDelegate: DropDelegate {
     #endif
   }
 
-  /// A drop of one of the other accepted types (a file, a URL) rather than a row.
+  /// A drop of one of the other accepted types (a file, a URL) rather than a row. On macOS the drag pasteboard is read
+  /// too: a drag started in this app (a file list's row, a chip) reaches `DropInfo` with no types or the wrong ones.
   private func isOther(_ info: DropInfo) -> Bool {
-    perform != nil && !isRow(info) && info.hasItemsConforming(to: accepts)
+    perform != nil && !isRow(info) && (info.hasItemsConforming(to: accepts) || ContDragPasteboard.has(accepts))
   }
 
   /// The outer target, when the dragged row belongs to its list rather than this one.
@@ -518,10 +521,61 @@ struct ContReorderDropDelegate: DropDelegate {
     if let outer = forwarded(info) { return outer.performDrop(info: info) }
     if isOther(info), let perform {
       isTargeted?.wrappedValue = false
-      return perform(info.itemProviders(for: accepts))
+      // One provider per dragged item, read from the drag pasteboard where it has them (macOS); else SwiftUI's.
+      let pasted = ContDragPasteboard.providers(for: accepts)
+      return perform(pasted.isEmpty ? info.itemProviders(for: accepts) : pasted)
     }
     guard isRow(info) else { return false }
     state.end()
     return true
+  }
+}
+
+// MARK: - The drag pasteboard
+
+/// What the drag pasteboard holds, for the drops SwiftUI describes badly: on macOS `DropInfo` gives a drag started in
+/// this process no types or the wrong ones, and one opaque provider for a multi-file drag, while
+/// `NSPasteboard(name: .drag)` has the real items, one per file. Nothing on other platforms.
+@MainActor
+enum ContDragPasteboard {
+  /// The pasteboard types (identifiers, in order) that conform to one of `accepts`.
+  nonisolated static func matching(_ types: [String], accepts: [UTType]) -> [String] {
+    types.filter { identifier in
+      guard let type = UTType(identifier) else { return false }
+      return accepts.contains { type.conforms(to: $0) }
+    }
+  }
+
+  /// Whether the drag in progress carries an item of one of `accepts`.
+  static func has(_ accepts: [UTType]) -> Bool {
+    #if canImport(AppKit)
+      guard !accepts.isEmpty, let types = NSPasteboard(name: .drag).types else { return false }
+      return !matching(types.map(\.rawValue), accepts: accepts).isEmpty
+    #else
+      false
+    #endif
+  }
+
+  /// One provider per item of the drag that carries one of `accepts`, holding that item's data for those types (read
+  /// now, while the drag pasteboard still has it). Empty when none does (a file promise), or off macOS.
+  static func providers(for accepts: [UTType]) -> [NSItemProvider] {
+    #if canImport(AppKit)
+      guard !accepts.isEmpty else { return [] }
+      return (NSPasteboard(name: .drag).pasteboardItems ?? []).compactMap { item in
+        let types = matching(item.types.map(\.rawValue), accepts: accepts)
+        let data = types.compactMap { type in item.data(forType: .init(type)).map { (type, $0) } }
+        guard !data.isEmpty else { return nil }
+        let provider = NSItemProvider()
+        for (type, bytes) in data {
+          provider.registerDataRepresentation(forTypeIdentifier: type, visibility: .all) { completion in
+            completion(bytes, nil)
+            return nil
+          }
+        }
+        return provider
+      }
+    #else
+      []
+    #endif
   }
 }

@@ -223,3 +223,13 @@ private func groupMoved(_ rows: [String], dragging: IndexSet, anchor: Int, to: I
   state.end()
   #expect(state.count == 0)
 }
+
+// MARK: - Drag pasteboard
+
+@Test func dragPasteboardMatchesConformingTypes() {
+  let types = ["public.file-url", "public.utf8-plain-text", "dev.v57.componentkit.row", "NSFilenamesPboardType"]
+  #expect(ContDragPasteboard.matching(types, accepts: [.fileURL]) == ["public.file-url"])
+  #expect(ContDragPasteboard.matching(types, accepts: [.plainText]) == ["public.utf8-plain-text"])
+  #expect(ContDragPasteboard.matching(types, accepts: [.url]) == ["public.file-url"])
+  #expect(ContDragPasteboard.matching(types, accepts: []).isEmpty)
+}

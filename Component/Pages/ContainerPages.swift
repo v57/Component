@@ -1258,7 +1258,7 @@ struct DragDropPage: View {
           }
         }
       }
-      SpecimenSection("Between lists, and other drops", note: "Drag a city from Recent into Pinned; drop text (a chip above) on a city.") {
+      SpecimenSection("Between lists, and other drops", note: "Drag a city from Recent into Pinned; drop text on a city: a chip above (a drag from this app, read from the drag pasteboard on macOS) or text from another app.") {
         Specimen(
           "receivesRows and alsoAccepts", ground: .sidebar,
           code: """
