@@ -275,129 +275,174 @@ struct WorkStatusPage: View {
 
 // MARK: - Effects
 
+/// One effect on the Effects page: what it's for, its code line and what it plays on.
+private struct EffectDemo: Identifiable {
+  enum Host {
+    /// Buttons that play their own effect: title, symbol, effect, primary.
+    case buttons([(String, String, KitEffect, Bool)])
+    /// A card with a title and an optional second line, played by a Play button.
+    case card(String, String?)
+  }
+
+  let name: String
+  let effect: KitEffect
+  let note: String
+  let code: String
+  let host: Host
+  var id: String { name }
+
+  static func button(
+    _ name: String, _ effect: KitEffect, note: String, code: String, title: String, systemImage: String,
+    primary: Bool = false
+  ) -> EffectDemo {
+    EffectDemo(name: name, effect: effect, note: note, code: code, host: .buttons([(title, systemImage, effect, primary)]))
+  }
+
+  static func card(_ name: String, _ effect: KitEffect, note: String, code: String, title: String = "Trip to Lisbon",
+                   detail: String? = nil) -> EffectDemo {
+    EffectDemo(name: name, effect: effect, note: note, code: code, host: .card(title, detail))
+  }
+
+  /// Every effect this demo plays (a host with several buttons plays several).
+  var effects: [KitEffect] {
+    switch host {
+    case .buttons(let buttons): buttons.map(\.2)
+    case .card: [effect]
+    }
+  }
+}
+
 struct EffectsPage: View {
   @State private var counts: [KitEffect: Int] = [:]
   /// Replays every effect on a loop (`--cycle` starts it, for captures).
   @State private var cycling = ProcessInfo.processInfo.arguments.contains("--cycle")
 
-  let feedback: [(KitEffect, String, String)] = [
-    (.success, "success", "It worked: a green wash and a small pop"),
-    (.failure, "failure", "It didn't: a red wash and a shake"),
-    (.pop, "pop", "Something arrived: a quick scale"),
-    (.wash, "wash", "Something landed: an accent wash"),
-    (.pulse, "pulse", "Look here: a ring that grows"),
+  private static let feedback: [EffectDemo] = [
+    .card(".success", .success, note: "It worked: a green wash and a small pop", code: "view.effect(.success, on: saved)"),
+    .card(".failure", .failure, note: "It didn't: a red wash and a shake", code: "view.effect(.failure, on: failures)"),
+    .card(".pop", .pop, note: "Something arrived: a quick scale", code: "view.effect(.pop, on: arrivals)"),
+    .card(".wash", .wash, note: "Something landed: an accent wash", code: "view.effect(.wash, on: drops)"),
+    .card(".pulse", .pulse, note: "Look here: a ring that grows", code: "view.effect(.pulse, on: highlights)"),
+  ]
+
+  private static let flourishes: [EffectDemo] = [
+    .button(".burst", .burst, note: "Worth celebrating: confetti", code: "Button(\"Publish\") { … }.effect(.burst, on: published)",
+            title: "Publish", systemImage: "checkmark.seal", primary: true),
+    .button(".fountain", .fountain(), note: "Earned: symbols spray up and fall back",
+            code: "view.effect(.fountain(\"star.fill\", .yellow), on: streak)", title: "Claim", systemImage: "trophy"),
+    EffectDemo(
+      name: ".float", effect: .float(), note: "Kept or counted: the symbol rises",
+      code: "Button(\"Like\") { … }.effect(.float(\"heart.fill\", .pink), on: likes)",
+      host: .buttons([
+        ("Like", "heart", .float("heart.fill", .pink), false), ("Star", "star", .float("star.fill", .yellow), false),
+        ("Add", "plus", .float(), false),
+      ])),
+    EffectDemo(
+      name: ".send", effect: .send(), note: "Sent off: the symbol flies away",
+      code: "Button(\"Send\") { … }.effect(.send(\"paperplane.fill\"), on: sent)",
+      host: .buttons([
+        ("Send", "paperplane", .send(), true), ("Push", "arrow.up", .send("arrow.up.circle.fill", .green), false),
+      ])),
+    .card(".receive", .receive(), note: "Came in: the symbol drops in and sinks",
+          code: "row.effect(.receive(\"arrow.down.circle.fill\"), on: downloads)", title: "Downloads",
+          detail: "3 files"),
+    .card(".poof", .poof, note: "Gone: grey puffs blow away", code: "list.effect(.poof, on: cleared)",
+          title: "Drafts", detail: "Cleared"),
+    .button(".sparkle", .sparkle, note: "New or generated: stars twinkle",
+            code: "Button(\"Summarize\") { … }.effect(.sparkle, on: summaries)", title: "Summarize",
+            systemImage: "sparkles"),
+    .card(".stamp", .stamp(), note: "Approved: the symbol stamps down",
+          code: "card.effect(.stamp(\"checkmark.seal.fill\", .green), on: approvals)", title: "Pull request #42",
+          detail: "Review"),
+  ]
+
+  private static let light: [EffectDemo] = [
+    .card(".shimmer", .shimmer, note: "Refreshed: a band of light sweeps across", code: "card.effect(.shimmer, on: lastRefresh)",
+          title: "Inbox", detail: "Updated just now"),
+    .card(".glow", .glow, note: "Ready: a soft halo blooms", code: "view.effect(.glow, on: connected)",
+          title: "Studio Mac", detail: "Connected"),
+    .card(".ripple", .ripple, note: "Reached: rings ripple out", code: "view.effect(.ripple, on: pings)",
+          title: "Nearby", detail: "Pinged 2 devices"),
+    .card(".trace", .trace, note: "Came full circle: a light runs around the edge", code: "view.effect(.trace, on: syncs)",
+          title: "Vault", detail: "Synced"),
+  ]
+
+  private static let moves: [EffectDemo] = [
+    .card(".wiggle", .wiggle, note: "Not now: a short tilt", code: "row.effect(.wiggle, on: lockedTaps)",
+          title: "Archive is locked"),
+    .card(".bounce", .bounce, note: "Here it is: a hop and a squash", code: "row.effect(.bounce, on: arrivals)",
+          title: "New message", detail: "From Ana"),
+    .card(".jelly", .jelly, note: "Snapped in: a wobble that settles", code: "tile.effect(.jelly, on: drops)",
+          title: "Moved to Done"),
+    .card(".heartbeat", .heartbeat, note: "Still alive: two quick beats", code: "view.effect(.heartbeat, on: heartbeats)",
+          title: "Server", detail: "Live"),
+    .card(".nudge", .nudge, note: "This way: a nudge to the trailing side", code: "view.effect(.nudge, on: hints)",
+          title: "Swipe for more"),
   ]
 
   var body: some View {
     CatalogPage(page: .effects) {
-      SpecimenSection(
-        "Effects", note: "Apps report the event; the kit decides the look. Nothing plays in an inactive window."
-      ) {
-        SpecimenGrid(minWidth: 280) {
-          ForEach(feedback, id: \.1) { effect, name, use in
-            Specimen(".\(name)", note: use, code: "view.effect(.\(name), on: \(name)Count)") {
-              HStack(spacing: 14) {
-                Text("Trip to Lisbon")
-                  .padding(.horizontal, 12)
-                  .frame(height: 36)
-                  .kitSurface(.card)
-                  .effect(effect, on: counts[effect, default: 0], cornerRadius: KitMetrics.radiusCard)
-                play(effect)
-              }
-            }
-          }
-        }
-      }
-      SpecimenSection(
+      section(
+        "Effects", note: "Apps report the event; the kit decides the look. Nothing plays in an inactive window.",
+        Self.feedback)
+      section(
         "Flourishes",
-        note: "Bigger moments: pieces leave the view and fly off. They draw outside the view, so give it room; "
-          + "Reduce Motion keeps only a wash of their colour."
-      ) {
-        SpecimenGrid(minWidth: 280) {
-          Specimen(".burst", note: "Worth celebrating: confetti", padding: 40,
-                   code: "Button(\"Publish\") { … }.effect(.burst, on: published)") {
-            Button("Publish", systemImage: "checkmark.seal") { bump(.burst) }
-              .buttonStyle(.kitPrimary)
-              .effect(.burst, on: count(.burst))
-          }
-          Specimen(".float", note: "Kept or counted: the symbol rises", padding: 40,
-                   code: "Button(\"Like\") { … }.effect(.float(\"heart.fill\", .pink), on: likes)") {
-            HStack(spacing: 10) {
-              Button("Like", systemImage: "heart") { bump(.float("heart.fill", .pink)) }
-                .buttonStyle(.kit)
-                .effect(.float("heart.fill", .pink), on: count(.float("heart.fill", .pink)))
-              Button("Star", systemImage: "star") { bump(.float("star.fill", .yellow)) }
-                .buttonStyle(.kit)
-                .effect(.float("star.fill", .yellow), on: count(.float("star.fill", .yellow)))
-              Button("Add", systemImage: "plus") { bump(.float()) }
-                .buttonStyle(.kit)
-                .effect(.float(), on: count(.float()))
-            }
-          }
-          Specimen(".send", note: "Sent off: the symbol flies away", padding: 40,
-                   code: "Button(\"Send\") { … }.effect(.send(\"paperplane.fill\"), on: sent)") {
-            HStack(spacing: 10) {
-              Button("Send", systemImage: "paperplane") { bump(.send()) }
-                .buttonStyle(.kitPrimary)
-                .effect(.send(), on: count(.send()))
-              Button("Push", systemImage: "arrow.up") { bump(.send("arrow.up.circle.fill", .green)) }
-                .buttonStyle(.kit)
-                .effect(.send("arrow.up.circle.fill", .green), on: count(.send("arrow.up.circle.fill", .green)))
-            }
-          }
-          Specimen(".sparkle", note: "New or generated: stars twinkle", padding: 40,
-                   code: "Button(\"Summarize\") { … }.effect(.sparkle, on: summaries)") {
-            Button("Summarize", systemImage: "sparkles") { bump(.sparkle) }
-              .buttonStyle(.kit)
-              .effect(.sparkle, on: count(.sparkle))
-          }
-          Specimen(".shimmer", note: "Refreshed: a band of light sweeps across", padding: 40,
-                   code: "card.effect(.shimmer, on: lastRefresh)") {
-            HStack(spacing: 14) {
-              VStack(alignment: .leading, spacing: 2) {
-                Text("Inbox")
-                Text("Updated just now").kitFont(.caption).foregroundStyle(.kitSecondary)
-              }
-              .padding(.horizontal, 12)
-              .frame(width: 160, height: 48, alignment: .leading)
-              .kitSurface(.card)
-              .effect(.shimmer, on: count(.shimmer), cornerRadius: KitMetrics.radiusCard)
-              play(.shimmer)
-            }
-          }
-          Specimen(".wiggle", note: "Not now: a short tilt", padding: 40,
-                   code: "row.effect(.wiggle, on: lockedTaps)") {
-            Button { bump(.wiggle) } label: {
-              Label("Archive is locked", systemImage: "lock")
-                .padding(.horizontal, 12)
-                .frame(height: 36)
-                .kitSurface(.card)
-            }
-            .buttonStyle(.plain)
-            .effect(.wiggle, on: count(.wiggle), cornerRadius: KitMetrics.radiusCard)
-          }
-        }
-      }
+        note: "Bigger moments: pieces leave the view or land on it. They draw outside the view, so give it room; "
+          + "Reduce Motion keeps only a wash of their colour.",
+        Self.flourishes)
+      section("Light", note: "Drawn on or around the view's edge.", Self.light)
+      section("Moves", note: "The view itself moves; its layout doesn't.", Self.moves)
     }
     // Captures run in a background window, where effects never play.
     .transformEnvironment(\.kitWindowIsActive) { if cycling { $0 = true } }
     .task(id: cycling) {
       while cycling, !Task.isCancelled {
-        for effect in Self.all { bump(effect) }
+        for demo in Self.feedback + Self.flourishes + Self.light + Self.moves {
+          for effect in demo.effects { bump(effect) }
+        }
         try? await Task.sleep(for: .seconds(1.6))
       }
     }
   }
 
-  private static let all: [KitEffect] = [
-    .success, .failure, .pop, .wash, .pulse, .burst, .float("heart.fill", .pink), .float("star.fill", .yellow),
-    .float(), .send(), .send("arrow.up.circle.fill", .green), .sparkle, .shimmer, .wiggle,
-  ]
+  private func section(_ title: String, note: String, _ demos: [EffectDemo]) -> some View {
+    SpecimenSection(title, note: note) {
+      SpecimenGrid(minWidth: 280) {
+        ForEach(demos) { demo in
+          Specimen(demo.name, note: demo.note, padding: title == "Effects" ? 16 : 40, code: demo.code) {
+            host(demo)
+          }
+        }
+      }
+    }
+  }
+
+  @ViewBuilder private func host(_ demo: EffectDemo) -> some View {
+    switch demo.host {
+    case .buttons(let buttons):
+      HStack(spacing: 10) {
+        ForEach(buttons.indices, id: \.self) { i in
+          let (title, symbol, effect, primary) = buttons[i]
+          Button(title, systemImage: symbol) { bump(effect) }
+            .buttonStyle(primary ? .kitPrimary : .kit)
+            .effect(effect, on: count(effect))
+        }
+      }
+    case .card(let title, let detail):
+      HStack(spacing: 14) {
+        VStack(alignment: .leading, spacing: 2) {
+          Text(title)
+          if let detail { Text(detail).kitFont(.caption).foregroundStyle(.kitSecondary) }
+        }
+        .padding(.horizontal, 12)
+        .frame(minWidth: 150, minHeight: detail == nil ? 36 : 48, alignment: .leading)
+        .kitSurface(.card)
+        .effect(demo.effect, on: count(demo.effect), cornerRadius: KitMetrics.radiusCard)
+        Button("Play") { bump(demo.effect) }.buttonStyle(.kit).controlSize(.small)
+      }
+    }
+  }
 
   private func count(_ effect: KitEffect) -> Int { counts[effect, default: 0] }
   private func bump(_ effect: KitEffect) { counts[effect, default: 0] += 1 }
-
-  private func play(_ effect: KitEffect) -> some View {
-    Button("Play") { bump(effect) }.buttonStyle(.kit).controlSize(.small)
-  }
 }

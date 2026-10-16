@@ -177,6 +177,8 @@ struct Specimen<Content: View>: View {
       .overlay(shape.strokeBorder(.kitSeparator, lineWidth: 1))
       if let code { CodeSnippet(code) }
     }
+    // `--section <title>` also finds a specimen by its title.
+    .id(title)
   }
 }
 
