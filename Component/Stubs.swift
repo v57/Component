@@ -1,11 +1,6 @@
 import SwiftUI
 
 // Pages still to come.
-struct CountsPage: View { var body: some View { Text("CountsPage") } }
-struct ChipsPage: View { var body: some View { Text("ChipsPage") } }
-struct RefsPage: View { var body: some View { Text("RefsPage") } }
-struct LineCountsPage: View { var body: some View { Text("LineCountsPage") } }
-struct AvatarsPage: View { var body: some View { Text("AvatarsPage") } }
 struct SectionsPage: View { var body: some View { Text("SectionsPage") } }
 struct SidebarPage: View { var body: some View { Text("SidebarPage") } }
 struct ToolbarPage: View { var body: some View { Text("ToolbarPage") } }
