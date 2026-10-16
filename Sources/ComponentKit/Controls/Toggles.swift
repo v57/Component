@@ -47,13 +47,13 @@ struct CtlToggle: View {
       switch kind {
       case .switch:
         HStack(spacing: 8) {
-          configuration.label
+          CtlToggleLabel { configuration.label }
           CtlSwitchTrack(isOn: configuration.isOn, isFocused: isFocused)
         }
       case .checkbox:
         HStack(spacing: 8) {
           CtlCheckbox(isOn: configuration.isOn, isFocused: isFocused)
-          configuration.label
+          CtlToggleLabel { configuration.label }
         }
       case .chip:
         CtlChip(isOn: configuration.isOn, isFocused: isFocused) { configuration.label }
@@ -68,6 +68,30 @@ struct CtlToggle: View {
       Toggle(isOn: configuration.$isOn) { configuration.label }
         .toggleStyle(.switch)
     }
+  }
+}
+
+/// A switch's or checkbox's label, hidden by `.labelsHidden()` (it stays for VoiceOver through the toggle's
+/// accessibility representation). Before macOS 15 and iOS 18 the environment doesn't say, so the label shows.
+struct CtlToggleLabel<Label: View>: View {
+  @ViewBuilder var label: Label
+
+  var body: some View {
+    if #available(macOS 15.0, iOS 18.0, *) {
+      CtlHideableLabel { label }
+    } else {
+      label
+    }
+  }
+}
+
+@available(macOS 15.0, iOS 18.0, *)
+private struct CtlHideableLabel<Label: View>: View {
+  @ViewBuilder var label: Label
+  @Environment(\.labelsVisibility) private var visibility
+
+  var body: some View {
+    if visibility != .hidden { label }
   }
 }
 
