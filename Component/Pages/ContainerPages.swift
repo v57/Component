@@ -109,6 +109,36 @@ struct SectionsPage: View {
             }
           }
         }
+        Specimen(
+          "A meta view and a title accessory", ground: .sidebar,
+          code: """
+            KitSection("Sessions", systemImage: "terminal", status: .working) {
+              rows
+            } meta: {
+              Text("3 running") + Text("  ·  1 failed").foregroundStyle(Hue.red.text)
+            } accessory: { Button("New Session", systemImage: "plus") { … } }
+
+            KitSection("Shop", meta: "PostgreSQL 16", systemImage: "cylinder") { … }.titleAccessory { Chip.production }
+            RichHeader("Shop", meta: "PostgreSQL 16", systemImage: "cylinder").titleAccessory { Chip.readOnly }
+            """
+        ) {
+          VStack(spacing: 10) {
+            KitSection("Sessions", systemImage: "terminal", status: .working) {
+              SidebarRow(value: 1, "zsh — atlas", systemImage: "terminal")
+            } meta: {
+              Text("3 running") + Text("  ·  1 failed").foregroundStyle(Hue.red.text)
+            } accessory: {
+              Button("New Session", systemImage: "plus") {}
+            }
+            KitSection("Shop", meta: "PostgreSQL 16", systemImage: "cylinder", hue: .blue) {
+              SidebarRow(value: 2, "orders", systemImage: "tablecells")
+            }
+            .titleAccessory { Chip.production }
+            RichHeader("Shop", meta: "PostgreSQL 16 · read replica", systemImage: "cylinder", hue: .teal)
+              .titleAccessory { Chip.readOnly }
+          }
+          .frame(width: 320)
+        }
       }
     }
   }

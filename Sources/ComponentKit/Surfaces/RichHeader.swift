@@ -27,6 +27,7 @@ public struct RichHeader<Icon: View, Meta: View, Accessory: View>: View {
   @ViewBuilder var icon: Icon
   @ViewBuilder var meta: Meta
   @ViewBuilder var accessory: Accessory
+  var titleAccessory: AnyView?
   @Environment(\.kitIdiom) private var idiom
 
   public typealias Size = RichHeaderSize
@@ -46,9 +47,16 @@ public struct RichHeader<Icon: View, Meta: View, Accessory: View>: View {
     HStack(spacing: size == .section ? 8 : 10) {
       icon
       VStack(alignment: .leading, spacing: 1) {
-        title
-          .kitFont(size == .sheet ? .title3 : .headline)
-          .lineLimit(1)
+        HStack(spacing: 6) {
+          title
+            .kitFont(size == .sheet ? .title3 : .headline)
+            .lineLimit(1)
+          if let titleAccessory {
+            titleAccessory
+              .kitFont(.caption)
+              .fixedSize()
+          }
+        }
         meta
           .kitFont(.caption)
           .lineLimit(1)
@@ -61,6 +69,19 @@ public struct RichHeader<Icon: View, Meta: View, Accessory: View>: View {
     .padding(.trailing, size == .section ? 2 : 0)
     .padding(.vertical, size == .section ? 4 : 0)
     .frame(minHeight: size == .section ? (idiom.isTouch ? 48 : 40) : nil)
+  }
+}
+
+extension RichHeader {
+  /// Sets a small view right after the title: a chip ("Production", "Read only"), a dot, a lock.
+  ///
+  /// ```swift
+  /// RichHeader("Shop", meta: "PostgreSQL 16", systemImage: "cylinder").titleAccessory { Chip.production }
+  /// ```
+  public func titleAccessory<V: View>(@ViewBuilder _ content: () -> V) -> Self {
+    var header = self
+    header.titleAccessory = AnyView(content())
+    return header
   }
 }
 

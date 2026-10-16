@@ -46,6 +46,7 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
   @ViewBuilder var meta: Meta
   @ViewBuilder var content: Content
   @ViewBuilder var accessory: Accessory
+  var titleAccessory: AnyView?
   @State private var ownExpanded = true
   @State private var isHovered = false
   @Environment(\.kitSectionStyle) private var style
@@ -66,6 +67,17 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
 
   private var expanded: Bool { isExpanded?.wrappedValue ?? ownExpanded }
 
+  /// Sets a small view right after the section's title: a chip ("Production"), a dot, a count.
+  ///
+  /// ```swift
+  /// KitSection("Shop", meta: "PostgreSQL 16", systemImage: "cylinder") { … }.titleAccessory { Chip.production }
+  /// ```
+  public func titleAccessory<V: View>(@ViewBuilder _ content: () -> V) -> Self {
+    var section = self
+    section.titleAccessory = AnyView(content())
+    return section
+  }
+
   private func toggle() {
     withKitAnimation {
       if let isExpanded { isExpanded.wrappedValue.toggle() } else { ownExpanded.toggle() }
@@ -84,7 +96,7 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
   private var card: some View {
     let radius = ContMetrics.cardRadius(idiom)
     return VStack(alignment: .leading, spacing: 0) {
-      RichHeader(title, icon: { icon }, meta: { meta }, accessory: { cardAccessory })
+      header
         .contentShape(Rectangle())
         .onTapGesture(perform: toggle)
         .padding([.horizontal, .top], KitMetrics.cardPadding)
@@ -102,6 +114,12 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
     }
     .kitSurface(.card, cornerRadius: radius)
     .onHover { isHovered = $0 }
+  }
+
+  private var header: RichHeader<Icon, Meta, some View> {
+    var header = RichHeader(title, icon: { icon }, meta: { meta }, accessory: { cardAccessory })
+    header.titleAccessory = titleAccessory
+    return header
   }
 
   private var cardAccessory: some View {
@@ -131,11 +149,16 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
           .rotationEffect(.degrees(expanded ? 0 : -90))
           .frame(width: 12)
           .accessibilityHidden(true)
-        title
-          .kitFont(idiom.isTouch ? .headline : .sectionHeader)
-          .foregroundStyle(KitColor.sectionHeader)
-          .lineLimit(1)
-          .frame(maxWidth: .infinity, alignment: .leading)
+        HStack(spacing: 6) {
+          title
+            .kitFont(idiom.isTouch ? .headline : .sectionHeader)
+            .foregroundStyle(KitColor.sectionHeader)
+            .lineLimit(1)
+          if let titleAccessory {
+            titleAccessory.kitFont(.caption).fixedSize()
+          }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
         accessory
           .buttonStyle(.kitIcon)
           .controlSize(.small)
@@ -233,6 +256,47 @@ extension KitSection where Icon == LiveIcon<Image>, Meta == MetaLine, Accessory 
     self.init(
       title, meta: [meta], systemImage: systemImage, hue: hue, status: status, isExpanded: isExpanded,
       content: content, accessory: { EmptyView() })
+  }
+}
+
+extension KitSection where Icon == SizedLiveIcon {
+  /// A section with an SF Symbol tile sized for the idiom (carrying `status`), any meta view (a live status line,
+  /// counts in colour, a progress line) and trailing actions.
+  ///
+  /// ```swift
+  /// KitSection("Sessions", systemImage: "terminal", status: sync) {
+  ///   ForEach(sessions) { SidebarRow(value: $0.id, $0.name, systemImage: "terminal") }
+  /// } meta: {
+  ///   Text("3 running") + Text("  ·  1 failed").foregroundStyle(Hue.red.text)
+  /// } accessory: {
+  ///   Button("New Session", systemImage: "plus") { … }
+  /// }
+  /// ```
+  public init(
+    _ title: some StringProtocol, systemImage: String, hue: Hue = .accent, status: WorkStatus = .idle,
+    isExpanded: Binding<Bool>? = nil, @ViewBuilder content: () -> Content, @ViewBuilder meta: () -> Meta,
+    @ViewBuilder accessory: () -> Accessory
+  ) {
+    self.init(
+      Text(title), isExpanded: isExpanded, content: content,
+      icon: { SizedLiveIcon(systemImage: systemImage, hue: hue, status: status, size: .section) }, meta: meta,
+      accessory: accessory)
+  }
+}
+
+extension KitSection where Icon == SizedLiveIcon, Accessory == EmptyView {
+  /// A section with an SF Symbol tile sized for the idiom and any meta view.
+  ///
+  /// ```swift
+  /// KitSection("Agents", systemImage: "person.2", status: connection) { … } meta: { ConnectionLine(state) }
+  /// ```
+  public init(
+    _ title: some StringProtocol, systemImage: String, hue: Hue = .accent, status: WorkStatus = .idle,
+    isExpanded: Binding<Bool>? = nil, @ViewBuilder content: () -> Content, @ViewBuilder meta: () -> Meta
+  ) {
+    self.init(
+      title, systemImage: systemImage, hue: hue, status: status, isExpanded: isExpanded, content: content,
+      meta: meta, accessory: { EmptyView() })
   }
 }
 
