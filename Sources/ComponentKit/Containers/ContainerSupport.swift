@@ -38,6 +38,10 @@ enum ContMetrics {
   static func toolHeight(_ idiom: KitIdiom) -> CGFloat { idiom.isTouch ? 36 : 26 }
   static func toolIconWidth(_ idiom: KitIdiom) -> CGFloat { idiom.isTouch ? 40 : 28 }
   static func toolRadius(_ idiom: KitIdiom) -> CGFloat { idiom.isTouch ? 12 : 9 }
+  /// The kit's toolbar: 52 on the Mac (the title bar's height), 60 on iPad, 56 on iPhone.
+  static func toolbarHeight(_ idiom: KitIdiom) -> CGFloat { idiom == .phone ? 56 : idiom == .pad ? 60 : 52 }
+  /// How far the Mac's traffic lights reach into the title bar from the window's leading edge.
+  static let windowControlsWidth: CGFloat = 80
   /// The 2pt ring around a focused or wrong field, at half strength (the secondary level of its colour).
   static let ringWidth: CGFloat = 2
 }
@@ -413,6 +417,19 @@ enum ContPlatform {
   static func toggleSidebar() {
     #if canImport(AppKit)
       NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
+    #endif
+  }
+
+  /// What a double click on the title bar does, per System Settings (Desktop & Dock): zoom (the default), minimize,
+  /// or nothing.
+  static func titleBarDoubleClick() {
+    #if canImport(AppKit)
+      guard let window = NSApp.keyWindow else { return }
+      switch UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") {
+      case "Minimize": window.performMiniaturize(nil)
+      case "None": break
+      default: window.performZoom(nil)
+      }
     #endif
   }
 }

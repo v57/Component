@@ -2,6 +2,7 @@ import SwiftUI
 
 // The toolbar (the Toolbars and Toolbar compacting boards): the rich title on the leading side, tools in card groups,
 // and a toolbar that compacts in steps as the window narrows: labelled → icon-only → folded by priority into "…".
+// The window's own toolbar is `kitToolbar` (KitToolbar.swift); the pieces here also serve a system toolbar.
 
 // MARK: - Title
 
@@ -183,6 +184,18 @@ public struct KitToolButtonStyle: ButtonStyle {
   public init(iconOnly: Bool = false) { self.iconOnly = iconOnly }
 
   public func makeBody(configuration: Configuration) -> some View {
+    ContToolStyleButton(configuration: configuration, iconOnly: iconOnly)
+  }
+}
+
+/// A `.kitTool` button, icon-only also while a `KitToolbar` has compacted.
+private struct ContToolStyleButton: View {
+  let configuration: ButtonStyleConfiguration
+  let iconOnly: Bool
+  @Environment(\.kitToolbarIconOnly) private var toolbarIconOnly
+
+  var body: some View {
+    let iconOnly = iconOnly || toolbarIconOnly
     ContToolButtonStyle(iconOnly: iconOnly).makeBody(configuration: configuration)
       .labelStyle(ContToolLabelStyle(iconOnly: iconOnly))
   }
@@ -198,7 +211,8 @@ extension ButtonStyle where Self == KitToolButtonStyle {
 // MARK: - Groups
 
 /// A card of tools: 32pt (44 on touch), 12pt corners, each tool a 26pt button that fills on hover. Buttons inside take
-/// the tool look; `iconOnly` shows their icons alone (the title stays for accessibility and the tooltip).
+/// the tool look; `iconOnly` shows their icons alone (the title stays for accessibility and the tooltip), as does a
+/// `KitToolbar` once it compacts.
 ///
 /// ```swift
 /// ToolGroup {
@@ -210,6 +224,7 @@ public struct ToolGroup<Content: View>: View {
   var iconOnly: Bool
   @ViewBuilder var content: Content
   @Environment(\.kitIdiom) private var idiom
+  @Environment(\.kitToolbarIconOnly) private var toolbarIconOnly
 
   public init(iconOnly: Bool = false, @ViewBuilder content: () -> Content) {
     self.iconOnly = iconOnly
@@ -217,6 +232,7 @@ public struct ToolGroup<Content: View>: View {
   }
 
   public var body: some View {
+    let iconOnly = iconOnly || toolbarIconOnly
     HStack(spacing: 2) { content }
       .buttonStyle(ContToolButtonStyle(iconOnly: iconOnly))
       .labelStyle(ContToolLabelStyle(iconOnly: iconOnly))
@@ -491,6 +507,12 @@ enum ContToolbarPlan {
       steps.append(Step(labelled: false, folded: folded))
     }
     return steps
+  }
+
+  /// The first form whose measured width fits `available`, or the last (the smallest) when none does or none is
+  /// measured yet. A form not measured yet doesn't fit.
+  static func firstFit(widths: [CGFloat?], available: CGFloat) -> Int {
+    widths.firstIndex { width in width.map { $0 <= available + 0.5 } ?? false } ?? max(0, widths.count - 1)
   }
 
   /// The cards a step draws: runs of tools between gaps, minus the folded ones, with each primary action split out as

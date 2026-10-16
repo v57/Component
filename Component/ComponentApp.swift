@@ -14,8 +14,11 @@ struct ComponentApp: App {
         .environment(\.kitIncreaseContrast, model.increaseContrast)
         .preferredColorScheme(model.appearance.colorScheme)
         .componentKit(accent: model.accent.color)
+        .frame(width: model.windowWidth, height: model.windowWidth.map { _ in 700 })
     }
     .defaultSize(width: 1320, height: 900)
+    // A fixed width (`--width`) sizes the window to it.
+    .windowResizability(model.windowWidth == nil ? .automatic : .contentSize)
   }
 }
 
@@ -34,6 +37,10 @@ final class CatalogModel {
   var inactiveWindow = false
   /// The section a page opens scrolled to (`--section <title>`).
   var section: String?
+  /// A fixed window width (`--width <points>`), to capture the toolbar as it compacts.
+  var windowWidth: CGFloat?
+  /// Opens with the sidebar hidden (`--no-sidebar`).
+  var hidesSidebar = false
 
   init() {
     #if DEBUG
@@ -42,8 +49,8 @@ final class CatalogModel {
   }
 
   #if DEBUG
-    /// `--page <id>`, `--section <title>`, `--dark`, `--light`, `--idiom mac|pad|phone`, `--accent <id>`, `--contrast`, `--inactive`: opens
-    /// any page in any state without clicking (for window captures).
+    /// `--page <id>`, `--section <title>`, `--dark`, `--light`, `--idiom mac|pad|phone`, `--accent <id>`, `--contrast`, `--inactive`,
+    /// `--width <points>`, `--no-sidebar`: opens any page in any state without clicking (for window captures).
     func applyLaunchArguments(_ arguments: [String]) {
       func value(after flag: String) -> String? {
         guard let index = arguments.firstIndex(of: flag), index + 1 < arguments.count else { return nil }
@@ -62,6 +69,8 @@ final class CatalogModel {
       if arguments.contains("--contrast") { increaseContrast = true }
       if arguments.contains("--inactive") { inactiveWindow = true }
       section = value(after: "--section")
+      windowWidth = value(after: "--width").flatMap(Double.init).map { CGFloat($0) }
+      hidesSidebar = arguments.contains("--no-sidebar")
     }
   #endif
 }

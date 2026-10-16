@@ -82,6 +82,29 @@ import Testing
   #expect(folded == [[3], [5]])
 }
 
+@Test func toolbarPicksTheFirstFormThatFits() {
+  #expect(ContToolbarPlan.firstFit(widths: [500, 300, 200], available: 400) == 1)
+  #expect(ContToolbarPlan.firstFit(widths: [500, 300, 200], available: 600) == 0)
+  // Nothing fits, or nothing is measured yet: the smallest form.
+  #expect(ContToolbarPlan.firstFit(widths: [500, 300, 200], available: 100) == 2)
+  #expect(ContToolbarPlan.firstFit(widths: [nil, nil, nil], available: 1000) == 2)
+}
+
+@Test func kitToolbarTitleGivesWayOnlyAfterTheToolsCompact() {
+  // Room for the title and the widest tools.
+  let wide = ContToolbarLayoutMath.widths(
+    available: 1000, leading: 0, title: 200, toolsIdeal: 500, toolsMin: 100, spacing: 8)
+  #expect(wide == .init(leading: 0, title: 200, tools: 792))
+  // The tools compact first: the title keeps its width while the smallest tools still fit.
+  let narrow = ContToolbarLayoutMath.widths(
+    available: 400, leading: 30, title: 200, toolsIdeal: 500, toolsMin: 100, spacing: 8)
+  #expect(narrow == .init(leading: 30, title: 200, tools: 154))
+  // Then the title shrinks so the smallest tools keep their room.
+  let tight = ContToolbarLayoutMath.widths(
+    available: 250, leading: 0, title: 200, toolsIdeal: 500, toolsMin: 100, spacing: 8)
+  #expect(tight == .init(leading: 0, title: 142, tools: 100))
+}
+
 // MARK: - Window
 
 @Test func paneHairlineOnlyBetweenSameGrounds() {

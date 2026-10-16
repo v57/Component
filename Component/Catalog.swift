@@ -253,11 +253,15 @@ struct CatalogView: View {
         .id(model.page)
         .environment(\.kitIdiom, model.idiom ?? platformIdiom)
         .modifier(InactiveOverride(isOn: model.inactiveWindow))
-        .toolbar { CatalogToolbar(compact: platformIdiom == .phone) }
+        .kitToolbar(model.page.title) {
+          Text(model.page.title).kitFont(.title2)
+        } tools: {
+          CatalogToolbar.tools(model)
+        }
         .kitSidebarToggle(columnVisibility: $columns)
-        .navigationTitle(model.page.title)
     }
     .onChange(of: model.page) { compactColumn = .detail }
+    .onAppear { if model.hidesSidebar { columns = .detailOnly } }
   }
 }
 
@@ -309,62 +313,59 @@ struct CatalogSidebar: View {
 
 // MARK: - Toolbar
 
-/// The catalog's controls: appearance, accent, idiom, Increase Contrast and an inactive window. On iPhone they fold
-/// into one menu.
-struct CatalogToolbar: ToolbarContent {
-  var compact: Bool
-  @Environment(CatalogModel.self) private var model
-
-  var body: some ToolbarContent {
+/// The catalog's controls: appearance, accent, idiom, Increase Contrast and an inactive window. As the window narrows
+/// they go icon-only, then fold into the "…" menu, the chips first and the appearance last.
+enum CatalogToolbar {
+  @MainActor @ToolbarSlotBuilder
+  static func tools(_ model: CatalogModel) -> [ToolbarSlot] {
     @Bindable var model = model
-    if compact {
-      ToolbarItem(placement: .primaryAction) {
-        Menu {
-          Picker("Appearance", selection: $model.appearance) {
-            ForEach(Appearance.allCases, id: \.self) { Label($0.title, systemImage: $0.systemImage).tag($0) }
-          }
-          Picker("Accent", selection: $model.accent) {
-            ForEach(Accent.allCases) { Text($0.title).tag($0) }
-          }
-          Picker("Idiom", selection: $model.idiom) {
-            Text("Platform").tag(KitIdiom?.none)
-            Text("Mac").tag(KitIdiom?.some(.mac))
-            Text("iPad").tag(KitIdiom?.some(.pad))
-            Text("iPhone").tag(KitIdiom?.some(.phone))
-          }
-          Toggle("Increase Contrast", isOn: $model.increaseContrast)
-          Toggle("Inactive Window", isOn: $model.inactiveWindow)
-        } label: {
-          Label("Options", systemImage: "slider.horizontal.3")
-        }
+    ToolbarSlot(priority: 3) {
+      KitSegmented(
+        selection: $model.appearance,
+        segments: Appearance.allCases.map { KitSegment($0.title, value: $0, systemImage: $0.systemImage) }
+      )
+      .kitSegmentedStyle(.capsule)
+      .help("Appearance")
+    } menu: {
+      Picker("Appearance", selection: $model.appearance) {
+        ForEach(Appearance.allCases, id: \.self) { Label($0.title, systemImage: $0.systemImage).tag($0) }
       }
-    } else {
-      KitToolbarItem(placement: .primaryAction) {
-        HStack(spacing: KitMetrics.gutter) {
-          KitSegmented(
-            selection: $model.appearance,
-            segments: Appearance.allCases.map { KitSegment($0.title, value: $0, systemImage: $0.systemImage) }
-          )
-          .kitSegmentedStyle(.capsule)
-          .help("Appearance")
-          AccentPicker(selection: $model.accent)
-          KitSegmented(
-            selection: Binding(get: { model.idiom ?? KitIdiom.current }, set: { model.idiom = $0 }),
-            segments: [
-              KitSegment("Mac", value: KitIdiom.mac, systemImage: "laptopcomputer"),
-              KitSegment("iPad", value: KitIdiom.pad, systemImage: "ipad"),
-              KitSegment("iPhone", value: KitIdiom.phone, systemImage: "iphone"),
-            ]
-          )
-          .kitSegmentedStyle(.capsule)
-          .help("Idiom")
-          ChipTrack {
-            Toggle("Contrast", isOn: $model.increaseContrast)
-            Toggle("Inactive", isOn: $model.inactiveWindow)
-          }
-          .help("Increase Contrast and an inactive window")
-        }
+    }
+    ToolbarSlot(priority: 1) {
+      AccentPicker(selection: $model.accent)
+    } menu: {
+      Picker("Accent", selection: $model.accent) {
+        ForEach(Accent.allCases) { Text($0.title).tag($0) }
       }
+    }
+    ToolbarSlot(priority: 2) {
+      KitSegmented(
+        selection: Binding(get: { model.idiom ?? KitIdiom.current }, set: { model.idiom = $0 }),
+        segments: [
+          KitSegment("Mac", value: KitIdiom.mac, systemImage: "laptopcomputer"),
+          KitSegment("iPad", value: KitIdiom.pad, systemImage: "ipad"),
+          KitSegment("iPhone", value: KitIdiom.phone, systemImage: "iphone"),
+        ]
+      )
+      .kitSegmentedStyle(.capsule)
+      .help("Idiom")
+    } menu: {
+      Picker("Idiom", selection: $model.idiom) {
+        Text("Platform").tag(KitIdiom?.none)
+        Text("Mac").tag(KitIdiom?.some(.mac))
+        Text("iPad").tag(KitIdiom?.some(.pad))
+        Text("iPhone").tag(KitIdiom?.some(.phone))
+      }
+    }
+    ToolbarSlot(priority: 0) {
+      ChipTrack {
+        Toggle("Contrast", isOn: $model.increaseContrast)
+        Toggle("Inactive", isOn: $model.inactiveWindow)
+      }
+      .help("Increase Contrast and an inactive window")
+    } menu: {
+      Toggle("Increase Contrast", isOn: $model.increaseContrast)
+      Toggle("Inactive Window", isOn: $model.inactiveWindow)
     }
   }
 }

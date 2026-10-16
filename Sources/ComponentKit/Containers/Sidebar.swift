@@ -274,7 +274,7 @@ extension EnvironmentValues {
 
 extension View {
   /// Brings back a sidebar the kit's toggle hid: while the sidebar is hidden, a "Show Sidebar" button leads the
-  /// toolbar. Put it on the detail column (the content column in a three-column split), with the same visibility
+  /// toolbar (the kit's own bar under a `kitToolbar`, the system toolbar otherwise). Put it on the detail column (the content column in a three-column split), with the same visibility
   /// binding the `KitSidebar` got (on iPad and iPhone the bar's toggle hides it, and the split view's own toggle may
   /// be removed). On iPad it also shows at `.automatic` while the split keeps the sidebar out of the way (portrait,
   /// or always in a three-column split).
@@ -344,11 +344,20 @@ enum ContSplitVisibility {
 private struct ContShowSidebar: ViewModifier {
   @Binding var columnVisibility: NavigationSplitViewVisibility
   @State private var isPortrait = false
+  @State private var hasKitToolbar = false
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.contThreeColumns) private var threeColumns
 
   func body(content: Content) -> some View {
+    let isHidden = ContSplitVisibility.sidebarIsHidden(
+      columnVisibility, threeColumns: threeColumns, isTouch: idiom.isTouch, isPortrait: isPortrait)
     content
+      // A kit toolbar below takes the button into its own bar.
+      .environment(\.contShowSidebar, isHidden ? ContShowSidebarAction(action: showSidebar) : nil)
+      // On iPhone and iPad the kit toolbar hides the navigation bar, so the system item never shows there.
+      #if os(macOS)
+        .onPreferenceChange(ContKitToolbarKey.self) { hasKitToolbar = $0 }
+      #endif
       .background {
         if idiom.isTouch {
           // The column's own shape stands in for the orientation: full height and narrower than tall in portrait.
@@ -360,11 +369,12 @@ private struct ContShowSidebar: ViewModifier {
         }
       }
       .toolbar {
-        ContShowSidebarItem(
-          columnVisibility: $columnVisibility,
-          isHidden: ContSplitVisibility.sidebarIsHidden(
-            columnVisibility, threeColumns: threeColumns, isTouch: idiom.isTouch, isPortrait: isPortrait))
+        ContShowSidebarItem(columnVisibility: $columnVisibility, isHidden: isHidden && !hasKitToolbar)
       }
+  }
+
+  private func showSidebar() {
+    withAnimation(.kitSlow) { columnVisibility = .all }
   }
 }
 

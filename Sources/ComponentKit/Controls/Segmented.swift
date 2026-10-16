@@ -221,15 +221,20 @@ struct CtlSegmentLabel<Value: Hashable>: View {
   @Environment(\.ctlIsPressed) private var isPressed
   @Environment(\.isEnabled) private var isEnabled
   @Environment(\.colorScheme) private var scheme
+  @Environment(\.kitToolbarIconOnly) private var toolbarIconOnly
   @State private var isHovered = false
 
   var body: some View {
     let isLit = isEnabled && (isHovered || isFocused || isPressed)
+    // In a compacted toolbar a segment with an icon shows the icon alone (the title stays for accessibility).
+    let iconOnly = toolbarIconOnly && segment.systemImage != nil
     HStack(spacing: 5) {
       if let systemImage = segment.systemImage {
         Image(systemName: systemImage).imageScale(.small)
       }
-      CtlStableWeightText(segment.title, bold: isSelected)
+      if !iconOnly {
+        CtlStableWeightText(segment.title, bold: isSelected)
+      }
       if let count = segment.count {
         Text(count, format: .number)
           .monospacedDigit()
@@ -254,6 +259,8 @@ struct CtlSegmentLabel<Value: Hashable>: View {
     }
     .scaleEffect(isPressed && isEnabled ? 0.98 : 1)
     .contentShape(Rectangle())
+    .help(iconOnly ? segment.title : "")
+    .accessibilityLabel(segment.title)
     .onHover { isHovered = $0 }
     .animation(.kitFast, value: isLit)
     .animation(.kitFast, value: isPressed)

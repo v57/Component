@@ -538,8 +538,41 @@ struct ToolbarPage: View {
         }
       }
       SpecimenSection(
+        "The kit's toolbar",
+        note: "Drawn by the kit in the title bar instead of the system toolbar (this window's): the title, then the tools, which go icon-only, then fold into … by priority. Slots without a menu never fold. Drag the width."
+      ) {
+        Specimen(
+          "kitToolbar, KitToolbar, ToolbarSlot", ground: .window,
+          code: """
+            Detail()
+              .kitToolbar("History", meta: ["main", "2 to push"], systemImage: "clock", status: fetch) {
+                ToolbarSlot(priority: 1) {
+                  ToolGroup { Button("Fetch", systemImage: "arrow.down.circle") { … } }
+                } menu: {
+                  Button("Fetch", systemImage: "arrow.down.circle") { … }
+                }
+                ToolbarSlot(priority: 0) { KitSegmented(selection: $mode, segments: modes) } menu: { Picker("Mode", …) }
+                Button("Commit", systemImage: "checkmark") { … }.buttonStyle(.kitPrimary)   // never folds
+              }
+              .kitSidebarToggle(columnVisibility: $columns)   // Show Sidebar leads the bar while the sidebar is hidden
+            """
+        ) {
+          VStack(alignment: .leading, spacing: 14) {
+            HStack {
+              Text("Width").kitFont(.callout)
+              KitSlider("Width", value: $width, in: 140...760, valueBubble: .automatic) { "\(Int($0)) pt" }
+                .frame(width: 260)
+              Text("\(Int(width)) pt").kitFont(.mono).foregroundStyle(.kitSecondary)
+            }
+            kitToolbar
+              .frame(width: width)
+              .background(Hue.accent.soft(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+          }
+        }
+      }
+      SpecimenSection(
         "In a system toolbar",
-        note: "Kit views draw their own cards, so on macOS 26 and iOS 26 the toolbar's glass stays out from behind them. This window's toolbar uses them."
+        note: "For a view that keeps the system toolbar: kit views draw their own cards, so on macOS 26 and iOS 26 the toolbar's glass stays out from behind them."
       ) {
         Specimen(
           "KitToolbarItem, kitToolbarTitle, kitTool",
@@ -646,6 +679,28 @@ struct ToolbarPage: View {
           }
         }
       }
+    }
+  }
+
+  private var kitToolbar: some View {
+    KitToolbar("History", meta: ["main", "2 to push"], systemImage: "clock", status: fetch.status) {
+      ToolbarSlot(priority: 1) {
+        ToolGroup {
+          Button("Fetch", systemImage: "arrow.down.circle") { fetch.start() }
+          Button("Push", systemImage: "arrow.up") { log.append("Push") }
+        }
+      } menu: {
+        Button("Fetch", systemImage: "arrow.down.circle") { fetch.start() }
+        Button("Push", systemImage: "arrow.up") { log.append("Push") }
+      }
+      ToolbarSlot(priority: 0) {
+        ToolGroup {
+          Button("Filter", systemImage: "line.3.horizontal.decrease") { filterOn.toggle() }.kitToolOn(filterOn)
+        }
+      } menu: {
+        Toggle("Filter", isOn: $filterOn)
+      }
+      Button("Commit", systemImage: "checkmark") { log.append("Commit") }.buttonStyle(.kitPrimary)
     }
   }
 
