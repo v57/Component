@@ -82,3 +82,14 @@ import Testing
   #expect(MicroBar.clamped(-1) == 0)
   #expect(MicroBar.clamped(.nan) == 0)
 }
+
+// MARK: - Progress bar
+
+@Test func progressBarFillWidth() {
+  #expect(KitProgressBar.fillWidth(0, in: 200, height: 4) == 0)
+  #expect(KitProgressBar.fillWidth(0.5, in: 200, height: 4) == 100)
+  // A sliver still shows as a dot; past the end stops at the end; NaN is empty.
+  #expect(KitProgressBar.fillWidth(0.001, in: 200, height: 4) == 4)
+  #expect(KitProgressBar.fillWidth(1.4, in: 200, height: 4) == 200)
+  #expect(KitProgressBar.fillWidth(.nan, in: 200, height: 4) == 0)
+}

@@ -264,6 +264,22 @@ struct LineCountsPage: View {
             KitSlider("Progress", value: $progress).frame(width: 240)
           }
         }
+        Specimen(
+          "KitProgressBar", note: "Stretches to its width; a second value (buffered, available) sits softly behind.",
+          code: "KitProgressBar(value: 0.4)\nKitProgressBar(value: played, secondary: buffered, hue: .red)\nKitProgressBar(status: .paused(progress: 0.6))\nKitProgressBar(value: 0.55).controlSize(.large)"
+        ) {
+          VStack(alignment: .leading, spacing: 12) {
+            KitProgressBar(value: progress)
+            KitProgressBar(value: progress, secondary: min(progress + 0.3, 1), hue: .red)
+            HStack(spacing: 12) {
+              KitProgressBar(status: .paused(progress: 0.6))
+              KitProgressBar(status: .done)
+              KitProgressBar(status: .failed)
+            }
+            KitProgressBar(value: progress).controlSize(.large)
+          }
+          .frame(maxWidth: 420)
+        }
         Specimen("A download row", ground: .sidebar, code: "SidebarRow(file.name, systemImage: \"doc\") { ProgressRow(value: file.progress) }") {
           VStack(spacing: 2) {
             SidebarRow("ubuntu-26.04.iso", subtitle: "27.7 MB/s", systemImage: "opticaldisc") { ProgressRow(value: progress) }
