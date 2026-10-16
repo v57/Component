@@ -65,8 +65,9 @@ extension View {
 
 /// The sidebar: card sections on the sidebar ground, the selection as a raised card that glides between rows (with
 /// the accent tile while the sidebar has keyboard focus, flat and gray otherwise, still in an inactive window), drag to
-/// reorder, and the bottom bar: a square search button that opens into the search line, then the actions and the
-/// sidebar toggle in one card. Rows read the selection from the environment.
+/// reorder, and the bottom bar: a square search button that opens into the search line, then the actions and (on
+/// iPad and iPhone) the sidebar toggle in one card. On the Mac the toggle sits at the sidebar's top right, in the
+/// title bar. Rows read the selection from the environment.
 ///
 /// ```swift
 /// KitSidebar(selection: $selection, searchText: $search) {
@@ -165,7 +166,7 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     .safeAreaInset(edge: .bottom, spacing: 0) {
       if showsBar {
         ContSidebarBar(
-          searchText: searchText, prompt: searchPrompt, isSearching: isSearching, toggle: toggle,
+          searchText: searchText, prompt: searchPrompt, isSearching: isSearching, toggle: barToggle,
           status: statusView, actions: { bottomBar })
           .background { ContEdgeFade(edge: .bottom, ground: .kitSidebar) }
       }
@@ -174,6 +175,20 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     .overlay(alignment: .top) {
       ContEdgeFade(edge: .top, ground: .kitSidebar).frame(height: topInset)
     }
+    #if os(macOS)
+      // The Mac's hide button sits at the sidebar's top right, centered on the traffic lights, as the system's does.
+      .overlay(alignment: .topTrailing) {
+        if let toggle {
+          ToolGroup(iconOnly: true) {
+            Button("Hide Sidebar", systemImage: "sidebar.left") { toggle() }
+          }
+          .help("Hide Sidebar")
+          .frame(height: topInset)
+          .padding(.trailing, inset)
+          .offset(y: -topInset)
+        }
+      }
+    #endif
     .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { topInset = $0 }
     .background { Rectangle().fill(.kitSidebar).ignoresSafeArea() }
     // Its own floor: a split view's column minimum gives way under a full toolbar.
@@ -191,7 +206,16 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   }
 
   private var showsBar: Bool {
-    searchText != nil || BottomBar.self != EmptyView.self || toggle != nil || statusView != nil
+    searchText != nil || BottomBar.self != EmptyView.self || barToggle != nil || statusView != nil
+  }
+
+  /// The bottom bar's sidebar toggle: on iPad and iPhone; the Mac's sits at the top right.
+  private var barToggle: (@MainActor () -> Void)? {
+    #if os(macOS)
+      nil
+    #else
+      toggle
+    #endif
   }
 
   /// Puts a status at the start of the bottom bar, after the search button: where the items live ("On This Mac",

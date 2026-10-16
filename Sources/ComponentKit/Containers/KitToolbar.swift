@@ -78,7 +78,6 @@ public struct KitToolbar<Title: View>: View {
   let slots: [ToolbarSlot]
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.contShowSidebar) private var showSidebar
-  @State private var minX: CGFloat = 0
   #if os(iOS)
     @Environment(\.isPresented) private var isPresented
     @Environment(\.dismiss) private var dismiss
@@ -106,7 +105,7 @@ public struct KitToolbar<Title: View>: View {
           ToolGroup(iconOnly: true) {
             Button("Show Sidebar", systemImage: "sidebar.left") { showSidebar() }
           }
-          .kitHelp("Show Sidebar", systemImage: "sidebar.left")
+          .help("Show Sidebar")
           .transition(.opacity)
         }
       }
@@ -120,20 +119,17 @@ public struct KitToolbar<Title: View>: View {
     .frame(height: height)
     .frame(maxWidth: .infinity)
     .background { ContWindowDragArea() }
-    #if os(macOS)
-      .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minX } action: { minX = $0 }
-    #endif
     .animation(.kit, value: showSidebar != nil)
   }
 
-  /// 16pt in from the bar's edge (Mac), and clear of the traffic lights while the bar starts at the window's edge (the
-  /// sidebar hidden).
+  /// 16pt in from the bar's edge, and on the Mac clear of the traffic lights while the sidebar is hidden (the bar
+  /// then starts at the window's edge; `kitSidebarToggle` says so). The bar's own position can't tell: the split view
+  /// moves its column without SwiftUI seeing a new frame.
   private var leadingInset: CGFloat {
-    let inset: CGFloat = 16
     #if os(macOS)
-      return max(inset, ContMetrics.windowControlsWidth + 8 - minX)
+      showSidebar != nil ? ContMetrics.windowControlsWidth + 8 : 16
     #else
-      return inset
+      16
     #endif
   }
 }
@@ -235,16 +231,23 @@ private struct ContTopBar<Bar: View>: ViewModifier {
     #endif
   }
 
+  /// On macOS 26 and iOS 26 both bars stay in place and only the bar moves between them, so switching modes keeps
+  /// the content (its scroll position, the control being clicked) instead of rebuilding it.
   @ViewBuilder
   private func placed(_ content: Content) -> some View {
-    if mode == .bar, #available(macOS 26.0, iOS 26.0, *) {
+    let fade = ContEdgeFade(edge: .top, ground: .kitWindow)
+    if #available(macOS 26.0, iOS 26.0, *) {
       content
-        .safeAreaBar(edge: .top, spacing: 0) { bar.background { ContEdgeFade(edge: .top, ground: .kitWindow) } }
+        .safeAreaInset(edge: .top, spacing: 0) {
+          if mode == .inset { bar.background { fade } }
+        }
+        .safeAreaBar(edge: .top, spacing: 0) {
+          if mode == .bar { bar.background { fade } }
+        }
         .scrollEdgeEffectStyle(.soft, for: .top)
+        .scrollEdgeEffectHidden(mode == .inset, for: .top)
     } else {
-      content
-        .safeAreaInset(edge: .top, spacing: 0) { bar.background { ContEdgeFade(edge: .top, ground: .kitWindow) } }
-        .modifier(ContTopEdgeEffectHidden())
+      content.safeAreaInset(edge: .top, spacing: 0) { bar.background { fade } }
     }
   }
 }
@@ -255,17 +258,6 @@ private struct ContGroundGlow: ViewModifier {
 
   func body(content: Content) -> some View {
     content.shadow(color: KitColor.window.color(dark: scheme == .dark), radius: 4)
-  }
-}
-
-/// Takes the system's top scroll edge away from the content under the kit's bar (macOS 26 and iOS 26 on).
-private struct ContTopEdgeEffectHidden: ViewModifier {
-  func body(content: Content) -> some View {
-    if #available(macOS 26.0, iOS 26.0, *) {
-      content.scrollEdgeEffectHidden(true, for: .top)
-    } else {
-      content
-    }
   }
 }
 
