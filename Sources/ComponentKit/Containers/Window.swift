@@ -155,14 +155,14 @@ extension View {
 
 // MARK: - Split
 
-/// The main content and a pane beside it, split by a divider that drags the pane's width (from Git's
-/// `ResizableSplit`). The width is remembered under `autosaveName`; double-clicking the divider restores the default.
-/// When the window is too narrow for both, the main content gives way down to `mainMinWidth`, then the pane down to
-/// its minimum.
+/// The main content and a pane beside it (or under it), split by a divider that drags the pane's size (from Git's
+/// `ResizableSplit`). The size is remembered under `autosaveName`; double-clicking the divider restores the default.
+/// When the window is too small for both, the main content gives way down to its minimum, then the pane down to its
+/// own.
 ///
 /// The divider keeps a 9pt grab area. At rest it shows nothing (the change of ground is the edge) or a hairline when
 /// both sides share a ground (`showsLine`); under the pointer a half-accent line marks it, and while dragging the line
-/// is the accent and a small card reads the width.
+/// is the accent and a small card reads the size.
 ///
 /// ```swift
 /// ResizableSplit("inspectorWidth", pane: .trailing, width: 320, range: 260...480, mainMinWidth: 360) {
@@ -170,9 +170,14 @@ extension View {
 /// } pane: {
 ///   KitInspector { … }
 /// }
+/// ResizableSplit("consoleHeight", pane: .bottom, height: 200, range: 120...480, mainMinHeight: 200) {
+///   Editor().kitPane(.content)
+/// } pane: {
+///   Console().kitPane(.secondary)
+/// }
 /// ```
 public struct ResizableSplit<Main: View, Pane: View>: View {
-  let edge: HorizontalEdge
+  let edge: Edge
   let defaultWidth: CGFloat
   let range: ClosedRange<CGFloat>
   let mainMinWidth: CGFloat
@@ -180,17 +185,18 @@ public struct ResizableSplit<Main: View, Pane: View>: View {
   @ViewBuilder let main: Main
   @ViewBuilder let pane: Pane
   @AppStorage private var width: Double
-  /// The pane's laid-out width, which drags start from (it can be less than `width`).
+  /// The pane's laid-out size along the split, which drags start from (it can be less than `width`).
   @State private var shownWidth: CGFloat = 0
   @State private var dragStart: CGFloat?
   @State private var isHovered = false
 
+  /// A pane at the leading or trailing edge, `width` wide by default.
   public init(
     _ autosaveName: String, pane edge: HorizontalEdge, width defaultWidth: CGFloat,
     range: ClosedRange<CGFloat>, mainMinWidth: CGFloat = 0, showsLine: Bool = false,
     @ViewBuilder main: () -> Main, @ViewBuilder pane: () -> Pane
   ) {
-    self.edge = edge
+    self.edge = edge == .leading ? .leading : .trailing
     self.defaultWidth = defaultWidth
     self.range = range
     self.mainMinWidth = mainMinWidth
@@ -200,9 +206,29 @@ public struct ResizableSplit<Main: View, Pane: View>: View {
     _width = AppStorage(wrappedValue: Double(defaultWidth), autosaveName)
   }
 
+  /// A pane at the top or bottom edge (a console, a preview), `height` tall by default.
+  public init(
+    _ autosaveName: String, pane edge: VerticalEdge, height defaultHeight: CGFloat,
+    range: ClosedRange<CGFloat>, mainMinHeight: CGFloat = 0, showsLine: Bool = false,
+    @ViewBuilder main: () -> Main, @ViewBuilder pane: () -> Pane
+  ) {
+    self.edge = edge == .top ? .top : .bottom
+    self.defaultWidth = defaultHeight
+    self.range = range
+    self.mainMinWidth = mainMinHeight
+    self.showsLine = showsLine
+    self.main = main()
+    self.pane = pane()
+    _width = AppStorage(wrappedValue: Double(defaultHeight), autosaveName)
+  }
+
+  private var isVertical: Bool { edge == .top || edge == .bottom }
+  private var paneLeads: Bool { edge == .leading || edge == .top }
+
   public var body: some View {
-    HStack(spacing: 0) {
-      if edge == .leading {
+    let layout = isVertical ? AnyLayout(VStackLayout(spacing: 0)) : AnyLayout(HStackLayout(spacing: 0))
+    layout {
+      if paneLeads {
         sizedPane
         divider
         sizedMain
@@ -214,42 +240,58 @@ public struct ResizableSplit<Main: View, Pane: View>: View {
     }
   }
 
+  @ViewBuilder
   private var sizedMain: some View {
-    main.frame(minWidth: mainMinWidth, maxWidth: .infinity)
+    if isVertical {
+      main.frame(minHeight: mainMinWidth, maxHeight: .infinity)
+    } else {
+      main.frame(minWidth: mainMinWidth, maxWidth: .infinity)
+    }
   }
 
+  @ViewBuilder
   private var sizedPane: some View {
-    pane
-      .frame(minWidth: range.lowerBound, maxWidth: ContSplit.clamp(width, to: range))
-      .modifier(ContWidthReader(width: $shownWidth))
-      .layoutPriority(1)
+    if isVertical {
+      pane
+        .frame(minHeight: range.lowerBound, maxHeight: ContSplit.clamp(width, to: range))
+        .modifier(ContSizeReader(axis: .vertical, size: $shownWidth))
+        .layoutPriority(1)
+    } else {
+      pane
+        .frame(minWidth: range.lowerBound, maxWidth: ContSplit.clamp(width, to: range))
+        .modifier(ContSizeReader(axis: .horizontal, size: $shownWidth))
+        .layoutPriority(1)
+    }
   }
 
   private var divider: some View {
     let isDragging = dragStart != nil
+    let vertical = isVertical
     return Color.clear
-      .frame(width: 0)
+      .frame(width: vertical ? nil : 0, height: vertical ? 0 : nil)
       .overlay {
         ZStack {
           if isDragging || isHovered {
             Rectangle()
               .fill(isDragging ? Hue.accent.fill : Hue.accent.soft(0.5))
-              .frame(width: 2)
+              .frame(width: vertical ? nil : 2, height: vertical ? 2 : nil)
               .transition(.opacity)
           } else if showsLine {
-            Rectangle().fill(.kitSeparator).frame(width: 1)
+            Rectangle().fill(.kitSeparator).frame(width: vertical ? nil : 1, height: vertical ? 1 : nil)
           }
           Color.clear
-            .frame(width: 9)
+            .frame(width: vertical ? nil : 9, height: vertical ? 9 : nil)
             .contentShape(Rectangle())
-            .contResizeCursor()
+            .contResizeCursor(vertical: vertical)
             .onHover { isHovered = $0 }
             .gesture(
               DragGesture(minimumDistance: 1, coordinateSpace: .global)
                 .onChanged { drag in
                   let start = dragStart ?? shownWidth
                   dragStart = start
-                  width = ContSplit.width(start: start, translation: drag.translation.width, edge: edge, range: range)
+                  width = ContSplit.size(
+                    start: start, translation: vertical ? drag.translation.height : drag.translation.width,
+                    paneLeads: paneLeads, range: range)
                 }
                 .onEnded { _ in dragStart = nil }
             )
@@ -258,7 +300,7 @@ public struct ResizableSplit<Main: View, Pane: View>: View {
         .animation(.kitFast, value: isHovered)
         .animation(.kitFast, value: isDragging)
       }
-      .overlay(alignment: .top) {
+      .overlay(alignment: vertical ? .leading : .top) {
         if isDragging {
           Text("\(Int(shownWidth.rounded())) pt")
             .kitFont(.caption)
@@ -269,7 +311,7 @@ public struct ResizableSplit<Main: View, Pane: View>: View {
             .padding(.vertical, 2)
             .background { SurfaceShape(surface: .floating, cornerRadius: KitMetrics.radiusXS) }
             .fixedSize()
-            .padding(.top, 10)
+            .padding(vertical ? .leading : .top, 10)
             .allowsHitTesting(false)
             .transition(.opacity)
         }
@@ -280,14 +322,27 @@ public struct ResizableSplit<Main: View, Pane: View>: View {
       .accessibilityLabel("Divider")
       .accessibilityValue("\(Int(shownWidth.rounded())) points")
       .accessibilityAdjustableAction { direction in
-        let step: CGFloat = edge == .leading ? 20 : -20
+        let step: CGFloat = paneLeads ? 20 : -20
         let start = shownWidth
         switch direction {
-        case .increment: width = ContSplit.width(start: start, translation: step, edge: edge, range: range)
-        case .decrement: width = ContSplit.width(start: start, translation: -step, edge: edge, range: range)
+        case .increment: width = ContSplit.size(start: start, translation: step, paneLeads: paneLeads, range: range)
+        case .decrement: width = ContSplit.size(start: start, translation: -step, paneLeads: paneLeads, range: range)
         @unknown default: break
         }
       }
+  }
+}
+
+/// Reports a view's width or height.
+struct ContSizeReader: ViewModifier {
+  let axis: Axis
+  @Binding var size: CGFloat
+
+  func body(content: Content) -> some View {
+    let axis = axis
+    return content.onGeometryChange(for: CGFloat.self) { axis == .vertical ? $0.size.height : $0.size.width } action: {
+      size = $0
+    }
   }
 }
 
@@ -308,9 +363,25 @@ enum ContSplit {
   /// The pane's width after dragging the divider by `translation` from a pane `start` wide: a leading pane grows as
   /// the divider moves right, a trailing one as it moves left.
   static func width(start: CGFloat, translation: CGFloat, edge: HorizontalEdge, range: ClosedRange<CGFloat>) -> Double {
-    let offset = edge == .leading ? translation : -translation
+    size(start: start, translation: translation, paneLeads: edge == .leading, range: range)
+  }
+
+  /// The pane's size after dragging the divider by `translation` along the split: a pane that leads (leading, top)
+  /// grows as the divider moves forward (right, down), one that trails as it moves back.
+  static func size(start: CGFloat, translation: CGFloat, paneLeads: Bool, range: ClosedRange<CGFloat>) -> Double {
+    let offset = paneLeads ? translation : -translation
     return Double(clamp(Double(start + offset), to: range))
   }
+}
+
+#Preview("Vertical split") {
+  ResizableSplit("preview.console", pane: .bottom, height: 140, range: 80...260, showsLine: true) {
+    Text("Editor").frame(maxWidth: .infinity, maxHeight: .infinity).kitPane(.content)
+  } pane: {
+    Text("Console").frame(maxWidth: .infinity, maxHeight: .infinity).kitPane(.secondary)
+  }
+  .frame(width: 480, height: 360)
+  .componentKit()
 }
 
 #Preview("Window B") {

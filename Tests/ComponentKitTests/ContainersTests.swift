@@ -157,3 +157,9 @@ private var navRows: [(value: AnyHashable, indent: Int, isOpen: Bool?)] { [
   #expect(ContReorder.accepts(from: "b", into: "a", receives: true))
   #expect(!ContReorder.accepts(from: nil, into: "a", receives: true))
 }
+
+@Test func splitBottomPaneGrowsWhenDividerMovesUp() {
+  #expect(ContSplit.size(start: 200, translation: -50, paneLeads: false, range: 100...400) == 250)
+  #expect(ContSplit.size(start: 200, translation: 50, paneLeads: false, range: 100...400) == 150)
+  #expect(ContSplit.size(start: 200, translation: 500, paneLeads: true, range: 100...400) == 400)
+}

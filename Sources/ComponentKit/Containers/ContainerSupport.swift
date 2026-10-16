@@ -399,15 +399,15 @@ enum ContPlatform {
 }
 
 extension View {
-  /// The column-resize pointer over a divider's grab area.
+  /// The column-resize pointer over a divider's grab area (the row-resize one for a `vertical` split).
   @ViewBuilder
-  func contResizeCursor() -> some View {
+  func contResizeCursor(vertical: Bool = false) -> some View {
     #if canImport(AppKit)
       if #available(macOS 15.0, *) {
-        pointerStyle(.columnResize)
+        pointerStyle(vertical ? .rowResize : .columnResize)
       } else {
         onHover { inside in
-          if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+          if inside { (vertical ? NSCursor.resizeUpDown : NSCursor.resizeLeftRight).push() } else { NSCursor.pop() }
         }
       }
     #else

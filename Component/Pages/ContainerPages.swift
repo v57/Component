@@ -629,6 +629,41 @@ struct WindowPage: View {
           }
           """)
       }
+      SpecimenSection("A pane under the content", note: "The split also runs vertically: a console under the editor. Drag the divider up and down.") {
+        HStack(alignment: .top, spacing: 20) {
+          WindowFrame(height: 320) {
+            ResizableSplit("catalog.console", pane: .bottom, height: 120, range: 80...220, mainMinHeight: 80) {
+              VStack(alignment: .leading, spacing: 4) {
+                Text("TripStore.swift").kitFont(.headline)
+                Text("func save(_ trip: Trip) throws { … }").kitFont(.mono).foregroundStyle(.kitSecondary)
+                Spacer()
+              }
+              .padding(14)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .kitPane(.content)
+            } pane: {
+              VStack(alignment: .leading, spacing: 3) {
+                Text("$ swift build").kitFont(.mono)
+                Text("Build complete! (2.31s)").kitFont(.mono).foregroundStyle(Hue.green.text)
+                Spacer()
+              }
+              .padding(12)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .kitPane(.secondary)
+            }
+          }
+          .frame(width: 420)
+          CodeSnippet(
+            """
+            ResizableSplit("consoleHeight", pane: .bottom, height: 200,
+                           range: 120...480, mainMinHeight: 200) {
+              Editor().kitPane(.content)
+            } pane: {
+              Console().kitPane(.secondary)
+            }
+            """)
+        }
+      }
       SpecimenSection("Two panes on one ground", note: "They get their hairline back.") {
         WindowFrame(height: 180) {
           KitWindowLayout {
