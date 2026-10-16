@@ -29,6 +29,13 @@ public enum KitMetrics {
   public static func twoLineRow(_ idiom: KitIdiom) -> CGFloat { idiom.isTouch ? 56 : 44 }
   public static func tableRow(_ idiom: KitIdiom) -> CGFloat { idiom.isTouch ? 44 : 34 }
 
+  /// A sidebar row's icon tile (and a live icon in its place): 18pt on the Mac, 28 on iPad, 30 on iPhone.
+  ///
+  /// ```swift
+  /// LiveIcon(systemImage: "terminal", status: session.status, size: KitMetrics.rowTile(idiom))
+  /// ```
+  public static func rowTile(_ idiom: KitIdiom) -> CGFloat { idiom == .phone ? 30 : idiom == .pad ? 28 : 18 }
+
   public static let sidebarWidth: CGFloat = 240
   public static let inspectorWidth: CGFloat = 320
   public static let titlebarHeight: CGFloat = 52

@@ -123,3 +123,30 @@ import Testing
   #expect(ContKeycaps.keys("⌥⌘Return") == ["⌥", "⌘", "Return"])
   #expect(ContKeycaps.keys("K") == ["K"])
 }
+
+// MARK: - Row keyboard navigation
+
+private var navRows: [(value: AnyHashable, indent: Int, isOpen: Bool?)] { [
+  ("Sources", 0, true), ("Models", 1, false), ("App.swift", 1, nil), ("Tests", 0, false), ("Package.swift", 0, nil),
+] }
+
+@Test func rowNavMovesUpAndDown() {
+  #expect(ContRowNav.move(nil, by: 1, in: navRows) == .select("Sources"))
+  #expect(ContRowNav.move(nil, by: -1, in: navRows) == .select("Package.swift"))
+  #expect(ContRowNav.move("Models", by: 1, in: navRows) == .select("App.swift"))
+  #expect(ContRowNav.move("Sources", by: -1, in: navRows) == .none)
+  #expect(ContRowNav.move("x", by: 1, in: []) == .none)
+}
+
+@Test func rowNavLeftClosesThenGoesToTheParent() {
+  #expect(ContRowNav.left("Sources", in: navRows) == .collapse("Sources"))
+  #expect(ContRowNav.left("App.swift", in: navRows) == .select("Sources"))
+  #expect(ContRowNav.left("Models", in: navRows) == .select("Sources"))
+  #expect(ContRowNav.left("Package.swift", in: navRows) == .none)
+}
+
+@Test func rowNavRightOpensThenGoesToTheFirstChild() {
+  #expect(ContRowNav.right("Tests", in: navRows) == .expand("Tests"))
+  #expect(ContRowNav.right("Sources", in: navRows) == .select("Models"))
+  #expect(ContRowNav.right("App.swift", in: navRows) == .none)
+}

@@ -244,14 +244,30 @@ struct ContSidebarBar<Actions: View>: View {
 
 // MARK: - Rows
 
-/// A sidebar row: the icon tile, the title (and a subtitle), a trailing accessory. Inside a `KitSidebar` it selects
-/// itself on tap and wears the selection card while its value is the sidebar's selection; rows are 32pt on the Mac and
-/// 44 on iPad and iPhone (24 in a plain sidebar).
+/// A sidebar row: the icon tile, the title (and a subtitle), a trailing accessory. Inside a `KitSidebar` or `KitList`
+/// it selects itself on tap and wears the selection card while its value is the selection; rows are 32pt on the Mac
+/// and 44 on iPad and iPhone (24 in a plain sidebar).
 ///
 /// ```swift
 /// SidebarRow(value: repo.id, repo.name, subtitle: repo.branch, systemImage: "shippingbox") {
 ///   Count(repo.changes, .attention)
 /// }
+/// ```
+///
+/// More, as initializer parameters or chained on the row:
+/// - `progress:` (and `secondaryProgress:`) draws a `KitProgressBar` under the title (a download, a sync).
+/// - `isExpanded:` leads with a disclosure chevron for a tree row (`KitOutline` sets it, and the indent, for you).
+/// - `.title(_:)` swaps the title for any `Text` (an attributed match, coloured runs); renaming still edits the string.
+/// - `.subtitle { … }` puts any view in the subtitle's place (a styled terminal line, a date and a preview).
+/// - `.titleAccessory { … }` sets a chip or a dot right after the title.
+///
+/// ```swift
+/// SidebarRow(value: file.id, file.name, systemImage: "doc", progress: file.progress) { ProgressRow(value: file.progress) }
+/// SidebarRow(value: folder.id, folder.name, systemImage: "folder", isExpanded: $open)
+/// SidebarRow(value: note.id, note.title, systemImage: "doc.text")
+///   .title(Text(match.attributed))
+///   .subtitle { Text(note.date, style: .date) + Text("  ") + Text(note.preview).foregroundStyle(.kitTertiary) }
+///   .titleAccessory { Chip("Draft", hue: .orange) }
 /// ```
 ///
 /// Renaming in place: `.kitRename(isRenaming:text:onCommit:)` turns the title into a field.
@@ -261,9 +277,18 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
   let subtitle: String?
   let icon: Icon
   let trailing: Trailing
+  var titleText: Text?
+  var subtitleView: AnyView?
+  var accessoryView: AnyView?
+  var progress: Double?
+  var secondaryProgress: Double?
+  var isExpanded: Binding<Bool>?
+  var isCurrent = false
+  var action: (@MainActor () -> Void)?
   @Environment(\.contSidebarSelection) private var selection
   @Environment(\.contRowTag) private var tag
   @Environment(\.contRowIndent) private var indent
+  @Environment(\.contRowDisclosure) private var outlineDisclosure
   @Environment(\.contRename) private var rename
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.kitWindowIsActive) private var isActive
@@ -272,56 +297,172 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
   @State private var isHovered = false
 
   init(
-    value: AnyHashable?, title: String, subtitle: String?, @ViewBuilder icon: () -> Icon,
-    @ViewBuilder trailing: () -> Trailing
+    value: AnyHashable?, title: String, subtitle: String?, progress: Double? = nil, secondaryProgress: Double? = nil,
+    isExpanded: Binding<Bool>? = nil, @ViewBuilder icon: () -> Icon, @ViewBuilder trailing: () -> Trailing
   ) {
     self.value = value
     self.title = title
     self.subtitle = subtitle
+    self.progress = progress
+    self.secondaryProgress = secondaryProgress
+    self.isExpanded = isExpanded
     self.icon = icon()
     self.trailing = trailing()
   }
 
   /// A row that selects `value`, with any icon and trailing views.
   public init<Value: Hashable>(
-    value: Value, _ title: String, subtitle: String? = nil, @ViewBuilder icon: () -> Icon,
+    value: Value, _ title: String, subtitle: String? = nil, progress: Double? = nil,
+    secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil, @ViewBuilder icon: () -> Icon,
     @ViewBuilder trailing: () -> Trailing
   ) {
-    self.init(value: AnyHashable(value), title: title, subtitle: subtitle, icon: icon, trailing: trailing)
+    self.init(
+      value: AnyHashable(value), title: title, subtitle: subtitle, progress: progress,
+      secondaryProgress: secondaryProgress, isExpanded: isExpanded, icon: icon, trailing: trailing)
   }
 
   /// A row with any icon and trailing views; it selects the value given by `.kitTag(_:)`.
   public init(
-    _ title: String, subtitle: String? = nil, @ViewBuilder icon: () -> Icon, @ViewBuilder trailing: () -> Trailing
+    _ title: String, subtitle: String? = nil, progress: Double? = nil, secondaryProgress: Double? = nil,
+    isExpanded: Binding<Bool>? = nil, @ViewBuilder icon: () -> Icon, @ViewBuilder trailing: () -> Trailing
   ) {
-    self.init(value: nil, title: title, subtitle: subtitle, icon: icon, trailing: trailing)
+    self.init(
+      value: nil, title: title, subtitle: subtitle, progress: progress, secondaryProgress: secondaryProgress,
+      isExpanded: isExpanded, icon: icon, trailing: trailing)
+  }
+
+  // MARK: Chained options
+
+  /// Draws `text` as the title instead of the plain string: an attributed match, coloured runs, a monospaced name.
+  /// The row keeps its weight and colour unless the text sets its own; renaming still edits the plain title.
+  ///
+  /// ```swift
+  /// SidebarRow(value: file.id, file.name, systemImage: "doc").title(Text(file.highlightedName))
+  /// ```
+  public func title(_ text: Text) -> Self {
+    var row = self
+    row.titleText = text
+    return row
+  }
+
+  /// Puts any view where the subtitle goes, under the title. It starts in the caption style (quiet, one line); give
+  /// its texts their own colours (a terminal line, a date beside a preview).
+  ///
+  /// ```swift
+  /// SidebarRow(value: session.id, session.name, systemImage: "terminal")
+  ///   .subtitle { Text("✓ ").foregroundStyle(Hue.green.text) + Text(session.lastLine).monospaced() }
+  /// ```
+  public func subtitle<Subtitle: View>(@ViewBuilder _ content: () -> Subtitle) -> Self {
+    var row = self
+    row.subtitleView = AnyView(content())
+    return row
+  }
+
+  /// Sets a small view right after the title: a chip ("Draft", "Production"), a dot, a lock.
+  ///
+  /// ```swift
+  /// SidebarRow(value: db.id, db.name, systemImage: "cylinder").titleAccessory { Chip.production }
+  /// ```
+  public func titleAccessory<Accessory: View>(@ViewBuilder _ content: () -> Accessory) -> Self {
+    var row = self
+    row.accessoryView = AnyView(content())
+    return row
+  }
+
+  /// Draws a progress bar under the title (`nil` removes it); `secondary` sits softly behind it.
+  ///
+  /// ```swift
+  /// SidebarRow(value: torrent.id, torrent.name, systemImage: "arrow.down").progress(torrent.done, secondary: torrent.available)
+  /// ```
+  public func progress(_ value: Double?, secondary: Double? = nil) -> Self {
+    var row = self
+    row.progress = value
+    row.secondaryProgress = secondary
+    return row
+  }
+
+  /// Leads the row with a disclosure chevron bound to `isExpanded` (a folder in a tree).
+  public func disclosure(isExpanded: Binding<Bool>?) -> Self {
+    var row = self
+    row.isExpanded = isExpanded
+    return row
+  }
+
+  /// Marks the row as the current one: a second, weaker mark than the selection (a flat card), for a sidebar that
+  /// holds two (the open repository while a screen of it is selected).
+  ///
+  /// ```swift
+  /// SidebarRow(value: repo.id, repo.name, systemImage: "shippingbox").isCurrent(repo.id == openRepository)
+  /// ```
+  public func isCurrent(_ isCurrent: Bool = true) -> Self {
+    var row = self
+    row.isCurrent = isCurrent
+    return row
+  }
+
+  /// Runs `action` on a tap (or Return) instead of selecting the row: "Add Repository…", "Show All".
+  ///
+  /// ```swift
+  /// SidebarRow("Add Connection…", systemImage: "plus").action { showsNewConnection = true }
+  /// ```
+  public func action(_ action: @escaping @MainActor () -> Void) -> Self {
+    var row = self
+    row.action = action
+    return row
   }
 
   private var rowValue: AnyHashable? { value ?? tag }
   private var compact: Bool { (style == .plain || density == .compact) && !idiom.isTouch }
+  /// The row's own disclosure, or the one its `KitOutline` node gives it.
+  private var disclosure: ContRowDisclosure? {
+    if let isExpanded { return ContRowDisclosure(isExpanded: isExpanded) }
+    return outlineDisclosure
+  }
 
   public var body: some View {
     // A row is not left selected on iPhone (it pushes its screen).
     let isSelected = rowValue != nil && selection?.value == rowValue && idiom != .phone
     let isEmphasized = isSelected && (selection?.isFocused ?? false) && isActive
     let isRenaming = rename?.isRenaming.wrappedValue ?? false
+    let disclosure = disclosure
     HStack(spacing: compact ? 6 : idiom.isTouch ? 12 : 8) {
+      if let disclosure {
+        ContDisclosureButton(disclosure: disclosure, title: title)
+      }
       icon
       VStack(alignment: .leading, spacing: compact ? 0 : 1) {
         if isRenaming, let rename {
           ContRenameField(title: title, rename: rename)
         } else {
-          Text(title)
-            .kitFont(.body)
-            .fontWeight(isSelected ? .medium : .regular)
-            .foregroundStyle(!isActive && !isSelected ? AnyShapeStyle(.kitSecondary) : AnyShapeStyle(.kitLabel))
-            .lineLimit(1)
+          HStack(spacing: 6) {
+            (titleText ?? Text(title))
+              .kitFont(.body)
+              .fontWeight(isSelected ? .medium : .regular)
+              .foregroundStyle(!isActive && !isSelected ? AnyShapeStyle(.kitSecondary) : AnyShapeStyle(.kitLabel))
+              .lineLimit(1)
+            if let accessoryView {
+              accessoryView
+                .kitFont(.caption)
+                .fixedSize()
+            }
+          }
         }
-        if let subtitle {
+        if let subtitleView {
+          subtitleView
+            .kitFont(.caption)
+            .font(compact ? .system(size: 10) : nil)
+            .lineLimit(1)
+        } else if let subtitle {
           Text(subtitle)
             .kitFont(.caption)
             .font(compact ? .system(size: 10) : nil)
             .lineLimit(1)
+        }
+        if let progress {
+          KitProgressBar(value: progress, secondary: secondaryProgress)
+            .padding(.top, compact ? 2 : 4)
+            .padding(.bottom, compact ? 1 : 2)
+            .transition(.opacity)
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -331,22 +472,35 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
     }
     .environment(\.contRowState, ContRowState(isSelected: isSelected, isEmphasized: isEmphasized))
     .padding(.vertical, compact ? 1 : idiom == .phone ? 6 : 4)
-    .padding(.leading, (idiom.isTouch ? 10 : 6) + CGFloat(indent) * (idiom.isTouch ? 20 : 14))
+    .padding(.leading, (idiom.isTouch ? 10 : 6) + CGFloat(indent) * (idiom.isTouch ? 20 : 14) - (disclosure != nil ? 4 : 0))
     .padding(.trailing, idiom.isTouch ? 10 : 6)
     .frame(minHeight: compact ? 24 : KitMetrics.row(idiom))
     .background { background(isSelected: isSelected, isEmphasized: isEmphasized, isRenaming: isRenaming) }
     .contentShape(Rectangle())
     .onHover { isHovered = $0 }
     .animation(.kitFast, value: isHovered)
+    .animation(.kit, value: progress == nil)
     .onTapGesture {
-      guard let rowValue, !isRenaming else { return }
-      selection?.select(rowValue)
+      guard !isRenaming else { return }
+      if let action {
+        action()
+      } else if let rowValue {
+        selection?.select(rowValue)
+      }
     }
+    .preference(
+      key: ContRowNavKey.self,
+      value: rowValue.map { [ContRowNavItem(value: $0, indent: indent, disclosure: disclosure, action: action)] } ?? [])
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     .accessibilityAction {
-      if let rowValue { selection?.select(rowValue) }
+      if let action {
+        action()
+      } else if let rowValue {
+        selection?.select(rowValue)
+      }
     }
+    .modifier(ContDisclosureAccessibility(disclosure: disclosure))
   }
 
   @ViewBuilder
@@ -356,6 +510,8 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
     ZStack {
       if isRenaming {
         shape.fill(Hue.accent.soft())
+      } else if isCurrent, !isSelected {
+        SurfaceShape(surface: .raised, cornerRadius: radius).opacity(isActive ? 1 : 0.6)
       } else if isHovered, !isSelected, !idiom.isTouch {
         shape.fill(KitColor.rowHover).transition(.opacity)
       }
@@ -390,17 +546,24 @@ extension SidebarRow where Icon == RowTile {
   /// A row that selects `value`, with an SF Symbol tile (gray, the accent on the selected row, or `hue`).
   public init<Value: Hashable>(
     value: Value, _ title: String, subtitle: String? = nil, systemImage: String, hue: Hue? = nil,
-    @ViewBuilder trailing: () -> Trailing
+    status: WorkStatus = .idle, progress: Double? = nil, secondaryProgress: Double? = nil,
+    isExpanded: Binding<Bool>? = nil, @ViewBuilder trailing: () -> Trailing
   ) {
-    self.init(value: value, title, subtitle: subtitle, icon: { RowTile(systemImage: systemImage, hue: hue) }, trailing: trailing)
+    self.init(
+      value: value, title, subtitle: subtitle, progress: progress, secondaryProgress: secondaryProgress,
+      isExpanded: isExpanded, icon: { RowTile(systemImage: systemImage, hue: hue, status: status) },
+      trailing: trailing)
   }
 
   /// A row with an SF Symbol tile; it selects the value given by `.kitTag(_:)`.
   public init(
-    _ title: String, subtitle: String? = nil, systemImage: String, hue: Hue? = nil,
+    _ title: String, subtitle: String? = nil, systemImage: String, hue: Hue? = nil, status: WorkStatus = .idle,
+    progress: Double? = nil, secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil,
     @ViewBuilder trailing: () -> Trailing
   ) {
-    self.init(title, subtitle: subtitle, icon: { RowTile(systemImage: systemImage, hue: hue) }, trailing: trailing)
+    self.init(
+      title, subtitle: subtitle, progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded,
+      icon: { RowTile(systemImage: systemImage, hue: hue, status: status) }, trailing: trailing)
   }
 }
 
@@ -411,64 +574,94 @@ extension SidebarRow where Icon == RowTile, Trailing == EmptyView {
   /// SidebarRow(value: Page.history, "History", systemImage: "clock")
   /// ```
   public init<Value: Hashable>(
-    value: Value, _ title: String, subtitle: String? = nil, systemImage: String, hue: Hue? = nil
+    value: Value, _ title: String, subtitle: String? = nil, systemImage: String, hue: Hue? = nil,
+    status: WorkStatus = .idle, progress: Double? = nil, secondaryProgress: Double? = nil,
+    isExpanded: Binding<Bool>? = nil
   ) {
-    self.init(value: value, title, subtitle: subtitle, systemImage: systemImage, hue: hue) { EmptyView() }
+    self.init(
+      value: value, title, subtitle: subtitle, systemImage: systemImage, hue: hue, status: status,
+      progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded
+    ) { EmptyView() }
   }
 
   /// A row with an SF Symbol tile; it selects the value given by `.kitTag(_:)`.
-  public init(_ title: String, subtitle: String? = nil, systemImage: String, hue: Hue? = nil) {
-    self.init(title, subtitle: subtitle, systemImage: systemImage, hue: hue) { EmptyView() }
+  public init(
+    _ title: String, subtitle: String? = nil, systemImage: String, hue: Hue? = nil, status: WorkStatus = .idle,
+    progress: Double? = nil, secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil
+  ) {
+    self.init(
+      title, subtitle: subtitle, systemImage: systemImage, hue: hue, status: status, progress: progress,
+      secondaryProgress: secondaryProgress, isExpanded: isExpanded
+    ) { EmptyView() }
   }
 }
 
 extension SidebarRow where Trailing == EmptyView {
   /// A row that selects `value`, with any icon (`Tile(letters:)`, an avatar…).
   public init<Value: Hashable>(
-    value: Value, _ title: String, subtitle: String? = nil, @ViewBuilder icon: () -> Icon
+    value: Value, _ title: String, subtitle: String? = nil, progress: Double? = nil,
+    secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil, @ViewBuilder icon: () -> Icon
   ) {
-    self.init(value: value, title, subtitle: subtitle, icon: icon) { EmptyView() }
+    self.init(
+      value: value, title, subtitle: subtitle, progress: progress, secondaryProgress: secondaryProgress,
+      isExpanded: isExpanded, icon: icon
+    ) { EmptyView() }
   }
 
   /// A row with any icon; it selects the value given by `.kitTag(_:)`.
-  public init(_ title: String, subtitle: String? = nil, @ViewBuilder icon: () -> Icon) {
-    self.init(title, subtitle: subtitle, icon: icon) { EmptyView() }
+  public init(
+    _ title: String, subtitle: String? = nil, progress: Double? = nil, secondaryProgress: Double? = nil,
+    isExpanded: Binding<Bool>? = nil, @ViewBuilder icon: () -> Icon
+  ) {
+    self.init(
+      title, subtitle: subtitle, progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded,
+      icon: icon
+    ) { EmptyView() }
   }
 }
 
 // MARK: - Row tile
 
 /// A row's icon on a rounded tile, like a repository's: gray, the accent on the selected row while the sidebar has
-/// focus, or its own hue; a white glyph on a soft top light. 18pt on the Mac, 28 on iPad, 30 on iPhone. In a plain
-/// sidebar it is the bare glyph.
+/// focus, or its own hue; a white glyph on a soft top light. 18pt on the Mac, 28 on iPad, 30 on iPhone
+/// (`KitMetrics.rowTile(_:)`). In a plain sidebar it is the bare glyph. With a `status` other than idle it is the live
+/// icon at the same size, carrying the work.
 ///
 /// ```swift
 /// SidebarRow(value: id, "atlas", icon: { RowTile(systemImage: "shippingbox", hue: .blue) })
+/// SidebarRow(value: id, "Sync", icon: { RowTile(systemImage: "arrow.triangle.2.circlepath", status: .working) })
 /// ```
 public struct RowTile: View {
   var systemImage: String
   var hue: Hue?
+  var status: WorkStatus
   @Environment(\.contRowState) private var row
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.kitSectionStyle) private var style
   @Environment(\.kitRowDensity) private var density
 
-  public init(systemImage: String, hue: Hue? = nil) {
+  public init(systemImage: String, hue: Hue? = nil, status: WorkStatus = .idle) {
     self.systemImage = systemImage
     self.hue = hue
+    self.status = status
   }
 
   private var tint: Hue { hue ?? (row.isEmphasized ? .accent : .gray) }
+  private var compact: Bool { (style == .plain || density == .compact) && !idiom.isTouch }
 
   public var body: some View {
-    if (style == .plain || density == .compact) && !idiom.isTouch {
+    if status != .idle {
+      LiveIcon(
+        systemImage: systemImage, hue: hue ?? .accent, status: status,
+        size: compact ? 16 : KitMetrics.rowTile(idiom))
+    } else if compact {
       Image(systemName: systemImage)
         .font(.system(size: 13))
         .foregroundStyle(hue == nil && !row.isEmphasized ? AnyShapeStyle(.kitSecondary) : AnyShapeStyle(tint.fill))
         .frame(width: 16, height: 16)
         .accessibilityHidden(true)
     } else {
-      let size = ContMetrics.rowTile(idiom)
+      let size = KitMetrics.rowTile(idiom)
       let shape = RoundedRectangle(cornerRadius: size * (idiom == .mac ? 0.28 : 0.27), style: .continuous)
       Image(systemName: systemImage)
         .font(.system(size: ContMetrics.rowGlyph(idiom), weight: .medium))

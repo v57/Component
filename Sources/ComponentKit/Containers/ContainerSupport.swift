@@ -22,7 +22,7 @@ enum ContMetrics {
     compact && !idiom.isTouch ? 6 : idiom == .phone ? 14 : idiom == .pad ? KitMetrics.radiusLarge : KitMetrics.radius
   }
   /// A row's icon tile and the glyph inside it.
-  static func rowTile(_ idiom: KitIdiom) -> CGFloat { idiom == .phone ? 30 : idiom == .pad ? 28 : 18 }
+  static func rowTile(_ idiom: KitIdiom) -> CGFloat { KitMetrics.rowTile(idiom) }
   static func rowGlyph(_ idiom: KitIdiom) -> CGFloat { idiom == .phone ? 18 : idiom == .pad ? 17 : 12 }
   /// The bottom bar's square search button and action card: 32, 40 on iPad, 44 on iPhone.
   static func barHeight(_ idiom: KitIdiom) -> CGFloat { idiom == .phone ? 44 : idiom == .pad ? 40 : 32 }

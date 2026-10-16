@@ -122,6 +122,9 @@ struct SidebarPage: View {
   @State private var renaming: String?
   @State private var file: String? = "TripStore.swift"
   @State private var hosts = ["atlas-web-1", "atlas-web-2", "atlas-db"]
+  @State private var openFolders: Set<String> = ["Sources", "AtlasCore"]
+  @State private var download = 0.42
+  @State private var rowSelection: Int? = 2
 
   var body: some View {
     CatalogPage(page: .sidebar, maxWidth: 1100) {
@@ -198,18 +201,11 @@ struct SidebarPage: View {
           WindowFrame(height: 420) {
             KitSidebar(selection: $file) {
               KitSection("Atlas", meta: "Swift package", systemImage: "shippingbox") {
-                SidebarRow(value: "Package.swift", "Package.swift", systemImage: "shippingbox", hue: .brown)
-                SidebarRow(value: "Sources", "Sources", systemImage: "folder", hue: .blue)
-                Group {
-                  SidebarRow(value: "AtlasCore", "AtlasCore", systemImage: "folder", hue: .blue)
-                  Group {
-                    SidebarRow(value: "TripStore.swift", "TripStore.swift", systemImage: "swift", hue: .orange)
-                    SidebarRow(value: "Trip.swift", "Trip.swift", systemImage: "swift", hue: .orange)
-                  }
-                  .kitRowIndent(2)
+                KitOutline(sampleTree, children: \.children, expanded: $openFolders) { node in
+                  SidebarRow(
+                    value: node.name, node.name, systemImage: node.children == nil ? "swift" : "folder",
+                    hue: node.children == nil ? .orange : .blue)
                 }
-                .kitRowIndent(1)
-                SidebarRow(value: "Tests", "Tests", systemImage: "folder", hue: .blue)
               }
               KitSection("Hosts", meta: "3 hosts", systemImage: "server.rack") {
                 ReorderableSection(hosts, id: \.self, move: { hosts.move(fromOffsets: $0, toOffset: $1) }) { host in
@@ -224,12 +220,59 @@ struct SidebarPage: View {
             """
             KitSidebar(selection: $file) {
               KitSection("Atlas", meta: "Swift package", systemImage: "shippingbox") {
-                SidebarRow(value: "Sources", "Sources", systemImage: "folder", hue: .blue)
-                SidebarRow(value: "TripStore", "TripStore.swift", systemImage: "swift", hue: .orange)
-                  .kitRowIndent(1)
+                KitOutline(files, children: \\.children, expanded: $openFolders) { file in
+                  SidebarRow(value: file.id, file.name, systemImage: file.isFolder ? "folder" : "swift")
+                }
+                // or by hand: SidebarRow(…, isExpanded: $open) and .kitRowIndent(1) on the children
               }
             }
             .kitSectionStyle(.plain)        // or .kitRowDensity(.compact) with card sections
+            // ↑↓ move, ← closes or goes to the parent, → opens or goes to the first child
+            """)
+        }
+      }
+      SpecimenSection(
+        "Rows", note: "A progress line, any view as the subtitle, a styled title, a chip after it, a live tile, the current row and a row that acts."
+      ) {
+        HStack(alignment: .top, spacing: 20) {
+          WindowFrame(height: 470) {
+            KitSidebar(selection: $rowSelection) {
+              KitSection("Downloads", meta: ["2 downloading", "27.7 MB/s"], systemImage: "arrow.down", hue: .red) {
+                SidebarRow(
+                  value: 1, "ubuntu-26.04.iso", subtitle: "27.7 MB/s", systemImage: "opticaldisc", progress: download,
+                  secondaryProgress: min(download + 0.25, 1)
+                ) { ProgressRow(value: download) }
+                SidebarRow(value: 2, "Lisbon trip", systemImage: "doc.text")
+                  .subtitle { Text("Today").foregroundStyle(.kitLabel) + Text("  Packing list, the tram to Belém") }
+                  .titleAccessory { Chip("Draft", hue: .orange) }
+                SidebarRow(value: 3, "zsh — atlas", systemImage: "terminal", status: .working)
+                  .subtitle { Text("✓ ").foregroundStyle(Hue.green.text) + Text("swift build").monospaced() }
+                SidebarRow(value: 4, "TripStore.swift", systemImage: "swift", hue: .orange)
+                  .title(Text("Trip").bold().foregroundStyle(Hue.accent.text) + Text("Store.swift"))
+              }
+              KitSection("Repositories", meta: "2 repositories", systemImage: "folder", hue: .indigo) {
+                SidebarRow(value: 5, "atlas", systemImage: "shippingbox").isCurrent(rowSelection != 5)
+                SidebarRow(value: 6, "pebble", systemImage: "shippingbox")
+                SidebarRow("Add Repository…", systemImage: "plus").action {
+                  withKitAnimation { download = download >= 1 ? 0 : min(download + 0.2, 1) }
+                }
+              }
+            }
+          }
+          .frame(width: 300)
+          CodeSnippet(
+            """
+            SidebarRow(value: file.id, file.name, systemImage: "opticaldisc",
+                       progress: file.done, secondaryProgress: file.available) { ProgressRow(value: file.done) }
+            SidebarRow(value: note.id, note.title, systemImage: "doc.text")
+              .subtitle { Text(note.date) + Text("  " + note.preview) }
+              .titleAccessory { Chip("Draft", hue: .orange) }
+            SidebarRow(value: session.id, session.name, systemImage: "terminal", status: session.status)
+              .subtitle { Text("✓ ").foregroundStyle(Hue.green.text) + Text(line).monospaced() }
+            SidebarRow(value: file.id, file.name, systemImage: "swift").title(Text(match.attributed))
+            SidebarRow(value: repo.id, repo.name, systemImage: "shippingbox").isCurrent(repo.id == open)
+            SidebarRow("Add Repository…", systemImage: "plus").action { showsClone = true }
+            RowTile(systemImage: "terminal", status: .working)   // KitMetrics.rowTile(idiom) wide
             """)
         }
       }
@@ -257,6 +300,22 @@ struct SidebarPage: View {
     if selection == repo.name { selection = name }
   }
 }
+
+/// A small file tree for the outline specimens.
+struct SampleNode: Identifiable, Hashable {
+  var id: String { name }
+  var name: String
+  var children: [SampleNode]?
+}
+
+let sampleTree = [
+  SampleNode(name: "Package.swift"),
+  SampleNode(name: "Sources", children: [
+    SampleNode(name: "AtlasCore", children: [SampleNode(name: "TripStore.swift"), SampleNode(name: "Trip.swift")]),
+    SampleNode(name: "AtlasApp", children: [SampleNode(name: "AtlasApp.swift")]),
+  ]),
+  SampleNode(name: "Tests", children: [SampleNode(name: "TripStoreTests.swift")]),
+]
 
 // MARK: - Toolbar
 
