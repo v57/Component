@@ -125,6 +125,8 @@ struct SidebarPage: View {
   @State private var openFolders: Set<String> = ["Sources", "AtlasCore"]
   @State private var download = 0.42
   @State private var rowSelection: Int? = 2
+  @State private var rowSearch = ""
+  @State private var rowSearching = false
 
   var body: some View {
     CatalogPage(page: .sidebar, maxWidth: 1100) {
@@ -236,7 +238,7 @@ struct SidebarPage: View {
       ) {
         HStack(alignment: .top, spacing: 20) {
           WindowFrame(height: 470) {
-            KitSidebar(selection: $rowSelection) {
+            KitSidebar(selection: $rowSelection, searchText: $rowSearch, isSearching: $rowSearching) {
               KitSection("Downloads", meta: ["2 downloading", "27.7 MB/s"], systemImage: "arrow.down", hue: .red) {
                 SidebarRow(
                   value: 1, "ubuntu-26.04.iso", subtitle: "27.7 MB/s", systemImage: "opticaldisc", progress: download,
@@ -258,8 +260,22 @@ struct SidebarPage: View {
                 }
               }
             }
+            .status { Label("On This Mac", systemImage: "laptopcomputer") }
           }
           .frame(width: 300)
+          VStack(alignment: .leading, spacing: 12) {
+            Button("Search", systemImage: "magnifyingglass") { withKitAnimation { rowSearching = true } }
+              .buttonStyle(.kit)
+              .keyboardShortcut("f")
+            CodeSnippet(
+              """
+              KitSidebar(selection: $note, searchText: $search, isSearching: $isSearching) { … }
+                .status { Label("On This Mac", systemImage: "laptopcomputer") }
+                .onReturn { open(note) }   // ↑↓←→ move and open rows; Return runs this
+
+              Button("Find") { isSearching = true }.keyboardShortcut("f")
+              Detail().kitSidebarToggle(columnVisibility: $columns)   // iPad: brings a hidden sidebar back
+              """)
           CodeSnippet(
             """
             SidebarRow(value: file.id, file.name, systemImage: "opticaldisc",
@@ -274,6 +290,7 @@ struct SidebarPage: View {
             SidebarRow("Add Repository…", systemImage: "plus").action { showsClone = true }
             RowTile(systemImage: "terminal", status: .working)   // KitMetrics.rowTile(idiom) wide
             """)
+          }
         }
       }
     }

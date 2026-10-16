@@ -82,9 +82,12 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   private let setSelection: @MainActor (AnyHashable) -> Void
   private let searchText: Binding<String>?
   private let searchPrompt: String
+  private let isSearching: Binding<Bool>?
   private let columnVisibility: Binding<NavigationSplitViewVisibility>?
   private let content: Content
   private let bottomBar: BottomBar
+  private var statusView: AnyView?
+  private var returnAction: (@MainActor () -> Void)?
   @FocusState private var focused: Bool
   @Namespace private var namespace
   @State private var reorder = ContReorderState()
@@ -95,12 +98,13 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   ///
   /// - Parameters:
   ///   - searchText: shows the search button in the bottom bar; it opens into the search line bound to this text.
+  ///   - isSearching: whether the search line is open, to open it from code (⌘F) or know when it closes.
   ///   - columnVisibility: the split view's visibility, for the bar's sidebar toggle. On the Mac the toggle works
   ///     without it (through the window's split view); on iPad and iPhone it shows only when this is given.
   public init<Selection: Hashable & Sendable>(
     selection: Binding<Selection?>, searchText: Binding<String>? = nil, searchPrompt: String = "Search",
-    columnVisibility: Binding<NavigationSplitViewVisibility>? = nil, @ViewBuilder content: () -> Content,
-    @ViewBuilder bottomBar: () -> BottomBar
+    isSearching: Binding<Bool>? = nil, columnVisibility: Binding<NavigationSplitViewVisibility>? = nil,
+    @ViewBuilder content: () -> Content, @ViewBuilder bottomBar: () -> BottomBar
   ) {
     getSelection = { selection.wrappedValue.map(AnyHashable.init) }
     setSelection = { value in
@@ -108,6 +112,7 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     }
     self.searchText = searchText
     self.searchPrompt = searchPrompt
+    self.isSearching = isSearching
     self.columnVisibility = columnVisibility
     self.content = content()
     self.bottomBar = bottomBar()
@@ -117,8 +122,8 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   @_disfavoredOverload
   public init<Selection: Hashable & Sendable>(
     selection: Binding<Selection>, searchText: Binding<String>? = nil, searchPrompt: String = "Search",
-    columnVisibility: Binding<NavigationSplitViewVisibility>? = nil, @ViewBuilder content: () -> Content,
-    @ViewBuilder bottomBar: () -> BottomBar
+    isSearching: Binding<Bool>? = nil, columnVisibility: Binding<NavigationSplitViewVisibility>? = nil,
+    @ViewBuilder content: () -> Content, @ViewBuilder bottomBar: () -> BottomBar
   ) {
     getSelection = { AnyHashable(selection.wrappedValue) }
     setSelection = { value in
@@ -126,6 +131,7 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     }
     self.searchText = searchText
     self.searchPrompt = searchPrompt
+    self.isSearching = isSearching
     self.columnVisibility = columnVisibility
     self.content = content()
     self.bottomBar = bottomBar()
@@ -146,11 +152,13 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
       .focusable()
       .focusEffectDisabled()
       .focused($focused)
+      .modifier(ContRowKeyboard(current: selection, select: setSelection, onReturn: returnAction))
       // A click on a row focuses the sidebar, like a click into a `List`.
       .simultaneousGesture(TapGesture().onEnded { focused = true })
       if showsBar {
         ContSidebarBar(
-          searchText: searchText, prompt: searchPrompt, toggle: toggle, actions: { bottomBar })
+          searchText: searchText, prompt: searchPrompt, isSearching: isSearching, toggle: toggle,
+          status: statusView, actions: { bottomBar })
       }
     }
     .background { Rectangle().fill(.kitSidebar).ignoresSafeArea() }
@@ -166,7 +174,33 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   }
 
   private var showsBar: Bool {
-    searchText != nil || BottomBar.self != EmptyView.self || toggle != nil
+    searchText != nil || BottomBar.self != EmptyView.self || toggle != nil || statusView != nil
+  }
+
+  /// Puts a status at the start of the bottom bar, after the search button: where the items live ("On This Mac",
+  /// "iCloud"), a sync's live icon, a count. It gives way to the search line while searching.
+  ///
+  /// ```swift
+  /// KitSidebar(selection: $note, searchText: $search) { … }
+  ///   .status { Label("On This Mac", systemImage: "laptopcomputer") }
+  /// ```
+  public func status<Status: View>(@ViewBuilder _ content: () -> Status) -> Self {
+    var sidebar = self
+    sidebar.statusView = AnyView(content())
+    return sidebar
+  }
+
+  /// What Return does on the selected row while the sidebar has keyboard focus (open it, start renaming). Without it
+  /// Return opens or closes a tree row. Arrow keys always move the selection: ↑↓ through the rows, ← closes a row or
+  /// goes to its parent, → opens it or goes to its first child. A row with `.action` runs it on Return.
+  ///
+  /// ```swift
+  /// KitSidebar(selection: $file) { … }.onReturn { open(file) }
+  /// ```
+  public func onReturn(_ action: @escaping @MainActor () -> Void) -> Self {
+    var sidebar = self
+    sidebar.returnAction = action
+    return sidebar
   }
 
   private var toggle: (@MainActor () -> Void)? {
@@ -186,21 +220,60 @@ extension KitSidebar where BottomBar == EmptyView {
   /// A sidebar with no actions of its own in the bottom bar (the search button and the toggle still show).
   public init<Selection: Hashable & Sendable>(
     selection: Binding<Selection?>, searchText: Binding<String>? = nil, searchPrompt: String = "Search",
-    columnVisibility: Binding<NavigationSplitViewVisibility>? = nil, @ViewBuilder content: () -> Content
+    isSearching: Binding<Bool>? = nil, columnVisibility: Binding<NavigationSplitViewVisibility>? = nil,
+    @ViewBuilder content: () -> Content
   ) {
     self.init(
-      selection: selection, searchText: searchText, searchPrompt: searchPrompt, columnVisibility: columnVisibility,
-      content: content, bottomBar: { EmptyView() })
+      selection: selection, searchText: searchText, searchPrompt: searchPrompt, isSearching: isSearching,
+      columnVisibility: columnVisibility, content: content, bottomBar: { EmptyView() })
   }
 
   @_disfavoredOverload
   public init<Selection: Hashable & Sendable>(
     selection: Binding<Selection>, searchText: Binding<String>? = nil, searchPrompt: String = "Search",
-    columnVisibility: Binding<NavigationSplitViewVisibility>? = nil, @ViewBuilder content: () -> Content
+    isSearching: Binding<Bool>? = nil, columnVisibility: Binding<NavigationSplitViewVisibility>? = nil,
+    @ViewBuilder content: () -> Content
   ) {
     self.init(
-      selection: selection, searchText: searchText, searchPrompt: searchPrompt, columnVisibility: columnVisibility,
-      content: content, bottomBar: { EmptyView() })
+      selection: selection, searchText: searchText, searchPrompt: searchPrompt, isSearching: isSearching,
+      columnVisibility: columnVisibility, content: content, bottomBar: { EmptyView() })
+  }
+}
+
+// MARK: - Showing a hidden sidebar
+
+extension View {
+  /// Brings back a sidebar the kit's toggle hid: while the split view shows the detail alone, a "Show Sidebar" button
+  /// leads the detail's toolbar. Put it on the detail column, with the same visibility binding the `KitSidebar` got
+  /// (on iPad and iPhone the bar's toggle sets it to `.detailOnly`, and the split view's own toggle may be removed).
+  ///
+  /// ```swift
+  /// NavigationSplitView(columnVisibility: $columns) {
+  ///   KitSidebar(selection: $page, columnVisibility: $columns) { … }
+  ///     .toolbar(removing: .sidebarToggle)
+  /// } detail: {
+  ///   Detail().kitSidebarToggle(columnVisibility: $columns)
+  /// }
+  /// ```
+  public func kitSidebarToggle(columnVisibility: Binding<NavigationSplitViewVisibility>) -> some View {
+    toolbar {
+      ContShowSidebarItem(columnVisibility: columnVisibility)
+    }
+  }
+}
+
+private struct ContShowSidebarItem: ToolbarContent {
+  @Binding var columnVisibility: NavigationSplitViewVisibility
+
+  var body: some ToolbarContent {
+    ToolbarItem(placement: .navigation) {
+      if columnVisibility == .detailOnly {
+        Button("Show Sidebar", systemImage: "sidebar.left") {
+          withAnimation(.kitSlow) { columnVisibility = .all }
+        }
+        .help("Show Sidebar")
+      }
+    }
   }
 }
 
@@ -211,17 +284,27 @@ extension KitSidebar where BottomBar == EmptyView {
 struct ContSidebarBar<Actions: View>: View {
   let searchText: Binding<String>?
   let prompt: String
+  var isSearching: Binding<Bool>? = nil
   let toggle: (@MainActor () -> Void)?
+  var status: AnyView? = nil
   @ViewBuilder let actions: Actions
-  @State private var isSearching = false
+  @State private var ownSearching = false
   @Environment(\.kitIdiom) private var idiom
 
   var body: some View {
+    let searching = isSearching ?? $ownSearching
     HStack(spacing: idiom.isTouch ? 10 : 8) {
       if let searchText {
-        SidebarSearchButton(text: searchText, isSearching: $isSearching, prompt: prompt)
+        SidebarSearchButton(text: searchText, isSearching: searching, prompt: prompt)
       }
-      if !isSearching {
+      if !searching.wrappedValue {
+        if let status {
+          status
+            .kitFont(.caption)
+            .lineLimit(1)
+            .padding(.leading, searchText == nil ? 4 : 0)
+            .transition(.opacity)
+        }
         Spacer(minLength: 0)
         if Actions.self != EmptyView.self || toggle != nil {
           ContBarCard {

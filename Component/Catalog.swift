@@ -254,6 +254,7 @@ struct CatalogView: View {
         .environment(\.kitIdiom, model.idiom ?? platformIdiom)
         .modifier(InactiveOverride(isOn: model.inactiveWindow))
         .toolbar { CatalogToolbar(compact: platformIdiom == .phone) }
+        .kitSidebarToggle(columnVisibility: $columns)
         .navigationTitle(model.page.title)
     }
     .onChange(of: model.page) { compactColumn = .detail }
