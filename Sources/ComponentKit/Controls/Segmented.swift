@@ -48,15 +48,13 @@ public struct KitSegment<Value: Hashable>: Identifiable {
   }
 }
 
-/// How a segmented control sits: on a field track (sized to its segments, or `.wide` sharing the width), or the
-/// toolbar's `.capsule`. Set it with `.kitSegmentedStyle(_:)`.
+/// How a segmented control sits on its field track: sized to its segments, or `.wide` sharing the width. Set it with
+/// `.kitSegmentedStyle(_:)`.
 public enum KitSegmentedStyle: Hashable, Sendable {
   /// A field track sized to its segments.
   case automatic
   /// A field track whose segments share the available width.
   case wide
-  /// The toolbar's view switcher: a glass capsule, the selected segment filled.
-  case capsule
 }
 
 extension EnvironmentValues {
@@ -64,10 +62,10 @@ extension EnvironmentValues {
 }
 
 extension View {
-  /// Sets how the segmented controls inside sit: `.automatic`, `.wide` or the toolbar's `.capsule`.
+  /// Sets how the segmented controls inside sit: `.automatic` or `.wide`.
   ///
   /// ```swift
-  /// KitSegmented(selection: $page).kitSegmentedStyle(.capsule)
+  /// KitSegmented(selection: $refs, options: …).kitSegmentedStyle(.wide)
   /// ```
   public func kitSegmentedStyle(_ style: KitSegmentedStyle) -> some View {
     environment(\.kitSegmentedStyle, style)
@@ -81,14 +79,12 @@ extension View {
 /// ```swift
 /// KitSegmented(selection: $mode)                                     // a KitOption & CaseIterable enum
 /// KitSegmented(selection: $mode, options: [("Unified", .unified), ("Split", .split)])
-/// KitSegmented(selection: $page).kitSegmentedStyle(.capsule)         // the toolbar's view switcher
 /// ```
 public struct KitSegmented<Value: Hashable>: View {
   @Binding var selection: Value
   var segments: [KitSegment<Value>]
   @Environment(\.kitSegmentedStyle) private var style
   @Environment(\.kitIdiom) private var idiom
-  @Environment(\.contBarGround) private var barGround
   @FocusState private var focus: Value?
   @Namespace private var namespace
 
@@ -122,7 +118,7 @@ public struct KitSegmented<Value: Hashable>: View {
     }
     .padding(metrics.trackPadding)
     .background { track(metrics) }
-    .ctlFieldRing(focus != nil && style != .capsule, cornerRadius: metrics.trackRadius)
+    .ctlFieldRing(focus != nil, cornerRadius: metrics.trackRadius)
     .fixedSize(horizontal: style != .wide, vertical: true)
     .focusEffectDisabled()
     .onKeyPress(.leftArrow) { moveFocus(-1) }
@@ -131,16 +127,8 @@ public struct KitSegmented<Value: Hashable>: View {
     .accessibilityElement(children: .contain)
   }
 
-  @ViewBuilder
   private func track(_ metrics: CtlSegmentMetrics) -> some View {
-    if style == .capsule {
-      let shape = RoundedRectangle(cornerRadius: metrics.trackRadius, style: .continuous)
-      shape.fill(KitColor.ctlGlass.overBarGround(barGround))
-        .overlay(shape.strokeBorder(KitColor.ctlGlassEdge, lineWidth: 0.5))
-        .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
-    } else {
-      CtlTrack(cornerRadius: metrics.trackRadius)
-    }
+    CtlTrack(cornerRadius: metrics.trackRadius)
   }
 
   /// Moves keyboard focus to the next enabled segment in `direction`, wrapping at the ends.
@@ -197,10 +185,6 @@ struct CtlSegmentMetrics {
   init(style: KitSegmentedStyle, idiom: KitIdiom) {
     self.style = style
     switch (style, idiom) {
-    case (.capsule, .mac):
-      (trackPadding, trackRadius, height, horizontalPadding, radius, font) = (3, 17, 28, 14, 14, .body)
-    case (.capsule, _):
-      (trackPadding, trackRadius, height, horizontalPadding, radius, font) = (3, 21, 36, 16, 18, .body)
     case (_, .mac):
       (trackPadding, trackRadius, height, horizontalPadding, radius, font) = (2, 9, 26, 11, 7, .callout)
     case (_, .pad):
@@ -221,7 +205,6 @@ struct CtlSegmentLabel<Value: Hashable>: View {
   let namespace: Namespace.ID
   @Environment(\.ctlIsPressed) private var isPressed
   @Environment(\.isEnabled) private var isEnabled
-  @Environment(\.colorScheme) private var scheme
   @Environment(\.kitToolbarIconOnly) private var toolbarIconOnly
   @State private var isHovered = false
 
@@ -255,7 +238,7 @@ struct CtlSegmentLabel<Value: Hashable>: View {
         selectedCard
           .matchedGeometryEffect(id: "selection", in: namespace)
       } else if isLit {
-        shape.fill(metrics.style == .capsule ? AnyShapeStyle(.kitHover) : AnyShapeStyle(KitColor.ctlGhost))
+        shape.fill(KitColor.ctlGhost)
       }
     }
     .scaleEffect(isPressed && isEnabled ? 0.98 : 1)
@@ -267,18 +250,8 @@ struct CtlSegmentLabel<Value: Hashable>: View {
     .animation(.kitFast, value: isPressed)
   }
 
-  @ViewBuilder
   private var selectedCard: some View {
-    if metrics.style == .capsule {
-      // Light fills the pick on the glass; dark raises it (a fill would sink below the card).
-      if scheme == .dark {
-        CtlRaisedCard(cornerRadius: metrics.radius, flat: true)
-      } else {
-        RoundedRectangle(cornerRadius: metrics.radius, style: .continuous).fill(.kitFill)
-      }
-    } else {
-      CtlRaisedCard(cornerRadius: metrics.radius, flat: isPressed)
-    }
+    CtlRaisedCard(cornerRadius: metrics.radius, flat: isPressed)
   }
 
   private func foreground(isLit: Bool) -> KitColor {
@@ -329,7 +302,6 @@ private enum PreviewMode: String, KitOption, CaseIterable {
     KitSegmented(selection: $page, segments: [
       KitSegment("History", value: 0), KitSegment("Changes", value: 1), KitSegment("Stashes", value: 2, isEnabled: false),
     ])
-    .kitSegmentedStyle(.capsule)
   }
   .padding(20)
   .frame(width: 360)

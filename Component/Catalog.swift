@@ -192,7 +192,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     case .effects: "Success, failure, pop, wash and pulse"
     case .buttons: "Secondary, primary, plain, icon; sizes, roles, disabled"
     case .toggles: "Switch, checkbox, chip and the chip track"
-    case .segmented: "Field track, wide, the toolbar capsule and pop-ups"
+    case .segmented: "Field track, wide and pop-ups"
     case .tabs: "Editor tabs and breadcrumbs"
     case .fields: "Filled fields with a ring, an error and a live icon"
     case .search: "Search with a scope, a count and its live icon"
@@ -325,7 +325,6 @@ enum CatalogToolbar {
         selection: $model.appearance,
         segments: Appearance.allCases.map { KitSegment($0.title, value: $0, systemImage: $0.systemImage) }
       )
-      .kitSegmentedStyle(.capsule)
       .help("Appearance")
     } menu: {
       Picker("Appearance", selection: $model.appearance) {
@@ -348,7 +347,6 @@ enum CatalogToolbar {
           KitSegment("iPhone", value: KitIdiom.phone, systemImage: "iphone"),
         ]
       )
-      .kitSegmentedStyle(.capsule)
       .help("Idiom")
     } menu: {
       Picker("Idiom", selection: $model.idiom) {

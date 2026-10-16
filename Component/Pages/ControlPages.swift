@@ -218,7 +218,6 @@ struct SegmentedPage: View {
   @State private var mode = DiffMode.changes
   @State private var layout = "Unified"
   @State private var refs = "Local"
-  @State private var page = 0
   @State private var tab = "Results"
   @State private var indent = 4
   @State private var matchCase = true
@@ -269,18 +268,6 @@ struct SegmentedPage: View {
         }
         Specimen("Disabled", code: "KitSegmented(selection: $mode).disabled(true)") {
           KitSegmented(selection: $mode).disabled(true)
-        }
-      }
-      SpecimenSection("Capsule", note: "The toolbar's view switcher.") {
-        Specimen("kitSegmentedStyle(.capsule)", ground: .window, code: "KitSegmented(selection: $page, …).kitSegmentedStyle(.capsule)") {
-          KitSegmented(
-            selection: $page,
-            segments: [
-              KitSegment("History", value: 0), KitSegment("Changes", value: 1, count: 4),
-              KitSegment("Stashes", value: 2, isEnabled: false),
-            ]
-          )
-          .kitSegmentedStyle(.capsule)
         }
       }
       SpecimenSection("Pop-ups", note: "When the options don't fit on a track: the select on the field well, and a raised menu button for options.") {

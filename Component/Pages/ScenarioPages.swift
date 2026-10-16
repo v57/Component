@@ -441,7 +441,7 @@ struct MarkdownScenarioPage: View {
         } bottomBar: { Button("New Note", systemImage: "square.and.pencil") { … } }
 
         VStack(spacing: 0) {
-          HStack { KitPathBar(["Notes", note.title]); Spacer(); KitSegmented(selection: $mode).kitSegmentedStyle(.capsule) }
+          HStack { KitPathBar(["Notes", note.title]); Spacer(); KitSegmented(selection: $mode) }
           if mode == .edit { TextEditor(text: $note.text).kitFont(.mono) } else { MarkdownView(note.text) }
         }
         .kitPane(.content)
@@ -481,7 +481,7 @@ struct MarkdownScenarioPage: View {
         HStack {
           KitPathBar(components: [KitPathItem("Notes", systemImage: "folder", hue: .red) {}, KitPathItem(notes[index].0, systemImage: "doc.text")])
           Spacer()
-          KitSegmented(selection: $mode).kitSegmentedStyle(.capsule)
+          KitSegmented(selection: $mode)
         }
         .padding(.horizontal, 12)
         .frame(height: KitMetrics.titlebarHeight)
