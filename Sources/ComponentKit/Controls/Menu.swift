@@ -128,6 +128,11 @@ public struct KitMenu<Content: View>: View {
   }
 }
 
+/// A submenu row's frame in the menu's space, read when the submenu opens.
+final class KitMenuRowGeometry {
+  var frame: CGRect = .zero
+}
+
 /// The card around a model's rows.
 struct KitMenuCard<Content: View>: View {
   let model: KitMenuModel
@@ -189,7 +194,6 @@ final class KitMenuModel {
   static let space = "kit.menu.root"
 
   struct Row {
-    var frame: CGRect = .zero
     var isEnabled = true
     var hasIcon = false
     var isSubmenu = false
@@ -204,6 +208,9 @@ final class KitMenuModel {
   var isClosing = false
   var openSubmenu: UUID?
   private(set) var rows: [UUID: Row] = [:]
+  /// Where each row sits, apart from `rows` and unobserved: a menu shown in a page (not in its window) measures its
+  /// rows in the window's space, which moves on every frame of a scroll, and every row reads `rows`.
+  @ObservationIgnored private var frames: [UUID: CGRect] = [:]
   /// Some row has an icon, so every row keeps the icon column and the titles line up.
   var hasIconColumn: Bool { rows.values.contains { $0.hasIcon } }
   /// The card, and the view the menu opened from, in the menu window's space.
@@ -226,8 +233,13 @@ final class KitMenuModel {
     rows[id] = row
   }
 
+  func setFrame(_ id: UUID, _ frame: CGRect) {
+    frames[id] = frame
+  }
+
   func remove(_ id: UUID) {
     rows[id] = nil
+    frames[id] = nil
     if highlighted == id { highlighted = nil }
   }
 
@@ -247,7 +259,7 @@ final class KitMenuModel {
   /// The row under `point`, in this menu or its open submenu (which lies on top).
   func row(at point: CGPoint) -> (menu: KitMenuModel, id: UUID)? {
     if openSubmenu != nil, let child, let hit = child.row(at: point) { return hit }
-    guard let id = rows.first(where: { $0.value.frame.contains(point) })?.key else { return nil }
+    guard let id = rows.first(where: { frames[$0.key]?.contains(point) == true })?.key else { return nil }
     return (self, id)
   }
 
@@ -258,7 +270,8 @@ final class KitMenuModel {
 
   /// ↑/↓: the next enabled row, top to bottom, wrapping.
   func move(by step: Int) {
-    let order = rows.filter(\.value.isEnabled).sorted { $0.value.frame.minY < $1.value.frame.minY }.map(\.key)
+    let order = rows.filter(\.value.isEnabled).sorted { (frames[$0.key]?.minY ?? 0) < (frames[$1.key]?.minY ?? 0) }
+      .map(\.key)
     guard !order.isEmpty else { return }
     if let highlighted, let index = order.firstIndex(of: highlighted) {
       self.highlighted = order[(index + step + order.count) % order.count]
@@ -348,7 +361,7 @@ struct KitMenuRow<Label: View>: View {
     .onHover { inside in hover(inside) }
     .onTapGesture { if isEnabled { trigger() } }
     .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(KitMenuModel.space)) } action: { frame in
-      model?.update(id) { $0.frame = frame }
+      model?.setFrame(id, frame)
     }
     .onChange(of: isEnabled, initial: true) { register() }
     .onChange(of: hasIcon) { register() }
@@ -549,7 +562,8 @@ public struct KitSubmenu<Content: View>: View {
   @Environment(\.kitIdiom) private var idiom
   @State private var rowID = UUID()
   @State private var child = KitMenuModel()
-  @State private var rowFrame: CGRect = .zero
+  /// The row's frame, in a box: kept out of state, it doesn't draw the row again on every frame of a scroll.
+  @State private var rowGeometry = KitMenuRowGeometry()
   @State private var childSize: CGSize = .zero
 
   public init(_ title: String, systemImage: String? = nil, @ViewBuilder content: () -> Content) {
@@ -565,10 +579,12 @@ public struct KitSubmenu<Content: View>: View {
     KitMenuRow(isSubmenu: true, rowID: rowID, trigger: { model?.openSubmenu = rowID }) {
       if let systemImage { Label(title, systemImage: systemImage) } else { Text(title) }
     }
-    .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(KitMenuModel.space)) } action: { rowFrame = $0 }
+    .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(KitMenuModel.space)) } action: { [rowGeometry] in
+      rowGeometry.frame = $0
+    }
     .overlay(alignment: .topLeading) {
       if isOpen {
-        KitMenuCard(model: child, minWidth: idiom.isTouch ? rowFrame.width + 2 * metrics.cardPadding + 8 : nil) {
+        KitMenuCard(model: child, minWidth: idiom.isTouch ? rowGeometry.frame.width + 2 * metrics.cardPadding + 8 : nil) {
           if idiom.isTouch {
             // As iOS: the submenu stacks over its menu from this row, headed by its title, which folds it.
             KitMenuRow(isHeader: true, trigger: { model?.openSubmenu = nil }) {
@@ -599,20 +615,20 @@ public struct KitSubmenu<Content: View>: View {
     let metrics = KitMenuMetrics(idiom)
     if idiom.isTouch {
       var y = -metrics.cardPadding - 4
-      if let bounds, rowFrame.minY + y + childSize.height > bounds.height - 8 {
-        y = bounds.height - 8 - childSize.height - rowFrame.minY
+      if let bounds, rowGeometry.frame.minY + y + childSize.height > bounds.height - 8 {
+        y = bounds.height - 8 - childSize.height - rowGeometry.frame.minY
       }
       return CGSize(width: -metrics.cardPadding - 4, height: y)
     }
     let gap = metrics.cardPadding + 2
-    let trailing = rowFrame.width + gap
+    let trailing = rowGeometry.frame.width + gap
     var x = trailing
-    if let bounds, rowFrame.maxX + gap + childSize.width > bounds.width - 8 {
+    if let bounds, rowGeometry.frame.maxX + gap + childSize.width > bounds.width - 8 {
       x = -childSize.width - gap
     }
     var y = -metrics.cardPadding
-    if let bounds, rowFrame.minY + y + childSize.height > bounds.height - 8 {
-      y = bounds.height - 8 - childSize.height - rowFrame.minY
+    if let bounds, rowGeometry.frame.minY + y + childSize.height > bounds.height - 8 {
+      y = bounds.height - 8 - childSize.height - rowGeometry.frame.minY
     }
     return CGSize(width: x, height: y)
   }
