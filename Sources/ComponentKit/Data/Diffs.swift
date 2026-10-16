@@ -83,6 +83,11 @@ public enum DiffLayout: Hashable, Sendable {
   case unified, split
 }
 
+/// What a hunk does with a line longer than the card: cut it at the end, or scroll the lines sideways together.
+public enum DiffOverflow: Hashable, Sendable {
+  case truncate, scroll
+}
+
 // MARK: - Hunk card
 
 /// A hunk as a card, headed by the function it's in and its range. Gutters have no fill: the whole line carries the
@@ -90,11 +95,18 @@ public enum DiffLayout: Hashable, Sendable {
 /// selects it (the accent bar) and the header offers Stage N Lines. A staged hunk folds to its header and a summary
 /// line, with Unstage. Put the cards for a file in a `VStack(spacing: 10)` on the panel ground.
 ///
+/// Selecting lines: a click toggles one, ⇧-click selects the run from the last one clicked, and a drag down the lines
+/// selects the run it passes over. Right-click (or ⌘C on the Mac) copies the selected lines, or the one under the
+/// pointer. Lines draw lazily inside a scroll view, so a huge hunk stays cheap; `overflow: .scroll` scrolls long
+/// lines sideways together instead of cutting them. A staged hunk with `unstageLines` unstages lines the same way.
+///
 /// ```swift
 /// HunkCard(header: "public final class TripStore", range: "@@ -23,8 +24,13 @@", lines: hunk.lines,
 ///          selection: $selectedLines, stage: { lines in repo.stage(lines) })
 /// HunkCard(header: "TripStore", range: "@@ -14,6 +14,7 @@", lines: staged.lines, isStaged: true,
 ///          summary: "1 line added in add(_:)", unstage: { repo.unstage(staged) })
+/// HunkCard(header: "TripStore", range: "@@ -14,6 +14,7 @@", lines: staged.lines, isStaged: true,
+///          selection: $selectedLines, unstage: { … }, unstageLines: { repo.unstage($0) }, overflow: .scroll)
 /// ```
 public struct HunkCard: View {
   var header: String
@@ -106,14 +118,21 @@ public struct HunkCard: View {
   var selection: Binding<Set<DiffLine.ID>>?
   var stage: (([DiffLine]) -> Void)?
   var unstage: (() -> Void)?
+  var unstageLines: (([DiffLine]) -> Void)?
+  var overflow: DiffOverflow
   @State private var expanded: Bool?
   @State private var hovered: DiffLine.ID?
+  @State private var anchor: DiffLine.ID?
+  @State private var dragStart: Int?
+  @State private var width: CGFloat = 0
+  /// The widest line's text, for `overflow: .scroll` (every row stretches to the widest one).
+  @State private var textWidth: CGFloat = 0
   @Environment(\.kitIdiom) private var idiom
 
   public init(
     header: String, range: String, lines: [DiffLine], layout: DiffLayout = .unified, isStaged: Bool = false,
     summary: String? = nil, selection: Binding<Set<DiffLine.ID>>? = nil, stage: (([DiffLine]) -> Void)? = nil,
-    unstage: (() -> Void)? = nil
+    unstage: (() -> Void)? = nil, unstageLines: (([DiffLine]) -> Void)? = nil, overflow: DiffOverflow = .truncate
   ) {
     self.header = header
     self.range = range
@@ -124,7 +143,12 @@ public struct HunkCard: View {
     self.selection = selection
     self.stage = stage
     self.unstage = unstage
+    self.unstageLines = unstageLines
+    self.overflow = overflow
   }
+
+  /// What a line's own action does: stage it, or (staged) unstage it.
+  private var lineAction: (([DiffLine]) -> Void)? { isStaged ? unstageLines : stage }
 
   private var isExpanded: Bool { expanded ?? !isStaged }
   private var selected: Set<DiffLine.ID> { selection?.wrappedValue ?? [] }
@@ -136,7 +160,7 @@ public struct HunkCard: View {
         Group {
           switch layout {
           case .unified:
-            VStack(spacing: 0) { ForEach(lines) { unifiedLine($0) } }
+            unifiedLines
           case .split:
             splitLines
           }
@@ -156,6 +180,7 @@ public struct HunkCard: View {
     .clipShape(RoundedRectangle(cornerRadius: KitMetrics.radiusCard, style: .continuous))
     .onChange(of: isStaged) { expanded = nil }
     .animation(.kit, value: isExpanded)
+    .modifier(DiffCopyCommand(text: { copiedText(for: nil) }))
   }
 
   private var headerRow: some View {
@@ -187,6 +212,17 @@ public struct HunkCard: View {
           .labelStyle(KitButtonLabelStyle(iconOnly: false))
           .font(.system(size: 11, weight: .medium))
           .foregroundStyle(Hue.green.text)
+        if let unstageLines {
+          let chosen = lines.filter { selected.contains($0.id) && $0.isChange }
+          if !chosen.isEmpty {
+            Button(chosen.count == 1 ? "Unstage 1 Line" : "Unstage \(chosen.count) Lines") {
+              unstageLines(chosen)
+              selection?.wrappedValue = []
+            }
+            .buttonStyle(.dataSoft)
+            .transition(.opacity)
+          }
+        }
         if let unstage { Button("Unstage", action: unstage).buttonStyle(.dataSoft) }
       } else if let stage {
         let chosen = lines.filter { selected.contains($0.id) && $0.isChange }
@@ -209,7 +245,54 @@ public struct HunkCard: View {
 
   // MARK: Unified
 
-  private func unifiedLine(_ line: DiffLine) -> some View {
+  /// The lines, lazily (a scroll view around the card keeps a huge hunk cheap), scrolling sideways together when
+  /// `overflow` is `.scroll`; a drag down them selects the run it passes over.
+  @ViewBuilder
+  private var unifiedLines: some View {
+    let stack = LazyVStack(alignment: .leading, spacing: 0) {
+      ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
+        unifiedLine(line, index: index)
+          .frame(width: overflow == .scroll ? max(width, textWidth + DiffSelect.gutterWidth) : nil)
+      }
+    }
+    .coordinateSpace(name: DiffSpace.lines)
+    .simultaneousGesture(dragSelect, including: selection == nil ? .subviews : .all)
+    switch overflow {
+    case .truncate:
+      stack
+    case .scroll:
+      ScrollView(.horizontal) {
+        stack.frame(minWidth: width, alignment: .leading)
+      }
+      .scrollIndicators(.automatic)
+      .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+    }
+  }
+
+  private enum DiffSpace: Hashable { case lines }
+
+  /// A drag down the lines selects them: rows are at least 20pt, so the index under the pointer is its height over 20.
+  private var dragSelect: some Gesture {
+    DragGesture(minimumDistance: 6, coordinateSpace: .named(DiffSpace.lines))
+      .onChanged { drag in
+        guard selection != nil, !lines.isEmpty else { return }
+        let start = dragStart ?? DiffSelect.index(atY: drag.startLocation.y, count: lines.count)
+        dragStart = start
+        let end = DiffSelect.index(atY: drag.location.y, count: lines.count)
+        selectRun(from: start, to: end)
+      }
+      .onEnded { _ in dragStart = nil }
+  }
+
+  private func selectRun(from start: Int, to end: Int) {
+    guard let selection, canSelect else { return }
+    let ids = DiffSelect.run(lines.map { ($0.id, $0.isChange) }, from: start, to: end)
+    selection.wrappedValue = Set(ids)
+  }
+
+  private var canSelect: Bool { !isStaged || unstageLines != nil }
+
+  private func unifiedLine(_ line: DiffLine, index: Int = 0) -> some View {
     let isSelected = selected.contains(line.id)
     let isHovered = hovered == line.id
     return HStack(spacing: 0) {
@@ -227,8 +310,8 @@ public struct HunkCard: View {
     .frame(minHeight: 20)
     .background { LineGround(line: line, selected: isSelected, hovered: isHovered) }
     .overlay(alignment: .leading) {
-      if line.isChange, isHovered, !isStaged, let stage {
-        StageLineButton { stage([line]) }.padding(.leading, 5)
+      if line.isChange, isHovered, let lineAction {
+        StageLineButton(unstages: isStaged) { lineAction([line]) }.padding(.leading, 5)
       }
     }
     .contentShape(Rectangle())
@@ -236,19 +319,48 @@ public struct HunkCard: View {
       if inside { hovered = line.id } else if hovered == line.id { hovered = nil }
     }
     .onTapGesture { toggle(line) }
+    .contextMenu { copyMenu(line) }
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(isSelected ? .isSelected : [])
   }
 
   private func toggle(_ line: DiffLine) {
-    guard line.isChange, let selection, !isStaged else { return }
+    guard line.isChange, let selection, canSelect else { return }
     withKitAnimation(.kitFast) {
-      if selection.wrappedValue.contains(line.id) {
+      if ContPlatform.isShiftDown, let anchor, let from = lines.firstIndex(where: { $0.id == anchor }),
+        let to = lines.firstIndex(where: { $0.id == line.id })
+      {
+        selection.wrappedValue.formUnion(DiffSelect.run(lines.map { ($0.id, $0.isChange) }, from: from, to: to))
+      } else if selection.wrappedValue.contains(line.id) {
         selection.wrappedValue.remove(line.id)
       } else {
         selection.wrappedValue.insert(line.id)
       }
     }
+    anchor = line.id
+  }
+
+  @ViewBuilder
+  private func copyMenu(_ line: DiffLine) -> some View {
+    let count = selected.contains(line.id) ? lines.filter { selected.contains($0.id) }.count : 1
+    Button(count == 1 ? "Copy Line" : "Copy \(count) Lines", systemImage: "doc.on.doc") {
+      KitPasteboard.copy(copiedText(for: line))
+    }
+  }
+
+  /// The selected lines' text (the line under the pointer, or `line`, when it isn't among them), one per line.
+  private func copiedText(for line: DiffLine?) -> String {
+    let chosen: [DiffLine]
+    if let line, !selected.contains(line.id) {
+      chosen = [line]
+    } else if !selected.isEmpty {
+      chosen = lines.filter { selected.contains($0.id) }
+    } else if let hovered, let line = lines.first(where: { $0.id == hovered }) {
+      chosen = [line]
+    } else {
+      chosen = []
+    }
+    return chosen.map { String($0.text.characters) }.joined(separator: "\n")
   }
 
   private func number(_ value: Int?, line: DiffLine, selected: Bool) -> some View {
@@ -279,10 +391,14 @@ public struct HunkCard: View {
     line.kind == .context ? AnyShapeStyle(.kitQuiet) : numberStyle(line)
   }
 
+  @ViewBuilder
   private func code(_ line: DiffLine) -> some View {
-    WordMarkedText(line: line)
-      .lineLimit(1)
-      .truncationMode(.tail)
+    if overflow == .scroll && layout == .unified {
+      WordMarkedText(line: line).lineLimit(1).fixedSize(horizontal: true, vertical: false)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { textWidth = max(textWidth, $0) }
+    } else {
+      WordMarkedText(line: line).lineLimit(1).truncationMode(.tail)
+    }
   }
 
   // MARK: Split
@@ -318,9 +434,46 @@ public struct HunkCard: View {
         if inside { hovered = line.id } else if hovered == line.id { hovered = nil }
       }
       .onTapGesture { toggle(line) }
+      .contextMenu { copyMenu(line) }
     } else {
       EmptySideStripes().frame(maxWidth: .infinity, minHeight: 20)
     }
+  }
+}
+
+/// Selecting runs of diff lines, apart from views.
+enum DiffSelect {
+  /// What a unified line holds besides its text: two number columns, the sign, the text's padding.
+  static let gutterWidth: CGFloat = 38 + 38 + 18 + 4 + 10
+
+  /// The line under `y` in a column of 20pt rows, clamped to the lines.
+  static func index(atY y: CGFloat, count: Int) -> Int {
+    min(max(Int(y / 20), 0), max(count - 1, 0))
+  }
+
+  /// The changed lines between `from` and `to` (either order, both included).
+  static func run<ID>(_ lines: [(id: ID, isChange: Bool)], from: Int, to: Int) -> [ID] {
+    guard !lines.isEmpty else { return [] }
+    let low = max(min(from, to), 0)
+    let high = min(max(from, to), lines.count - 1)
+    guard low <= high else { return [] }
+    return lines[low...high].filter(\.isChange).map(\.id)
+  }
+}
+
+/// ⌘C copies the hunk's selected lines (the Mac's Copy command; touch idioms copy from the context menu).
+private struct DiffCopyCommand: ViewModifier {
+  let text: () -> String
+
+  func body(content: Content) -> some View {
+    #if os(macOS)
+      content.onCopyCommand {
+        let string = text()
+        return string.isEmpty ? [] : [NSItemProvider(object: string as NSString)]
+      }
+    #else
+      content
+    #endif
   }
 }
 
@@ -358,13 +511,14 @@ private struct LineGround: View {
   }
 }
 
-/// The + in the gutter of a hovered changed line: stages that line.
+/// The + in the gutter of a hovered changed line: stages that line (a − unstages it in a staged hunk).
 private struct StageLineButton: View {
+  var unstages = false
   let action: () -> Void
 
   var body: some View {
     Button(action: action) {
-      Image(systemName: "plus")
+      Image(systemName: unstages ? "minus" : "plus")
         .font(.system(size: 9, weight: .bold))
         .foregroundStyle(.white)
         .frame(width: 16, height: 16)
@@ -372,7 +526,7 @@ private struct StageLineButton: View {
         .shadow(color: .black.opacity(0.2), radius: 1, y: 1)
     }
     .buttonStyle(.plain)
-    .accessibilityLabel("Stage this line")
+    .accessibilityLabel(unstages ? "Unstage this line" : "Stage this line")
     .transition(.opacity)
   }
 }
@@ -410,6 +564,14 @@ public enum ConflictChoice: Hashable, Sendable {
   }
 }
 
+/// Which side a conflict shows first (and puts first when keeping both).
+public enum ConflictOrder: Hashable, Sendable {
+  /// Current, then Incoming (a merge).
+  case currentFirst
+  /// Incoming, then Current (a rebase, where "current" is the branch being replayed onto).
+  case incomingFirst
+}
+
 /// One side of a conflict: its name ("Current", "Incoming"), the branch it comes from and its lines.
 public struct ConflictSide: Hashable, Sendable {
   public var label: String
@@ -441,27 +603,48 @@ public struct ConflictSide: Hashable, Sendable {
 ///              incoming: ConflictSide("Incoming", ref: "feature/offline-maps", code: theirs),
 ///              choice: $choice, edit: { openEditor() })
 /// ```
+///
+/// `order: .incomingFirst` shows Incoming, then Current (a rebase); `ancestor` adds the common ancestor ("Base"),
+/// shown on demand from the header, in gray.
+///
+/// ```swift
+/// ConflictCard(title: "Conflict 1 of 3", current: ours, incoming: theirs, ancestor: base, order: .incomingFirst,
+///              choice: $choice)
+/// ```
 public struct ConflictCard: View {
   var title: String
   var resolvedTitle: String
   var meta: [String]
   var current: ConflictSide
   var incoming: ConflictSide
+  var ancestor: ConflictSide?
+  var order: ConflictOrder
   @Binding var choice: ConflictChoice?
   var edit: (() -> Void)?
+  @State private var showsAncestor = false
   @Environment(\.kitIdiom) private var idiom
 
   public init(
     title: String, resolvedTitle: String = "Conflict resolved", meta: [String] = [], current: ConflictSide,
-    incoming: ConflictSide, choice: Binding<ConflictChoice?>, edit: (() -> Void)? = nil
+    incoming: ConflictSide, ancestor: ConflictSide? = nil, order: ConflictOrder = .currentFirst,
+    choice: Binding<ConflictChoice?>, edit: (() -> Void)? = nil
   ) {
     self.title = title
     self.resolvedTitle = resolvedTitle
     self.meta = meta
     self.current = current
     self.incoming = incoming
+    self.ancestor = ancestor
+    self.order = order
     self._choice = choice
     self.edit = edit
+  }
+
+  /// The two sides in the order shown, with their hues.
+  private var sides: [(side: ConflictSide, hue: Hue, choice: ConflictChoice)] {
+    let currentSide = (current, Hue.accent, ConflictChoice.current)
+    let incomingSide = (incoming, Hue.purple, ConflictChoice.incoming)
+    return order == .currentFirst ? [currentSide, incomingSide] : [incomingSide, currentSide]
   }
 
   public var body: some View {
@@ -470,14 +653,19 @@ public struct ConflictCard: View {
       Group {
         if let choice {
           VStack(spacing: 2) {
-            if choice != .incoming { resultBlock(current, hue: .accent) }
-            if choice != .current { resultBlock(incoming, hue: .purple) }
+            ForEach(sides, id: \.choice) { item in
+              if choice == item.choice || choice == .both { resultBlock(item.side, hue: item.hue) }
+            }
           }
           .padding([.horizontal, .bottom], 8)
         } else {
-          HStack(alignment: .top, spacing: 8) {
-            sidePanel(current, hue: .accent)
-            sidePanel(incoming, hue: .purple)
+          VStack(spacing: 8) {
+            if let ancestor, showsAncestor {
+              sidePanel(ancestor, hue: .gray).transition(.opacity)
+            }
+            HStack(alignment: .top, spacing: 8) {
+              ForEach(sides, id: \.choice) { item in sidePanel(item.side, hue: item.hue) }
+            }
           }
           .padding([.horizontal, .bottom], 8)
         }
@@ -486,10 +674,11 @@ public struct ConflictCard: View {
     }
     .kitSurface(.card)
     .animation(.kit, value: choice)
+    .animation(.kit, value: showsAncestor)
   }
 
   private var header: some View {
-    let options: [(String, ConflictChoice?)] = [ConflictChoice.current, .incoming, .both].map { ($0.title, $0) }
+    let options: [(String, ConflictChoice?)] = (sides.map(\.choice) + [.both]).map { ($0.title, $0) }
     return RichHeader(
       Text(choice == nil ? title : resolvedTitle),
       icon: {
@@ -500,6 +689,13 @@ public struct ConflictCard: View {
       accessory: {
         HStack(spacing: 6) {
           if choice == nil {
+            if ancestor != nil {
+              Button("Base") { showsAncestor.toggle() }
+                .buttonStyle(.dataSoft)
+                .fixedSize()
+                .help(showsAncestor ? "Hide the common ancestor" : "Show the common ancestor both sides changed")
+                .accessibilityValue(showsAncestor ? "Shown" : "Hidden")
+            }
             KitSegmented(selection: $choice, options: options)
             if let edit { Button("Edit…", action: edit).buttonStyle(.dataSoft) }
           } else {
@@ -517,7 +713,7 @@ public struct ConflictCard: View {
     switch choice {
     case .current: ["Used Current", current.ref ?? ""]
     case .incoming: ["Used Incoming", incoming.ref ?? ""]
-    case .both: ["Used Both", [current.ref, incoming.ref].compactMap { $0 }.joined(separator: ", then ")]
+    case .both: ["Used Both", sides.compactMap(\.side.ref).joined(separator: ", then ")]
     }
   }
 

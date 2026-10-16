@@ -160,3 +160,15 @@ private struct Key { var name: String; var children: [Key]? }
   #expect(open.map(\.row.name) == ["user", "user:1", "user:2", "user:2:cart", "session", "config"])
   #expect(open.map(\.depth) == [0, 1, 1, 2, 0, 0])
 }
+
+// MARK: - Diff line selection
+
+@Test func diffSelectsRunsOfChangedLines() {
+  let lines: [(id: String, isChange: Bool)] = [("a", false), ("b", true), ("c", true), ("d", false), ("e", true)]
+  #expect(DiffSelect.run(lines, from: 0, to: 4) == ["b", "c", "e"])
+  #expect(DiffSelect.run(lines, from: 4, to: 2) == ["c", "e"])
+  #expect(DiffSelect.run(lines, from: 3, to: 3) == [])
+  #expect(DiffSelect.index(atY: 45, count: 5) == 2)
+  #expect(DiffSelect.index(atY: -10, count: 5) == 0)
+  #expect(DiffSelect.index(atY: 900, count: 5) == 4)
+}

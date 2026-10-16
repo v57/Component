@@ -284,13 +284,16 @@ struct DiffsPage: View {
   @State private var unstaged = sampleDiffLines
   @State private var staged: [DiffLine] = []
   @State private var choice: ConflictChoice?
+  @State private var rebaseChoice: ConflictChoice?
   @State private var layout = DiffLayout.unified
+  @State private var overflow = DiffOverflow.truncate
+  @State private var stagedSelection: Set<DiffLine.ID> = []
 
   var body: some View {
     CatalogPage(page: .diffs, maxWidth: 1100) {
       SpecimenSection(
         "Hunk cards",
-        note: "Hover a changed line for its +; click lines to select them and Stage N Lines. A staged hunk folds to a summary."
+        note: "Hover a changed line for its +; click lines (⇧-click for a run, or drag down them) and Stage N Lines; right-click or ⌘C copies. A staged hunk folds to a summary; open it to unstage lines."
       ) {
         Specimen(
           "Stage lines", ground: .panel,
@@ -298,16 +301,27 @@ struct DiffsPage: View {
             HunkCard(header: "public final class TripStore", range: "@@ -23,8 +24,13 @@", lines: hunk.lines,
                      layout: layout, selection: $selected, stage: { repo.stage($0) })
             HunkCard(header: "TripStore", range: "@@ -14,6 +14,7 @@", lines: staged, isStaged: true,
-                     summary: "1 line added in add(_:)", unstage: { repo.unstage(staged) })
+                     summary: "1 line added in add(_:)", selection: $selectedStaged,
+                     unstage: { repo.unstage(staged) }, unstageLines: { repo.unstage($0) })
+            HunkCard(…, overflow: .scroll)   // long lines scroll sideways together
             """
         ) {
           VStack(alignment: .leading, spacing: 10) {
-            KitSegmented(selection: $layout, options: [("Unified", .unified), ("Split", .split)])
+            HStack {
+              KitSegmented(selection: $layout, options: [("Unified", .unified), ("Split", .split)])
+              KitSegmented(selection: $overflow, options: [("Truncate", .truncate), ("Scroll", .scroll)])
+            }
             if !staged.isEmpty {
               HunkCard(
                 header: "public final class TripStore", range: "@@ -23,2 +24,\(staged.count) @@", lines: staged,
-                isStaged: true, summary: "\(staged.count) lines staged in TripStore",
-                unstage: { withKitAnimation { unstaged = sampleDiffLines; staged = [] } })
+                isStaged: true, summary: "\(staged.count) lines staged in TripStore", selection: $stagedSelection,
+                unstage: { withKitAnimation { unstaged = sampleDiffLines; staged = [] } },
+                unstageLines: { lines in
+                  withKitAnimation {
+                    staged.removeAll { lines.contains($0) }
+                    unstaged = sampleDiffLines.filter { !staged.contains($0) }
+                  }
+                })
             }
             HunkCard(
               header: "public final class TripStore", range: "@@ -23,8 +24,13 @@", lines: unstaged, layout: layout,
@@ -317,7 +331,7 @@ struct DiffsPage: View {
                   staged.append(contentsOf: lines)
                   unstaged.removeAll { line in lines.contains(line) }
                 }
-              })
+              }, overflow: overflow)
           }
         }
         Specimen("A staged hunk", ground: .panel, code: "HunkCard(…, lines: [], isStaged: true, summary: \"1 line added in add(_:)\", unstage: { … })") {
@@ -343,6 +357,21 @@ struct DiffsPage: View {
               "Incoming", ref: "feature/offline-maps",
               code: "let data = try? JSONEncoder().encode(trips)\ntry? data?.write(to: url, options: .atomic)\nOfflineMaps.shared.prefetch(trips)"),
             choice: $choice, edit: {})
+        }
+        Specimen(
+          "Incoming first, with the common ancestor", ground: .panel,
+          code: """
+            ConflictCard(title: "Conflict 1 of 1", current: ours, incoming: theirs,
+                         ancestor: ConflictSide("Base", ref: mergeBase, code: base),
+                         order: .incomingFirst, choice: $choice)   // a rebase; Base shows on demand
+            """
+        ) {
+          ConflictCard(
+            title: "Conflict 1 of 1", meta: ["Rebasing onto main", "Lines 12–13"],
+            current: ConflictSide("Current", ref: "main", code: "let limit = 50\nlet timeout = 30"),
+            incoming: ConflictSide("Incoming", ref: "feature/paging", code: "let limit = pageSize\nlet timeout = 30"),
+            ancestor: ConflictSide("Base", ref: "a1b2c3d", code: "let limit = 20\nlet timeout = 30"),
+            order: .incomingFirst, choice: $rebaseChoice)
         }
       }
     }

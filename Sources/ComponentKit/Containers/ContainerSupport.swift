@@ -391,6 +391,15 @@ enum ContPlatform {
     #endif
   }
 
+  /// Whether Shift is held (a ⇧-click extends a selection); always false on touch.
+  static var isShiftDown: Bool {
+    #if canImport(AppKit)
+      NSEvent.modifierFlags.contains(.shift)
+    #else
+      false
+    #endif
+  }
+
   static func toggleSidebar() {
     #if canImport(AppKit)
       NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
