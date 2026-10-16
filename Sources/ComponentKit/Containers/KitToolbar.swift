@@ -238,13 +238,25 @@ private struct ContTopBar<Bar: View>: ViewModifier {
   private func placed(_ content: Content) -> some View {
     if mode == .bar, #available(macOS 26.0, iOS 26.0, *) {
       content
-        .safeAreaBar(edge: .top, spacing: 0) { bar }
+        .safeAreaBar(edge: .top, spacing: 0) { bar.background { ContBarFade() } }
         .scrollEdgeEffectStyle(.soft, for: .top)
     } else {
       content
-        .safeAreaInset(edge: .top, spacing: 0) { bar }
+        .safeAreaInset(edge: .top, spacing: 0) { bar.background { ContBarFade() } }
         .modifier(ContTopEdgeEffectHidden())
     }
+  }
+}
+
+/// Behind the bar: the window's ground from 40% at the top to clear at the bar's bottom edge, so content passing
+/// under the title reads as under it.
+private struct ContBarFade: View {
+  var body: some View {
+    Rectangle()
+      .fill(.kitWindow.opacity(0.4))
+      .mask { LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom) }
+      .ignoresSafeArea(.container, edges: .top)
+      .allowsHitTesting(false)
   }
 }
 
