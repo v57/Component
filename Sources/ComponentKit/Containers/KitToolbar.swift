@@ -210,9 +210,10 @@ private struct ContTopBar<Bar: View>: ViewModifier {
 /// A soft glow of the window's ground around the title, so it stays readable over content passing under the bar.
 private struct ContGroundGlow: ViewModifier {
   @Environment(\.colorScheme) private var scheme
+  @Environment(\.kitMoreContrast) private var moreContrast
 
   func body(content: Content) -> some View {
-    content.shadow(color: KitColor.window.color(dark: scheme == .dark), radius: 4)
+    content.shadow(color: KitColor.window.color(scheme, moreContrast: moreContrast), radius: 4)
   }
 }
 

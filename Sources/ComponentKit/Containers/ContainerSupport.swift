@@ -144,14 +144,15 @@ private struct ContEdgeEffectHidden: ViewModifier {
 struct ContEdgeFade: View {
   var edge: VerticalEdge
   var ground: KitColor
+  @Environment(\.colorScheme) private var scheme
+  @Environment(\.kitMoreContrast) private var moreContrast
 
   var body: some View {
-    Rectangle()
-      .fill(ground.opacity(0.4))
-      .mask {
-        LinearGradient(
-          colors: [.black, .clear], startPoint: edge == .top ? .top : .bottom, endPoint: edge == .top ? .bottom : .top)
-      }
+    // The ground resolved here, so the fade is one gradient between two stops of it (no mask).
+    let color = ground.color(scheme, moreContrast: moreContrast)
+    LinearGradient(
+      colors: [color.opacity(0.4), color.opacity(0)],
+      startPoint: edge == .top ? .top : .bottom, endPoint: edge == .top ? .bottom : .top)
       .ignoresSafeArea(.container, edges: edge == .top ? .top : .bottom)
       .allowsHitTesting(false)
       .accessibilityHidden(true)

@@ -22,9 +22,18 @@ public struct KitColor: ShapeStyle, Hashable, Sendable {
   }
 
   func rgba(in environment: EnvironmentValues) -> RGBA {
-    let more = environment.kitMoreContrast
-    if environment.colorScheme == .dark { return more ? darkMore ?? dark : dark }
+    rgba(dark: environment.colorScheme == .dark, moreContrast: environment.kitMoreContrast)
+  }
+
+  func rgba(dark isDark: Bool, moreContrast more: Bool) -> RGBA {
+    if isDark { return more ? darkMore ?? dark : dark }
     return more ? lightMore ?? light : light
+  }
+
+  /// The colour as drawn where `scheme` and `moreContrast` (the environment's `kitMoreContrast`) hold, for a view
+  /// that needs a `Color` (a gradient's stops, a shadow).
+  func color(_ scheme: ColorScheme, moreContrast: Bool) -> Color {
+    rgba(dark: scheme == .dark, moreContrast: moreContrast).color
   }
 
   /// The colour for one appearance, outside a view (canvas drawing, previews).
