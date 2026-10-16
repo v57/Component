@@ -339,7 +339,7 @@ struct CatalogToolbar: ToolbarContent {
         }
       }
     } else {
-      ToolbarItem(placement: .primaryAction) {
+      KitToolbarItem(placement: .primaryAction) {
         HStack(spacing: KitMetrics.gutter) {
           KitSegmented(
             selection: $model.appearance,

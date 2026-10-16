@@ -51,6 +51,128 @@ public struct KitTitle: View {
   }
 }
 
+// MARK: - In a system toolbar
+
+/// A toolbar item for kit views (`KitTitle`, `ToolGroup`, `KitSegmented`, a round button): they draw their own cards,
+/// so on macOS 26 and iOS 26 the toolbar's shared glass stays out from behind them. Before, it's a plain
+/// `ToolbarItem`.
+///
+/// ```swift
+/// .toolbar {
+///   KitToolbarItem(placement: .primaryAction) {
+///     ToolGroup { Button("Fetch", systemImage: "arrow.down.circle") { … } }
+///   }
+/// }
+/// ```
+public struct KitToolbarItem<Content: View>: ToolbarContent {
+  var placement: ToolbarItemPlacement
+  var content: () -> Content
+
+  public init(placement: ToolbarItemPlacement = .automatic, @ViewBuilder content: @escaping () -> Content) {
+    self.placement = placement
+    self.content = content
+  }
+
+  public var body: some ToolbarContent {
+    ToolbarItem(placement: placement) { content() }.kitToolbarItem()
+  }
+}
+
+extension ToolbarContent {
+  /// Hides the toolbar's shared glass behind this content on macOS 26 and iOS 26 (kit views draw their own cards);
+  /// nothing before. For a `ToolbarItem` or `ToolbarItemGroup` you build yourself; `KitToolbarItem` does it for you.
+  ///
+  /// ```swift
+  /// ToolbarItemGroup(placement: .primaryAction) { … }.kitToolbarItem()
+  /// ```
+  @ToolbarContentBuilder
+  public func kitToolbarItem() -> some ToolbarContent {
+    if #available(macOS 26.0, iOS 26.0, *) {
+      sharedBackgroundVisibility(.hidden)
+    } else {
+      self
+    }
+  }
+}
+
+extension View {
+  /// Names the view in the toolbar with the kit's rich title (at the navigation placement, without the glass) and
+  /// takes the system's own title out of the toolbar (macOS 15 and iOS 18 on; the window keeps its title for the
+  /// Window menu and Mission Control).
+  ///
+  /// ```swift
+  /// HistoryView()
+  ///   .kitToolbarTitle("History", meta: ["main", "2 commits to push"], systemImage: "clock", status: fetch)
+  /// ```
+  public func kitToolbarTitle(
+    _ title: String, meta: [String] = [], systemImage: String, hue: Hue = .accent, status: WorkStatus = .idle
+  ) -> some View {
+    kitToolbarTitle(title) {
+      KitTitle(title, meta: meta, systemImage: systemImage, hue: hue, status: status)
+    }
+  }
+
+  /// Puts any title view (a `KitTitle`, a `RichHeader(…, size: .title)` with an avatar) at the toolbar's navigation
+  /// placement without the glass, and takes the system title out of the toolbar; `windowTitle` stays the window's.
+  ///
+  /// ```swift
+  /// Detail().kitToolbarTitle(host.name) { RichHeader(host.name, size: .title, icon: { Avatar(…) }, meta: { … }, accessory: {}) }
+  /// ```
+  public func kitToolbarTitle<Title: View>(_ windowTitle: String, @ViewBuilder content: @escaping () -> Title)
+    -> some View
+  {
+    navigationTitle(windowTitle)
+      .toolbar { KitToolbarItem(placement: .navigation, content: content) }
+      .kitHidesSystemTitle()
+  }
+
+  /// Takes the system's title out of the toolbar (macOS 15 and iOS 18 on), when a pane names itself with its own
+  /// `KitTitle`. The window keeps its title.
+  @ViewBuilder
+  public func kitHidesSystemTitle() -> some View {
+    if #available(macOS 15.0, iOS 18.0, *) {
+      toolbar(removing: .title)
+    } else {
+      self
+    }
+  }
+
+  /// Draws a tool as on (a toggled tool: the inspector shown, a filter applied), in a `ToolGroup` or with the
+  /// `.kitTool` button style.
+  ///
+  /// ```swift
+  /// ToolGroup { Button("Inspector", systemImage: "sidebar.right") { showsInspector.toggle() }.kitToolOn(showsInspector) }
+  /// ```
+  public func kitToolOn(_ isOn: Bool) -> some View {
+    environment(\.contToolIsOn, isOn)
+  }
+}
+
+/// A tool on its own, as inside a `ToolGroup`: 26pt (36 on touch), 9pt corners, a fill on hover, press and while on
+/// (`.kitToolOn(_:)`). For a toolbar that lays out its own tools.
+///
+/// ```swift
+/// Button("Inspector", systemImage: "sidebar.right") { … }.buttonStyle(.kitTool).kitToolOn(showsInspector)
+/// Button("Filter", systemImage: "line.3.horizontal.decrease") { … }.buttonStyle(.kitToolIcon)
+/// ```
+public struct KitToolButtonStyle: ButtonStyle {
+  var iconOnly: Bool
+
+  public init(iconOnly: Bool = false) { self.iconOnly = iconOnly }
+
+  public func makeBody(configuration: Configuration) -> some View {
+    ContToolButtonStyle(iconOnly: iconOnly).makeBody(configuration: configuration)
+      .labelStyle(ContToolLabelStyle(iconOnly: iconOnly))
+  }
+}
+
+extension ButtonStyle where Self == KitToolButtonStyle {
+  /// A tool with its icon and title.
+  public static var kitTool: KitToolButtonStyle { KitToolButtonStyle() }
+  /// A tool showing its icon alone (the title stays for accessibility).
+  public static var kitToolIcon: KitToolButtonStyle { KitToolButtonStyle(iconOnly: true) }
+}
+
 // MARK: - Groups
 
 /// A card of tools: 32pt (44 on touch), 12pt corners, each tool a 26pt button that fills on hover. Buttons inside take
