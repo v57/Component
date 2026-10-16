@@ -430,23 +430,30 @@ public struct BranchGlyph: View {
 
   public var body: some View {
     let size = size ?? glyphSize ?? 16
-    Canvas { context, canvas in
-      let s = canvas.width / 16
-      var path = Path()
-      path.addEllipse(in: CGRect(x: 3.5 * s, y: 2 * s, width: 3 * s, height: 3 * s))
-      path.addEllipse(in: CGRect(x: 3.5 * s, y: 11 * s, width: 3 * s, height: 3 * s))
-      path.addEllipse(in: CGRect(x: 9.5 * s, y: 3.5 * s, width: 3 * s, height: 3 * s))
-      path.move(to: CGPoint(x: 5 * s, y: 5 * s))
-      path.addLine(to: CGPoint(x: 5 * s, y: 11 * s))
-      path.move(to: CGPoint(x: 11 * s, y: 6.5 * s))
-      path.addCurve(
-        to: CGPoint(x: 5 * s, y: 11 * s), control1: CGPoint(x: 11 * s, y: 9.5 * s),
-        control2: CGPoint(x: 5 * s, y: 9 * s))
-      context.stroke(
-        path, with: .style(.foreground), style: StrokeStyle(lineWidth: 1.6 * s, lineCap: .round, lineJoin: .round))
-    }
-    .frame(width: size, height: size)
-    .accessibilityHidden(true)
+    // A shape rather than a `Canvas`: a canvas is a drawing layer (and a surface) of its own per glyph, slow to make
+    // as a sidebar of branch rows scrolls in.
+    BranchGlyphShape()
+      .stroke(.foreground, style: StrokeStyle(lineWidth: 1.6 * size / 16, lineCap: .round, lineJoin: .round))
+      .frame(width: size, height: size)
+      .accessibilityHidden(true)
+  }
+}
+
+/// The branch glyph's lines on a 16-unit grid scaled to the rect's width.
+private struct BranchGlyphShape: Shape {
+  func path(in rect: CGRect) -> Path {
+    let s = rect.width / 16
+    var path = Path()
+    path.addEllipse(in: CGRect(x: 3.5 * s, y: 2 * s, width: 3 * s, height: 3 * s))
+    path.addEllipse(in: CGRect(x: 3.5 * s, y: 11 * s, width: 3 * s, height: 3 * s))
+    path.addEllipse(in: CGRect(x: 9.5 * s, y: 3.5 * s, width: 3 * s, height: 3 * s))
+    path.move(to: CGPoint(x: 5 * s, y: 5 * s))
+    path.addLine(to: CGPoint(x: 5 * s, y: 11 * s))
+    path.move(to: CGPoint(x: 11 * s, y: 6.5 * s))
+    path.addCurve(
+      to: CGPoint(x: 5 * s, y: 11 * s), control1: CGPoint(x: 11 * s, y: 9.5 * s),
+      control2: CGPoint(x: 5 * s, y: 9 * s))
+    return path.offsetBy(dx: rect.minX, dy: rect.minY)
   }
 }
 
