@@ -192,6 +192,7 @@ struct SidebarPage: View {
   @State private var branch: String? = "main"
   @State private var opened: String?
   @State private var todayNotes = [10, 11, 12]
+  @State private var schemaOpen = false
 
   var body: some View {
     CatalogPage(page: .sidebar, maxWidth: 1100) {
@@ -275,6 +276,10 @@ struct SidebarPage: View {
                     hue: node.children == nil ? .orange : .blue)
                 }
               }
+              KitSection("Schemas", meta: "public", systemImage: "cylinder") {
+                SidebarRow(value: "public", "public", systemImage: "folder", isExpanded: $schemaOpen)
+                SidebarRow(value: "migrations", "migrations", systemImage: "tablecells").disclosureSlot()
+              }
               KitSection("Hosts", meta: "3 hosts", systemImage: "server.rack") {
                 ReorderableSection(hosts, id: \.self, move: { hosts.move(fromOffsets: $0, toOffset: $1) }) { host in
                   SidebarRow(value: host, host, systemImage: "server.rack")
@@ -291,7 +296,8 @@ struct SidebarPage: View {
                 KitOutline(files, children: \\.children, expanded: $openFolders) { file in
                   SidebarRow(value: file.id, file.name, systemImage: file.isFolder ? "folder" : "swift")
                 }
-                // or by hand: SidebarRow(…, isExpanded: $open) and .kitRowIndent(1) on the children
+                // or by hand: SidebarRow(…, isExpanded: $open) and .kitRowIndent(1) on the children,
+                // .disclosureSlot() on a leaf beside them to keep the chevron's place
               }
             }
             .kitSectionStyle(.plain)        // or .kitRowDensity(.compact) with card sections

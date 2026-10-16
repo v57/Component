@@ -444,7 +444,8 @@ struct ContSidebarBar<Actions: View>: View {
 ///
 /// More, as initializer parameters or chained on the row:
 /// - `progress:` (and `secondaryProgress:`) draws a `KitProgressBar` under the title (a download, a sync).
-/// - `isExpanded:` leads with a disclosure chevron for a tree row (`KitOutline` sets it, and the indent, for you).
+/// - `isExpanded:` leads with a disclosure chevron for a tree row (`KitOutline` sets it, and the indent, for you);
+///   `.disclosureSlot()` keeps its empty slot on a leaf beside such rows.
 /// - `.title(_:)` swaps the title for any `Text` (an attributed match, coloured runs); renaming still edits the string.
 /// - `.subtitle { … }` puts any view in the subtitle's place (a styled terminal line, a date and a preview).
 /// - `.titleAccessory { … }` sets a chip or a dot right after the title.
@@ -471,6 +472,7 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
   var progress: Double?
   var secondaryProgress: Double?
   var isExpanded: Binding<Bool>?
+  var reservesDisclosure = false
   var isCurrent = false
   var action: (@MainActor () -> Void)?
   var doubleClick: (@MainActor () -> Void)?
@@ -577,6 +579,18 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
     return row
   }
 
+  /// Keeps the disclosure chevron's slot empty on a leaf row, so it lines up with the rows beside it that open (a
+  /// table under a schema next to a view that doesn't). `KitOutline` does it for its own leaves.
+  ///
+  /// ```swift
+  /// SidebarRow(value: table.id, table.name, systemImage: "tablecells").disclosureSlot()
+  /// ```
+  public func disclosureSlot(_ reserves: Bool = true) -> Self {
+    var row = self
+    row.reservesDisclosure = reserves
+    return row
+  }
+
   /// Marks the row as the current one: a second, weaker mark than the selection (a flat card), for a sidebar that
   /// holds two (the open repository while a screen of it is selected).
   ///
@@ -624,6 +638,7 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
   /// The row's own disclosure, or the one its `KitOutline` node gives it.
   private var disclosure: ContRowDisclosure? {
     if let isExpanded { return ContRowDisclosure(isExpanded: isExpanded) }
+    if reservesDisclosure { return ContRowDisclosure(isExpanded: nil) }
     return outlineDisclosure
   }
 
