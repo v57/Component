@@ -700,6 +700,7 @@ enum Engine: String, Hashable, Sendable {
 }
 
 struct ChoiceCardsPage: View {
+  @State private var look = "Light"
   @State private var engine = Engine.postgres
   @State private var download: WorkStatus = .working(progress: 0.45)
 
@@ -733,6 +734,24 @@ struct ChoiceCardsPage: View {
                 .disabled(true)
             }
           }
+        }
+      }
+      SpecimenSection("Tall cards", note: "Something to look at: the content stacked and centred (an app icon's appearances, themes).") {
+        Specimen(
+          "kitChoiceCardStyle(.tall)",
+          code: "HStack { ForEach(looks) { look in ChoiceCard(isOn: $look.picks(look)) { Preview(look); Text(look.title) } } }\n  .kitChoiceCardStyle(.tall)"
+        ) {
+          HStack(spacing: KitMetrics.gutter) {
+            ForEach(["Light", "Dark", "Tinted"], id: \.self) { name in
+              ChoiceCard(isOn: $look.picks(name)) {
+                Avatar(name: name, kind: .app, systemImage: "arrow.triangle.branch", hue: name == "Tinted" ? .teal : name == "Dark" ? .indigo : .orange, size: 72)
+                  .padding(.top, 4)
+                Text(name).kitFont(.callout)
+              }
+            }
+          }
+          .kitChoiceCardStyle(.tall)
+          .frame(maxWidth: 420)
         }
       }
     }

@@ -1,5 +1,37 @@
 import SwiftUI
 
+/// How a choice card lays out its content.
+public enum KitChoiceCardStyle: Hashable, Sendable {
+  /// A row: the content side by side, leading, 48pt tall (56 on iPad, 60 on iPhone).
+  case row
+  /// A tall card for something to look at (an app icon's appearance, a theme, a layout): the content stacked and
+  /// centred, as tall as it needs.
+  case tall
+}
+
+extension EnvironmentValues {
+  @Entry var kitChoiceCardStyle: KitChoiceCardStyle = .row
+}
+
+extension View {
+  /// Sets how the choice cards inside lay out: `.row` (the default) or `.tall` for visual choices.
+  ///
+  /// ```swift
+  /// HStack(spacing: KitMetrics.gutter) {
+  ///   ForEach(Appearance.allCases) { look in
+  ///     ChoiceCard(isOn: $appearance.picks(look)) {
+  ///       IconPreview(look).frame(width: 96, height: 96)
+  ///       Text(look.title).kitFont(.callout)
+  ///     }
+  ///   }
+  /// }
+  /// .kitChoiceCardStyle(.tall)
+  /// ```
+  public func kitChoiceCardStyle(_ style: KitChoiceCardStyle) -> some View {
+    environment(\.kitChoiceCardStyle, style)
+  }
+}
+
 /// A selectable card (engines, locations, templates): on the field fill when off, lifted to a raised card with the
 /// 2pt ring at half the accent when picked. Hover rises half-way, pressing settles it; keyboard focus gives the solid
 /// ring and Space picks. VoiceOver reads a button, selected when picked.
@@ -54,6 +86,7 @@ struct CtlChoiceCardBody<Content: View>: View {
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.ctlIsPressed) private var isPressed
   @Environment(\.isEnabled) private var isEnabled
+  @Environment(\.kitChoiceCardStyle) private var style
   @State private var isHovered = false
 
   var body: some View {
@@ -64,9 +97,13 @@ struct CtlChoiceCardBody<Content: View>: View {
       case .pad: 56
       case .phone: 60
       }
-    HStack(spacing: 10) { content }
+    let layout =
+      style == .tall
+      ? AnyLayout(VStackLayout(alignment: .center, spacing: 8)) : AnyLayout(HStackLayout(spacing: 10))
+    layout { content }
       .padding(.horizontal, 10)
-      .frame(maxWidth: .infinity, minHeight: height, alignment: .leading)
+      .padding(.vertical, style == .tall ? 10 : 0)
+      .frame(maxWidth: .infinity, minHeight: style == .tall ? nil : height, alignment: style == .tall ? .center : .leading)
       .background {
         if isOn {
           CtlRaisedCard(cornerRadius: radius, flat: isPressed)
@@ -142,6 +179,21 @@ extension Binding where Value: Equatable & Sendable {
       get: { wrappedValue == option },
       set: { if $0 { wrappedValue = option } })
   }
+}
+
+#Preview("Tall choice cards") {
+  @Previewable @State var look = "light"
+  HStack(spacing: KitMetrics.gutter) {
+    ForEach(["light", "dark", "tinted"], id: \.self) { name in
+      ChoiceCard(isOn: $look.picks(name)) {
+        RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Hue.blue.fill).frame(width: 80, height: 80)
+        Text(name.capitalized).kitFont(.callout)
+      }
+    }
+  }
+  .kitChoiceCardStyle(.tall)
+  .padding(20)
+  .componentKit()
 }
 
 #Preview("Choice cards") {
