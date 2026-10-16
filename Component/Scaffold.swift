@@ -55,6 +55,7 @@ struct PageContent: View {
     case .markdownApp: MarkdownScenarioPage()
     case .settingsApp: SettingsScenarioPage()
     case .welcomeApp: WelcomeScenarioPage()
+    case .allComponents: AllComponentsPage()
     }
   }
 }
@@ -68,13 +69,33 @@ struct CatalogPage<Content: View>: View {
   @ViewBuilder var content: Content
   @Environment(\.kitIdiom) private var idiom
   @Environment(CatalogModel.self) private var model: CatalogModel?
+  @Environment(\.catalogEmbedded) private var embedded
 
   var body: some View {
-    ScrollViewReader { proxy in
-      scroll.onAppear {
-        // `--section <title>` (DEBUG) opens the page scrolled to that section, for window captures.
-        if let section = model?.section { proxy.scrollTo(section, anchor: .top) }
+    if embedded {
+      // On the All Components page: the page's stack alone, an item of that page's stack.
+      stack
+    } else {
+      ScrollViewReader { proxy in
+        scroll.onAppear {
+          // `--section <title>` (DEBUG) opens the page scrolled to that section, for window captures.
+          if let section = model?.section { proxy.scrollTo(section, anchor: .top) }
+        }
       }
+    }
+  }
+
+  private var stack: some View {
+    // Lazy: a page's sections (and their specimens, and a grid's rows) are built as they near the screen.
+    KitLazyStack(alignment: .leading, spacing: 32) {
+      HStack(spacing: 14) {
+        Tile(systemImage: page.systemImage, hue: page.area.hue, size: 44)
+        VStack(alignment: .leading, spacing: 2) {
+          Text(page.title).kitFont(.largeTitle)
+          MetaLine(page.area.title, page.summary).kitFont(.callout).foregroundStyle(.kitSecondary)
+        }
+      }
+      content
     }
   }
 
@@ -89,23 +110,13 @@ struct CatalogPage<Content: View>: View {
 
   private func scrollView(width: CGFloat) -> some View {
     ScrollView {
-      // Lazy: a page's sections (and their specimens, and a grid's rows) are built as they near the screen.
-      KitLazyStack(alignment: .leading, spacing: 32) {
-        HStack(spacing: 14) {
-          Tile(systemImage: page.systemImage, hue: page.area.hue, size: 44)
-          VStack(alignment: .leading, spacing: 2) {
-            Text(page.title).kitFont(.largeTitle)
-            MetaLine(page.area.title, page.summary).kitFont(.callout).foregroundStyle(.kitSecondary)
-          }
-        }
-        content
-      }
-      .padding(idiom == .phone ? 16 : 28)
-      // `--offset <points>` (DEBUG) opens the page scrolled down, for iPhone captures.
-      .padding(.top, -(model?.pageOffset ?? 0))
-      .frame(maxWidth: maxWidth, alignment: .leading)
-      // No wider than the window: a sample that doesn't fit runs off the right edge, not the whole page off both.
-      .frame(width: width, alignment: .leading)
+      stack
+        .padding(idiom == .phone ? 16 : 28)
+        // `--offset <points>` (DEBUG) opens the page scrolled down, for iPhone captures.
+        .padding(.top, -(model?.pageOffset ?? 0))
+        .frame(maxWidth: maxWidth, alignment: .leading)
+        // No wider than the window: a sample that doesn't fit runs off the right edge, not the whole page off both.
+        .frame(width: width, alignment: .leading)
     }
     // A capture opened at a section or an offset needs the whole page built to find it.
     .kitLazyLoading(model?.section == nil && (model?.pageOffset ?? 0) == 0)
@@ -251,13 +262,23 @@ struct SpecimenGridLayout: Layout {
   var spacing: CGFloat = 20
   var rowSpacing: CGFloat = 24
 
-  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-    let frames = frames(proposal.width, subviews)
+  /// The frames for the last width, until a specimen changes: a long page lays its grids out again on every change.
+  struct Cache {
+    var width: CGFloat?
+    var frames: [CGRect] = []
+  }
+
+  func makeCache(subviews: Subviews) -> Cache { Cache() }
+
+  func updateCache(_ cache: inout Cache, subviews: Subviews) { cache = Cache() }
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
+    let frames = frames(proposal.width, subviews, cache: &cache)
     return CGSize(width: proposal.width ?? frames.map(\.maxX).max() ?? 0, height: frames.map(\.maxY).max() ?? 0)
   }
 
-  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-    for (subview, frame) in zip(subviews, frames(bounds.width, subviews)) {
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) {
+    for (subview, frame) in zip(subviews, frames(bounds.width, subviews, cache: &cache)) {
       subview.place(
         at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
         proposal: ProposedViewSize(width: frame.width, height: nil))
@@ -268,9 +289,16 @@ struct SpecimenGridLayout: Layout {
     max(1, Int((width + spacing) / (minWidth + spacing)))
   }
 
-  /// Each specimen in its cell, top leading; a row as tall as its tallest.
-  private func frames(_ width: CGFloat?, _ subviews: Subviews) -> [CGRect] {
+  private func frames(_ width: CGFloat?, _ subviews: Subviews, cache: inout Cache) -> [CGRect] {
     let width = width ?? minWidth
+    if cache.width == width { return cache.frames }
+    cache.frames = frames(width, subviews)
+    cache.width = width
+    return cache.frames
+  }
+
+  /// Each specimen in its cell, top leading; a row as tall as its tallest.
+  private func frames(_ width: CGFloat, _ subviews: Subviews) -> [CGRect] {
     let count = columns(width)
     let column = max(0, (width - spacing * CGFloat(count - 1)) / CGFloat(count))
     var frames: [CGRect] = []

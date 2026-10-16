@@ -57,7 +57,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
   case sections, sidebar, toolbar, window, inspector, forms, sheets, feedback, tooltips, dragDrop = "drag-drop"
   case grid, changes, diffs, runBlocks = "run-blocks", palette, welcome, settings, meters
   case gitApp = "git", databaseApp = "database", shellApp = "shell", markdownApp = "markdown"
-  case settingsApp = "settings-app", welcomeApp = "welcome-app"
+  case settingsApp = "settings-app", welcomeApp = "welcome-app", allComponents = "all"
 
   var id: String { rawValue }
 
@@ -70,7 +70,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     case .sections, .sidebar, .toolbar, .window, .inspector, .forms, .sheets, .feedback, .tooltips, .dragDrop:
       .containers
     case .grid, .changes, .diffs, .runBlocks, .palette, .welcome, .settings, .meters: .data
-    case .gitApp, .databaseApp, .shellApp, .markdownApp, .settingsApp, .welcomeApp: .scenarios
+    case .gitApp, .databaseApp, .shellApp, .markdownApp, .settingsApp, .welcomeApp, .allComponents: .scenarios
     }
   }
 
@@ -124,6 +124,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     case .markdownApp: "Markdown"
     case .settingsApp: "Settings Window"
     case .welcomeApp: "Welcome Window"
+    case .allComponents: "All Components"
     }
   }
 
@@ -177,6 +178,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     case .markdownApp: "text.alignleft"
     case .settingsApp: "gearshape.2"
     case .welcomeApp: "macwindow.badge.plus"
+    case .allComponents: "square.stack.3d.up"
     }
   }
 
@@ -231,6 +233,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     case .markdownApp: "Notes with Edit and Read"
     case .settingsApp: "An app's settings, from kit pieces only"
     case .welcomeApp: "An app's welcome window"
+    case .allComponents: "Every component page on one long page"
     }
   }
 }
