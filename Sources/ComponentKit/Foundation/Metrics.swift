@@ -37,6 +37,9 @@ public enum KitMetrics {
   public static func rowTile(_ idiom: KitIdiom) -> CGFloat { idiom == .phone ? 30 : idiom == .pad ? 28 : 18 }
 
   public static let sidebarWidth: CGFloat = 240
+  /// The narrowest a `KitSidebar` gets (its bottom bar's search, status and actions still fit): 200pt on the Mac,
+  /// 260 on iPad; iPhone fills the screen.
+  public static func sidebarMinWidth(_ idiom: KitIdiom) -> CGFloat { idiom == .mac ? 200 : idiom == .pad ? 260 : 0 }
   public static let inspectorWidth: CGFloat = 320
   public static let titlebarHeight: CGFloat = 52
 }

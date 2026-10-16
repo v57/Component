@@ -162,6 +162,8 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
       }
     }
     .background { Rectangle().fill(.kitSidebar).ignoresSafeArea() }
+    // Its own floor: a split view's column minimum gives way under a full toolbar.
+    .frame(minWidth: KitMetrics.sidebarMinWidth(idiom))
     .environment(
       \.contSidebarSelection,
       ContSidebarSelection(
