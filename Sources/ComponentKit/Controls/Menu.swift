@@ -16,8 +16,8 @@ import SwiftUI
 // sheets and can run past the window's edge), on iPad and iPhone in a window above the scene. `.kitMenu { }` makes a
 // view its trigger, as a pop-up button: the menu opens on mouse or touch down, and releasing over a row picks it in
 // the same gesture (a quick click leaves the menu open to pick with a second click). A click outside closes it (and
-// is swallowed, as a menu's is), as do Esc, picking a row, the pointer moving away, and focus leaving the window or
-// the app. ↑/↓ move the highlight, → opens a submenu, Return picks.
+// is swallowed, as a menu's is), as do Esc, picking a row, the pointer moving away (on the Mac the menu shrinks and
+// fades from 50pt away and closes at 100pt), and focus leaving the window or the app. ↑/↓ move the highlight, → opens a submenu, Return picks.
 
 extension View {
   /// Opens the kit's menu under this view while `isPresented` is true; picking a row, Esc or a click outside closes
@@ -178,6 +178,9 @@ final class KitMenuModel {
   }
 
   var highlighted: UUID?
+  /// How far the pointer has strayed toward closing the menu: 0 near it, 1 at the edge of closing. The menu
+  /// shrinks (to 80%) and fades (to 50%) with it.
+  var fade: Double = 0
   var openSubmenu: UUID?
   private(set) var rows: [UUID: Row] = [:]
   /// Some row has an icon, so every row keeps the icon column and the titles line up.
@@ -766,8 +769,11 @@ struct KitMenuOverlay<Content: View>: View {
           .accessibilityHidden(true)
         KitMenuCard(model: model, minWidth: matchesWidth ? anchor.width : nil) { content }
           .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }
-          .scaleEffect(shown || reduceMotion ? 1 : 0.96, anchor: place.above ? .bottomLeading : .topLeading)
-          .opacity(shown && size != nil ? 1 : 0)
+          .scaleEffect(
+            (shown || reduceMotion ? 1 : 0.96) * (1 - 0.2 * model.fade),
+            anchor: place.above ? .bottomLeading : .topLeading
+          )
+          .opacity((shown && size != nil ? 1 : 0) * (1 - 0.5 * model.fade))
           .offset(x: place.origin.x, y: place.origin.y)
       }
       .coordinateSpace(name: KitMenuModel.space)
@@ -849,9 +855,14 @@ struct KitMenuOverlay<Content: View>: View {
     /// The pointer has been near the menu since it opened (a menu opened from the keyboard or VoiceOver, with the
     /// pointer elsewhere, doesn't close until it has).
     private var pointerWasNear = false
+    /// The trigger and cards as they were before the menu began to shrink (shrinking moves the cards' edges, which
+    /// must not count as the pointer straying further).
+    private var restFrames: [CGRect] = []
 
-    /// How far the pointer may stray from the menu and its trigger before the menu closes.
-    private let awayDistance: CGFloat = 48
+    /// How far the pointer may stray from the menu and its trigger before the menu closes, and where on the way
+    /// it starts to shrink and fade.
+    private let awayDistance: CGFloat = 100
+    private let fadeDistance: CGFloat = 50
 
     func show(from view: NSView) {
       guard let window = view.window, let screen = window.screen ?? NSScreen.main else { return }
@@ -899,6 +910,7 @@ struct KitMenuOverlay<Content: View>: View {
       awayTimer?.invalidate()
       awayTimer = nil
       pointerWasNear = false
+      restFrames = []
       panel?.orderOut(nil)
       panel = nil
       host = nil
@@ -964,15 +976,22 @@ struct KitMenuOverlay<Content: View>: View {
 
     /// The pointer went well away from the menu, its submenus and its trigger (and no press is in progress).
     private func checkAway() {
-      guard let model, let point = pointer(), !isTracking() else { return }
-      let near = ([model.anchor] + model.cardFrames).contains {
-        $0.insetBy(dx: -awayDistance, dy: -awayDistance).contains(point)
-      }
-      if near {
-        pointerWasNear = true
-      } else if pointerWasNear {
-        dismiss()
-      }
+      guard let model, let point = pointer() else { return }
+      if model.fade < 0.005 || restFrames.isEmpty { restFrames = [model.anchor] + model.cardFrames }
+      // How far the pointer is outside the trigger and every open card (0 inside one).
+      let distance = restFrames.map { rect in
+        hypot(max(rect.minX - point.x, 0, point.x - rect.maxX), max(rect.minY - point.y, 0, point.y - rect.maxY))
+      }.min() ?? 0
+      if distance <= fadeDistance { pointerWasNear = true }
+      guard pointerWasNear, !isTracking() else { return setFade(0, of: model) }
+      if distance > awayDistance { return dismiss() }
+      setFade(max(0, (distance - fadeDistance) / (awayDistance - fadeDistance)), of: model)
+    }
+
+    /// The timer samples every 0.1 s; animating each step over that time makes the change continuous.
+    private func setFade(_ fade: Double, of model: KitMenuModel) {
+      guard abs(model.fade - fade) > 0.005 else { return }
+      withAnimation(.linear(duration: 0.12)) { model.fade = fade }
     }
 
     /// The menu's keys; ⌘ shortcuts close it and go on to the app, as with a menu.
