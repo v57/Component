@@ -89,7 +89,8 @@ struct CatalogPage<Content: View>: View {
 
   private func scrollView(width: CGFloat) -> some View {
     ScrollView {
-      VStack(alignment: .leading, spacing: 32) {
+      // Lazy: a page's sections (and their specimens, and a grid's rows) are built as they near the screen.
+      KitLazyStack(alignment: .leading, spacing: 32) {
         HStack(spacing: 14) {
           Tile(systemImage: page.systemImage, hue: page.area.hue, size: 44)
           VStack(alignment: .leading, spacing: 2) {
@@ -106,6 +107,8 @@ struct CatalogPage<Content: View>: View {
       // No wider than the window: a sample that doesn't fit runs off the right edge, not the whole page off both.
       .frame(width: width, alignment: .leading)
     }
+    // A capture opened at a section or an offset needs the whole page built to find it.
+    .kitLazyLoading(model?.section == nil && (model?.pageOffset ?? 0) == 0)
   }
 }
 
@@ -122,7 +125,7 @@ struct SpecimenSection<Content: View>: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 16) {
+    KitLazyStack(alignment: .leading, spacing: 16) {
       VStack(alignment: .leading, spacing: 3) {
         Text(title).kitFont(.title2)
         if let note {
@@ -217,21 +220,70 @@ struct CodeSnippet: View {
   }
 }
 
-/// Small specimens side by side, wrapping to fit; one column where even one is wider than the page (an iPhone).
+/// Small specimens side by side, wrapping to fit; one column where even one is wider than the page (an iPhone). Its
+/// rows are a `KitLazyStack`'s, so they are built as they near the screen, a few a frame.
 struct SpecimenGrid<Content: View>: View {
   var minWidth: CGFloat = 300
   @ViewBuilder var content: Content
   @State private var width: CGFloat?
 
   var body: some View {
-    LazyVGrid(
-      // Until measured, a minimum that fits any page, so the grid never widens it.
-      columns: [GridItem(.adaptive(minimum: min(minWidth, width ?? 100)), spacing: 20, alignment: .topLeading)],
-      alignment: .leading, spacing: 24
-    ) {
-      content
+    let layout = SpecimenGridLayout(minWidth: minWidth)
+    if #available(macOS 15, iOS 18, *) {
+      Group(subviews: content) { subviews in
+        let columns = layout.columns(width ?? minWidth)
+        KitLazyStack(alignment: .leading, spacing: layout.rowSpacing) {
+          ForEach(Array(stride(from: 0, to: subviews.count, by: columns)), id: \.self) { start in
+            layout { ForEach(subviews[start..<min(start + columns, subviews.count)]) { $0 } }
+          }
+        }
+      }
+      .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+    } else {
+      layout { content }
     }
-    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+  }
+}
+
+/// As many columns of at least `minWidth` as fit, sharing the width, like an adaptive grid item.
+struct SpecimenGridLayout: Layout {
+  var minWidth: CGFloat = 300
+  var spacing: CGFloat = 20
+  var rowSpacing: CGFloat = 24
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    let frames = frames(proposal.width, subviews)
+    return CGSize(width: proposal.width ?? frames.map(\.maxX).max() ?? 0, height: frames.map(\.maxY).max() ?? 0)
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    for (subview, frame) in zip(subviews, frames(bounds.width, subviews)) {
+      subview.place(
+        at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+        proposal: ProposedViewSize(width: frame.width, height: nil))
+    }
+  }
+
+  func columns(_ width: CGFloat) -> Int {
+    max(1, Int((width + spacing) / (minWidth + spacing)))
+  }
+
+  /// Each specimen in its cell, top leading; a row as tall as its tallest.
+  private func frames(_ width: CGFloat?, _ subviews: Subviews) -> [CGRect] {
+    let width = width ?? minWidth
+    let count = columns(width)
+    let column = max(0, (width - spacing * CGFloat(count - 1)) / CGFloat(count))
+    var frames: [CGRect] = []
+    var y: CGFloat = 0
+    for start in stride(from: 0, to: subviews.count, by: count) {
+      let row = subviews[start..<min(start + count, subviews.count)]
+      let sizes = row.map { $0.sizeThatFits(ProposedViewSize(width: column, height: nil)) }
+      for (index, size) in sizes.enumerated() {
+        frames.append(CGRect(x: CGFloat(index) * (column + spacing), y: y, width: column, height: size.height))
+      }
+      y += (sizes.map(\.height).max() ?? 0) + rowSpacing
+    }
+    return frames
   }
 }
 
@@ -263,15 +315,17 @@ struct Columns: Layout {
         return CGRect(x: 0, y: y, width: size.width, height: size.height)
       }
     }
-    let narrowest = subviews.map { $0.sizeThatFits(ProposedViewSize(width: 0, height: nil)).width }
-    let widest = subviews.map { $0.sizeThatFits(ProposedViewSize(width: .infinity, height: nil)).width }
-    let isFixed = zip(narrowest, widest).map { $1 - $0 < 1 }
-    let fixedWidth = zip(isFixed, narrowest).filter(\.0).map(\.1).reduce(0, +)
+    // A view as wide at half the width as at all of it is fixed. (Not probed at 0 and infinity: a code sample laid
+    // out a character a line is slow, and this runs again whenever lazy content below settles.)
+    let full = subviews.map { $0.sizeThatFits(ProposedViewSize(width: width, height: nil)).width }
+    let half = subviews.map { $0.sizeThatFits(ProposedViewSize(width: width / 2, height: nil)).width }
+    let isFixed = zip(full, half).map { abs($0 - $1) < 1 }
+    let fixedWidth = zip(isFixed, full).filter(\.0).map(\.1).reduce(0, +)
     let flexible = isFixed.filter { !$0 }.count
     let share = max(0, width - fixedWidth - spacing * CGFloat(subviews.count - 1)) / CGFloat(max(flexible, 1))
     var x: CGFloat = 0
     return subviews.indices.map { index in
-      let proposed = isFixed[index] ? narrowest[index] : max(share, narrowest[index])
+      let proposed = isFixed[index] ? full[index] : share
       let size = subviews[index].sizeThatFits(ProposedViewSize(width: proposed, height: nil))
       defer { x += proposed + spacing }
       return CGRect(x: x, y: 0, width: proposed, height: size.height)
