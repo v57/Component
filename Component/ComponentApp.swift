@@ -32,6 +32,8 @@ final class CatalogModel {
   var idiom: KitIdiom?
   var increaseContrast = false
   var inactiveWindow = false
+  /// The section a page opens scrolled to (`--section <title>`).
+  var section: String?
 
   init() {
     #if DEBUG
@@ -40,7 +42,7 @@ final class CatalogModel {
   }
 
   #if DEBUG
-    /// `--page <id>`, `--dark`, `--light`, `--idiom mac|pad|phone`, `--accent <id>`, `--contrast`, `--inactive`: opens
+    /// `--page <id>`, `--section <title>`, `--dark`, `--light`, `--idiom mac|pad|phone`, `--accent <id>`, `--contrast`, `--inactive`: opens
     /// any page in any state without clicking (for window captures).
     func applyLaunchArguments(_ arguments: [String]) {
       func value(after flag: String) -> String? {
@@ -59,6 +61,7 @@ final class CatalogModel {
       if let id = value(after: "--accent"), let accent = Accent(rawValue: id) { self.accent = accent }
       if arguments.contains("--contrast") { increaseContrast = true }
       if arguments.contains("--inactive") { inactiveWindow = true }
+      section = value(after: "--section")
     }
   #endif
 }

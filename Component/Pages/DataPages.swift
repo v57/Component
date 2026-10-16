@@ -689,10 +689,11 @@ struct SettingsPage: View {
           """)
       }
       SpecimenSection("In a Settings scene", note: "Say what the window looks like; the kit lays the sidebar and the title row out for it.") {
-        HStack(alignment: .top, spacing: 20) {
+        VStack(alignment: .leading, spacing: 12) {
           VStack(alignment: .leading, spacing: 6) {
             Text("A standard titled window").kitFont(.headline)
-            WindowFrame(height: 300) { SampleSettings(selection: $pane, window: .titled) }
+            WindowFrame(height: 340) { SampleSettings(selection: $pane, window: .titled) }
+              .frame(width: 680)
           }
           CodeSnippet(
             """

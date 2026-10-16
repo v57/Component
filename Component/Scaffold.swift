@@ -66,8 +66,18 @@ struct CatalogPage<Content: View>: View {
   var maxWidth: CGFloat = 980
   @ViewBuilder var content: Content
   @Environment(\.kitIdiom) private var idiom
+  @Environment(CatalogModel.self) private var model: CatalogModel?
 
   var body: some View {
+    ScrollViewReader { proxy in
+      scroll.onAppear {
+        // `--section <title>` (DEBUG) opens the page scrolled to that section, for window captures.
+        if let section = model?.section { proxy.scrollTo(section, anchor: .top) }
+      }
+    }
+  }
+
+  private var scroll: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 32) {
         HStack(spacing: 14) {
@@ -109,6 +119,7 @@ struct SpecimenSection<Content: View>: View {
       }
       content
     }
+    .id(title)
   }
 }
 
