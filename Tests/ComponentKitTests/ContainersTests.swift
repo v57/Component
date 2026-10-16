@@ -171,3 +171,55 @@ private var navRows: [(value: AnyHashable, indent: Int, isOpen: Bool?)] { [
   #expect(KitCardSlice(2, of: 3) == .last)
   #expect(KitCardSlice(0, of: 0) == .only)
 }
+
+// MARK: - Multi-row reorder
+
+/// Applies a group move to `rows` and checks the dragged rows end up where `groupMove` says.
+private func groupMoved(_ rows: [String], dragging: IndexSet, anchor: Int, to: Int) -> [String]? {
+  guard let step = ContReorder.groupMove(indices: dragging, anchor: anchor, to: to) else { return nil }
+  let dragged = dragging.map { rows[$0] }
+  var rows = rows
+  rows.move(fromOffsets: dragging, toOffset: step.destination)
+  #expect(step.indices.map { rows[$0] } == dragged)
+  #expect(rows[step.anchor] == dragged[dragging.count(in: 0..<anchor)])
+  return rows
+}
+
+@Test func groupMoveGathersRowsAfterTheTargetGoingDown() {
+  let rows = ["a", "b", "c", "d", "e", "f"]
+  #expect(groupMoved(rows, dragging: [1, 3], anchor: 3, to: 5) == ["a", "c", "e", "f", "b", "d"])
+  #expect(groupMoved(rows, dragging: [1, 3], anchor: 1, to: 2) == ["a", "c", "b", "d", "e", "f"])
+}
+
+@Test func groupMoveGathersRowsBeforeTheTargetGoingUp() {
+  let rows = ["a", "b", "c", "d", "e", "f"]
+  #expect(groupMoved(rows, dragging: [2, 4], anchor: 2, to: 0) == ["c", "e", "a", "b", "d", "f"])
+  #expect(groupMoved(rows, dragging: [1, 3], anchor: 3, to: 2) == ["a", "b", "d", "c", "e", "f"])
+}
+
+@Test func groupMoveIgnoresTheDraggedRows() {
+  #expect(ContReorder.groupMove(indices: [1, 3], anchor: 1, to: 3) == nil)
+  #expect(ContReorder.groupMove(indices: [], anchor: 0, to: 1) == nil)
+}
+
+@Test func groupMoveOfOneRowMatchesTheSingleRowMove() {
+  for (from, to) in [(1, 3), (3, 0), (0, 4)] {
+    let step = ContReorder.groupMove(indices: [from], anchor: from, to: to)
+    #expect(step?.destination == ContReorder.destination(from: from, to: to))
+    #expect(step?.anchor == to)
+  }
+}
+
+@MainActor @Test func reorderStateTracksRowsDraggedTogether() {
+  let state = ContReorderState()
+  state.begin("files", at: 3, with: [1, 3])
+  #expect(state.count == 2)
+  #expect(state.isDragging("files", at: 1) && state.isDragging("files", at: 3))
+  state.update(indices: [4, 5], anchor: 5)
+  #expect(state.index == 5 && !state.isDragging("files", at: 1))
+  // A group without the dragged row is not the drag: the row goes alone.
+  state.begin("files", at: 2, with: [1, 3])
+  #expect(state.count == 1 && state.isDragging("files", at: 2))
+  state.end()
+  #expect(state.count == 0)
+}

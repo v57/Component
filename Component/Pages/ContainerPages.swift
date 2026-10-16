@@ -1196,6 +1196,10 @@ struct DragDropPage: View {
   @State private var pinned = ["Lisbon", "Porto"]
   @State private var recent = ["Tokyo", "Kyoto", "Osaka"]
   @State private var cityNotes: [String: [String]] = [:]
+  @State private var links = sampleLinks
+  @State private var photos = ["IMG_0412", "IMG_0413", "IMG_0418", "IMG_0420", "IMG_0431"]
+  @State private var picked: Set<String> = ["IMG_0413", "IMG_0420"]
+  @State private var hostGroups = sampleHostGroups
 
   var body: some View {
     CatalogPage(page: .dragDrop) {
@@ -1298,6 +1302,85 @@ struct DragDropPage: View {
           }
         }
       }
+      SpecimenSection(
+        "Out of the app, several rows, groups",
+        note: "Drag a link into Safari or a text field. Click photos to pick them, then drag one: the picked rows move together. Drag a host: its sessions come along; sessions reorder under their host."
+      ) {
+        HStack(alignment: .top, spacing: 16) {
+          Specimen("exportsURL", ground: .sidebar, code: "ReorderableSection(links, move: …) { … }\n  .exportsURL { $0.url }") {
+            VStack(alignment: .leading, spacing: 2) {
+              ReorderableSection(links, move: { links.move(fromOffsets: $0, toOffset: $1) }) { link in
+                SidebarRow(link.title, subtitle: link.url.host(), systemImage: "link")
+              }
+              .exportsURL { $0.url }
+            }
+            .frame(width: 220)
+          }
+          Specimen("dragsTogether", ground: .sidebar, code: "ReorderableSection(photos, move: …) { … }\n  .dragsTogether(picked)") {
+            VStack(alignment: .leading, spacing: 2) {
+              ReorderableSection(photos, id: \.self, move: { photos.move(fromOffsets: $0, toOffset: $1) }) { photo in
+                SidebarRow(photo, systemImage: picked.contains(photo) ? "checkmark.circle.fill" : "photo")
+                  .isCurrent(picked.contains(photo))
+                  .action {
+                    withKitAnimation { if picked.contains(photo) { picked.remove(photo) } else { picked.insert(photo) } }
+                  }
+              }
+              .dragsTogether(picked)
+            }
+            .frame(width: 220)
+          }
+          Specimen(
+            "dragsAsGroup", ground: .sidebar,
+            code: """
+              ReorderableSection(hosts, move: …) { host in
+                SidebarRow(host.name, systemImage: "server.rack")
+                ReorderableSection(host.sessions, move: …) { … }
+              }
+              .dragsAsGroup()
+              """
+          ) {
+            VStack(alignment: .leading, spacing: 2) {
+              ReorderableSection(hostGroups, move: { hostGroups.move(fromOffsets: $0, toOffset: $1) }) { host in
+                SidebarRow(host.name, systemImage: "server.rack")
+                ReorderableSection(host.sessions, id: \.self, move: { from, to in
+                  guard let index = hostGroups.firstIndex(where: { $0.id == host.id }) else { return }
+                  hostGroups[index].sessions.move(fromOffsets: from, toOffset: to)
+                }) { session in
+                  SidebarRow(session, systemImage: "terminal").kitRowIndent(1)
+                }
+              }
+              .dragsAsGroup()
+            }
+            .frame(width: 220)
+          }
+        }
+      }
     }
   }
 }
+
+/// Links for the drag-out specimen.
+struct SampleLink: Identifiable, Hashable {
+  var id: String { title }
+  var title: String
+  var url: URL
+}
+
+let sampleLinks = [
+  SampleLink(title: "Swift", url: URL(string: "https://swift.org")!),
+  SampleLink(title: "Human Interface Guidelines", url: URL(string: "https://developer.apple.com/design/")!),
+  SampleLink(title: "v57", url: URL(string: "https://github.com/v57")!),
+]
+
+/// Hosts with their sessions for the group-drag specimen.
+struct SampleHostGroup: Identifiable, Hashable {
+  var id: String { name }
+  var name: String
+  var sessions: [String]
+}
+
+let sampleHostGroups = [
+  SampleHostGroup(name: "atlas-web-1", sessions: ["zsh", "htop"]),
+  SampleHostGroup(name: "atlas-db", sessions: ["psql"]),
+  SampleHostGroup(name: "pebble", sessions: ["zsh", "logs", "deploy"]),
+]
