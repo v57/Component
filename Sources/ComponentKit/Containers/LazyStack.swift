@@ -3,10 +3,10 @@ import SwiftUI
 // A lazy stack for scroll views of a few heavy views (a page of specimens, a sidebar of section cards), where a
 // `LazyVStack` builds each view in the frame it scrolls in and drops frames there. Here a view is built:
 // - at once while it is on screen (what shows must be there);
-// - ahead of the screen (a screen's height) and, while scrolling rests, further ahead (two screens), a few views a
+// - ahead of the screen (a screen's height) and, while scrolling rests, a little further (a screen and a quarter), a few views a
 //   frame across every stack in the app (the nearest, with its stack's others within a third of a screen: each
 //   change lays the page out again, so small views go together), so building never piles up in one frame;
-// - and let go past three screens, keeping its measured height, so the page never jumps when it comes back (built
+// - and let go past two screens, keeping its measured height, so the page never jumps when it comes back (built
 //   views far off still lay out and track the scroll, which a long page feels).
 // Stacks nest: a section's rows in a stack of their own come a few at a time rather than with their card, and a stack
 // inside an item (in a scroll view of its own) is no nearer the screen than its item. Each item observes only its own
@@ -173,8 +173,8 @@ final class ContLazyModel {
 
   /// How far ahead views are built while scrolling, and while the scroll rests, in screens; past `release` they go.
   static let ahead: CGFloat = 1
-  static let restingAhead: CGFloat = 2
-  static let release: CGFloat = 3
+  static let restingAhead: CGFloat = 1.25
+  static let release: CGFloat = 2
 
   func flag(_ id: AnyHashable) -> ContLazyFlag {
     if let flag = flags[id] { return flag }
@@ -376,7 +376,7 @@ final class ContLazyScheduler {
     jobs = jobs.filter { $0.key.model != id }
   }
 
-  /// A scroll view moved: build only a screen ahead until it rests 150 ms, then two.
+  /// A scroll view moved: build only a screen ahead until it rests 150 ms, then a quarter more.
   func scrolled() {
     isResting = false
     restTask?.cancel()
