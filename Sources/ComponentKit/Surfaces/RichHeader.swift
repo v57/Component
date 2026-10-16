@@ -151,9 +151,36 @@ public struct SizedLiveIcon: View {
   var hue: Hue
   var status: WorkStatus
   var size: RichHeaderSize
+  var glyph: AnyView? = nil
   @Environment(\.kitIdiom) private var idiom
 
+  /// A live icon around any glyph (a drawn `BranchGlyph`, an image), sized for the idiom.
+  ///
+  /// ```swift
+  /// RichHeader(Text("Branches"), icon: { SizedLiveIcon(hue: .orange) { BranchGlyph() } }, meta: { … }, accessory: {})
+  /// ```
+  public init<Glyph: View>(
+    hue: Hue = .accent, status: WorkStatus = .idle, size: RichHeaderSize = .section, @ViewBuilder glyph: () -> Glyph
+  ) {
+    self.systemImage = ""
+    self.hue = hue
+    self.status = status
+    self.size = size
+    self.glyph = AnyView(glyph())
+  }
+
+  init(systemImage: String, hue: Hue, status: WorkStatus, size: RichHeaderSize) {
+    self.systemImage = systemImage
+    self.hue = hue
+    self.status = status
+    self.size = size
+  }
+
   public var body: some View {
-    LiveIcon(systemImage: systemImage, hue: hue, status: status, size: size.tile(idiom))
+    if let glyph {
+      LiveIcon(hue: hue, status: status, size: size.tile(idiom)) { glyph }
+    } else {
+      LiveIcon(systemImage: systemImage, hue: hue, status: status, size: size.tile(idiom))
+    }
   }
 }

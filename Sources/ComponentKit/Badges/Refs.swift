@@ -418,13 +418,18 @@ struct CappedWidthLayout: Layout {
 /// ```swift
 /// Label { Text(branch.name) } icon: { BranchGlyph(size: 14) }
 /// BranchGlyph().foregroundStyle(Hue.green.fill)
+/// RowTile { BranchGlyph() }  // sized by the tile
 /// ```
+///
+/// Without a `size` it takes the size of the tile it sits on (`kitGlyphSize`), or 16pt.
 public struct BranchGlyph: View {
-  var size: CGFloat = 16
+  var size: CGFloat?
+  @Environment(\.kitGlyphSize) private var glyphSize
 
-  public init(size: CGFloat = 16) { self.size = size }
+  public init(size: CGFloat? = nil) { self.size = size }
 
   public var body: some View {
+    let size = size ?? glyphSize ?? 16
     Canvas { context, canvas in
       let s = canvas.width / 16
       var path = Path()

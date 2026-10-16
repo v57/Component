@@ -35,6 +35,7 @@ public struct Tile<Content: View>: View {
       .imageScale(.small)
       .foregroundStyle(style == .solid ? AnyShapeStyle(Color.white) : AnyShapeStyle(hue.fill))
       .frame(width: size, height: size)
+      .environment(\.kitGlyphSize, size * 0.62)
       .background {
         switch style {
         case .soft: shape.shape(size: size).fill(hue.soft())
@@ -60,6 +61,20 @@ extension Tile where Content == Text {
       Text(letters.prefix(2)).font(.system(size: size * (letters.count > 1 ? 0.42 : 0.5), weight: .bold))
     }
   }
+}
+
+extension EnvironmentValues {
+  /// The size a drawn glyph takes where it sits: set by `Tile`, `LiveIcon` and `RowTile` for the glyph inside them
+  /// (an SF Symbol follows the font instead). A custom glyph view reads it to fit any tile; `BranchGlyph` does.
+  ///
+  /// ```swift
+  /// struct PlugGlyph: View {
+  ///   @Environment(\.kitGlyphSize) private var size
+  ///   var body: some View { PlugShape().stroke(.foreground).frame(width: size ?? 16, height: size ?? 16) }
+  /// }
+  /// RowTile { PlugGlyph() }
+  /// ```
+  @Entry public var kitGlyphSize: CGFloat? = nil
 }
 
 /// Shape says kind: people are circles, agents and things rounded squares.

@@ -681,6 +681,69 @@ extension SidebarRow where Icon == RowTile, Trailing == EmptyView {
   }
 }
 
+extension SidebarRow where Icon == RowTile {
+  /// A row that selects `value`, with a tile around any glyph (a drawn `BranchGlyph`, an image) and trailing views.
+  ///
+  /// ```swift
+  /// SidebarRow(value: branch.id, branch.name, hue: .green, glyph: { BranchGlyph() }) { Count(branch.ahead) }
+  /// ```
+  @_disfavoredOverload
+  public init<Value: Hashable, Glyph: View>(
+    value: Value, _ title: String, subtitle: String? = nil, hue: Hue? = nil, status: WorkStatus = .idle,
+    progress: Double? = nil, secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil,
+    @ViewBuilder glyph: () -> Glyph, @ViewBuilder trailing: () -> Trailing
+  ) {
+    let tile = RowTile(hue: hue, status: status, glyph: glyph)
+    self.init(
+      value: value, title, subtitle: subtitle, progress: progress, secondaryProgress: secondaryProgress,
+      isExpanded: isExpanded, icon: { tile }, trailing: trailing)
+  }
+
+  /// A row with a tile around any glyph and trailing views; it selects the value given by `.kitTag(_:)`.
+  @_disfavoredOverload
+  public init<Glyph: View>(
+    _ title: String, subtitle: String? = nil, hue: Hue? = nil, status: WorkStatus = .idle, progress: Double? = nil,
+    secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil, @ViewBuilder glyph: () -> Glyph,
+    @ViewBuilder trailing: () -> Trailing
+  ) {
+    let tile = RowTile(hue: hue, status: status, glyph: glyph)
+    self.init(
+      title, subtitle: subtitle, progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded,
+      icon: { tile }, trailing: trailing)
+  }
+}
+
+extension SidebarRow where Icon == RowTile, Trailing == EmptyView {
+  /// A row that selects `value`, with a tile around any glyph.
+  ///
+  /// ```swift
+  /// SidebarRow(value: branch.id, branch.name, glyph: { BranchGlyph() })
+  /// ```
+  @_disfavoredOverload
+  public init<Value: Hashable, Glyph: View>(
+    value: Value, _ title: String, subtitle: String? = nil, hue: Hue? = nil, status: WorkStatus = .idle,
+    progress: Double? = nil, secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil,
+    @ViewBuilder glyph: () -> Glyph
+  ) {
+    self.init(
+      value: value, title, subtitle: subtitle, hue: hue, status: status, progress: progress,
+      secondaryProgress: secondaryProgress, isExpanded: isExpanded, glyph: glyph
+    ) { EmptyView() }
+  }
+
+  /// A row with a tile around any glyph; it selects the value given by `.kitTag(_:)`.
+  @_disfavoredOverload
+  public init<Glyph: View>(
+    _ title: String, subtitle: String? = nil, hue: Hue? = nil, status: WorkStatus = .idle, progress: Double? = nil,
+    secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil, @ViewBuilder glyph: () -> Glyph
+  ) {
+    self.init(
+      title, subtitle: subtitle, hue: hue, status: status, progress: progress, secondaryProgress: secondaryProgress,
+      isExpanded: isExpanded, glyph: glyph
+    ) { EmptyView() }
+  }
+}
+
 extension SidebarRow where Trailing == EmptyView {
   /// A row that selects `value`, with any icon (`Tile(letters:)`, an avatar…).
   public init<Value: Hashable>(
@@ -715,9 +778,11 @@ extension SidebarRow where Trailing == EmptyView {
 /// ```swift
 /// SidebarRow(value: id, "atlas", icon: { RowTile(systemImage: "shippingbox", hue: .blue) })
 /// SidebarRow(value: id, "Sync", icon: { RowTile(systemImage: "arrow.triangle.2.circlepath", status: .working) })
+/// SidebarRow(value: branch.id, branch.name, icon: { RowTile { BranchGlyph() } })
 /// ```
 public struct RowTile: View {
   var systemImage: String
+  var glyph: AnyView?
   var hue: Hue?
   var status: WorkStatus
   @Environment(\.contRowState) private var row
@@ -731,27 +796,50 @@ public struct RowTile: View {
     self.status = status
   }
 
+  /// A tile with any glyph instead of an SF Symbol: a drawn one (`BranchGlyph`), an image. The glyph is drawn in the
+  /// tile's foreground style (white on the tile, the hue when bare) and can size itself from `kitGlyphSize`.
+  ///
+  /// ```swift
+  /// RowTile(hue: .green) { BranchGlyph() }
+  /// RowTile { Image("postgres").resizable().scaledToFit() }
+  /// ```
+  public init<Glyph: View>(hue: Hue? = nil, status: WorkStatus = .idle, @ViewBuilder glyph: () -> Glyph) {
+    self.systemImage = ""
+    self.glyph = AnyView(glyph())
+    self.hue = hue
+    self.status = status
+  }
+
   private var tint: Hue { hue ?? (row.isEmphasized ? .accent : .gray) }
   private var compact: Bool { (style == .plain || density == .compact) && !idiom.isTouch }
 
+  @ViewBuilder
+  private var symbol: some View {
+    if let glyph {
+      glyph
+    } else {
+      Image(systemName: systemImage)
+    }
+  }
+
   public var body: some View {
     if status != .idle {
-      LiveIcon(
-        systemImage: systemImage, hue: hue ?? .accent, status: status,
-        size: compact ? 16 : KitMetrics.rowTile(idiom))
+      LiveIcon(hue: hue ?? .accent, status: status, size: compact ? 16 : KitMetrics.rowTile(idiom)) { symbol }
     } else if compact {
-      Image(systemName: systemImage)
+      symbol
         .font(.system(size: 13))
         .foregroundStyle(hue == nil && !row.isEmphasized ? AnyShapeStyle(.kitSecondary) : AnyShapeStyle(tint.fill))
+        .environment(\.kitGlyphSize, 14)
         .frame(width: 16, height: 16)
         .accessibilityHidden(true)
     } else {
       let size = KitMetrics.rowTile(idiom)
       let shape = RoundedRectangle(cornerRadius: size * (idiom == .mac ? 0.28 : 0.27), style: .continuous)
-      Image(systemName: systemImage)
+      symbol
         .font(.system(size: ContMetrics.rowGlyph(idiom), weight: .medium))
         .imageScale(.small)
         .foregroundStyle(Color.white)
+        .environment(\.kitGlyphSize, (size * 0.72).rounded())
         .frame(width: size, height: size)
         .background {
           shape.fill(tint.fill)

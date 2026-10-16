@@ -300,6 +300,73 @@ extension KitSection where Icon == SizedLiveIcon, Accessory == EmptyView {
   }
 }
 
+extension KitSection where Icon == SizedLiveIcon, Meta == MetaLine {
+  /// A section whose tile holds any glyph (a drawn `BranchGlyph`, an image) instead of an SF Symbol, with a meta line
+  /// of parts and trailing actions.
+  ///
+  /// ```swift
+  /// KitSection("Branches", meta: ["3 local", "1 merged"], hue: .orange, glyph: { BranchGlyph() }) {
+  ///   ForEach(branches) { SidebarRow(value: $0.id, $0.name, glyph: { BranchGlyph() }) }
+  /// } accessory: {
+  ///   Button("New Branch", systemImage: "plus") { … }
+  /// }
+  /// ```
+  public init<Glyph: View>(
+    _ title: some StringProtocol, meta: [String] = [], hue: Hue = .accent, status: WorkStatus = .idle,
+    isExpanded: Binding<Bool>? = nil, @ViewBuilder glyph: () -> Glyph, @ViewBuilder content: () -> Content,
+    @ViewBuilder accessory: () -> Accessory
+  ) {
+    let icon = SizedLiveIcon(hue: hue, status: status, size: .section, glyph: glyph)
+    self.init(
+      Text(title), isExpanded: isExpanded, content: content, icon: { icon }, meta: { MetaLine(meta) },
+      accessory: accessory)
+  }
+}
+
+extension KitSection where Icon == SizedLiveIcon, Meta == MetaLine, Accessory == EmptyView {
+  /// A section whose tile holds any glyph, with a meta line of parts.
+  ///
+  /// ```swift
+  /// KitSection("Branches", meta: ["3 local"], glyph: { BranchGlyph() }) { … }
+  /// ```
+  public init<Glyph: View>(
+    _ title: some StringProtocol, meta: [String] = [], hue: Hue = .accent, status: WorkStatus = .idle,
+    isExpanded: Binding<Bool>? = nil, @ViewBuilder glyph: () -> Glyph, @ViewBuilder content: () -> Content
+  ) {
+    self.init(
+      title, meta: meta, hue: hue, status: status, isExpanded: isExpanded, glyph: glyph, content: content,
+      accessory: { EmptyView() })
+  }
+}
+
+extension KitSection where Icon == SizedLiveIcon {
+  /// A section whose tile holds any glyph, with any meta view and trailing actions.
+  ///
+  /// ```swift
+  /// KitSection("Remotes", hue: .blue, glyph: { BranchGlyph() }) { … } meta: { FetchLine(state) } accessory: { … }
+  /// ```
+  public init<Glyph: View>(
+    _ title: some StringProtocol, hue: Hue = .accent, status: WorkStatus = .idle, isExpanded: Binding<Bool>? = nil,
+    @ViewBuilder glyph: () -> Glyph, @ViewBuilder content: () -> Content, @ViewBuilder meta: () -> Meta,
+    @ViewBuilder accessory: () -> Accessory
+  ) {
+    let icon = SizedLiveIcon(hue: hue, status: status, size: .section, glyph: glyph)
+    self.init(Text(title), isExpanded: isExpanded, content: content, icon: { icon }, meta: meta, accessory: accessory)
+  }
+}
+
+extension KitSection where Icon == SizedLiveIcon, Accessory == EmptyView {
+  /// A section whose tile holds any glyph, with any meta view.
+  public init<Glyph: View>(
+    _ title: some StringProtocol, hue: Hue = .accent, status: WorkStatus = .idle, isExpanded: Binding<Bool>? = nil,
+    @ViewBuilder glyph: () -> Glyph, @ViewBuilder content: () -> Content, @ViewBuilder meta: () -> Meta
+  ) {
+    self.init(
+      title, hue: hue, status: status, isExpanded: isExpanded, glyph: glyph, content: content, meta: meta,
+      accessory: { EmptyView() })
+  }
+}
+
 // MARK: - Reveal
 
 /// A slot as tall as its content times `progress`, the content pinned to the top and revealed downward, so opening

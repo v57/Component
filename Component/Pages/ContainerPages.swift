@@ -189,6 +189,7 @@ struct SidebarPage: View {
   @State private var rowSearching = false
   @State private var note: Int? = 2
   @State private var notes = Array(1...6)
+  @State private var branch: String? = "main"
 
   var body: some View {
     CatalogPage(page: .sidebar, maxWidth: 1100) {
@@ -389,6 +390,34 @@ struct SidebarPage: View {
             RowTile(systemImage: "terminal", status: .working)   // KitMetrics.rowTile(idiom) wide
             """)
           }
+        }
+      }
+      SpecimenSection("Drawn glyphs", note: "Any view as the tile's glyph: Git's branch glyph on a row tile, a section tile and a bare compact row.") {
+        HStack(alignment: .top, spacing: 20) {
+          WindowFrame(height: 340) {
+            KitSidebar(selection: $branch) {
+              KitSection("Branches", meta: ["3 local", "1 merged"], hue: .orange, glyph: { BranchGlyph() }) {
+                SidebarRow(value: "main", "main", subtitle: "HEAD", hue: .accent, glyph: { BranchGlyph() }) { Count(2) }
+                SidebarRow(value: "feature/sidebar", "feature/sidebar", glyph: { BranchGlyph() })
+                SidebarRow(value: "fix/dates", "fix/dates", status: .working, glyph: { BranchGlyph() })
+              }
+              KitSection("Compact", meta: "plain rows", systemImage: "list.bullet") {
+                SidebarRow(value: "release", "release/1.12", hue: .green, glyph: { BranchGlyph() })
+              }
+              .kitRowDensity(.compact)
+            }
+          }
+          .frame(width: 280)
+          CodeSnippet(
+            """
+            KitSection("Branches", meta: ["3 local", "1 merged"], hue: .orange, glyph: { BranchGlyph() }) {
+              SidebarRow(value: branch.id, branch.name, glyph: { BranchGlyph() }) { Count(branch.ahead) }
+            }
+            RowTile(hue: .green) { BranchGlyph() }            // as any row's icon:
+            SidebarRow(value: id, name, icon: { RowTile { BranchGlyph() } })
+            SizedLiveIcon(hue: .orange) { BranchGlyph() }     // a RichHeader's icon
+            // A glyph of your own sizes itself from @Environment(\\.kitGlyphSize)
+            """)
         }
       }
     }
