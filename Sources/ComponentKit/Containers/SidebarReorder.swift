@@ -49,6 +49,13 @@ enum ContReorder {
   /// `.onMove`'s destination for a row dragged from `from` onto the row at `to`: a row dragged down lands after the
   /// row it was dropped on, one dragged up before it; either way it ends up at `to`.
   static func destination(from: Int, to: Int) -> Int { from < to ? to + 1 : to }
+
+  /// Whether a row dragged from `source` may land in `list`: its own list always, another only when the list
+  /// receives rows.
+  static func accepts(from source: AnyHashable?, into list: AnyHashable, receives: Bool) -> Bool {
+    guard let source else { return false }
+    return source == list || receives
+  }
 }
 
 /// A list of rows that reorder by dragging, live: the dragged row lifts as a raised card, a field slot opens where it
@@ -65,6 +72,9 @@ public struct ReorderableSection<Data: RandomAccessCollection, ID: Hashable, Row
   private let list: AnyHashable?
   private let move: (IndexSet, Int) -> Void
   private let content: (Data.Element) -> RowContent
+  private var accepts: [UTType] = []
+  private var perform: ((Data.Element, [NSItemProvider]) -> Bool)?
+  private var receive: ((AnyHashable, Int, Int) -> Void)?
   @State private var ownList = UUID()
   @State private var ownState = ContReorderState()
   @Environment(\.contReorderState) private var shared
@@ -86,8 +96,48 @@ public struct ReorderableSection<Data: RandomAccessCollection, ID: Hashable, Row
     let state = shared ?? ownState
     ForEach(items) { item in
       content(item.element)
-        .modifier(ContReorderRow(list: list, index: item.index, move: move, state: state))
+        .modifier(
+          ContReorderRow(
+            list: list, index: item.index, move: move, state: state, accepts: accepts,
+            perform: perform.map { perform in { providers in perform(item.element, providers) } },
+            receive: receive))
     }
+  }
+
+  /// Lets the rows take other drops too (files, URLs, text): a row under such a drag wears the drop target, and
+  /// `perform` gets the row's element and the drag's providers. Reordering goes on as before.
+  ///
+  /// ```swift
+  /// ReorderableSection(hosts, move: { hosts.move(fromOffsets: $0, toOffset: $1) }) { host in
+  ///   SidebarRow(value: host.id, host.name, systemImage: "server.rack")
+  /// }
+  /// .alsoAccepts([.fileURL]) { host, providers in upload(providers, to: host) }
+  /// ```
+  public func alsoAccepts(
+    _ types: [UTType], perform: @escaping (Data.Element, [NSItemProvider]) -> Bool
+  ) -> Self {
+    var section = self
+    section.accepts = types
+    section.perform = perform
+    return section
+  }
+
+  /// Takes rows dragged in from other lists (sections given a `list` name): as one passes over a row here,
+  /// `receive(fromList, fromIndex, toIndex)` asks you to move that element from the other list to `toIndex` in this
+  /// one; it then reorders here as usual. Without it a drop from another list is refused.
+  ///
+  /// ```swift
+  /// ReorderableSection(pinned, list: "pinned", move: { pinned.move(fromOffsets: $0, toOffset: $1) }) { … }
+  ///   .receivesRows { from, index, to in
+  ///     if from == AnyHashable("recent") { pinned.insert(recent.remove(at: index), at: to) }
+  ///   }
+  /// ```
+  public func receivesRows(_ receive: @escaping (_ fromList: AnyHashable, _ fromIndex: Int, _ toIndex: Int) -> Void)
+    -> Self
+  {
+    var section = self
+    section.receive = receive
+    return section
   }
 }
 
@@ -143,13 +193,18 @@ struct ContReorderRow: ViewModifier {
   let index: Int
   let move: (IndexSet, Int) -> Void
   let state: ContReorderState
+  var accepts: [UTType] = []
+  var perform: (([NSItemProvider]) -> Bool)? = nil
+  var receive: ((AnyHashable, Int, Int) -> Void)? = nil
   @Environment(\.kitIdiom) private var idiom
+  @State private var isTargeted = false
 
   func body(content: Content) -> some View {
     let list = list
     let index = index
     let state = state
     content
+      .kitDropTarget(isTargeted, cornerRadius: ContMetrics.rowRadius(idiom))
       .modifier(ContDraggedRowSlot(list: list, index: index, state: state))
       .onDrag {
         // A drag always starts on the main thread, but `onDrag`'s closure isn't main-actor isolated.
@@ -168,8 +223,10 @@ struct ContReorderRow: ViewModifier {
           .frame(width: 220)
       }
       .onDrop(
-        of: [ContReorderState.contentType],
-        delegate: ContReorderDropDelegate(list: list, index: index, move: move, state: state))
+        of: [ContReorderState.contentType] + accepts,
+        delegate: ContReorderDropDelegate(
+          list: list, index: index, move: move, state: state, accepts: accepts, perform: perform, receive: receive,
+          isTargeted: $isTargeted))
   }
 }
 
@@ -208,6 +265,10 @@ struct ContReorderDropDelegate: DropDelegate {
   let index: Int
   let move: (IndexSet, Int) -> Void
   let state: ContReorderState
+  var accepts: [UTType] = []
+  var perform: (([NSItemProvider]) -> Bool)? = nil
+  var receive: ((AnyHashable, Int, Int) -> Void)? = nil
+  var isTargeted: Binding<Bool>? = nil
 
   /// Whether the drag is a kit row. Read from the drag pasteboard on macOS: `DropInfo` describes a drag SwiftUI started
   /// in this process with no types.
@@ -220,23 +281,50 @@ struct ContReorderDropDelegate: DropDelegate {
     #endif
   }
 
+  /// A drop of one of the other accepted types (a file, a URL) rather than a row.
+  private func isOther(_ info: DropInfo) -> Bool {
+    perform != nil && !isRow(info) && info.hasItemsConforming(to: accepts)
+  }
+
   func validateDrop(info: DropInfo) -> Bool {
-    isRow(info) && state.list == list
+    if isOther(info) { return true }
+    return isRow(info) && ContReorder.accepts(from: state.list, into: list, receives: receive != nil)
   }
 
   func dropUpdated(info: DropInfo) -> DropProposal? {
-    DropProposal(operation: validateDrop(info: info) ? .move : .forbidden)
+    if isOther(info) { return DropProposal(operation: .copy) }
+    return DropProposal(operation: validateDrop(info: info) ? .move : .forbidden)
   }
 
   func dropEntered(info: DropInfo) {
-    guard isRow(info), state.list == list, let from = state.index, from != index else { return }
+    if isOther(info) {
+      withAnimation(.kitFast) { isTargeted?.wrappedValue = true }
+      return
+    }
+    guard isRow(info), let from = state.index, let fromList = state.list else { return }
+    if fromList != list {
+      // A row from another list: the app moves it here, then it reorders here.
+      guard let receive else { return }
+      withAnimation(.kitSpring) { receive(fromList, from, index) }
+      state.begin(list, at: index)
+      return
+    }
+    guard from != index else { return }
     withAnimation(.kitSpring) {
       move(IndexSet(integer: from), ContReorder.destination(from: from, to: index))
     }
     state.update(index: index)
   }
 
+  func dropExited(info: DropInfo) {
+    if isTargeted?.wrappedValue == true { withAnimation(.kitFast) { isTargeted?.wrappedValue = false } }
+  }
+
   func performDrop(info: DropInfo) -> Bool {
+    if isOther(info), let perform {
+      isTargeted?.wrappedValue = false
+      return perform(info.itemProviders(for: accepts))
+    }
     guard isRow(info) else { return false }
     state.end()
     return true

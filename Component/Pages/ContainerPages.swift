@@ -1,5 +1,6 @@
 import ComponentKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - Sections
 
@@ -1033,6 +1034,9 @@ struct DragDropPage: View {
   @State private var notes = ["Trip to Lisbon", "Packing list", "Ideas", "Recipes", "Books to read"]
   @State private var isTargeted = false
   @State private var dropped: [String] = []
+  @State private var pinned = ["Lisbon", "Porto"]
+  @State private var recent = ["Tokyo", "Kyoto", "Osaka"]
+  @State private var cityNotes: [String: [String]] = [:]
 
   var body: some View {
     CatalogPage(page: .dragDrop) {
@@ -1088,6 +1092,50 @@ struct DragDropPage: View {
               } isTargeted: { isTargeted = $0 }
             }
             .frame(width: 260)
+          }
+        }
+      }
+      SpecimenSection("Between lists, and other drops", note: "Drag a city from Recent into Pinned; drop text (a chip above) on a city.") {
+        Specimen(
+          "receivesRows and alsoAccepts", ground: .sidebar,
+          code: """
+            ReorderableSection(pinned, id: \\.self, list: "pinned", move: { pinned.move(fromOffsets: $0, toOffset: $1) }) { … }
+              .receivesRows { from, index, to in pinned.insert(recent.remove(at: index), at: to) }
+              .alsoAccepts([.plainText]) { city, providers in attach(providers, to: city) }
+            """
+        ) {
+          HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 2) {
+              Text("Pinned").kitFont(.sectionHeader).padding(.leading, 6)
+              ReorderableSection(pinned, id: \.self, list: "pinned", move: { pinned.move(fromOffsets: $0, toOffset: $1) }) { city in
+                SidebarRow(city, subtitle: cityNotes[city]?.joined(separator: ", "), systemImage: "pin")
+              }
+              .receivesRows { from, index, to in
+                guard from == AnyHashable("recent"), recent.indices.contains(index) else { return }
+                pinned.insert(recent.remove(at: index), at: min(to, pinned.count))
+              }
+              .alsoAccepts([.plainText]) { city, providers in
+                for provider in providers {
+                  _ = provider.loadObject(ofClass: NSString.self) { text, _ in
+                    guard let text = text as? String else { return }
+                    Task { @MainActor in cityNotes[city, default: []].append(text) }
+                  }
+                }
+                return true
+              }
+            }
+            .frame(width: 220)
+            VStack(alignment: .leading, spacing: 2) {
+              Text("Recent").kitFont(.sectionHeader).padding(.leading, 6)
+              ReorderableSection(recent, id: \.self, list: "recent", move: { recent.move(fromOffsets: $0, toOffset: $1) }) { city in
+                SidebarRow(city, systemImage: "clock")
+              }
+              .receivesRows { from, index, to in
+                guard from == AnyHashable("pinned"), pinned.indices.contains(index) else { return }
+                recent.insert(pinned.remove(at: index), at: min(to, recent.count))
+              }
+            }
+            .frame(width: 220)
           }
         }
       }

@@ -150,3 +150,10 @@ private var navRows: [(value: AnyHashable, indent: Int, isOpen: Bool?)] { [
   #expect(ContRowNav.right("Sources", in: navRows) == .select("Models"))
   #expect(ContRowNav.right("App.swift", in: navRows) == .none)
 }
+
+@Test func reorderAcceptsOtherListsOnlyWhenReceiving() {
+  #expect(ContReorder.accepts(from: "a", into: "a", receives: false))
+  #expect(!ContReorder.accepts(from: "b", into: "a", receives: false))
+  #expect(ContReorder.accepts(from: "b", into: "a", receives: true))
+  #expect(!ContReorder.accepts(from: nil, into: "a", receives: true))
+}
