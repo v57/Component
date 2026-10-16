@@ -155,7 +155,40 @@ extension LiveIcon where Content == Image {
   }
 }
 
-/// The ring 3.5pt outside the tile: a 2pt track at 22% of the hue with the progress in the hue, or a turning arc.
+/// How a `LiveIcon` shows work whose amount is unknown. Every style follows the tile's shape (circle or rounded square).
+public enum KitWorkIndicator: String, Hashable, Sendable, CaseIterable {
+  /// An arc that runs around the ring, along the shape (the default).
+  case trace
+  /// The running arc with a tail that fades behind it.
+  case comet
+  /// The whole ring breathes between its track and the hue.
+  case pulse
+  /// No ring: the tile's ground breathes in its hue.
+  case breathe
+  /// Short dashes march around the ring.
+  case march
+  /// A ring that leaves the tile and fades, again and again.
+  case ripple
+}
+
+extension EnvironmentValues {
+  /// How the `LiveIcon`s below show indeterminate work (`.kitWorkIndicator(_:)`).
+  @Entry public var kitWorkIndicator: KitWorkIndicator = .trace
+}
+
+extension View {
+  /// Sets how the live icons below show work of unknown length: `.trace` (the default), `.comet`, `.pulse`,
+  /// `.breathe`, `.march` or `.ripple`.
+  ///
+  /// ```swift
+  /// LiveIcon(systemImage: "sparkles", status: .working).kitWorkIndicator(.pulse)
+  /// ```
+  public func kitWorkIndicator(_ indicator: KitWorkIndicator) -> some View {
+    environment(\.kitWorkIndicator, indicator)
+  }
+}
+
+/// The ring 3.5pt outside the tile: a 2pt track at 22% of the hue with the progress in the hue, or the work indicator.
 struct StatusRing: View {
   let status: WorkStatus
   let hue: Hue
@@ -163,25 +196,101 @@ struct StatusRing: View {
   let shape: KitShape
   @Environment(\.kitWindowIsActive) private var isActive
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.kitWorkIndicator) private var indicator
+
+  private let outset: CGFloat = 3.5
+  private let line: CGFloat = 2
 
   var body: some View {
-    let outset: CGFloat = 3.5
     let ringShape = ringPath(outset: outset)
     ZStack {
-      ringShape.stroke(hue.soft(0.22), lineWidth: 2)
       if let progress = status.progress {
-        ringShape.trim(from: 0, to: progress).stroke(hue.fill, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+        ringShape.stroke(hue.soft(0.22), lineWidth: line)
+        ringShape.trim(from: 0, to: progress).stroke(hue.fill, style: StrokeStyle(lineWidth: line, lineCap: .round))
       } else if status.isWorking {
         TimelineView(.animation(paused: !isActive || reduceMotion)) { context in
-          let turn = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1)
-          ringShape.trim(from: 0, to: 0.3)
-            .stroke(hue.fill, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-            .rotationEffect(.degrees(turn * 360))
+          indeterminate(ringShape, time: context.date.timeIntervalSinceReferenceDate)
         }
+      } else {
+        ringShape.stroke(hue.soft(0.22), lineWidth: line)
       }
     }
     .frame(width: size + outset * 2, height: size + outset * 2)
     .allowsHitTesting(false)
+  }
+
+  @ViewBuilder
+  private func indeterminate(_ ring: AnyShape, time: TimeInterval) -> some View {
+    switch indicator {
+    case .trace:
+      ring.stroke(hue.soft(0.22), lineWidth: line)
+      arc(ring, head: phase(time, period: 1.2), length: 0.28)
+    case .comet:
+      ring.stroke(hue.soft(0.22), lineWidth: line)
+      let head = phase(time, period: 1.1)
+      // The tail: short pieces behind the head, each fainter than the last.
+      ForEach(0..<8, id: \.self) { i in
+        let step = 0.045
+        arc(ring, head: head - Double(i) * step, length: step + 0.004, cap: i == 0 ? .round : .butt)
+          .opacity(1 - Double(i) / 8)
+      }
+    case .pulse:
+      let wave = (1 - cos(phase(time, period: 1.4) * 2 * .pi)) / 2
+      ring.stroke(hue.soft(0.22), lineWidth: line)
+      ring.stroke(hue.fill, lineWidth: line).opacity(0.15 + wave * 0.85)
+    case .breathe:
+      let wave = (1 - cos(phase(time, period: 1.6) * 2 * .pi)) / 2
+      shape.shape(size: size)
+        .fill(hue.soft(0.3))
+        .frame(width: size, height: size)
+        .opacity(wave)
+    case .march:
+      let perimeter = ringPerimeter()
+      let dash = perimeter / 12
+      ring.stroke(hue.soft(0.22), lineWidth: line)
+      ring.stroke(
+        hue.fill,
+        style: StrokeStyle(
+          lineWidth: line, lineCap: .round, dash: [dash * 0.45, dash * 0.55],
+          dashPhase: -phase(time, period: 1.5) * dash * 3)
+      )
+    case .ripple:
+      ring.stroke(hue.soft(0.22), lineWidth: line)
+      ForEach(0..<2, id: \.self) { i in
+        let t = phase(time + Double(i) * 0.8, period: 1.6)
+        ring.stroke(hue.fill, lineWidth: line * (1 - t * 0.5))
+          .scaleEffect(1 + t * 0.35)
+          .opacity((1 - t) * 0.9)
+      }
+    }
+  }
+
+  /// An arc of `length` (0…1 of the ring) ending at `head`, split in two where it crosses the ring's start.
+  @ViewBuilder
+  private func arc(_ ring: AnyShape, head: Double, length: Double, cap: CGLineCap = .round) -> some View {
+    let style = StrokeStyle(lineWidth: line, lineCap: cap)
+    let end = head - floor(head)
+    let start = end - length
+    if start >= 0 {
+      ring.trim(from: start, to: end).stroke(hue.fill, style: style)
+    } else {
+      ring.trim(from: 0, to: end).stroke(hue.fill, style: style)
+      ring.trim(from: 1 + start, to: 1).stroke(hue.fill, style: style)
+    }
+  }
+
+  private func phase(_ time: TimeInterval, period: Double) -> Double {
+    time.truncatingRemainder(dividingBy: period) / period
+  }
+
+  private func ringPerimeter() -> CGFloat {
+    let side = size + outset * 2
+    switch shape {
+    case .circle: return .pi * side
+    case .rounded:
+      let r = min(size * 0.29 + outset, side / 2)
+      return 4 * (side - 2 * r) + 2 * .pi * r
+    }
   }
 
   /// The ring follows the tile's shape, starting at the top centre and going clockwise.

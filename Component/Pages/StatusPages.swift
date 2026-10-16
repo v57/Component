@@ -100,6 +100,20 @@ struct LiveIconPage: View {
           statesRow(shape: .rounded, size: 24).environment(\.kitWindowIsActive, false)
         }
       }
+      SpecimenSection(
+        "Work indicators",
+        note: "Work of unknown length. Every style follows the tile's shape; pick one per app or per view."
+      ) {
+        Specimen("Rounded", code: "LiveIcon(systemImage: \"arrow.up\", status: .working).kitWorkIndicator(.comet)") {
+          indicatorsRow(shape: .rounded, size: 24)
+        }
+        Specimen("Rounded, 32pt", code: "LiveIcon(systemImage: \"sparkles\", hue: .purple, status: .working, size: 32)") {
+          indicatorsRow(shape: .rounded, size: 32, hue: .purple, systemImage: "sparkles")
+        }
+        Specimen("Circle", code: "LiveIcon(systemImage: \"arrow.down\", status: .working, shape: .circle).kitWorkIndicator(.ripple)") {
+          indicatorsRow(shape: .circle, size: 24, hue: .green, systemImage: "arrow.down")
+        }
+      }
       SpecimenSection("Any glyph") {
         Specimen(
           "Custom content",
@@ -110,6 +124,20 @@ struct LiveIconPage: View {
             LiveIcon(hue: .orange, status: .working(progress: 0.7), size: 28) { Image(systemName: "hammer") }
             LiveIcon(hue: .teal, status: .idle, size: 28) { Text("7") }
           }
+        }
+      }
+    }
+  }
+
+  private func indicatorsRow(
+    shape: KitShape, size: CGFloat, hue: Hue = .accent, systemImage: String = "arrow.up"
+  ) -> some View {
+    HStack(spacing: 22) {
+      ForEach(KitWorkIndicator.allCases, id: \.self) { indicator in
+        Labeled(indicator.rawValue) {
+          LiveIcon(systemImage: systemImage, hue: hue, status: .working, size: size, shape: shape)
+            .kitWorkIndicator(indicator)
+            .frame(width: size + 8, height: size + 8)
         }
       }
     }
