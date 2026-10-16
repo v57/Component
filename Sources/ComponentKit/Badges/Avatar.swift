@@ -34,6 +34,7 @@ public struct Avatar: View {
   var status: WorkStatus
   var presence: Presence?
   var size: CGFloat
+  var image: Image?
   @Environment(\.colorScheme) private var scheme
 
   public init(
@@ -48,6 +49,22 @@ public struct Avatar: View {
     self.status = status
     self.presence = presence
     self.size = size
+  }
+
+  /// An avatar showing a picture (a profile photo, a project's icon) in the kind's shape: a circle for a person, the
+  /// rounded square for an agent or a thing, the squircle for an app. Presence, status rings and dimming work as
+  /// for the drawn ones; `name` is what VoiceOver reads.
+  ///
+  /// ```swift
+  /// Avatar(name: user.name, image: Image(uiImage: photo), presence: .online, size: 32)
+  /// Avatar(name: project.name, image: project.icon, kind: .thing)
+  /// ```
+  public init(
+    name: String, image: Image, kind: Kind = .person, status: WorkStatus = .idle, presence: Presence? = nil,
+    size: CGFloat = 24
+  ) {
+    self.init(name: name, kind: kind, status: status, presence: presence, size: size)
+    self.image = image
   }
 
   /// The hue: the one given, the accent for a thing shown with a glyph, or one picked from the name.
@@ -85,6 +102,34 @@ public struct Avatar: View {
 
   @ViewBuilder
   private func face(_ hue: Hue) -> some View {
+    if let image {
+      picture(image)
+    } else {
+      drawnFace(hue)
+    }
+  }
+
+  /// A picture clipped to the kind's shape, with a hairline so a white photo keeps its edge.
+  @ViewBuilder
+  private func picture(_ image: Image) -> some View {
+    let fill = image.resizable().interpolation(.high).scaledToFill().frame(width: size, height: size)
+    let edge = scheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.1)
+    switch kind {
+    case .person:
+      fill.clipShape(Circle()).overlay { Circle().strokeBorder(edge, lineWidth: 0.5) }
+    case .agent, .thing:
+      let shape = KitShape.rounded.shape(size: size)
+      fill.clipShape(shape).overlay { shape.stroke(edge, lineWidth: 0.5) }
+    case .app:
+      let shape = RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
+      fill.clipShape(shape)
+        .overlay { shape.strokeBorder(edge, lineWidth: 0.5) }
+        .shadow(color: .black.opacity(scheme == .dark ? 0.4 : 0.14), radius: size * 0.11, y: size * 0.09)
+    }
+  }
+
+  @ViewBuilder
+  private func drawnFace(_ hue: Hue) -> some View {
     switch kind {
     case .person:
       Circle().fill(PersonFill(hue: hue))
