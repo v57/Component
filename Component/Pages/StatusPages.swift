@@ -160,12 +160,22 @@ struct LiveIconPage: View {
   private func indicatorsRow(
     shape: KitShape, size: CGFloat, hue: Hue = .accent, systemImage: String = "arrow.up"
   ) -> some View {
-    HStack(spacing: 22) {
-      ForEach(KitWorkIndicator.allCases, id: \.self) { indicator in
-        Labeled(indicator.rawValue) {
-          LiveIcon(systemImage: systemImage, hue: hue, status: indicatorStatus, size: size, shape: shape)
-            .kitWorkIndicator(indicator)
-            .frame(width: size + 8, height: size + 8)
+    // Strokes on the ring, then fills around or inside the tile.
+    let rows: [[KitWorkIndicator]] = [
+      [.trace, .comet, .pulse, .march, .ripple],
+      [.breathe, .glow, .bloom, .heartbeat, .sonar],
+    ]
+    return VStack(alignment: .leading, spacing: 14) {
+      ForEach(rows, id: \.self) { row in
+        HStack(spacing: 22) {
+          ForEach(row, id: \.self) { indicator in
+            Labeled(indicator.rawValue) {
+              LiveIcon(systemImage: systemImage, hue: hue, status: indicatorStatus, size: size, shape: shape)
+                .kitWorkIndicator(indicator)
+                .frame(width: size + 8, height: size + 8)
+            }
+            .frame(minWidth: 64)
+          }
         }
       }
     }

@@ -14,6 +14,14 @@ public enum KitWorkIndicator: String, Hashable, Sendable, CaseIterable {
   case march
   /// A ring that leaves the tile and fades, again and again.
   case ripple
+  /// A soft halo of the hue around the tile breathes in and out.
+  case glow
+  /// A filled ripple: a band of the hue grows out of the tile's edge and fades.
+  case bloom
+  /// The band around the tile beats twice, then rests.
+  case heartbeat
+  /// Inside the tile, a fill grows from the centre to the edges and fades.
+  case sonar
 }
 
 extension EnvironmentValues {
@@ -23,7 +31,7 @@ extension EnvironmentValues {
 
 extension View {
   /// Sets how the live icons below show work of unknown length: `.trace` (the default), `.comet`, `.pulse`,
-  /// `.breathe`, `.march` or `.ripple`.
+  /// `.breathe`, `.march`, `.ripple`, `.glow`, `.bloom`, `.heartbeat` or `.sonar`.
   ///
   /// ```swift
   /// LiveIcon(systemImage: "sparkles", status: .working).kitWorkIndicator(.pulse)
@@ -116,7 +124,7 @@ struct RingDrawing: View, Animatable {
     let running = 1 - determinate
     ZStack {
       ring.stroke(hue.soft(0.22), lineWidth: line)
-        .opacity(indicator == .breathe ? determinate : 1)
+        .opacity(indicator.drawsTrack ? 1 : determinate)
       switch indicator {
       case .trace:
         morphingArc(ring, period: 1.2, length: 0.28)
@@ -157,6 +165,42 @@ struct RingDrawing: View, Animatable {
             .scaleEffect(1 + t * 0.35)
             .opacity((1 - t) * 0.9 * running)
         }
+        progressArc(ring)
+      case .glow:
+        let wave = (1 - cos(phase(period: 1.6) * 2 * .pi)) / 2
+        band(outset: 3 + wave * 2.5)
+          .fill(hue.fill, style: FillStyle(eoFill: true))
+          .blur(radius: 3)
+          .mask { band(outset: 24).fill(style: FillStyle(eoFill: true)) }
+          .opacity((0.25 + wave * 0.55) * running)
+        progressArc(ring)
+      case .bloom:
+        ForEach(0..<2, id: \.self) { i in
+          let t = phase(period: 1.6, offset: Double(i) * 0.8)
+          band(outset: 1 + t * 8)
+            .fill(hue.fill, style: FillStyle(eoFill: true))
+            .opacity((1 - t) * (1 - t) * 0.75 * running)
+        }
+        progressArc(ring)
+      case .heartbeat:
+        let t = phase(period: 1.3)
+        // Lub-dub: two quick beats, the second softer, then a rest.
+        let beat = max(Self.beat(t, at: 0.08, width: 0.06), Self.beat(t, at: 0.3, width: 0.06) * 0.7)
+        band(outset: outset + line / 2 - 0.5 + beat * 1.5)
+          .fill(hue.fill, style: FillStyle(eoFill: true))
+          .opacity((0.12 + beat * 0.6) * running)
+        progressArc(ring)
+      case .sonar:
+        ForEach(0..<2, id: \.self) { i in
+          let t = phase(period: 1.6, offset: Double(i) * 0.8)
+          Circle()
+            .fill(hue.fill)
+            .frame(width: size * 1.5 * t, height: size * 1.5 * t)
+            .opacity((1 - t) * 0.35 * running)
+        }
+        .frame(width: size, height: size)
+        .clipShape(shape.shape(size: size))
+        ring.stroke(hue.soft(0.22), lineWidth: line).opacity(running)
         progressArc(ring)
       }
     }
@@ -200,8 +244,19 @@ struct RingDrawing: View, Animatable {
     }
   }
 
-  /// `arc` fading in over its first 2% of the ring.
-  private func fade(_ from: Double, _ to: Double) -> Double { min(1, max(0, to - from) / 0.02) }
+  /// `arc` fading in over its first 6% of the ring.
+  private func fade(_ from: Double, _ to: Double) -> Double { min(1, max(0, to - from) / 0.06) }
+
+  /// The area around the tile out to `outset`, with the tile cut out (fill it even-odd).
+  private func band(outset: CGFloat) -> TileBand {
+    TileBand(tile: size, shape: shape, outset: outset)
+  }
+
+  /// A smooth bump at `at` (0…1 of the period), `width` wide.
+  private static func beat(_ t: Double, at: Double, width: Double) -> Double {
+    let x = (t - at) / width
+    return exp(-x * x)
+  }
 
   private func phase(period: Double, offset: Double = 0) -> Double {
     (elapsed + offset).truncatingRemainder(dividingBy: period) / period
@@ -223,5 +278,39 @@ struct RingDrawing: View, Animatable {
     case .circle: AnyShape(Circle().rotation(.degrees(-90)))
     case .rounded: AnyShape(TopStartRoundedRect(cornerRadius: size * 0.29 + outset))
     }
+  }
+}
+
+extension KitWorkIndicator {
+  /// The ring's track shows while it runs (the fill styles do without it).
+  var drawsTrack: Bool {
+    switch self {
+    case .breathe, .glow, .bloom, .heartbeat, .sonar: false
+    default: true
+    }
+  }
+}
+
+/// The area around a tile out to `outset`, both following the tile's shape. Filled even-odd it leaves the tile clear,
+/// so a halo never covers the glyph.
+struct TileBand: Shape {
+  var tile: CGFloat
+  var shape: KitShape
+  var outset: CGFloat
+
+  func path(in rect: CGRect) -> Path {
+    let inner = CGRect(x: rect.midX - tile / 2, y: rect.midY - tile / 2, width: tile, height: tile)
+    let outer = inner.insetBy(dx: -outset, dy: -outset)
+    var p = Path()
+    switch shape {
+    case .circle:
+      p.addEllipse(in: outer)
+      p.addEllipse(in: inner)
+    case .rounded:
+      let r = tile * 0.29
+      p.addRoundedRect(in: outer, cornerSize: CGSize(width: r + outset, height: r + outset), style: .continuous)
+      p.addRoundedRect(in: inner, cornerSize: CGSize(width: r, height: r), style: .continuous)
+    }
+    return p
   }
 }
