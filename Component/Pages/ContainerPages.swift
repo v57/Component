@@ -551,6 +551,7 @@ struct ToolbarPage: View {
                 ToolbarItemGroup { … }.kitToolbarItem()   // any item without the glass
               }
             Button("Filter", systemImage: "line.3.horizontal.decrease") { … }.buttonStyle(.kitToolIcon).kitToolOn(isFiltered)
+            Player().kitHidesSystemTitle(isPlaying)   // the system title out only while true (macOS 14: the window's)
             """
         ) {
           HStack(spacing: 12) {

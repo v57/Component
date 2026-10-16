@@ -131,14 +131,20 @@ extension View {
       .kitHidesSystemTitle()
   }
 
-  /// Takes the system's title out of the toolbar (macOS 15 and iOS 18 on), when a pane names itself with its own
-  /// `KitTitle`. The window keeps its title.
+  /// Takes the system's title out of the toolbar while `hides` is true, when a pane names itself with its own
+  /// `KitTitle` (or a video fills the window). The window keeps its title for the Window menu and Mission Control.
+  /// Turning it on and off keeps the view's identity and state. macOS 14 hides the window's title instead; iOS 17
+  /// keeps it.
+  ///
+  /// ```swift
+  /// Player().kitHidesSystemTitle(isPlaying)
+  /// ```
   @ViewBuilder
-  public func kitHidesSystemTitle() -> some View {
+  public func kitHidesSystemTitle(_ hides: Bool = true) -> some View {
     if #available(macOS 15.0, iOS 18.0, *) {
-      toolbar(removing: .title)
+      toolbar(removing: hides ? .title : nil)
     } else {
-      self
+      background { ContWindowTitleHidden(hides: hides) }
     }
   }
 

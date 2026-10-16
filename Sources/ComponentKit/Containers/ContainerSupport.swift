@@ -424,3 +424,63 @@ extension View {
     #endif
   }
 }
+
+// MARK: - Window title (macOS 14)
+
+/// Hides the title of the window it sits in while `hides` is true, and shows it again when it goes (macOS 14, where
+/// the toolbar's title can't be removed). Nothing on other platforms.
+struct ContWindowTitleHidden: View {
+  var hides: Bool
+
+  var body: some View {
+    #if os(macOS)
+      ContWindowTitleRepresentable(hides: hides).accessibilityHidden(true)
+    #else
+      Color.clear
+    #endif
+  }
+}
+
+#if os(macOS)
+  private struct ContWindowTitleRepresentable: NSViewRepresentable {
+    var hides: Bool
+
+    func makeNSView(context: Context) -> ContWindowTitleView { ContWindowTitleView() }
+
+    func updateNSView(_ view: ContWindowTitleView, context: Context) {
+      view.hides = hides
+    }
+
+    static func dismantleNSView(_ view: ContWindowTitleView, coordinator: ()) {
+      view.hides = false
+    }
+  }
+
+  private final class ContWindowTitleView: NSView {
+    var hides = false {
+      didSet { if hides != oldValue { apply() } }
+    }
+    private weak var hiddenIn: NSWindow?
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      if window !== hiddenIn, let old = hiddenIn {
+        old.titleVisibility = .visible
+        hiddenIn = nil
+      }
+      apply()
+    }
+
+    private func apply() {
+      if hides, let window {
+        window.titleVisibility = .hidden
+        hiddenIn = window
+      } else if let old = hiddenIn {
+        old.titleVisibility = .visible
+        hiddenIn = nil
+      }
+    }
+  }
+#endif
