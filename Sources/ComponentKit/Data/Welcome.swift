@@ -34,18 +34,35 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
   var actions: Actions
   var recents: Recents
   var projects: Projects
-  @State private var source = WelcomeSource.recent
+  var sourceBinding: Binding<WelcomeSource>?
+  var searchText: Binding<String>?
+  var searchPrompt: String
+  var optionsView: AnyView?
+  @State private var ownSource = WelcomeSource.recent
   @State private var nav = DataNavModel()
   @State private var isDropTargeted = false
   @FocusState private var isListFocused: Bool
   @Environment(\.dataRendersFlat) private var flat
+  @Environment(\.kitIdiom) private var idiom
 
+  /// A welcome window with Recent | Projects.
+  ///
+  /// - Parameters:
+  ///   - source: which list shows, to remember it (`@AppStorage`); without it the window keeps its own.
+  ///   - searchText: shows a search field over the lists, bound to this text (filter `recents` and `projects`
+  ///     with it).
+  ///   - close: draws the round close button; on the Mac the window's own buttons are hidden then, so they don't
+  ///     sit over it in a window without a title bar.
   public init(
     appName: String? = nil, version: String? = nil, icon: Image? = nil, showAtLaunch: Binding<Bool>? = nil,
     emptyTitle: String = "No Recent Items", emptyMessage: String = "What you open appears here.",
+    source: Binding<WelcomeSource>? = nil, searchText: Binding<String>? = nil, searchPrompt: String = "Search",
     close: (() -> Void)? = nil, onDrop: (([URL]) -> Bool)? = nil, @ViewBuilder actions: () -> Actions,
     @ViewBuilder recents: () -> Recents, @ViewBuilder projects: () -> Projects
   ) {
+    self.sourceBinding = source
+    self.searchText = searchText
+    self.searchPrompt = searchPrompt
     self.appName = appName ?? DataPlatform.appName
     self.version = version ?? "Version \(DataPlatform.version)"
     self.icon = icon
@@ -60,16 +77,35 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
   }
 
   private var hasProjects: Bool { Projects.self != EmptyView.self }
+  private var source: WelcomeSource { sourceBinding?.wrappedValue ?? ownSource }
+  private var sourceSelection: Binding<WelcomeSource> { sourceBinding ?? $ownSource }
+
+  /// Puts more options above "Show this window when … opens": checkboxes, a pop-up ("Open at launch: …").
+  ///
+  /// ```swift
+  /// KitWelcome(showAtLaunch: $show) { … } recents: { … }
+  ///   .options { Toggle("Reopen last project", isOn: $reopen).toggleStyle(.kitCheckbox) }
+  /// ```
+  public func options<Options: View>(@ViewBuilder _ content: () -> Options) -> Self {
+    var welcome = self
+    welcome.optionsView = AnyView(content())
+    return welcome
+  }
 
   public var body: some View {
     VStack(spacing: 0) {
       identity
       list
     }
-    .frame(width: 480)
+    .frame(width: idiom == .phone ? nil : 480)
+    .frame(maxWidth: idiom == .phone ? .infinity : nil)
     .background(.kitWindow)
     .overlay(alignment: .topLeading) {
       if let close { CloseButton(action: close).padding(16) }
+    }
+    .background {
+      // The round close button replaces the window's own buttons when the welcome fills its window.
+      if close != nil { DataWindowButtonsHidden().ignoresSafeArea() }
     }
     .overlay { if isDropTargeted { DropRing(title: "Open in \(appName)") } }
     .modifier(WelcomeDrop(onDrop: onDrop, isTargeted: $isDropTargeted))
@@ -100,7 +136,7 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
         .foregroundStyle(.kitSecondary)
         .padding(.top, 2)
       VStack(spacing: 2) { actions }
-        .padding(.horizontal, 40)
+        .padding(.horizontal, idiom == .phone ? 16 : 40)
         .padding(.top, 18)
     }
     .padding(.top, 36)
@@ -110,16 +146,29 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
 
   private var list: some View {
     VStack(alignment: .leading, spacing: 10) {
-      HStack {
+      HStack(spacing: KitMetrics.gutter) {
         if hasProjects {
-          KitSegmented(selection: $source, options: WelcomeSource.allCases.map { ($0.rawValue, $0) })
+          KitSegmented(selection: sourceSelection, options: WelcomeSource.allCases.map { ($0.rawValue, $0) })
+            .fixedSize()
         } else {
           Text("Recent").kitFont(.headline).padding(.leading, 6)
+        }
+        if let searchText {
+          Spacer(minLength: 0)
+          KitSearchField(text: searchText, prompt: searchPrompt)
+            .frame(maxWidth: 200)
         }
       }
       .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
       .padding(.horizontal, 8)
       items
+      if let optionsView {
+        VStack(alignment: .leading, spacing: 6) { optionsView }
+          .toggleStyle(.kitCheckbox)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.horizontal, 8)
+          .padding(.top, 4)
+      }
       if let showAtLaunch {
         Toggle("Show this window when \(appName) opens", isOn: showAtLaunch)
           .toggleStyle(.kitCheckbox)
@@ -128,7 +177,7 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
           .padding(.top, 4)
       }
     }
-    .padding(.horizontal, 16)
+    .padding(.horizontal, idiom == .phone ? 8 : 16)
     .padding(.top, 14)
     .padding(.bottom, 18)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -189,17 +238,18 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
 }
 
 extension KitWelcome where Projects == EmptyView {
-  /// A welcome window with one list, the recent items.
+  /// A welcome window with one list, the recent items; `searchText` adds a search field over it.
   public init(
     appName: String? = nil, version: String? = nil, icon: Image? = nil, showAtLaunch: Binding<Bool>? = nil,
     emptyTitle: String = "No Recent Items", emptyMessage: String = "What you open appears here.",
+    searchText: Binding<String>? = nil, searchPrompt: String = "Search",
     close: (() -> Void)? = nil, onDrop: (([URL]) -> Bool)? = nil, @ViewBuilder actions: () -> Actions,
     @ViewBuilder recents: () -> Recents
   ) {
     self.init(
       appName: appName, version: version, icon: icon, showAtLaunch: showAtLaunch, emptyTitle: emptyTitle,
-      emptyMessage: emptyMessage, close: close, onDrop: onDrop, actions: actions, recents: recents,
-      projects: { EmptyView() })
+      emptyMessage: emptyMessage, searchText: searchText, searchPrompt: searchPrompt, close: close, onDrop: onDrop,
+      actions: actions, recents: recents, projects: { EmptyView() })
   }
 }
 

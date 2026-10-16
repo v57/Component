@@ -437,8 +437,13 @@ struct PalettePage: View {
 // MARK: - Welcome
 
 struct WelcomePage: View {
+  private func matches(_ name: String) -> Bool { search.isEmpty || name.localizedCaseInsensitiveContains(search) }
+
   @State private var show = true
   @State private var opened: String?
+  @State private var search = ""
+  @State private var source = WelcomeSource.projects
+  @State private var reopen = true
 
   var body: some View {
     CatalogPage(page: .welcome, maxWidth: 1100) {
@@ -450,7 +455,8 @@ struct WelcomePage: View {
             Text("Recent").kitFont(.headline)
             WindowFrame(height: 640) {
               KitWelcome(
-                appName: "Git", version: "Version 1.0", icon: AppIcon.image(systemImage: "arrow.triangle.branch", hue: .orange), showAtLaunch: $show, close: {},
+                appName: "Git", version: "Version 1.0", icon: AppIcon.image(systemImage: "arrow.triangle.branch", hue: .orange), showAtLaunch: $show,
+                searchText: $search, searchPrompt: "Filter", close: {},
                 onDrop: { urls in
                   opened = urls.first?.lastPathComponent
                   return true
@@ -460,11 +466,12 @@ struct WelcomePage: View {
                 WelcomeAction("Open Local Repository…", detail: "Any folder with a .git directory", systemImage: "folder") {}
                 WelcomeAction("New Repository…", detail: "Start tracking a folder", systemImage: "plus") {}
               } recents: {
-                RecentItem("pebble", subtitle: "~/Developer/Projects/pebble", date: "Today", status: "Up to date", statusHue: .green) { opened = "pebble" }
-                RecentItem("harbor", subtitle: "~/Developer/Projects/harbor", date: "Today", status: "1 change", statusHue: .orange) { opened = "harbor" }
-                RecentItem("atlas", subtitle: "~/Developer/Projects/atlas", date: "Yesterday", status: "4 changes", statusHue: .orange) { opened = "atlas" }
-                RecentItem("lighthouse", subtitle: "~/Developer/Archive/2025/lighthouse-for-the-harbor-project", date: "Oct 2") { opened = "lighthouse" }
+                if matches("pebble") { RecentItem("pebble", subtitle: "~/Developer/Projects/pebble", date: "Today", status: "Up to date", statusHue: .green) { opened = "pebble" } }
+                if matches("harbor") { RecentItem("harbor", subtitle: "~/Developer/Projects/harbor", date: "Today", status: "1 change", statusHue: .orange) { opened = "harbor" } }
+                if matches("atlas") { RecentItem("atlas", subtitle: "~/Developer/Projects/atlas", date: "Yesterday", status: "4 changes", statusHue: .orange) { opened = "atlas" } }
+                if matches("lighthouse") { RecentItem("lighthouse", subtitle: "~/Developer/Archive/2025/lighthouse-for-the-harbor-project", date: "Oct 2") { opened = "lighthouse" } }
               }
+              .options { Toggle("Reopen the last repository", isOn: $reopen) }
             }
             .frame(width: 480)
             Text("Opened: \(opened ?? "nothing")").kitFont(.caption)
@@ -475,7 +482,7 @@ struct WelcomePage: View {
               KitWelcome(
                 appName: "Markdown", version: "Notes in plain Markdown files", icon: AppIcon.image(systemImage: "text.alignleft", hue: .red),
                 showAtLaunch: $show,
-                emptyTitle: "No Recent Notes", emptyMessage: "Notes you open appear here.", close: {}
+                emptyTitle: "No Recent Notes", emptyMessage: "Notes you open appear here.", source: $source, close: {}
               ) {
                 WelcomeAction("New Note", detail: "Start writing", systemImage: "square.and.pencil") {}
               } recents: {
@@ -490,13 +497,18 @@ struct WelcomePage: View {
         }
         CodeSnippet(
           """
-          KitWelcome(showAtLaunch: $showAtLaunch, close: { dismissWindow() }, onDrop: { library.open($0) }) {
+          KitWelcome(showAtLaunch: $showAtLaunch, searchText: $filter, close: { dismissWindow() }, onDrop: { library.open($0) }) {
             WelcomeAction("Clone Repository…", detail: "From GitHub, GitLab or any URL", systemImage: "arrow.down") { … }
           } recents: {
-            ForEach(recent) { repo in
+            ForEach(recent.filter(matching: filter)) { repo in
               RecentItem(repo.name, subtitle: repo.path, date: "Today", status: "1 change", statusHue: .orange) { open(repo) }
             }
           }
+          .options { Toggle("Reopen the last repository", isOn: $reopen) }   // above "Show this window…"
+
+          @AppStorage("welcome.source") var source = WelcomeSource.recent
+          KitWelcome(…, source: $source, …) { … } recents: { … } projects: { … }   // Recent | Projects, remembered
+          // With close:, the window's own buttons hide while the welcome fills its window; on iPhone it fills the width.
           """)
       }
     }
