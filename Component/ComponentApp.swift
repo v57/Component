@@ -15,6 +15,8 @@ struct ComponentApp: App {
         .preferredColorScheme(model.appearance.colorScheme)
         .componentKit(accent: model.accent.color)
         .frame(width: model.windowWidth, height: model.windowWidth.map { _ in 700 })
+        // `--hitch-test <report>` (DEBUG): walks and scrolls every page, writing its hitches (`HitchTest.swift`).
+        .hitchTest(model)
     }
     .defaultSize(width: 1320, height: 900)
     // A fixed width (`--width`) sizes the window to it.
