@@ -94,6 +94,7 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   @FocusState private var focused: Bool
   @Namespace private var namespace
   @State private var reorder = ContReorderState()
+  @State private var topInset: CGFloat = 0
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.kitSectionStyle) private var style
   @Environment(\.contThreeColumns) private var threeColumns
@@ -145,7 +146,8 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     let selection = getSelection()
     let inset = ContMetrics.sidebarInset(idiom)
     // The rows run on under the title bar and the bottom bar (safe area, not padding), so the system's scroll edge
-    // blurs them there; the bar's cards carry their own shadows over the rows.
+    // blurs them there; the bar's cards carry their own shadows over the rows, and a fade of the sidebar's ground
+    // softens both edges.
     ScrollView {
       LazyVStack(alignment: .leading, spacing: style == .plain ? 8 : ContMetrics.sectionSpacing(idiom)) {
         content
@@ -165,8 +167,14 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
         ContSidebarBar(
           searchText: searchText, prompt: searchPrompt, isSearching: isSearching, toggle: toggle,
           status: statusView, actions: { bottomBar })
+          .background { ContEdgeFade(edge: .bottom, ground: .kitSidebar) }
       }
     }
+    // Under the title bar (the traffic lights) or the status bar.
+    .overlay(alignment: .top) {
+      ContEdgeFade(edge: .top, ground: .kitSidebar).frame(height: topInset)
+    }
+    .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { topInset = $0 }
     .background { Rectangle().fill(.kitSidebar).ignoresSafeArea() }
     // Its own floor: a split view's column minimum gives way under a full toolbar.
     .frame(minWidth: KitMetrics.sidebarMinWidth(idiom))

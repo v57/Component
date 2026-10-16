@@ -109,6 +109,25 @@ enum ContFlow {
 
 // MARK: - Scroll edge
 
+/// A fade of a ground behind a bar the content scrolls under (the kit's toolbar, the sidebar's bars): 40% at the
+/// window's edge to clear at the bar's inner edge, reaching into the safe area at that edge.
+struct ContEdgeFade: View {
+  var edge: VerticalEdge
+  var ground: KitColor
+
+  var body: some View {
+    Rectangle()
+      .fill(ground.opacity(0.4))
+      .mask {
+        LinearGradient(
+          colors: [.black, .clear], startPoint: edge == .top ? .top : .bottom, endPoint: edge == .top ? .bottom : .top)
+      }
+      .ignoresSafeArea(.container, edges: edge == .top ? .top : .bottom)
+      .allowsHitTesting(false)
+      .accessibilityHidden(true)
+  }
+}
+
 extension View {
   /// Fades the bottom `length` points out (clear for the last 6), so a rounded card that runs on under a bar or the
   /// window's edge never ends in a flat cut. Off while nothing is under the edge.

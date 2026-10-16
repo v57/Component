@@ -112,6 +112,7 @@ public struct KitToolbar<Title: View>: View {
       }
       title
         .lineLimit(1)
+        .modifier(ContGroundGlow())
       ContToolbarTools(slots: slots)
     }
     .padding(.leading, leadingInset)
@@ -238,25 +239,22 @@ private struct ContTopBar<Bar: View>: ViewModifier {
   private func placed(_ content: Content) -> some View {
     if mode == .bar, #available(macOS 26.0, iOS 26.0, *) {
       content
-        .safeAreaBar(edge: .top, spacing: 0) { bar.background { ContBarFade() } }
+        .safeAreaBar(edge: .top, spacing: 0) { bar.background { ContEdgeFade(edge: .top, ground: .kitWindow) } }
         .scrollEdgeEffectStyle(.soft, for: .top)
     } else {
       content
-        .safeAreaInset(edge: .top, spacing: 0) { bar.background { ContBarFade() } }
+        .safeAreaInset(edge: .top, spacing: 0) { bar.background { ContEdgeFade(edge: .top, ground: .kitWindow) } }
         .modifier(ContTopEdgeEffectHidden())
     }
   }
 }
 
-/// Behind the bar: the window's ground from 40% at the top to clear at the bar's bottom edge, so content passing
-/// under the title reads as under it.
-private struct ContBarFade: View {
-  var body: some View {
-    Rectangle()
-      .fill(.kitWindow.opacity(0.4))
-      .mask { LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom) }
-      .ignoresSafeArea(.container, edges: .top)
-      .allowsHitTesting(false)
+/// A soft glow of the window's ground around the title, so it stays readable over content passing under the bar.
+private struct ContGroundGlow: ViewModifier {
+  @Environment(\.colorScheme) private var scheme
+
+  func body(content: Content) -> some View {
+    content.shadow(color: KitColor.window.color(dark: scheme == .dark), radius: 4)
   }
 }
 
