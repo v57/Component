@@ -182,7 +182,6 @@ private struct ContBarButton: View {
     let size = ContMetrics.barButton(idiom)
     let shape = RoundedRectangle(cornerRadius: ContMetrics.barButtonRadius(idiom), style: .continuous)
     configuration.label
-      .labelStyle(ContBarLabelStyle(iconOnly: !labeled))
       .kitFont(labeled ? .callout : .body)
       .fontWeight(labeled ? .medium : .regular)
       .lineLimit(1)
@@ -228,7 +227,10 @@ struct ContBarCard<Content: View>: View {
 
   var body: some View {
     let inset: CGFloat = idiom.isTouch ? 4 : 3
+    // The label style sits on the card rather than in the button style, so a button's own `.labelStyle(.iconOnly)`
+    // is closer to its label and wins.
     content
+      .labelStyle(ContBarLabelStyle(iconOnly: !labeled))
       .buttonStyle(ContBarButtonStyle(labeled: labeled))
       .padding(inset)
       .frame(minHeight: ContMetrics.barHeight(idiom))

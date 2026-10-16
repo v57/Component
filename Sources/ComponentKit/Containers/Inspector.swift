@@ -196,13 +196,25 @@ extension InspectorRow where Value == Text {
 /// }
 /// ```
 public struct ActionBar<Content: View>: View {
+  var iconOnly: Bool
   @ViewBuilder var content: Content
 
-  public init(@ViewBuilder content: () -> Content) { self.content = content() }
+  /// An action bar; `iconOnly` shows the buttons' icons alone (their titles stay for accessibility). A single
+  /// button's own `.labelStyle(.iconOnly)` is honoured too.
+  public init(iconOnly: Bool = false, @ViewBuilder content: () -> Content) {
+    self.iconOnly = iconOnly
+    self.content = content()
+  }
 
   public var body: some View {
     ContBarCard(labeled: true) {
-      ContFlowLayout(spacing: 2, lineSpacing: 2) { content }
+      ContFlowLayout(spacing: 2, lineSpacing: 2) {
+        if iconOnly {
+          content.labelStyle(.iconOnly)
+        } else {
+          content
+        }
+      }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }

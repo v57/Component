@@ -360,6 +360,41 @@ struct ToolbarPage: View {
           }
         }
       }
+      SpecimenSection(
+        "In a system toolbar",
+        note: "Kit views draw their own cards, so on macOS 26 and iOS 26 the toolbar's glass stays out from behind them. This window's toolbar uses them."
+      ) {
+        Specimen(
+          "KitToolbarItem, kitToolbarTitle, kitTool",
+          code: """
+            Detail()
+              .kitToolbarTitle("History", meta: ["main", "2 to push"], systemImage: "clock", status: fetch)
+              .toolbar {
+                KitToolbarItem(placement: .primaryAction) {
+                  ToolGroup {
+                    Button("Fetch", systemImage: "arrow.down.circle") { … }
+                    Button("Inspector", systemImage: "sidebar.right") { … }.kitToolOn(showsInspector)
+                  }
+                }
+                ToolbarItemGroup { … }.kitToolbarItem()   // any item without the glass
+              }
+            Button("Filter", systemImage: "line.3.horizontal.decrease") { … }.buttonStyle(.kitToolIcon).kitToolOn(isFiltered)
+            """
+        ) {
+          HStack(spacing: 12) {
+            KitTitle("History", meta: ["main", "2 to push"], systemImage: "clock")
+            Spacer()
+            ToolGroup {
+              Button("Fetch", systemImage: "arrow.down.circle") {}
+              Button("Inspector", systemImage: "sidebar.right") { filterOn.toggle() }.kitToolOn(filterOn)
+            }
+            Button("Filter", systemImage: "line.3.horizontal.decrease") { filterOn.toggle() }
+              .buttonStyle(.kitToolIcon)
+              .kitToolOn(filterOn)
+            Button("Move to Trash", systemImage: "trash", role: .destructive) {}.buttonStyle(.kitRound)
+          }
+        }
+      }
       SpecimenSection("Tool groups") {
         Specimen(
           "ToolGroup and ToolbarOverflow", ground: .window,
@@ -594,6 +629,11 @@ struct InspectorPage: View {
                 Button("Cherry-Pick", systemImage: "arrow.right.doc.on.clipboard") {}
                 Button("Delete Tag", systemImage: "trash", role: .destructive) {}
               }
+              ActionBar(iconOnly: true) {
+                Button("Copy", systemImage: "doc.on.doc") {}
+                Button("Share", systemImage: "square.and.arrow.up") {}
+                Button("Delete", systemImage: "trash", role: .destructive) {}
+              }
             }
           }
           .frame(width: 340)
@@ -610,8 +650,10 @@ struct InspectorPage: View {
               }
               ActionBar {
                 Button("Copy as JSON", systemImage: "doc.on.doc") { … }
+                Button("Copy", systemImage: "doc.on.doc") { … }.labelStyle(.iconOnly)
                 Button("Delete Row…", systemImage: "trash", role: .destructive) { … }
               }
+              ActionBar(iconOnly: true) { … }   // every button as its icon
             }
             """)
         }
