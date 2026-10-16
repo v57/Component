@@ -23,7 +23,7 @@ struct SectionsPage: View {
             }
             """
         ) {
-          HStack(alignment: .top, spacing: 16) {
+          Flow(spacing: 16, alignment: .top) {
             VStack(spacing: 10) {
               KitSection("Repositories", meta: ["5 repositories", "2 with changes"], systemImage: "folder", hue: .indigo) {
                 ForEach(sampleRepos.prefix(3)) { repo in
@@ -94,7 +94,7 @@ struct SectionsPage: View {
                 Button("Add", systemImage: "plus") {}
                 Button("More", systemImage: "ellipsis") {}
               }
-              .frame(width: 320)
+              .frame(maxWidth: 320)
               .kitCard()
             }
             Labeled(".title") {
@@ -105,7 +105,7 @@ struct SectionsPage: View {
             }
             Labeled("Any icon") {
               RichHeader(Text("Maya Okafor"), icon: { Avatar(name: "Maya Okafor", presence: .online) }, meta: { Text("Online · 3 commits today") }, accessory: { EmptyView() })
-                .frame(width: 320)
+                .frame(maxWidth: 320)
             }
           }
         }
@@ -137,11 +137,11 @@ struct SectionsPage: View {
             RichHeader("Shop", meta: "PostgreSQL 16 · read replica", systemImage: "cylinder", hue: .teal)
               .titleAccessory { Chip.readOnly }
           }
-          .frame(width: 320)
+          .frame(maxWidth: 320)
         }
       }
       SpecimenSection("A card over lazy rows", note: "Long histories: each row draws its slice of one card, so only the rows on screen exist.") {
-        HStack(alignment: .top, spacing: 20) {
+        Columns {
           ScrollView {
             LazyVStack(spacing: 0) {
               LazyCard(Array(1...200), id: \.self) { number in
@@ -200,7 +200,7 @@ struct SidebarPage: View {
         "The kit sidebar",
         note: "Click a row: the selection glides and takes the accent tile while the sidebar has focus (click elsewhere for the flat gray). Drag repositories to reorder; double-click one to rename; search from the bottom bar."
       ) {
-        HStack(alignment: .top, spacing: 20) {
+        Columns {
           WindowFrame(height: 640) {
             KitSidebar(selection: $selection, searchText: $search, searchPrompt: "Filter") {
               KitSection("Repositories", meta: ["\(repos.count) repositories", "2 with changes"], systemImage: "folder", hue: .indigo) {
@@ -257,7 +257,7 @@ struct SidebarPage: View {
               }
               """)
             Specimen("Selection, focused and not", note: "Static rows outside a sidebar") {
-              HStack(alignment: .top, spacing: 16) {
+              Flow(spacing: 16, alignment: .top) {
                 Labeled("Not focused") { selectionSample.frame(width: 220) }
                 Labeled("Inactive window") { selectionSample.frame(width: 220).environment(\.kitWindowIsActive, false) }
               }
@@ -266,7 +266,7 @@ struct SidebarPage: View {
         }
       }
       SpecimenSection("Compact sidebar", note: "Code's navigator: plain sections, 24pt rows, bare icons and indented trees.") {
-        HStack(alignment: .top, spacing: 20) {
+        Columns {
           WindowFrame(height: 420) {
             KitSidebar(selection: $file) {
               KitSection("Atlas", meta: "Swift package", systemImage: "shippingbox") {
@@ -309,7 +309,7 @@ struct SidebarPage: View {
         "A list without the bar",
         note: "KitList: the sidebar's rows and selection for a content list (notes, results). Swipe a row on iPad or with the trackpad, also inside a card section; arrow keys move."
       ) {
-        HStack(alignment: .top, spacing: 20) {
+        Columns {
           WindowFrame(height: 360) {
             KitList(selection: $note) {
               ForEach(notes, id: \.self) { index in
@@ -376,7 +376,7 @@ struct SidebarPage: View {
       SpecimenSection(
         "Rows", note: "A progress line, any view as the subtitle, a styled title, a chip after it, a live tile, the current row and a row that acts."
       ) {
-        HStack(alignment: .top, spacing: 20) {
+        Columns {
           WindowFrame(height: 470) {
             KitSidebar(selection: $rowSelection, searchText: $rowSearch, isSearching: $rowSearching) {
               KitSection("Downloads", meta: ["2 downloading", "27.7 MB/s"], systemImage: "arrow.down", hue: .red) {
@@ -436,7 +436,7 @@ struct SidebarPage: View {
         }
       }
       SpecimenSection("Drawn glyphs", note: "Any view as the tile's glyph: Git's branch glyph on a row tile, a section tile and a bare compact row.") {
-        HStack(alignment: .top, spacing: 20) {
+        Columns {
           WindowFrame(height: 340) {
             KitSidebar(selection: $branch) {
               KitSection("Branches", meta: ["3 local", "1 merged"], hue: .orange, glyph: { BranchGlyph() }) {
@@ -514,6 +514,7 @@ let sampleTree = [
 // MARK: - Toolbar
 
 struct ToolbarPage: View {
+  @Environment(\.kitIdiom) private var idiom
   @State private var width: CGFloat = 640
   @State private var fetch = SimulatedWork()
   @State private var filterOn = true
@@ -524,12 +525,12 @@ struct ToolbarPage: View {
       SpecimenSection("The rich title", note: "The live icon carries the running operation.") {
         Specimen("KitTitle", ground: .window, code: "KitTitle(\"History\", meta: [\"main\", \"2 commits to push\"], systemImage: \"clock\", status: fetch)") {
           VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 30) {
+            Flow(spacing: 30, lineSpacing: 14) {
               KitTitle("History", meta: ["main", "2 commits to push"], systemImage: "clock")
               KitTitle("Fetching", meta: ["origin", fetch.label], systemImage: "arrow.down.circle", status: fetch.status)
               Button("Fetch") { fetch.start() }.buttonStyle(.kit).controlSize(.small)
             }
-            HStack(spacing: 30) {
+            Flow(spacing: 30, lineSpacing: 14) {
               KitTitle("Pushed", meta: "2 commits", systemImage: "arrow.up", status: .done)
               KitTitle("Push failed", meta: "Rejected: fetch first", systemImage: "arrow.up", status: .failed)
               KitTitle("orders", meta: ["Shop", "10 rows"], systemImage: "tablecells", hue: .teal)
@@ -561,12 +562,14 @@ struct ToolbarPage: View {
             HStack {
               Text("Width").kitFont(.callout)
               KitSlider("Width", value: $width, in: 140...760, valueBubble: .automatic) { "\(Int($0)) pt" }
-                .frame(width: 260)
+                .frame(maxWidth: 260)
               Text("\(Int(width)) pt").kitFont(.mono).foregroundStyle(.kitSecondary)
             }
-            kitToolbar
-              .frame(width: width)
-              .background(Hue.accent.soft(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            SideScroll {
+              kitToolbar
+                .frame(width: width)
+                .background(Hue.accent.soft(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
           }
         }
       }
@@ -593,17 +596,17 @@ struct ToolbarPage: View {
             Player().kitHidesSystemTitle(isPlaying)   // the system title out only while true (macOS 14: the window's)
             """
         ) {
-          HStack(spacing: 12) {
-            KitTitle("History", meta: ["main", "2 to push"], systemImage: "clock")
-            Spacer()
-            ToolGroup {
-              Button("Fetch", systemImage: "arrow.down.circle") {}
-              Button("Inspector", systemImage: "sidebar.right") { filterOn.toggle() }.kitToolOn(filterOn)
+          // The tools go under the title on an iPhone's width.
+          ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+              KitTitle("History", meta: ["main", "2 to push"], systemImage: "clock")
+              Spacer()
+              systemTools
             }
-            Button("Filter", systemImage: "line.3.horizontal.decrease") { filterOn.toggle() }
-              .buttonStyle(.kitToolIcon)
-              .kitToolOn(filterOn)
-            Button("Move to Trash", systemImage: "trash", role: .destructive) {}.buttonStyle(.kitRound)
+            VStack(alignment: .leading, spacing: 12) {
+              KitTitle("History", meta: ["main", "2 to push"], systemImage: "clock")
+              HStack(spacing: 12) { systemTools }
+            }
           }
         }
       }
@@ -620,7 +623,7 @@ struct ToolbarPage: View {
             """
         ) {
           VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: KitMetrics.gutter) {
+            Flow(spacing: KitMetrics.gutter) {
               ToolGroup {
                 Button("Fetch", systemImage: "arrow.down.circle") { log.append("Fetch") }
                 Button("Pull", systemImage: "arrow.down") { log.append("Pull") }
@@ -664,22 +667,41 @@ struct ToolbarPage: View {
             HStack {
               Text("Width").kitFont(.callout)
               KitSlider("Width", value: $width, in: 140...760, valueBubble: .automatic) { "\(Int($0)) pt" }
-                .frame(width: 260)
+                .frame(maxWidth: 260)
               Text("\(Int(width)) pt").kitFont(.mono).foregroundStyle(.kitSecondary)
             }
-            toolbar
-              .frame(width: width, alignment: .trailing)
-              .padding(6)
-              .background(Hue.accent.soft(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            SideScroll {
+              toolbar
+                .frame(width: width, alignment: .trailing)
+                .padding(6)
+                .background(Hue.accent.soft(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
             ForEach([560.0, 380, 260, 180], id: \.self) { fixed in
               Labeled("\(Int(fixed)) pt") {
-                toolbar.frame(width: fixed, alignment: .trailing)
+                SideScroll { toolbar.frame(width: fixed, alignment: .trailing) }
               }
             }
           }
         }
       }
     }
+    .onAppear(perform: fitPhone)
+  }
+
+  @ViewBuilder private var systemTools: some View {
+    ToolGroup {
+      Button("Fetch", systemImage: "arrow.down.circle") {}
+      Button("Inspector", systemImage: "sidebar.right") { filterOn.toggle() }.kitToolOn(filterOn)
+    }
+    Button("Filter", systemImage: "line.3.horizontal.decrease") { filterOn.toggle() }
+      .buttonStyle(.kitToolIcon)
+      .kitToolOn(filterOn)
+    Button("Move to Trash", systemImage: "trash", role: .destructive) {}.buttonStyle(.kitRound)
+  }
+
+  /// The toolbars start as wide as an iPhone's page there (the slider still widens them, scrolling).
+  private func fitPhone() {
+    if idiom == .phone { width = 320 }
   }
 
   private var kitToolbar: some View {
@@ -729,7 +751,7 @@ struct WindowPage: View {
         "Panes on their grounds",
         note: "Content on the window's sheet, secondary panes on the panel; no hairlines unless two panes share a ground. Drag the divider; double-click it to reset."
       ) {
-        WindowFrame(height: 420) {
+        WindowFrame(height: 420, minWidth: 760) {
           KitWindowLayout {
             VStack(alignment: .leading, spacing: 2) {
               Text("All Notes").kitFont(.headline).padding(.horizontal, 12).padding(.top, 14).padding(.bottom, 6)
@@ -788,7 +810,7 @@ struct WindowPage: View {
           """)
       }
       SpecimenSection("A pane under the content", note: "The split also runs vertically: a console under the editor. Drag the divider up and down.") {
-        HStack(alignment: .top, spacing: 20) {
+        Columns {
           WindowFrame(height: 320) {
             ResizableSplit("catalog.console", pane: .bottom, height: 120, range: 80...220, mainMinHeight: 80) {
               VStack(alignment: .leading, spacing: 4) {
@@ -810,7 +832,7 @@ struct WindowPage: View {
               .kitPane(.secondary)
             }
           }
-          .frame(width: 420)
+          .frame(maxWidth: 420)
           CodeSnippet(
             """
             ResizableSplit("consoleHeight", pane: .bottom, height: 200,
@@ -823,7 +845,7 @@ struct WindowPage: View {
         }
       }
       SpecimenSection("Two panes on one ground", note: "They get their hairline back.") {
-        WindowFrame(height: 180) {
+        WindowFrame(height: 180, minWidth: 560) {
           KitWindowLayout {
             Text("List").frame(width: 200).frame(maxHeight: .infinity).kitPane(.secondary)
             Text("Preview").frame(width: 200).frame(maxHeight: .infinity).kitPane(.secondary)
@@ -872,7 +894,7 @@ struct InspectorPage: View {
       SpecimenSection(
         "The inspector", note: "Hover a row for its Copy button (the context menu copies too). The bottom edge fades while content runs on."
       ) {
-        HStack(alignment: .top, spacing: 20) {
+        Columns {
           WindowFrame(height: 620) {
             KitInspector(width: nil) {
               InspectorHeader("Sharing: Shared a trip as a file", meta: ["330c484", "6 files changed"], systemImage: "circle.dashed") {
@@ -934,7 +956,7 @@ struct InspectorPage: View {
             InspectorHeader("Saving row…", meta: ["orders on Shop"], systemImage: "tablecells", hue: .blue, status: .working)
             InspectorHeader("A long title that wraps onto a second line because inspectors are narrow", meta: ["Wraps"], systemImage: "text.alignleft", hue: .teal)
           }
-          .frame(width: 320)
+          .frame(maxWidth: 320)
         }
       }
     }
@@ -1054,7 +1076,7 @@ struct SheetsPage: View {
                              confirm: "Delete") { delete(harbor) }
             """
         ) {
-          HStack(spacing: 10) {
+          Flow(spacing: 10) {
             Button("Clone Repository…", systemImage: "arrow.down.circle") { cloning = true }.buttonStyle(.kitPrimary)
             Button("Delete harbor…", systemImage: "trash", role: .destructive) { confirming = true }.buttonStyle(.kit)
             Button("Show Panel") { panel = true }.buttonStyle(.kit)
@@ -1199,7 +1221,7 @@ struct FeedbackPage: View {
           "Toast", code: "@Environment(\\.showToast) private var showToast\nshowToast(Toast(\"Deleted harbor\", systemImage: \"trash\", undo: { restore(harbor) }))"
         ) {
           VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
+            Flow(spacing: 10) {
               Button("Show a Toast") { showToast(Toast("Deleted harbor", systemImage: "trash", undo: { undone += 1 })) }
                 .buttonStyle(.kitPrimary)
               Button("Just a Message") { showToast("Copied the commit hash", systemImage: "doc.on.doc") }.buttonStyle(.kit)
@@ -1273,7 +1295,7 @@ struct TooltipsPage: View {
               Button("Stash", systemImage: "tray.and.arrow.down") {}
                 .kitHelp("Stash", meta: "Sets 4 changes aside", systemImage: "tray.and.arrow.down", hue: .purple)
             }
-            HStack(spacing: 10) {
+            Flow(spacing: 10) {
               Button("Title only") {}.buttonStyle(.kit).kitHelp("Just a title")
               Button("With a shortcut") {}.buttonStyle(.kit).kitHelp("Run", shortcut: "⌘R")
               Button("Failed", systemImage: "xmark") {}.buttonStyle(.kit)
@@ -1324,7 +1346,7 @@ struct DragDropPage: View {
         }
       }
       SpecimenSection("Live", note: "Drag the notes to reorder them; drag a chip onto the folder.") {
-        HStack(alignment: .top, spacing: 20) {
+        Columns {
           Specimen(
             "ReorderableSection", ground: .sidebar,
             code: "ReorderableSection(notes, id: \\.self, move: { notes.move(fromOffsets: $0, toOffset: $1) }) { note in\n  SidebarRow(note, systemImage: \"doc.text\")\n}"
@@ -1368,7 +1390,7 @@ struct DragDropPage: View {
               .alsoAccepts([.plainText]) { city, providers in attach(providers, to: city) }
             """
         ) {
-          HStack(alignment: .top, spacing: 16) {
+          Flow(spacing: 16, alignment: .top) {
             VStack(alignment: .leading, spacing: 2) {
               Text("Pinned").kitFont(.sectionHeader).padding(.leading, 6)
               ReorderableSection(pinned, id: \.self, list: "pinned", move: { pinned.move(fromOffsets: $0, toOffset: $1) }) { city in
@@ -1438,7 +1460,7 @@ struct DragDropPage: View {
         "Out of the app, several rows, groups",
         note: "Drag a link into Safari or a text field. Click photos to pick them, then drag one: the picked rows move together. Drag a host: its sessions come along; sessions reorder under their host."
       ) {
-        HStack(alignment: .top, spacing: 16) {
+        Columns(minWidth: 760, spacing: 16) {
           Specimen("exportsURL", ground: .sidebar, code: "ReorderableSection(links, move: …) { … }\n  .exportsURL { $0.url }") {
             VStack(alignment: .leading, spacing: 2) {
               ReorderableSection(links, move: { links.move(fromOffsets: $0, toOffset: $1) }) { link in

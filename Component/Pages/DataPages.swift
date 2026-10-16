@@ -134,14 +134,17 @@ struct GridPage: View {
         note: "Click a header to sort; drag its edge to resize. Click a cell to focus it; ↑↓ move (⇧ extends), ←→ and Tab move the cell, Return or a double click edits city and note, Escape cancels."
       ) {
         VStack(alignment: .leading, spacing: KitMetrics.gutter) {
-          HStack(spacing: 8) {
-            Button("Add Row", systemImage: "plus") { withKitAnimation { model.insert() } }.buttonStyle(.kit)
-            Button("Delete Selected", systemImage: "trash", role: .destructive) { withKitAnimation { model.delete(selection) } }
-              .buttonStyle(.kit)
-              .disabled(selection.isEmpty)
-            Spacer()
-            Text("\(selection.count) selected · sorted by \(sort?.column ?? "nothing") \(sort?.ascending == false ? "↓" : "↑")")
-              .kitFont(.caption)
+          // The summary goes under the buttons on an iPhone's width.
+          ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+              gridButtons
+              Spacer()
+              gridSummary
+            }
+            VStack(alignment: .leading, spacing: 8) {
+              HStack(spacing: 8) { gridButtons }
+              gridSummary
+            }
           }
           KitGrid(model.sorted(by: sort), columns: model.columns, selection: $selection, sort: $sort, rowState: { model.pending[$0.id] }) {
             Text("\(model.orders.count) rows").kitFont(.caption)
@@ -218,6 +221,18 @@ struct GridPage: View {
     }
   }
 
+  @ViewBuilder private var gridButtons: some View {
+    Button("Add Row", systemImage: "plus") { withKitAnimation { model.insert() } }.buttonStyle(.kit)
+    Button("Delete Selected", systemImage: "trash", role: .destructive) { withKitAnimation { model.delete(selection) } }
+      .buttonStyle(.kit)
+      .disabled(selection.isEmpty)
+  }
+
+  private var gridSummary: some View {
+    Text("\(selection.count) selected · sorted by \(sort?.column ?? "nothing") \(sort?.ascending == false ? "↓" : "↑")")
+      .kitFont(.caption)
+  }
+
   private func rename(_ key: SampleKey, type: String) {
     func update(_ list: inout [SampleKey]) {
       for index in list.indices {
@@ -254,7 +269,7 @@ struct ChangesPage: View {
             ) {
               model.changeRows
             }
-            HStack {
+            Flow(spacing: 8) {
               Button("Add a Row") { withKitAnimation { model.insert() } }
               Button("Edit a Note") { withKitAnimation { model.setNote(model.orders[2], "Ring twice") } }
               Button("Delete 10239") { withKitAnimation { model.delete([10239]) } }
@@ -307,7 +322,7 @@ struct DiffsPage: View {
             """
         ) {
           VStack(alignment: .leading, spacing: 10) {
-            HStack {
+            Flow(spacing: 8) {
               KitSegmented(selection: $layout, options: [("Unified", .unified), ("Split", .split)])
               KitSegmented(selection: $overflow, options: [("Truncate", .truncate), ("Scroll", .scroll)])
             }
@@ -451,6 +466,7 @@ let paletteActions = [
 ]
 
 struct PalettePage: View {
+  @Environment(\.kitIdiom) private var idiom
   @State private var query = "b"
   @State private var ran: String?
   @State private var scope = "atlas"
@@ -478,7 +494,7 @@ struct PalettePage: View {
         ) {
           VStack(alignment: .leading, spacing: 10) {
             palette(status: filtered.isEmpty ? .failed : .done)
-              .frame(width: 600)
+              .frame(maxWidth: 600)
             Text(ran.map { "Ran \($0)" } ?? "Nothing run yet").kitFont(.caption)
           }
         }
@@ -504,7 +520,7 @@ struct PalettePage: View {
             """
         ) {
           VStack(alignment: .leading, spacing: 10) {
-            quickOpenPalette(focuses: false).frame(width: 600)
+            quickOpenPalette(focuses: false).frame(maxWidth: 600)
             Button("Show as an Overlay", systemImage: "command") { showsOverlay = true }
               .buttonStyle(.kit)
           }
@@ -561,7 +577,11 @@ struct PalettePage: View {
   }
 
   private func palette(status: WorkStatus) -> some View {
-    KitPalette(query: $query, prompt: "Run an action or search", status: query.isEmpty ? .idle : status, dismiss: { query = "" }) {
+    // On touch the keyboard would open with the page, so the embedded palette waits for a tap.
+    KitPalette(
+      query: $query, prompt: "Run an action or search", status: query.isEmpty ? .idle : status, dismiss: { query = "" },
+      focusesOnAppear: !idiom.isTouch
+    ) {
       PaletteMenu(scope, systemImage: "folder") {
         ForEach(["atlas", "beacon", "pebble"], id: \.self) { name in Button(name) { scope = name } }
       }
@@ -603,7 +623,7 @@ struct WelcomePage: View {
       SpecimenSection(
         "The welcome window", note: "↑↓ move through the items, Return or a double click opens one. Drop a folder on the window."
       ) {
-        HStack(alignment: .top, spacing: 20) {
+        Columns(minWidth: 980) {
           VStack(alignment: .leading, spacing: 8) {
             Text("Recent").kitFont(.headline)
             WindowFrame(height: 640) {
@@ -626,7 +646,7 @@ struct WelcomePage: View {
               }
               .options { Toggle("Reopen the last repository", isOn: $reopen) }
             }
-            .frame(width: 480)
+            .frame(maxWidth: 480)
             Text("Opened: \(opened ?? "nothing")").kitFont(.caption)
           }
           VStack(alignment: .leading, spacing: 8) {
@@ -645,7 +665,7 @@ struct WelcomePage: View {
                 RecentItem("Journal", subtitle: "~/Documents/Journal", systemImage: "book") {}
               }
             }
-            .frame(width: 480)
+            .frame(maxWidth: 480)
           }
         }
         CodeSnippet(
@@ -693,7 +713,7 @@ struct SettingsPage: View {
           VStack(alignment: .leading, spacing: 6) {
             Text("A standard titled window").kitFont(.headline)
             WindowFrame(height: 340) { SampleSettings(selection: $pane, window: .titled) }
-              .frame(width: 680)
+              .frame(maxWidth: 680)
           }
           CodeSnippet(
             """
@@ -841,7 +861,7 @@ struct MetersPage: View {
                 MeterTile("Scanning", value: "1,204", systemImage: "magnifyingglass", progress: nil)
                 MeterTile("Scan", value: "Done", systemImage: "magnifyingglass", hue: .green, status: .done)
               }
-              KitSlider("CPU", value: $cpu).frame(width: 220)
+              KitSlider("CPU", value: $cpu).frame(maxWidth: 220)
             }
           }
         }
@@ -883,7 +903,10 @@ struct MetersPage: View {
               }
             }
             .padding(2)
+            .scrollTargetLayout()
           }
+          // Lane by lane where they don't all fit (an iPhone).
+          .scrollTargetBehavior(.viewAligned)
           .scrollIndicators(.never)
         }
       }

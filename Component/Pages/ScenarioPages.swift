@@ -1,23 +1,83 @@
 import ComponentKit
 import SwiftUI
 
-/// A scenario page: the mini app in a window frame, then the outline of its code.
-struct ScenarioPage<App: View>: View {
+/// A scenario page: the mini app in a window frame, then the outline of its code. Narrower than `minWidth` (an
+/// iPhone), an app with `panes` shows them one at a time, a page each, picked by swiping or with the segments above.
+struct ScenarioPage<App: View, Panes: View>: View {
   let page: Page
   var height: CGFloat = 680
+  var minWidth: CGFloat = 0
   var note: String
   var code: String
+  var paneTitles: [String] = []
   @ViewBuilder var app: App
+  @ViewBuilder var panes: Panes
+  @State private var width: CGFloat?
+  @State private var pane: String?
 
   var body: some View {
     CatalogPage(page: page, maxWidth: 1240) {
       SpecimenSection("The screen", note: note) {
-        WindowFrame(height: height) { app }
+        Group {
+          if (width ?? 0) < minWidth, !paneTitles.isEmpty {
+            paged
+          } else {
+            WindowFrame(height: height, minWidth: minWidth) { app }
+          }
+        }
+        .frame(maxWidth: .infinity)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
       }
       SpecimenSection("Its code", note: "Kit views and modifiers only: no colours, sizes or controls of the app's own.") {
         CodeSnippet(code)
       }
     }
+  }
+
+  private var paged: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      KitSegmented(
+        selection: Binding(get: { pane ?? paneTitles[0] }, set: { title in withKitAnimation { pane = title } }),
+        options: paneTitles.map { ($0, $0) }
+      )
+      .kitSegmentedStyle(.wide)
+      WindowFrame(height: height) {
+        GeometryReader { proxy in
+          ScrollView(.horizontal) {
+            HStack(spacing: 0) { panes }.scrollTargetLayout()
+          }
+          .scrollTargetBehavior(.paging)
+          .scrollPosition(id: $pane)
+          .scrollIndicators(.never)
+          .environment(\.scenarioPaneWidth, proxy.size.width)
+        }
+      }
+    }
+  }
+}
+
+extension ScenarioPage where Panes == EmptyView {
+  init(page: Page, height: CGFloat = 680, note: String, code: String, @ViewBuilder app: () -> App) {
+    self.init(page: page, height: height, note: note, code: code, app: app, panes: { EmptyView() })
+  }
+}
+
+extension EnvironmentValues {
+  @Entry var scenarioPaneWidth: CGFloat?
+}
+
+extension View {
+  /// One page of a scenario on an iPhone: the window's width, found by its title.
+  func scenarioPane(_ title: String) -> some View {
+    modifier(ScenarioPane()).id(title)
+  }
+}
+
+private struct ScenarioPane: ViewModifier {
+  @Environment(\.scenarioPaneWidth) private var width
+
+  func body(content: Content) -> some View {
+    content.frame(width: width).clipped()
   }
 }
 
@@ -37,7 +97,7 @@ struct GitScenarioPage: View {
 
   var body: some View {
     ScenarioPage(
-      page: .gitApp,
+      page: .gitApp, minWidth: 930,
       note: "Click commits, collapse sections, drag repositories, hover the refs, fetch from the toolbar.",
       code: """
         KitSidebar(selection: $selection, searchText: $filter) {
@@ -68,7 +128,8 @@ struct GitScenarioPage: View {
             ActionBar { Button("Check Out") { … }; Button("Revert…") { … } }
           }
         }
-        """
+        """,
+      paneTitles: ["Sidebar", "History", "Inspector"]
     ) {
       HStack(spacing: 0) {
         sidebar.frame(width: 270)
@@ -78,6 +139,10 @@ struct GitScenarioPage: View {
           inspector
         }
       }
+    } panes: {
+      sidebar.scenarioPane("Sidebar")
+      history.scenarioPane("History")
+      inspector.scenarioPane("Inspector")
     }
   }
 
@@ -111,8 +176,9 @@ struct GitScenarioPage: View {
   private var history: some View {
     VStack(spacing: 0) {
       HStack(spacing: 12) {
+        // The tools compact first; only then does the title give way (an iPhone's width).
         KitTitle("History", meta: ["main", fetch.status == .idle ? "2 commits to push" : fetch.label], systemImage: "clock", status: fetch.status)
-          .fixedSize(horizontal: true, vertical: false)
+          .layoutPriority(1)
         CompactingToolbar {
           KitTool("Fetch", systemImage: "arrow.clockwise", priority: 1) { fetch.start(duration: 2) }
           KitTool("Pull", systemImage: "arrow.down", priority: 2) { showToast("Already up to date", systemImage: "checkmark") }
@@ -207,7 +273,7 @@ struct DatabaseScenarioPage: View {
 
   var body: some View {
     ScenarioPage(
-      page: .databaseApp, height: 720,
+      page: .databaseApp, height: 720, minWidth: 760,
       note: "Edit a city or note (double-click), delete or add rows, then review: the changes card lists every pending edit.",
       code: """
         KitSidebar(selection: $table) {
@@ -228,63 +294,97 @@ struct DatabaseScenarioPage: View {
           }
         }
         .kitStatusBar(systemImage: "bolt", status: saving) { Text("Connected"); Spacer(); Text("12 ms") }
-        """
+        """,
+      paneTitles: ["Tables", "orders"]
     ) {
       HStack(spacing: 0) {
-        KitSidebar(selection: $table) {
-          KitSection("Shop", meta: ["PostgreSQL 17", "localhost"], systemImage: "cylinder.split.1x2", hue: .blue) {
-            SidebarRow(value: "orders", "orders", systemImage: "tablecells") { Count(model.orders.count) }
-            SidebarRow(value: "customers", "customers", systemImage: "tablecells") { Count(1204) }
-            SidebarRow(value: "products", "products", systemImage: "tablecells") { Count(86) }
-            SidebarRow(value: "order_items", "order_items", systemImage: "tablecells") { Count(3410) }
-          } accessory: {
-            Chip("Staging", hue: .orange).controlSize(.small)
-          }
-          KitSection("Analytics", meta: ["DuckDB", "a file"], systemImage: "cylinder", hue: .orange, isExpanded: .constant(false)) {
-            SidebarRow(value: "events", "events", systemImage: "tablecells")
-          }
+        sidebar.frame(width: 250)
+        tablePane
+      }
+    } panes: {
+      sidebar.scenarioPane("Tables")
+      tablePane.scenarioPane("orders")
+    }
+  }
+
+  private var sidebar: some View {
+    KitSidebar(selection: $table) {
+      KitSection("Shop", meta: ["PostgreSQL 17", "localhost"], systemImage: "cylinder.split.1x2", hue: .blue) {
+        SidebarRow(value: "orders", "orders", systemImage: "tablecells") { Count(model.orders.count) }
+        SidebarRow(value: "customers", "customers", systemImage: "tablecells") { Count(1204) }
+        SidebarRow(value: "products", "products", systemImage: "tablecells") { Count(86) }
+        SidebarRow(value: "order_items", "order_items", systemImage: "tablecells") { Count(3410) }
+      } accessory: {
+        Chip("Staging", hue: .orange).controlSize(.small)
+      }
+      KitSection("Analytics", meta: ["DuckDB", "a file"], systemImage: "cylinder", hue: .orange, isExpanded: .constant(false)) {
+        SidebarRow(value: "events", "events", systemImage: "tablecells")
+      }
+    }
+  }
+
+  private var tableTitle: some View {
+    KitTitle("orders", meta: ["Shop", "\(rows.count) rows"], systemImage: "tablecells", hue: .teal, status: saving)
+  }
+
+  private var tableSearch: some View {
+    KitSearchField(text: $query, prompt: "Filter rows", scope: $scope, count: query.isEmpty ? nil : "\(rows.count) rows")
+  }
+
+  private var tableTools: some View {
+    ToolGroup(iconOnly: true) {
+      Button("Add Row", systemImage: "plus") { withKitAnimation { model.insert() } }
+      Button("Delete Rows", systemImage: "trash", role: .destructive) { withKitAnimation { model.delete(selection) } }
+        .disabled(selection.isEmpty)
+    }
+  }
+
+  private var tablePane: some View {
+    VStack(spacing: KitMetrics.gutter) {
+      // On an iPhone the search goes under the title.
+      ViewThatFits(in: .horizontal) {
+        HStack(spacing: 10) {
+          tableTitle
+          Spacer(minLength: 8)
+          tableSearch.frame(width: 280)
+          tableTools
         }
-        .frame(width: 250)
+        .frame(height: KitMetrics.titlebarHeight - KitMetrics.gutter)
         VStack(spacing: KitMetrics.gutter) {
           HStack(spacing: 10) {
-            KitTitle("orders", meta: ["Shop", "\(rows.count) rows"], systemImage: "tablecells", hue: .teal, status: saving)
+            tableTitle
             Spacer(minLength: 8)
-            KitSearchField(text: $query, prompt: "Filter rows", scope: $scope, count: query.isEmpty ? nil : "\(rows.count) rows")
-              .frame(width: 280)
-            ToolGroup(iconOnly: true) {
-              Button("Add Row", systemImage: "plus") { withKitAnimation { model.insert() } }
-              Button("Delete Rows", systemImage: "trash", role: .destructive) { withKitAnimation { model.delete(selection) } }
-                .disabled(selection.isEmpty)
-            }
+            tableTools
           }
           .frame(height: KitMetrics.titlebarHeight - KitMetrics.gutter)
-          KitGrid(rows, columns: model.columns, selection: $selection, sort: $sort, rowState: { model.pending[$0.id] })
-          if !model.pending.isEmpty {
-            ChangesCard(
-              count: model.pending.count, meta: ["orders on Shop", "nothing is saved until you review"],
-              discardAll: { withKitAnimation { model.discardAll() } },
-              review: {
-                saving = .working
-                Task {
-                  try? await Task.sleep(for: .seconds(1))
-                  withKitAnimation { model.save() }
-                  saving = .done
-                }
-              }
-            ) {
-              model.changeRows
-            }
-            .transition(.page)
-          }
-        }
-        .padding([.horizontal, .top], KitMetrics.gutter)
-        .kitPane(.content)
-        .kitStatusBar(systemImage: "bolt", hue: .green, status: saving) {
-          Text(saving == .done ? "Saved" : "Connected to localhost:5432")
-          Spacer()
-          Text("12 ms")
+          tableSearch
         }
       }
+      KitGrid(rows, columns: model.columns, selection: $selection, sort: $sort, rowState: { model.pending[$0.id] })
+      if !model.pending.isEmpty {
+        ChangesCard(
+          count: model.pending.count, meta: ["orders on Shop", "nothing is saved until you review"],
+          discardAll: { withKitAnimation { model.discardAll() } },
+          review: {
+            saving = .working
+            Task {
+              try? await Task.sleep(for: .seconds(1))
+              withKitAnimation { model.save() }
+              saving = .done
+            }
+          }
+        ) {
+          model.changeRows
+        }
+        .transition(.page)
+      }
+    }
+    .padding([.horizontal, .top], KitMetrics.gutter)
+    .kitPane(.content)
+    .kitStatusBar(systemImage: "bolt", hue: .green, status: saving) {
+      Text(saving == .done ? "Saved" : "Connected to localhost:5432")
+      Spacer()
+      Text("12 ms")
     }
   }
 
@@ -377,7 +477,8 @@ struct ShellScenarioPage: View {
               }
             }
           }
-          .frame(width: 560)
+          .frame(maxWidth: 560)
+          .padding(.horizontal, KitMetrics.gutter)
           .padding(.top, 60)
           .transition(.opacity.combined(with: .scale(scale: 0.98)))
         }
@@ -431,7 +532,7 @@ struct MarkdownScenarioPage: View {
 
   var body: some View {
     ScenarioPage(
-      page: .markdownApp,
+      page: .markdownApp, minWidth: 760,
       note: "Switch between Edit and Read; type in Edit and read it back.",
       code: """
         KitSidebar(selection: $note, searchText: $search) {
@@ -446,29 +547,36 @@ struct MarkdownScenarioPage: View {
         }
         .kitPane(.content)
         .kitStatusBar(systemImage: "checkmark", status: .done) { Text("Saved"); Spacer(); Text("\\(words) words") }
-        """
+        """,
+      paneTitles: ["Notes", "Note"]
     ) {
       HStack(spacing: 0) {
-        KitSidebar(selection: $selected, searchText: $search) {
-          KitSection("Notes", meta: "\(notes.count) notes", systemImage: "doc.text", hue: .red) {
-            ForEach(notes.filter { search.isEmpty || $0.0.localizedCaseInsensitiveContains(search) }, id: \.0) { note in
-              SidebarRow(value: note.0, note.0, subtitle: "Edited today", systemImage: "doc.text")
-            }
-          } accessory: {
-            Button("New Note", systemImage: "plus") {
-              withKitAnimation {
-                notes.append(("Untitled \(notes.count + 1)", "# Untitled\n\n"))
-                selected = notes.last?.0
-                mode = .edit
-              }
-            }
-          }
-        } bottomBar: {
-          Button("New Note", systemImage: "square.and.pencil") {}
-        }
-        .frame(width: 250)
+        sidebar.frame(width: 250)
         editor
       }
+    } panes: {
+      sidebar.scenarioPane("Notes")
+      editor.scenarioPane("Note")
+    }
+  }
+
+  private var sidebar: some View {
+    KitSidebar(selection: $selected, searchText: $search) {
+      KitSection("Notes", meta: "\(notes.count) notes", systemImage: "doc.text", hue: .red) {
+        ForEach(notes.filter { search.isEmpty || $0.0.localizedCaseInsensitiveContains(search) }, id: \.0) { note in
+          SidebarRow(value: note.0, note.0, subtitle: "Edited today", systemImage: "doc.text")
+        }
+      } accessory: {
+        Button("New Note", systemImage: "plus") {
+          withKitAnimation {
+            notes.append(("Untitled \(notes.count + 1)", "# Untitled\n\n"))
+            selected = notes.last?.0
+            mode = .edit
+          }
+        }
+      }
+    } bottomBar: {
+      Button("New Note", systemImage: "square.and.pencil") {}
     }
   }
 

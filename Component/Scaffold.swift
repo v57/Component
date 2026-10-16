@@ -79,6 +79,15 @@ struct CatalogPage<Content: View>: View {
   }
 
   private var scroll: some View {
+    // A vertical scroll view takes its widest content's width, which would widen the whole column (the toolbar too);
+    // the reader keeps the page at the width it is given.
+    GeometryReader { proxy in
+      scrollView(width: proxy.size.width)
+    }
+    .background(.kitWindow)
+  }
+
+  private func scrollView(width: CGFloat) -> some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 32) {
         HStack(spacing: 14) {
@@ -91,10 +100,12 @@ struct CatalogPage<Content: View>: View {
         content
       }
       .padding(idiom == .phone ? 16 : 28)
+      // `--offset <points>` (DEBUG) opens the page scrolled down, for iPhone captures.
+      .padding(.top, -(model?.pageOffset ?? 0))
       .frame(maxWidth: maxWidth, alignment: .leading)
-      .frame(maxWidth: .infinity, alignment: .leading)
+      // No wider than the window: a sample that doesn't fit runs off the right edge, not the whole page off both.
+      .frame(width: width, alignment: .leading)
     }
-    .background(.kitWindow)
   }
 }
 
@@ -158,7 +169,11 @@ struct Specimen<Content: View>: View {
     self.content = content()
   }
 
+  @Environment(\.kitIdiom) private var idiom
+
   var body: some View {
+    // An iPhone's width has no room for a wide stage margin.
+    let padding = idiom == .phone ? min(padding, 16) : padding
     VStack(alignment: .leading, spacing: 8) {
       HStack(alignment: .firstTextBaseline, spacing: 8) {
         Text(title).kitFont(.headline)
@@ -202,18 +217,148 @@ struct CodeSnippet: View {
   }
 }
 
-/// Small specimens side by side, wrapping to fit.
+/// Small specimens side by side, wrapping to fit; one column where even one is wider than the page (an iPhone).
 struct SpecimenGrid<Content: View>: View {
   var minWidth: CGFloat = 300
   @ViewBuilder var content: Content
+  @State private var width: CGFloat?
 
   var body: some View {
     LazyVGrid(
-      columns: [GridItem(.adaptive(minimum: minWidth), spacing: 20, alignment: .topLeading)], alignment: .leading,
-      spacing: 24
+      // Until measured, a minimum that fits any page, so the grid never widens it.
+      columns: [GridItem(.adaptive(minimum: min(minWidth, width ?? 100)), spacing: 20, alignment: .topLeading)],
+      alignment: .leading, spacing: 24
     ) {
       content
     }
+    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+  }
+}
+
+/// Side by side when offered `minWidth`, else stacked: a live sample and its code, or samples a window wide. It
+/// decides from the width it is offered, not its own size, which side by side could be wider than the page.
+struct Columns: Layout {
+  var minWidth: CGFloat = 640
+  var spacing: CGFloat = 20
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    let frames = frames(proposal.width, subviews)
+    return CGSize(width: proposal.width ?? frames.map(\.maxX).max() ?? 0, height: frames.map(\.maxY).max() ?? 0)
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    for (subview, frame) in zip(subviews, frames(bounds.width, subviews)) {
+      subview.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY), proposal: ProposedViewSize(frame.size))
+    }
+  }
+
+  /// Wide: the fixed views at their width and the flexible ones sharing the rest, tops aligned. Narrow: one under the
+  /// other, each offered the whole width.
+  private func frames(_ width: CGFloat?, _ subviews: Subviews) -> [CGRect] {
+    guard let width, width >= minWidth else {
+      var y: CGFloat = 0
+      return subviews.map { subview in
+        let size = subview.sizeThatFits(ProposedViewSize(width: width, height: nil))
+        defer { y += size.height + spacing }
+        return CGRect(x: 0, y: y, width: size.width, height: size.height)
+      }
+    }
+    let narrowest = subviews.map { $0.sizeThatFits(ProposedViewSize(width: 0, height: nil)).width }
+    let widest = subviews.map { $0.sizeThatFits(ProposedViewSize(width: .infinity, height: nil)).width }
+    let isFixed = zip(narrowest, widest).map { $1 - $0 < 1 }
+    let fixedWidth = zip(isFixed, narrowest).filter(\.0).map(\.1).reduce(0, +)
+    let flexible = isFixed.filter { !$0 }.count
+    let share = max(0, width - fixedWidth - spacing * CGFloat(subviews.count - 1)) / CGFloat(max(flexible, 1))
+    var x: CGFloat = 0
+    return subviews.indices.map { index in
+      let proposed = isFixed[index] ? narrowest[index] : max(share, narrowest[index])
+      let size = subviews[index].sizeThatFits(ProposedViewSize(width: proposed, height: nil))
+      defer { x += proposed + spacing }
+      return CGRect(x: x, y: 0, width: proposed, height: size.height)
+    }
+  }
+}
+
+/// Scrolls sideways when the content is wider than the page (a toolbar at a fixed width on an iPhone).
+struct SideScroll<Content: View>: View {
+  @ViewBuilder var content: Content
+
+  var body: some View {
+    ScrollView(.horizontal, showsIndicators: false) { content }
+      .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+  }
+}
+
+/// A row where it fits, else the same views stacked (on an iPhone's width).
+struct RowOrStack<Content: View>: View {
+  var spacing: CGFloat = 12
+  var alignment: VerticalAlignment = .center
+  var stackSpacing: CGFloat = 8
+  @ViewBuilder var content: Content
+
+  var body: some View {
+    ViewThatFits(in: .horizontal) {
+      HStack(alignment: alignment, spacing: spacing) { content }
+      VStack(alignment: .leading, spacing: stackSpacing) { content }
+    }
+  }
+}
+
+/// Samples in a row that wraps onto more lines where the row doesn't fit (an iPhone's width).
+struct Flow: Layout {
+  var spacing: CGFloat = 12
+  var lineSpacing: CGFloat?
+  var alignment: VerticalAlignment = .center
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    let frames = frames(subviews, maxWidth: proposal.width)
+    // An item wider than the line runs past it without widening the page.
+    let width = frames.map(\.maxX).max() ?? 0
+    return CGSize(width: proposal.width.map { min(width, $0) } ?? width, height: frames.map(\.maxY).max() ?? 0)
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    for (subview, frame) in zip(subviews, frames(subviews, maxWidth: bounds.width)) {
+      subview.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY), proposal: ProposedViewSize(frame.size))
+    }
+  }
+
+  /// Each item at its ideal size (no wider than a line), wrapping before an item that would pass `maxWidth`.
+  private func frames(_ subviews: Subviews, maxWidth: CGFloat?) -> [CGRect] {
+    let limit = maxWidth ?? .infinity
+    let sizes = subviews.map { subview in
+      let ideal = subview.sizeThatFits(.unspecified)
+      return ideal.width > limit ? subview.sizeThatFits(ProposedViewSize(width: limit, height: nil)) : ideal
+    }
+    var lines: [[Int]] = [[]]
+    var x: CGFloat = 0
+    for (index, size) in sizes.enumerated() {
+      if !lines[lines.count - 1].isEmpty, x + spacing + size.width > limit + 0.5 {
+        lines.append([])
+        x = 0
+      }
+      x += (lines[lines.count - 1].isEmpty ? 0 : spacing) + size.width
+      lines[lines.count - 1].append(index)
+    }
+    var frames = [CGRect](repeating: .zero, count: sizes.count)
+    var y: CGFloat = 0
+    for line in lines where !line.isEmpty {
+      let height = line.map { sizes[$0].height }.max() ?? 0
+      var x: CGFloat = 0
+      for index in line {
+        let size = sizes[index]
+        let top: CGFloat =
+          switch alignment {
+          case .top: 0
+          case .bottom: height - size.height
+          default: (height - size.height) / 2
+          }
+        frames[index] = CGRect(x: x, y: y + top, width: size.width, height: size.height)
+        x += size.width + spacing
+      }
+      y += height + (lineSpacing ?? spacing)
+    }
+    return frames
   }
 }
 
@@ -235,14 +380,30 @@ struct Labeled<Content: View>: View {
   }
 }
 
-/// A frame like a window's, for containers and scenarios: rounded, a hairline, clipped.
+/// A frame like a window's, for containers and scenarios: rounded, a hairline, clipped. Narrower than `minWidth` (an
+/// iPhone), the window keeps that width and scrolls sideways.
 struct WindowFrame<Content: View>: View {
   var height: CGFloat
+  var minWidth: CGFloat = 0
   @ViewBuilder var content: Content
+  @State private var width: CGFloat?
 
   var body: some View {
+    Group {
+      // Until measured it scrolls, which never widens the page.
+      if (width ?? 0) < minWidth {
+        SideScroll { window.frame(width: minWidth) }
+      } else {
+        window
+      }
+    }
+    .frame(maxWidth: .infinity)
+    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+  }
+
+  private var window: some View {
     let shape = RoundedRectangle(cornerRadius: KitMetrics.radiusWindow, style: .continuous)
-    content
+    return content
       .frame(maxWidth: .infinity)
       .frame(height: height)
       .background(.kitWindow)

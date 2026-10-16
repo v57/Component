@@ -61,7 +61,7 @@ struct ColoursPage: View {
         CodeSnippet("Divider().overlay(.kitSeparator)\nRoundedRectangle(cornerRadius: 8).fill(.kitField)")
       }
       SpecimenSection("Accent", note: "The only colour an app picks; set it once with .componentKit(accent:).") {
-        HStack(spacing: 20) {
+        Flow(spacing: 20, alignment: .top) {
           Labeled(".kitAccent") { RoundedRectangle(cornerRadius: 10).fill(.kitAccent).frame(width: 96, height: 44) }
           Labeled(".kitAccentText") { Text("Accent text").kitFont(.title3).foregroundStyle(.kitAccentText) }
           Labeled("Hue.accent.soft()") {
@@ -120,7 +120,7 @@ struct HuesPage: View {
         CodeSnippet("Circle().fill(Hue.green.fill)\nText(\"Failed\").foregroundStyle(Hue.red.text)\nRectangle().fill(Hue.orange.soft())")
       }
       SpecimenSection("Stable hues", note: "The same name always gets the same colour: avatars, repository tiles.") {
-        HStack(spacing: 10) {
+        Flow(spacing: 10) {
           ForEach(["atlas", "beacon", "harbor", "pebble", "Maya Okafor", "coder-1"], id: \.self) { name in
             VStack(spacing: 4) {
               Tile(letters: String(name.prefix(1)).uppercased(), hue: StableHue.pick(name), size: 32)
@@ -139,10 +139,10 @@ struct HuesPage: View {
         CodeSnippet("Path(lane).stroke(Hue.lane(index).fill, lineWidth: 2)")
       }
       SpecimenSection("Status words and types") {
-        HStack(spacing: 6) {
+        Flow(spacing: 6) {
           ForEach(["shipped", "pending", "failed", "archived", "syncing", "Lisbon"], id: \.self) { Chip(status: $0) }
         }
-        HStack(spacing: 6) {
+        Flow(spacing: 6) {
           ForEach(["TEXT", "INT64", "JSONB", "SET", "TIMESTAMP", "UUID", "BOOL", "BLOB"], id: \.self) { Chip(type: $0) }
         }
         CodeSnippet("Hue.forStatus(\"shipped\")   // .green\nHue.forTypeName(\"INT64\")   // .purple")
@@ -175,11 +175,22 @@ struct TypePage: View {
       ) {
         VStack(alignment: .leading, spacing: 0) {
           ForEach(styles, id: \.1) { style, name, use in
-            HStack(alignment: .firstTextBaseline, spacing: 16) {
-              Text(".\(name)").kitFont(.monoSmall).foregroundStyle(.kitSecondary).frame(width: 110, alignment: .leading)
-              Text("Trip to Lisbon 1234").kitFont(style)
-              Spacer(minLength: 8)
-              Text(use).kitFont(.caption)
+            // On an iPhone's width the sample goes under its name and use.
+            ViewThatFits(in: .horizontal) {
+              HStack(alignment: .firstTextBaseline, spacing: 16) {
+                Text(".\(name)").kitFont(.monoSmall).foregroundStyle(.kitSecondary).frame(width: 110, alignment: .leading)
+                Text("Trip to Lisbon 1234").kitFont(style).fixedSize()
+                Spacer(minLength: 8)
+                Text(use).kitFont(.caption).fixedSize()
+              }
+              VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                  Text(".\(name)").kitFont(.monoSmall).foregroundStyle(.kitSecondary)
+                  Spacer(minLength: 8)
+                  Text(use).kitFont(.caption).multilineTextAlignment(.trailing)
+                }
+                Text("Trip to Lisbon 1234").kitFont(style)
+              }
             }
             .padding(.vertical, 8)
             Divider().overlay(.kitSeparator)
@@ -213,7 +224,7 @@ struct SurfacesPage: View {
     CatalogPage(page: .surfaces) {
       ForEach([StageGround.sidebar, .panel, .window], id: \.self) { ground in
         Specimen("On \(ground.name)", ground: ground, padding: 20) {
-          HStack(alignment: .top, spacing: 20) {
+          Flow(spacing: 20, alignment: .top) {
             ForEach(surfaces, id: \.1) { surface, name, use in
               VStack(spacing: 8) {
                 Text(name).kitFont(.headline)
@@ -231,7 +242,7 @@ struct SurfacesPage: View {
             Text("First card").frame(maxWidth: .infinity, alignment: .leading).padding(6).kitCard()
             Text("Second card").frame(maxWidth: .infinity, alignment: .leading).padding(6).kitCard()
           }
-          .frame(width: 280)
+          .frame(maxWidth: 280)
         }
       }
     }
@@ -251,6 +262,7 @@ extension StageGround {
 // MARK: - Motion
 
 struct MotionPage: View {
+  @Environment(\.kitIdiom) private var idiom
   @State private var moved = false
   @State private var shown = true
   @State private var rows = ["Trip to Lisbon", "Packing list"]
@@ -270,16 +282,19 @@ struct MotionPage: View {
         Specimen("Move", code: "withKitAnimation { selection = item }\nview.kitAnimation(value)          // .animation(.kit, value:)") {
           VStack(alignment: .leading, spacing: 10) {
             ForEach(animations, id: \.0) { name, animation, use in
-              HStack(spacing: 12) {
-                Text(".\(name)").kitFont(.mono).frame(width: 90, alignment: .leading)
-                ZStack(alignment: moved ? .trailing : .leading) {
-                  Capsule().fill(.kitField).frame(height: 24)
-                  RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.kitAccent).frame(width: 40, height: 20)
-                    .padding(2)
+              // The use goes under the track on an iPhone's width.
+              RowOrStack(spacing: 12, stackSpacing: 4) {
+                HStack(spacing: 12) {
+                  Text(".\(name)").kitFont(.mono).frame(width: idiom.isTouch ? 112 : 90, alignment: .leading)
+                  ZStack(alignment: moved ? .trailing : .leading) {
+                    Capsule().fill(.kitField).frame(height: 24)
+                    RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.kitAccent).frame(width: 40, height: 20)
+                      .padding(2)
+                  }
+                  .frame(minWidth: 140, maxWidth: 260)
+                  .animation(animation, value: moved)
                 }
-                .frame(width: 260)
-                .animation(animation, value: moved)
-                Text(use).kitFont(.caption)
+                Text(use).kitFont(.caption).fixedSize()
               }
             }
             Button(moved ? "Move Back" : "Move") { moved.toggle() }.buttonStyle(.kitPrimary)
@@ -337,7 +352,7 @@ struct MetricsPage: View {
           ForEach(radii, id: \.0) { name, radius in
             VStack(spacing: 6) {
               RoundedRectangle(cornerRadius: radius, style: .continuous).fill(Hue.accent.soft(0.3)).frame(width: 72, height: 56)
-              Text(name).kitFont(.monoSmall)
+              Text(name).kitFont(.monoSmall).lineLimit(1).minimumScaleFactor(0.75)
               Text("\(Int(radius)) pt").kitFont(.caption)
             }
           }
@@ -357,7 +372,7 @@ struct MetricsPage: View {
         CodeSnippet("HStack(spacing: KitMetrics.gutter) { … }.padding(KitMetrics.gutter)")
       }
       SpecimenSection("Heights", note: "Rows grow on touch idioms; switch the idiom in the toolbar.") {
-        HStack(alignment: .bottom, spacing: 20) {
+        Flow(spacing: 20, lineSpacing: 16, alignment: .bottom) {
           bar("controlSmall", KitMetrics.controlSmall)
           bar("controlRegular", KitMetrics.controlRegular)
           bar("controlLarge", KitMetrics.controlLarge)
@@ -386,7 +401,7 @@ struct MetricsPage: View {
   }
 
   private func widthBar(_ name: String, _ width: CGFloat) -> some View {
-    HStack(spacing: 12) {
+    Flow(spacing: 12, lineSpacing: 6) {
       RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Hue.accent.soft(0.3)).frame(width: width, height: 20)
       Text("\(name) · \(Int(width)) pt").kitFont(.monoSmall)
     }

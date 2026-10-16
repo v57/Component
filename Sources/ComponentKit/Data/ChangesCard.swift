@@ -38,25 +38,38 @@ public struct ChangesCard<Meta: View, Rows: View>: View {
 
   public var body: some View {
     VStack(alignment: .leading, spacing: 2) {
-      RichHeader(
-        Text(title) + Text(count > 0 ? "  \(count)" : "").foregroundStyle(Hue.orange.text),
-        icon: { Tile(systemImage: systemImage, hue: .orange, size: 24) },
-        meta: { meta },
-        accessory: {
-          HStack(spacing: 4) {
-            if let discardAll {
-              Button("Discard All", action: discardAll).buttonStyle(.kitPlain)
-            }
-            if let review {
-              Button(reviewTitle, action: review).buttonStyle(.kitPrimary)
-            }
-          }
-          .controlSize(.small)
-          .disabled(count == 0)
-        })
+      // The buttons go under the title where the card is narrow (an iPhone).
+      ViewThatFits(in: .horizontal) {
+        header { buttons }
+        VStack(alignment: .trailing, spacing: 4) {
+          header { EmptyView() }
+          buttons
+        }
+      }
       rows
     }
     .kitCard()
+  }
+
+  private func header<Accessory: View>(@ViewBuilder accessory: () -> Accessory) -> some View {
+    RichHeader(
+      Text(title) + Text(count > 0 ? "  \(count)" : "").foregroundStyle(Hue.orange.text),
+      icon: { Tile(systemImage: systemImage, hue: .orange, size: 24) },
+      meta: { meta },
+      accessory: accessory)
+  }
+
+  private var buttons: some View {
+    HStack(spacing: 4) {
+      if let discardAll {
+        Button("Discard All", action: discardAll).buttonStyle(.kitPlain)
+      }
+      if let review {
+        Button(reviewTitle, action: review).buttonStyle(.kitPrimary)
+      }
+    }
+    .controlSize(.small)
+    .disabled(count == 0)
   }
 }
 
@@ -100,31 +113,22 @@ public struct ChangeRow<Change: View>: View {
   }
 
   public var body: some View {
-    HStack(spacing: 10) {
-      Tile(systemImage: kind.systemImage, hue: kind.hue, size: 18)
-      Text(kind.title)
-        .kitFont(.headline)
-        .frame(width: 58, alignment: .leading)
-      Text(title)
-        .monospacedDigit()
-        .lineLimit(1)
-        .frame(minWidth: 48, alignment: .leading)
-        .fixedSize()
-      if let field {
-        Text(field)
-          .foregroundStyle(.kitSecondary)
-          .lineLimit(1)
-          .frame(minWidth: 40, alignment: .leading)
-          .fixedSize()
+    // One line where it fits; else the change goes under the row's names (an iPhone).
+    ViewThatFits(in: .horizontal) {
+      HStack(spacing: 10) {
+        names
+        changeView
+        undoButton
       }
-      HStack(spacing: 6) { change }
-        .lineLimit(1)
-        .frame(maxWidth: .infinity, alignment: .leading)
-      if let undo {
-        Button("Undo", systemImage: "arrow.uturn.backward", action: undo)
-          .buttonStyle(.kitPlain)
-          .controlSize(.small)
+      VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: 10) {
+          names
+          Spacer(minLength: 0)
+          undoButton.fixedSize()
+        }
+        changeView.padding(.leading, 28)
       }
+      .padding(.vertical, 4)
     }
     .padding(.leading, 8)
     .padding(.trailing, 2)
@@ -136,6 +140,42 @@ public struct ChangeRow<Change: View>: View {
     .onHover { isHovered = $0 }
     .animation(.kitFast, value: isHovered)
     .accessibilityElement(children: .combine)
+  }
+}
+
+extension ChangeRow {
+  @ViewBuilder fileprivate var names: some View {
+    Tile(systemImage: kind.systemImage, hue: kind.hue, size: 18)
+    Text(kind.title)
+      .kitFont(.headline)
+      .lineLimit(1)
+      .frame(width: idiom.isTouch ? 76 : 58, alignment: .leading)
+    Text(title)
+      .monospacedDigit()
+      .lineLimit(1)
+      .frame(minWidth: 48, alignment: .leading)
+      .fixedSize()
+    if let field {
+      Text(field)
+        .foregroundStyle(.kitSecondary)
+        .lineLimit(1)
+        .frame(minWidth: 40, alignment: .leading)
+        .fixedSize()
+    }
+  }
+
+  fileprivate var changeView: some View {
+    HStack(spacing: 6) { change }
+      .lineLimit(1)
+      .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  @ViewBuilder fileprivate var undoButton: some View {
+    if let undo {
+      Button("Undo", systemImage: "arrow.uturn.backward", action: undo)
+        .buttonStyle(.kitPlain)
+        .controlSize(.small)
+    }
   }
 }
 

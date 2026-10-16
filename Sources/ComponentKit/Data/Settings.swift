@@ -55,7 +55,14 @@ public struct KitSettings<Content: View>: View {
     Group {
       if idiom == .phone {
         ZStack {
-          if showsPane { detail.transition(.move(edge: .trailing)) } else { sidebar.transition(.opacity) }
+          if showsPane {
+            detail.transition(.move(edge: .trailing))
+          } else {
+            // The panes list themselves from `content`, so it stays in the hierarchy, out of sight, under the list.
+            sidebar
+              .background { ZStack { content }.hidden().accessibilityHidden(true) }
+              .transition(.opacity)
+          }
         }
         .animation(.kitSlow, value: showsPane)
       } else {
@@ -97,7 +104,8 @@ public struct KitSettings<Content: View>: View {
     }
     .padding(.horizontal, KitMetrics.gutter)
     .padding(.top, topInset)
-    .frame(maxHeight: .infinity, alignment: .top)
+    // The whole screen on iPhone, the column's width elsewhere.
+    .frame(maxWidth: idiom == .phone ? .infinity : nil, maxHeight: .infinity, alignment: .topLeading)
     .background(.kitSidebar)
     .focusable()
     .focused($isSidebarFocused)

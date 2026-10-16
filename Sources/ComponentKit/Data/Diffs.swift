@@ -183,64 +183,83 @@ public struct HunkCard: View {
     .modifier(DiffCopyCommand(text: { copiedText(for: nil) }))
   }
 
+  /// The title and range with the actions after them; where the card is narrow (an iPhone) the actions go on a line of
+  /// their own rather than squeezing the title.
   private var headerRow: some View {
-    HStack(spacing: 8) {
-      Button {
-        withKitAnimation { expanded = !isExpanded }
-      } label: {
-        Image(systemName: "chevron.down")
-          .font(.system(size: 10, weight: .semibold))
-          .rotationEffect(.degrees(isExpanded ? 0 : -90))
-          .frame(width: 16, height: 16)
-          .contentShape(Rectangle())
+    ViewThatFits(in: .horizontal) {
+      HStack(spacing: 8) {
+        headerTitle
+        Spacer(minLength: 8)
+        headerActions
       }
-      .buttonStyle(.plain)
-      .foregroundStyle(.kitSecondary)
-      .accessibilityLabel(isExpanded ? "Collapse" : "Expand")
-      Text(header)
-        .font(.system(size: 12, weight: .semibold))
-        .lineLimit(1)
-        .layoutPriority(-1)
-      Text(range)
-        .font(.system(size: 11, design: .monospaced))
-        .foregroundStyle(.kitSecondary)
-        .lineLimit(1)
-        .fixedSize()
-      Spacer(minLength: 8)
-      if isStaged {
-        Label("Staged", systemImage: "checkmark")
-          .labelStyle(KitButtonLabelStyle(iconOnly: false))
-          .font(.system(size: 11, weight: .medium))
-          .foregroundStyle(Hue.green.text)
-        if let unstageLines {
-          let chosen = lines.filter { selected.contains($0.id) && $0.isChange }
-          if !chosen.isEmpty {
-            Button(chosen.count == 1 ? "Unstage 1 Line" : "Unstage \(chosen.count) Lines") {
-              unstageLines(chosen)
-              selection?.wrappedValue = []
-            }
-            .buttonStyle(.dataSoft)
-            .transition(.opacity)
-          }
-        }
-        if let unstage { Button("Unstage", action: unstage).buttonStyle(.dataSoft) }
-      } else if let stage {
-        let chosen = lines.filter { selected.contains($0.id) && $0.isChange }
-        if !chosen.isEmpty {
-          Button(chosen.count == 1 ? "Stage 1 Line" : "Stage \(chosen.count) Lines") {
-            stage(chosen)
-            selection?.wrappedValue = []
-          }
-          .buttonStyle(.kitPrimary)
-          .controlSize(.small)
-          .transition(.opacity)
-        }
-        Button("Stage Hunk") { stage(lines.filter(\.isChange)) }.buttonStyle(.dataSoft)
+      .frame(height: idiom.isTouch ? 46 : 38)
+      VStack(alignment: .trailing, spacing: 4) {
+        HStack(spacing: 8) { headerTitle }
+          .frame(maxWidth: .infinity, minHeight: idiom.isTouch ? 40 : 32, alignment: .leading)
+        HStack(spacing: 8) { headerActions }
       }
+      .padding(.bottom, 6)
     }
     .padding(.leading, 10)
     .padding(.trailing, 6)
-    .frame(height: idiom.isTouch ? 46 : 38)
+  }
+
+  @ViewBuilder private var headerTitle: some View {
+    Button {
+      withKitAnimation { expanded = !isExpanded }
+    } label: {
+      Image(systemName: "chevron.down")
+        .font(.system(size: 10, weight: .semibold))
+        .rotationEffect(.degrees(isExpanded ? 0 : -90))
+        .frame(width: 16, height: 16)
+        .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .foregroundStyle(.kitSecondary)
+    .accessibilityLabel(isExpanded ? "Collapse" : "Expand")
+    Text(header)
+      .font(.system(size: 12, weight: .semibold))
+      .lineLimit(1)
+      .frame(minWidth: 100, alignment: .leading)
+      .layoutPriority(-1)
+    Text(range)
+      .font(.system(size: 11, design: .monospaced))
+      .foregroundStyle(.kitSecondary)
+      .lineLimit(1)
+      .fixedSize()
+  }
+
+  @ViewBuilder private var headerActions: some View {
+    if isStaged {
+      Label("Staged", systemImage: "checkmark")
+        .labelStyle(KitButtonLabelStyle(iconOnly: false))
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(Hue.green.text)
+      if let unstageLines {
+        let chosen = lines.filter { selected.contains($0.id) && $0.isChange }
+        if !chosen.isEmpty {
+          Button(chosen.count == 1 ? "Unstage 1 Line" : "Unstage \(chosen.count) Lines") {
+            unstageLines(chosen)
+            selection?.wrappedValue = []
+          }
+          .buttonStyle(.dataSoft)
+          .transition(.opacity)
+        }
+      }
+      if let unstage { Button("Unstage", action: unstage).buttonStyle(.dataSoft) }
+    } else if let stage {
+      let chosen = lines.filter { selected.contains($0.id) && $0.isChange }
+      if !chosen.isEmpty {
+        Button(chosen.count == 1 ? "Stage 1 Line" : "Stage \(chosen.count) Lines") {
+          stage(chosen)
+          selection?.wrappedValue = []
+        }
+        .buttonStyle(.kitPrimary)
+        .controlSize(.small)
+        .transition(.opacity)
+      }
+      Button("Stage Hunk") { stage(lines.filter(\.isChange)) }.buttonStyle(.dataSoft)
+    }
   }
 
   // MARK: Unified
@@ -663,8 +682,15 @@ public struct ConflictCard: View {
             if let ancestor, showsAncestor {
               sidePanel(ancestor, hue: .gray).transition(.opacity)
             }
-            HStack(alignment: .top, spacing: 8) {
-              ForEach(sides, id: \.choice) { item in sidePanel(item.side, hue: item.hue) }
+            // Side by side where both have room, else one over the other (an iPhone).
+            ViewThatFits(in: .horizontal) {
+              HStack(alignment: .top, spacing: 8) {
+                ForEach(sides, id: \.choice) { item in sidePanel(item.side, hue: item.hue) }
+              }
+              .frame(minWidth: 440)
+              VStack(spacing: 8) {
+                ForEach(sides, id: \.choice) { item in sidePanel(item.side, hue: item.hue) }
+              }
             }
           }
           .padding([.horizontal, .bottom], 8)
@@ -677,36 +703,49 @@ public struct ConflictCard: View {
     .animation(.kit, value: showsAncestor)
   }
 
+  /// The title with the picker beside it, or the picker under it where the card is narrow.
   private var header: some View {
-    let options: [(String, ConflictChoice?)] = (sides.map(\.choice) + [.both]).map { ($0.title, $0) }
-    return RichHeader(
+    ViewThatFits(in: .horizontal) {
+      titleRow { actions }
+      VStack(alignment: .trailing, spacing: 4) {
+        titleRow { EmptyView() }
+        actions.padding(.horizontal, 6).padding(.bottom, 4)
+      }
+    }
+  }
+
+  private func titleRow<Accessory: View>(@ViewBuilder accessory: () -> Accessory) -> some View {
+    RichHeader(
       Text(choice == nil ? title : resolvedTitle),
       icon: {
         LiveIcon(
           systemImage: "exclamationmark.triangle", hue: .orange, status: choice == nil ? .idle : .done, size: 24)
       },
       meta: { MetaLine(choice.map { resolvedMeta($0) } ?? meta) },
-      accessory: {
-        HStack(spacing: 6) {
-          if choice == nil {
-            if ancestor != nil {
-              Button("Base") { showsAncestor.toggle() }
-                .buttonStyle(.dataSoft)
-                .fixedSize()
-                .help(showsAncestor ? "Hide the common ancestor" : "Show the common ancestor both sides changed")
-                .accessibilityValue(showsAncestor ? "Shown" : "Hidden")
-            }
-            KitSegmented(selection: $choice, options: options)
-            if let edit { Button("Edit…", action: edit).buttonStyle(.dataSoft) }
-          } else {
-            Button("Undo", systemImage: "arrow.uturn.backward") { withKitAnimation { choice = nil } }
-              .buttonStyle(.kit)
-              .controlSize(.small)
-          }
-        }
-      })
+      accessory: accessory)
     .padding(.horizontal, 6)
     .padding(.vertical, 2)
+  }
+
+  private var actions: some View {
+    let options: [(String, ConflictChoice?)] = (sides.map(\.choice) + [.both]).map { ($0.title, $0) }
+    return HStack(spacing: 6) {
+      if choice == nil {
+        if ancestor != nil {
+          Button("Base") { showsAncestor.toggle() }
+            .buttonStyle(.dataSoft)
+            .fixedSize()
+            .help(showsAncestor ? "Hide the common ancestor" : "Show the common ancestor both sides changed")
+            .accessibilityValue(showsAncestor ? "Shown" : "Hidden")
+        }
+        KitSegmented(selection: $choice, options: options)
+        if let edit { Button("Edit…", action: edit).buttonStyle(.dataSoft) }
+      } else {
+        Button("Undo", systemImage: "arrow.uturn.backward") { withKitAnimation { choice = nil } }
+          .buttonStyle(.kit)
+          .controlSize(.small)
+      }
+    }
   }
 
   private func resolvedMeta(_ choice: ConflictChoice) -> [String] {

@@ -43,6 +43,10 @@ final class CatalogModel {
   var hidesSidebar = false
   /// Opens the sidebar scrolled to its middle (`--sidebar-middle`), so rows run under both of its bars.
   var sidebarMiddle = false
+  /// Opens on the page rather than the page list on an iPhone (`--page`).
+  var opensOnPage = false
+  /// Opens the page scrolled this far down (`--offset <points>`), for iPhone captures.
+  var pageOffset: CGFloat = 0
 
   init() {
     #if DEBUG
@@ -52,13 +56,17 @@ final class CatalogModel {
 
   #if DEBUG
     /// `--page <id>`, `--section <title>`, `--dark`, `--light`, `--idiom mac|pad|phone`, `--accent <id>`, `--contrast`, `--inactive`,
-    /// `--sidebar-middle`, `--width <points>`, `--no-sidebar`: opens any page in any state without clicking (for window captures).
+    /// `--sidebar-middle`, `--width <points>`, `--no-sidebar`, `--offset <points>`: opens any page in any state without clicking (for window captures).
     func applyLaunchArguments(_ arguments: [String]) {
       func value(after flag: String) -> String? {
         guard let index = arguments.firstIndex(of: flag), index + 1 < arguments.count else { return nil }
         return arguments[index + 1]
       }
-      if let id = value(after: "--page"), let page = Page(rawValue: id) { self.page = page }
+      if let id = value(after: "--page"), let page = Page(rawValue: id) {
+        self.page = page
+        opensOnPage = true
+      }
+      pageOffset = value(after: "--offset").flatMap(Double.init).map { CGFloat($0) } ?? 0
       if arguments.contains("--dark") { appearance = .dark }
       if arguments.contains("--light") { appearance = .light }
       switch value(after: "--idiom") {

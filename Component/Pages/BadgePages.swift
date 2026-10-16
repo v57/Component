@@ -13,7 +13,7 @@ struct CountsPage: View {
         "Counts", note: "A bare number: gray informs, orange waits on you, red failed. A changing number rolls."
       ) {
         Specimen("Meanings", code: "Count(17)\nCount(4, .attention)\nCount(1, .failed)\nCount(\"31 of 48\")") {
-          HStack(spacing: 24) {
+          Flow(spacing: 24, lineSpacing: 14, alignment: .top) {
             Labeled("info") { Count(17) }
             Labeled("attention") { Count(4, .attention) }
             Labeled("failed") { Count(1, .failed) }
@@ -29,7 +29,7 @@ struct CountsPage: View {
           }
         }
         Specimen("Sync", note: "Zeros are left out: an up-to-date repository shows nothing", code: "SyncCounts(changes: 5, ahead: 2, behind: 1)") {
-          HStack(spacing: 24) {
+          Flow(spacing: 24, lineSpacing: 14, alignment: .top) {
             Labeled("all") { SyncCounts(changes: 5, ahead: 2, behind: 1) }
             Labeled("changes") { SyncCounts(changes: 12) }
             Labeled("to push") { SyncCounts(ahead: 3) }
@@ -82,7 +82,7 @@ struct ChipsPage: View {
       SpecimenSection("Soft", note: "The hue at 16% (20% in dark) under the hue's text tone; neutral without a hue.") {
         Specimen("Status and neutral", code: "Chip(\"Syncing\", hue: .blue)\nChip(\"Swift\")") {
           VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
+            Flow(spacing: 6) {
               Chip("Up to date", hue: .green)
               Chip("Syncing", hue: .blue)
               Chip("Pending", hue: .orange)
@@ -91,7 +91,7 @@ struct ChipsPage: View {
               Chip("Idle", hue: .gray)
               Chip("Draft", hue: .yellow)
             }
-            HStack(spacing: 6) {
+            Flow(spacing: 6) {
               Chip("Swift")
               Chip("+1")
               Chip("v1.1.0", systemImage: "tag")
@@ -100,7 +100,7 @@ struct ChipsPage: View {
           }
         }
         Specimen("Safety", code: "Chip.production\nChip(\"Staging\", hue: .orange)\nChip.readOnly") {
-          HStack(spacing: 6) {
+          Flow(spacing: 6) {
             Chip.production
             Chip("Staging", hue: .orange)
             Chip("Local", hue: .green)
@@ -111,7 +111,7 @@ struct ChipsPage: View {
       }
       SpecimenSection("Quiet and solid") {
         Specimen("Styles", code: "Chip(\"Draft\", style: .quiet)\nChip(Text(\"a1b2c3d\").monospaced(), style: .quiet)\nChip(\"Production\", systemImage: \"shield\", hue: .red, style: .solid)") {
-          HStack(spacing: 6) {
+          Flow(spacing: 6) {
             Chip("Draft", style: .quiet)
             Chip(Text("a1b2c3d").monospaced(), style: .quiet)
             Chip("Production", systemImage: "shield", hue: .red, style: .solid)
@@ -122,10 +122,10 @@ struct ChipsPage: View {
       SpecimenSection("From words and types") {
         Specimen("Status words, value types", code: "Chip(status: order.status)\nChip(type: column.type)") {
           VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
+            Flow(spacing: 6) {
               ForEach(["shipped", "pending", "cancelled", "refunded", "running", "Lisbon"], id: \.self) { Chip(status: $0) }
             }
-            HStack(spacing: 6) {
+            Flow(spacing: 6) {
               ForEach(["TEXT", "INT32", "JSONB", "SET", "ZSET", "UUID", "BOOL", "BYTEA"], id: \.self) { Chip(type: $0) }
             }
           }
@@ -134,7 +134,7 @@ struct ChipsPage: View {
       SpecimenSection("Sizes and states") {
         SpecimenGrid(minWidth: 300) {
           Specimen("Small", note: "For section headers and toolbar titles", code: "Chip.production.controlSize(.small)") {
-            HStack(spacing: 6) {
+            Flow(spacing: 6) {
               Chip.production
               Chip("Pushing", hue: .blue)
               Chip("Draft", style: .quiet)
@@ -142,7 +142,7 @@ struct ChipsPage: View {
             .controlSize(.small)
           }
           Specimen("Disabled", code: "Chip(\"Syncing\", hue: .blue).disabled(true)") {
-            HStack(spacing: 6) {
+            Flow(spacing: 6) {
               Chip("Syncing", hue: .blue)
               Chip("Staging", hue: .orange)
             }
@@ -158,7 +158,7 @@ struct ChipsPage: View {
           "FilterToken",
           code: "FilterToken(filter.summary) { remove(filter) }\nFilterToken(Text(\"total > \") + Text(\"100\").bold(), hue: .orange) { … }"
         ) {
-          HStack(spacing: 6) {
+          Flow(spacing: 6) {
             ForEach(filters, id: \.self) { filter in
               FilterToken(filter) { withKitAnimation { filters.removeAll { $0 == filter } } }
             }
@@ -199,7 +199,7 @@ struct RefsPage: View {
             """
         ) {
           VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
+            Flow(spacing: 6) {
               RefChip(name: "main", isCurrent: true)
               RefChip(name: "feature/sidebar")
               RefChip(name: "origin/main", kind: .remote)
@@ -208,7 +208,7 @@ struct RefsPage: View {
               RefChip(name: "a1b2c3d", kind: .head)
             }
             Labeled("Small") {
-              HStack(spacing: 6) {
+              Flow(spacing: 6) {
                 RefChip(name: "main", isCurrent: true)
                 RefChip(name: "v1.4.0", kind: .tag)
                 RefChip(name: "origin/main", kind: .remote)
@@ -240,7 +240,7 @@ struct RefsPage: View {
       }
       SpecimenSection("Pieces", note: "The branch glyph on its own, and a chip's detail in its tooltip.") {
         Specimen("BranchGlyph and detail", code: "BranchGlyph(size: 16)\nRefChip(name: \"main\", isCurrent: true, detail: \"HEAD · 2 to push\")") {
-          HStack(spacing: 14) {
+          Flow(spacing: 14) {
             BranchGlyph(size: 16)
             BranchGlyph(size: 20).foregroundStyle(Hue.green.fill)
             RefChip(name: "main", isCurrent: true, detail: "HEAD · 2 to push")
@@ -262,14 +262,14 @@ struct LineCountsPage: View {
       SpecimenSection("Line counts and diffstats") {
         Specimen("LineCounts and Diffstat", code: "LineCounts(added: 14, removed: 2)\nDiffstat(added: 14, removed: 2)\nDiffstat(added: 54, removed: 122, showsCounts: false)") {
           VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 24) {
+            Flow(spacing: 24, lineSpacing: 14, alignment: .top) {
               Labeled("both") { LineCounts(added: 14, removed: 2) }
               Labeled("added only") { LineCounts(added: 38, removed: 0) }
               Labeled("removed only") { LineCounts(added: 0, removed: 120) }
               Labeled("none") { LineCounts(added: 0, removed: 0) }
               Labeled("binary") { LineCounts(added: nil, removed: nil) }
             }
-            HStack(spacing: 24) {
+            Flow(spacing: 24, lineSpacing: 14, alignment: .top) {
               Labeled("diffstat") { Diffstat(added: 12, removed: 3) }
               Labeled("small change") { Diffstat(added: 2, removed: 1) }
               Labeled("bar alone") { Diffstat(added: 54, removed: 122, showsCounts: false) }
@@ -281,7 +281,7 @@ struct LineCountsPage: View {
       SpecimenSection("Progress in rows", note: "The work's state lives in the group's live icon; a row keeps a bar and its percent.") {
         Specimen("MicroBar and ProgressRow", code: "MicroBar(value: 0.4)\nMicroBar(value: 1, hue: .green, width: 28)\nProgressRow(value: 0.25)") {
           VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 18) {
+            Flow(spacing: 18, lineSpacing: 12) {
               MicroBar(value: 0.4)
               MicroBar(value: 1, hue: .green, width: 28)
               MicroBar(value: 0.7, hue: .orange, width: 48)
@@ -312,7 +312,7 @@ struct LineCountsPage: View {
             SidebarRow("ubuntu-26.04.iso", subtitle: "27.7 MB/s", systemImage: "opticaldisc") { ProgressRow(value: progress) }
             SidebarRow("Xcode.xip", subtitle: "Waiting", systemImage: "hammer") { ProgressRow(value: 0) }
           }
-          .frame(width: 320)
+          .frame(maxWidth: 320)
         }
       }
     }
@@ -326,7 +326,7 @@ struct AvatarsPage: View {
     CatalogPage(page: .avatars) {
       SpecimenSection("People", note: "A solid circle in the hue's deep shade, picked from the name.") {
         Specimen("Sizes and presence", code: "Avatar(name: \"Maya Okafor\", presence: .online)") {
-          HStack(spacing: 14) {
+          Flow(spacing: 14, lineSpacing: 12) {
             Avatar(name: "Maya Okafor", size: 16)
             Avatar(name: "Maya Okafor")
             Avatar(name: "Maya Okafor", size: 32)
@@ -339,7 +339,7 @@ struct AvatarsPage: View {
       }
       SpecimenSection("Agents", note: "A soft square that wears the live icon's ring while it works.") {
         Specimen("States", code: "Avatar(name: \"coder-1\", kind: .agent, status: .working)") {
-          HStack(spacing: 18) {
+          Flow(spacing: 18, lineSpacing: 14, alignment: .top) {
             Labeled("idle") { Avatar(name: "planner", kind: .agent, size: 28) }
             Labeled("working") { Avatar(name: "coder-1", kind: .agent, status: .working, size: 28) }
             Labeled("60%") { Avatar(name: "artist", kind: .agent, status: .working(progress: 0.6), size: 28) }
@@ -352,7 +352,7 @@ struct AvatarsPage: View {
       SpecimenSection("Things and apps") {
         SpecimenGrid(minWidth: 360) {
           Specimen("Things", code: "Avatar(name: \"atlas\", kind: .thing)\nAvatar(name: \"Postgres\", letters: \"Pg\", kind: .thing, hue: .blue)") {
-            HStack(spacing: 12) {
+            Flow(spacing: 12) {
               Avatar(name: "atlas", kind: .thing)
               Avatar(name: "harbor", kind: .thing, size: 28)
               Avatar(name: "Catalog", letters: "Mg", kind: .thing, hue: .green)
@@ -361,7 +361,7 @@ struct AvatarsPage: View {
             }
           }
           Specimen("Apps", code: "Avatar(name: \"Git\", kind: .app, systemImage: \"arrow.triangle.branch\", hue: .orange, size: 56)") {
-            HStack(spacing: 12) {
+            Flow(spacing: 12) {
               Avatar(name: "Git", kind: .app, systemImage: "arrow.triangle.branch", hue: .orange, size: 20)
               Avatar(name: "Markdown", kind: .app, systemImage: "text.alignleft", hue: .red, size: 28)
               Avatar(name: "Shell", kind: .app, systemImage: "terminal", hue: .gray, size: 40)
@@ -373,7 +373,7 @@ struct AvatarsPage: View {
       }
       SpecimenSection("Pictures", note: "A photo or an icon in the kind's shape; presence, rings and dimming as for drawn ones.") {
         Specimen("Avatar(name:image:)", code: "Avatar(name: user.name, image: photo, presence: .online, size: 32)\nAvatar(name: project.name, image: project.icon, kind: .thing)") {
-          HStack(spacing: 14) {
+          Flow(spacing: 14) {
             Avatar(name: "Maya Okafor", image: AppIcon.image(systemImage: "person.fill", hue: .pink), presence: .online, size: 32)
             Avatar(name: "atlas", image: AppIcon.image(systemImage: "shippingbox", hue: .blue), kind: .thing, size: 32)
             Avatar(name: "coder-1", image: AppIcon.image(systemImage: "cpu", hue: .purple), kind: .agent, status: .working, size: 32)

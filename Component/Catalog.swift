@@ -265,7 +265,10 @@ struct CatalogView: View {
         .kitSidebarToggle(columnVisibility: $columns)
     }
     .onChange(of: model.page) { compactColumn = .detail }
-    .onAppear { if model.hidesSidebar { columns = .detailOnly } }
+    .onAppear {
+      if model.hidesSidebar { columns = .detailOnly }
+      if model.opensOnPage { compactColumn = .detail }
+    }
   }
 }
 

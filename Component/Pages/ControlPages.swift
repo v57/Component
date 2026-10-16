@@ -31,7 +31,7 @@ struct ButtonsPage: View {
           "With icons",
           code: "Button(\"Fetch\", systemImage: \"arrow.down.circle\") { … }.buttonStyle(.kit)"
         ) {
-          HStack(spacing: 10) {
+          Flow(spacing: 10) {
             Button("Fetch", systemImage: "arrow.down.circle") {}.buttonStyle(.kit)
             Button("Commit", systemImage: "checkmark") {}.buttonStyle(.kitPrimary)
             Button("Undo", systemImage: "arrow.uturn.backward") {}.buttonStyle(.kitPlain)
@@ -55,11 +55,13 @@ struct ButtonsPage: View {
         Specimen("Control sizes", code: "Button(\"Clone\") { … }.buttonStyle(.kitPrimary).controlSize(.large)") {
           VStack(alignment: .leading, spacing: 12) {
             ForEach([ControlSize.small, .regular, .large], id: \.self) { size in
-              HStack(spacing: 10) {
+              HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(String(describing: size)).kitFont(.monoSmall).foregroundStyle(.kitSecondary).frame(width: 70, alignment: .leading)
-                Button("Cancel") {}.buttonStyle(.kit)
-                Button("Clone Repository") {}.buttonStyle(.kitPrimary)
-                Button("Show All") {}.buttonStyle(.kitPlain)
+                Flow(spacing: 10) {
+                  Button("Cancel") {}.buttonStyle(.kit)
+                  Button("Clone Repository") {}.buttonStyle(.kitPrimary)
+                  Button("Show All") {}.buttonStyle(.kitPlain)
+                }
               }
               .controlSize(size)
             }
@@ -71,7 +73,7 @@ struct ButtonsPage: View {
           "kitRound",
           code: "Button(\"Move to Trash\", systemImage: \"trash\", role: .destructive) { … }.buttonStyle(.kitRound)\nButton(\"Close\", systemImage: \"xmark\") { … }.buttonStyle(.kitRound).controlSize(.small)"
         ) {
-          HStack(spacing: 12) {
+          Flow(spacing: 12) {
             Button("Move to Trash", systemImage: "trash", role: .destructive) {}.buttonStyle(.kitRound)
             Button("Share", systemImage: "square.and.arrow.up") {}.buttonStyle(.kitRound)
             Button("Close", systemImage: "xmark") {}.buttonStyle(.kitRound).controlSize(.small)
@@ -108,8 +110,8 @@ struct ButtonsPage: View {
 
   private func statesGrid<Content: View>(@ViewBuilder _ row: @escaping (Bool) -> Content) -> some View {
     VStack(alignment: .leading, spacing: 12) {
-      Labeled("Rest") { HStack(spacing: 10) { row(false) } }
-      Labeled("Disabled") { HStack(spacing: 10) { row(true) } }
+      Labeled("Rest") { Flow(spacing: 10) { row(false) } }
+      Labeled("Disabled") { Flow(spacing: 10) { row(true) } }
     }
   }
 }
@@ -130,7 +132,7 @@ struct TogglesPage: View {
           "kitSwitch",
           code: "Toggle(\"Sync with iCloud\", isOn: $sync).toggleStyle(.kitSwitch)\nToggle(\"Sync\", isOn: $sync).kitLabelsHidden()   // .labelsHidden() too, from macOS 15 / iOS 18"
         ) {
-          HStack(spacing: 28) {
+          Flow(spacing: 28, lineSpacing: 14, alignment: .top) {
             Labeled("On") { Toggle("Sync", isOn: $sync) }
             Labeled("Off") { Toggle("Sync", isOn: $off) }
             Labeled("Disabled on") { Toggle("Sync", isOn: .constant(true)).disabled(true) }
@@ -261,7 +263,7 @@ struct SegmentedPage: View {
         Specimen("Wide", code: "KitSegmented(selection: $refs, options: …).kitSegmentedStyle(.wide)") {
           KitSegmented(selection: $refs, options: [("Local", "Local"), ("Remote", "Remote"), ("Tags", "Tags")])
             .kitSegmentedStyle(.wide)
-            .frame(width: 360)
+            .frame(maxWidth: 360)
         }
         Specimen("Disabled", code: "KitSegmented(selection: $mode).disabled(true)") {
           KitSegmented(selection: $mode).disabled(true)
@@ -359,7 +361,7 @@ struct MenusPage: View {
             code: "KitPicker(\"Mode\", selection: $mode)   // a KitOption & CaseIterable enum\nKitPicker(\"Indent\", selection: $indent, options: [(\"2 spaces\", 2), (\"4 spaces\", 4), (\"Tabs\", 0)])\nFormRow(\"Indent\") { KitPicker(…) }"
           ) {
             VStack(alignment: .leading, spacing: 12) {
-              HStack(spacing: 10) {
+              Flow(spacing: 10) {
                 KitPicker("Mode", selection: $mode)
                 KitPicker("Indent", selection: $indent, options: [("2 spaces", 2), ("4 spaces", 4), ("Tabs", 0)])
                 KitPicker("Disabled", selection: $indent, options: [("4 spaces", 4)]).disabled(true)
@@ -375,7 +377,7 @@ struct MenusPage: View {
             "KitMenuButton", note: "Any rows: toggles, options, submenus",
             code: "KitMenuButton(\"Options\", systemImage: \"slider.horizontal.3\") {\n  Toggle(\"Match Case\", isOn: $matchCase)\n}\nKitMenuButton(\"Sort\") { KitMenuOptions(selection: $sort, options: …) }.controlSize(.small)"
           ) {
-            HStack(spacing: 10) {
+            Flow(spacing: 10) {
               KitMenuButton("Options", systemImage: "slider.horizontal.3") {
                 Toggle("Match Case", isOn: $matchCase)
                 Toggle("Whole Words", isOn: $wholeWords)
@@ -568,7 +570,7 @@ struct TabsPage: View {
           KitTabStrip(
             tabs: (1...12).map { KitTab(id: $0, title: "Query \($0)", systemImage: "terminal", hue: .teal, isEdited: $0 % 4 == 0) },
             selection: $queries, onClose: { _ in })
-            .frame(width: 520)
+            .frame(maxWidth: 520)
         }
         Specimen("Without close or add", ground: .window, padding: 0, code: "KitTabStrip(tabs: tabs, selection: $tab)") {
           KitTabStrip(
@@ -854,7 +856,7 @@ struct KeycapsPage: View {
     CatalogPage(page: .keycaps) {
       SpecimenSection("Keys") {
         Specimen("Keycap and Keycaps", code: "Keycap(\"⌘\")\nKeycap(\"⇧⌘P\")   // one cap\nKeycaps(\"⇧⌘F\")   // ⇧ ⌘ F") {
-          HStack(spacing: 18) {
+          Flow(spacing: 18, lineSpacing: 14, alignment: .top) {
             Labeled("Keycap") { HStack { Keycap("⌘"); Keycap("esc"); Keycap("↩"); Keycap("Tab") } }
             Labeled("One cap") { Keycap("⇧⌘P") }
             Labeled("Keycaps") { HStack(spacing: 14) { Keycaps("⇧⌘F"); Keycaps("⌘↩"); Keycaps("⌥⌘←") } }
@@ -899,22 +901,21 @@ struct ChoiceCardsPage: View {
             }
             """
         ) {
-          VStack(spacing: KitMetrics.gutter) {
-            HStack(spacing: KitMetrics.gutter) {
-              ChoiceCard("PostgreSQL", subtitle: "Port 5432", letters: "PG", hue: .blue, isOn: $engine.picks(.postgres))
-              ChoiceCard("MySQL", subtitle: "Port 3306", letters: "My", hue: .teal, isOn: $engine.picks(.mysql))
-              ChoiceCard("SQLite", subtitle: "A file on this Mac", systemImage: "doc", hue: .indigo, isOn: $engine.picks(.sqlite))
-            }
-            HStack(spacing: KitMetrics.gutter) {
-              ChoiceCard(isOn: $engine.picks(.duckdb)) {
-                ChoiceCardLabel("DuckDB", subtitle: "Downloading · 45%") {
-                  LiveIcon(systemImage: "arrow.down", hue: .orange, status: download, size: 26)
-                }
+          // Three a row on the Mac, one on an iPhone.
+          LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: 240), spacing: KitMetrics.gutter)], spacing: KitMetrics.gutter
+          ) {
+            ChoiceCard("PostgreSQL", subtitle: "Port 5432", letters: "PG", hue: .blue, isOn: $engine.picks(.postgres))
+            ChoiceCard("MySQL", subtitle: "Port 3306", letters: "My", hue: .teal, isOn: $engine.picks(.mysql))
+            ChoiceCard("SQLite", subtitle: "A file on this Mac", systemImage: "doc", hue: .indigo, isOn: $engine.picks(.sqlite))
+            ChoiceCard(isOn: $engine.picks(.duckdb)) {
+              ChoiceCardLabel("DuckDB", subtitle: "Downloading · 45%") {
+                LiveIcon(systemImage: "arrow.down", hue: .orange, status: download, size: 26)
               }
-              ChoiceCard("Custom…", subtitle: "Any driver", systemImage: "puzzlepiece", hue: .gray, isOn: $engine.picks(.custom))
-              ChoiceCard("Oracle", subtitle: "Not available", letters: "Or", hue: .red, isOn: .constant(false))
-                .disabled(true)
             }
+            ChoiceCard("Custom…", subtitle: "Any driver", systemImage: "puzzlepiece", hue: .gray, isOn: $engine.picks(.custom))
+            ChoiceCard("Oracle", subtitle: "Not available", letters: "Or", hue: .red, isOn: .constant(false))
+              .disabled(true)
           }
         }
       }

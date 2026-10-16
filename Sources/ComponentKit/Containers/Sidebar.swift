@@ -99,6 +99,9 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.kitSectionStyle) private var style
   @Environment(\.contThreeColumns) private var threeColumns
+  #if !os(macOS)
+    @Environment(\.horizontalSizeClass) private var sizeClass
+  #endif
 
   /// A sidebar whose rows select an optional value.
   ///
@@ -214,12 +217,13 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     searchText != nil || BottomBar.self != EmptyView.self || barToggle != nil || statusView != nil
   }
 
-  /// The bottom bar's sidebar toggle: on iPad and iPhone; the Mac's sits at the top right.
+  /// The bottom bar's sidebar toggle: on iPad and iPhone; the Mac's sits at the top right. A compact split (an
+  /// iPhone, a narrow iPad window) stacks its columns, so there is no sidebar beside the page to hide.
   private var barToggle: (@MainActor () -> Void)? {
     #if os(macOS)
       nil
     #else
-      toggle
+      sizeClass == .compact ? nil : toggle
     #endif
   }
 
@@ -395,9 +399,18 @@ private struct ContShowSidebar: ViewModifier {
   @State private var hasKitToolbar = false
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.contThreeColumns) private var threeColumns
+  #if !os(macOS)
+    @Environment(\.horizontalSizeClass) private var sizeClass
+  #endif
 
   func body(content: Content) -> some View {
-    let isHidden = ContSplitVisibility.sidebarIsHidden(
+    // A compact split stacks its columns: the back button leads to the sidebar there.
+    #if os(macOS)
+      let isStacked = false
+    #else
+      let isStacked = sizeClass == .compact
+    #endif
+    let isHidden = !isStacked && ContSplitVisibility.sidebarIsHidden(
       columnVisibility, threeColumns: threeColumns, isTouch: idiom.isTouch, isPortrait: isPortrait)
     content
       // A kit toolbar below takes the button into its own bar.

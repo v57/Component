@@ -74,7 +74,7 @@ struct LiveIconPage: View {
             Tile(letters: "Pg", hue: .indigo, shape: .circle)
             """
         ) {
-          HStack(spacing: 18) {
+          Flow(spacing: 18, lineSpacing: 14, alignment: .top) {
             ForEach([Tile<Image>.Style.soft, .solid, .plain], id: \.self) { style in
               Labeled("\(style)") {
                 HStack(spacing: 10) {
@@ -111,10 +111,13 @@ struct LiveIconPage: View {
         "Work indicators",
         note: "Work of unknown length. Every style follows the tile's shape and morphs into the progress ring; pick one per app or per view."
       ) {
-        HStack(spacing: 12) {
-          KitSegmented(selection: $indicatorStatus, options: indicatorStates)
+        Flow(spacing: 12) {
+          // Seven states don't fit an iPhone's width: there the track scrolls.
+          ViewThatFits(in: .horizontal) {
+            KitSegmented(selection: $indicatorStatus, options: indicatorStates)
+            SideScroll { KitSegmented(selection: $indicatorStatus, options: indicatorStates) }
+          }
           Toggle("Cycle", isOn: $cycling).toggleStyle(.kitCheckbox)
-          Spacer()
         }
         Specimen("Rounded", code: "LiveIcon(systemImage: \"arrow.up\", status: push).kitWorkIndicator(.comet)") {
           indicatorsRow(shape: .rounded, size: 24)
@@ -165,24 +168,21 @@ struct LiveIconPage: View {
       [.trace, .comet, .pulse, .march, .ripple],
       [.breathe, .glow, .bloom, .heartbeat, .sonar],
     ]
-    return VStack(alignment: .leading, spacing: 14) {
-      ForEach(rows, id: \.self) { row in
-        HStack(spacing: 22) {
-          ForEach(row, id: \.self) { indicator in
-            Labeled(indicator.rawValue) {
-              LiveIcon(systemImage: systemImage, hue: hue, status: indicatorStatus, size: size, shape: shape)
-                .kitWorkIndicator(indicator)
-                .frame(width: size + 8, height: size + 8)
-            }
-            .frame(minWidth: 64)
-          }
+    // Five columns that narrow to fit an iPhone.
+    let columns = Array(repeating: GridItem(.flexible(minimum: 52, maximum: 86), spacing: 10, alignment: .leading), count: 5)
+    return LazyVGrid(columns: columns, alignment: .leading, spacing: 14) {
+      ForEach(Array(rows.joined()), id: \.self) { indicator in
+        Labeled(indicator.rawValue) {
+          LiveIcon(systemImage: systemImage, hue: hue, status: indicatorStatus, size: size, shape: shape)
+            .kitWorkIndicator(indicator)
+            .frame(width: size + 8, height: size + 8)
         }
       }
     }
   }
 
   private func statesRow(shape: KitShape, size: CGFloat) -> some View {
-    HStack(spacing: 22) {
+    Flow(spacing: 22, lineSpacing: 14, alignment: .top) {
       ForEach(states, id: \.0) { label, status in
         Labeled(label) {
           LiveIcon(systemImage: "arrow.up", status: status, size: size, shape: shape)
@@ -205,14 +205,13 @@ struct WorkStatusPage: View {
         "One piece of work, everywhere",
         note: "Start it and watch every component carry the same WorkStatus. Turn on Fail to end it red."
       ) {
-        HStack(spacing: 10) {
+        Flow(spacing: 10) {
           Button("Start", systemImage: "play.fill") { work.start() }.buttonStyle(.kitPrimary)
           Button("Pause", systemImage: "pause.fill") { work.pause() }.buttonStyle(.kit)
             .disabled(!work.status.isWorking)
           Button("Reset") { work.reset() }.buttonStyle(.kit)
           Toggle("Fail", isOn: $work.fails).toggleStyle(.kitCheckbox)
           Toggle("Unknown amount first", isOn: $work.indeterminateFirst).toggleStyle(.kitCheckbox)
-          Spacer()
           Text(work.label).kitFont(.mono).foregroundStyle(.kitSecondary)
         }
         CodeSnippet(
@@ -420,7 +419,7 @@ struct EffectsPage: View {
   @ViewBuilder private func host(_ demo: EffectDemo) -> some View {
     switch demo.host {
     case .buttons(let buttons):
-      HStack(spacing: 10) {
+      Flow(spacing: 10) {
         ForEach(buttons.indices, id: \.self) { i in
           let (title, symbol, effect, primary) = buttons[i]
           Button(title, systemImage: symbol) { bump(effect) }
