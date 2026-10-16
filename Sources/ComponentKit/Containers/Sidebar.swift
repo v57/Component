@@ -1,8 +1,9 @@
 import SwiftUI
 
-// The kit's sidebar: Shell's `ScrollView` + `LazyVStack` sidebar (SidebarView2), made generic. A `LazyVStack` does
-// none of what a `List` does for its rows, so the container publishes the selection, its focus and a namespace, and
-// every row selects itself on tap, draws the selection card (which glides between rows) and reorders by dragging.
+// The kit's sidebar: Shell's `ScrollView` + `LazyVStack` sidebar (SidebarView2), made generic, on a `KitLazyStack`.
+// A stack does none of what a `List` does for its rows, so the container publishes the selection, its focus and a
+// namespace, and every row selects itself on tap, draws the selection card (which glides between rows) and reorders
+// by dragging.
 
 /// What a sidebar publishes to its rows.
 struct ContSidebarSelection {
@@ -153,7 +154,8 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     // blurs them there; the bar's cards carry their own shadows over the rows, and a fade of the sidebar's ground
     // softens both edges.
     ScrollView {
-      LazyVStack(alignment: .leading, spacing: style == .plain ? 8 : ContMetrics.sectionSpacing(idiom)) {
+      // The sections' rows are lazy stacks of their own, so a card nearing the screen comes a few rows at a time.
+      KitLazyStack(alignment: .leading, spacing: style == .plain ? 8 : ContMetrics.sectionSpacing(idiom)) {
         content
       }
       .padding(.horizontal, inset)

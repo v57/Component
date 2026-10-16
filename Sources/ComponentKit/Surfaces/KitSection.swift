@@ -143,7 +143,8 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
         .modifier(SectionHeaderAccessibility(title: title, expanded: expanded, toggle: toggle))
       ContRevealLayout(progress: expanded ? 1 : 0) {
         if expanded {
-          VStack(alignment: .leading, spacing: 2) { content }
+          // Lazy: in a long sidebar the rows come a few at a time as the card nears the screen.
+          KitLazyStack(alignment: .leading, spacing: 2) { content }
             .padding(.top, 2)
             .padding([.horizontal, .bottom], KitMetrics.cardPadding)
             .transition(.opacity)
@@ -212,7 +213,7 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
       .modifier(SectionHeaderAccessibility(title: title, expanded: expanded, toggle: toggle))
       ContRevealLayout(progress: expanded ? 1 : 0) {
         if expanded {
-          VStack(alignment: .leading, spacing: 0) { content }
+          KitLazyStack(alignment: .leading, spacing: 0) { content }
             .padding(.top, 1)
             .transition(.opacity)
         }
