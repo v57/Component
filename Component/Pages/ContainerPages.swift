@@ -127,6 +127,8 @@ struct SidebarPage: View {
   @State private var rowSelection: Int? = 2
   @State private var rowSearch = ""
   @State private var rowSearching = false
+  @State private var note: Int? = 2
+  @State private var notes = Array(1...6)
 
   var body: some View {
     CatalogPage(page: .sidebar, maxWidth: 1100) {
@@ -234,6 +236,42 @@ struct SidebarPage: View {
         }
       }
       SpecimenSection(
+        "A list without the bar",
+        note: "KitList: the sidebar's rows and selection for a content list (notes, results). Swipe a row on iPad or with the trackpad; arrow keys move."
+      ) {
+        HStack(alignment: .top, spacing: 20) {
+          WindowFrame(height: 360) {
+            KitList(selection: $note) {
+              ForEach(notes, id: \.self) { index in
+                SidebarRow(value: index, sampleNotes[index % sampleNotes.count].0, systemImage: "doc.text")
+                  .subtitle {
+                    Text("Today").foregroundStyle(.kitLabel) + Text("  " + sampleNotes[index % sampleNotes.count].1)
+                  }
+                  .swipeActions {
+                    Button("Delete", systemImage: "trash", role: .destructive) {
+                      withKitAnimation { notes.removeAll { $0 == index } }
+                    }
+                  }
+              }
+            }
+            .kitPane(.secondary)
+          }
+          .frame(width: 300)
+          CodeSnippet(
+            """
+            KitList(selection: $note) {
+              ForEach(notes) { note in
+                SidebarRow(value: note.id, note.title, systemImage: "doc.text")
+                  .subtitle { Text(note.date) + Text("  " + note.preview) }
+                  .swipeActions { Button("Delete", systemImage: "trash", role: .destructive) { … } }
+              }
+            }
+            .onReturn { open(note) }
+            .kitPane(.secondary)
+            """)
+        }
+      }
+      SpecimenSection(
         "Rows", note: "A progress line, any view as the subtitle, a styled title, a chip after it, a live tile, the current row and a row that acts."
       ) {
         HStack(alignment: .top, spacing: 20) {
@@ -317,6 +355,13 @@ struct SidebarPage: View {
     if selection == repo.name { selection = name }
   }
 }
+
+/// Note titles and first lines for the list specimen.
+let sampleNotes = [
+  ("Lisbon trip", "The tram to Belém, then pastéis"), ("Packing list", "Adapter, the blue jacket, two books"),
+  ("Reading", "Finish the essay on maps"), ("Groceries", "Lemons, rice, coffee beans"),
+  ("Ideas", "A sidebar that remembers its width"), ("Meeting notes", "Ship the kit on Friday"),
+]
 
 /// A small file tree for the outline specimens.
 struct SampleNode: Identifiable, Hashable {
