@@ -352,6 +352,8 @@ struct PalettePage: View {
   @State private var query = "b"
   @State private var ran: String?
   @State private var scope = "atlas"
+  @State private var quickOpen = "tst"
+  @State private var showsOverlay = false
 
   var body: some View {
     CatalogPage(page: .palette) {
@@ -379,10 +381,37 @@ struct PalettePage: View {
           }
         }
       }
+      SpecimenSection(
+        "Quick open", note: "Two-line items with a fuzzy matcher's positions in bold and file icons of their own; the overlay dims the window."
+      ) {
+        Specimen(
+          "Two lines, match offsets, any icon, the overlay",
+          code: """
+            Workspace()
+              .kitPaletteOverlay(isPresented: $showsQuickOpen) {
+                KitPalette(query: $query, prompt: "Open Quickly", dismiss: { showsQuickOpen = false }) {
+                  PaletteGroup("Files in atlas", meta: ["3 matches"], systemImage: "doc.text.magnifyingglass") {
+                    ForEach(results) { result in
+                      PaletteItem(result.name, subtitle: result.folder, matches: result.positions,
+                                  icon: { FileIcon(result.name) }) { open(result) }
+                    }
+                  }
+                }
+              }
+            KitPalette(…, focusesOnAppear: false)   // embedded: leave the field unfocused
+            """
+        ) {
+          VStack(alignment: .leading, spacing: 10) {
+            quickOpenPalette(focuses: false).frame(width: 600)
+            Button("Show as an Overlay", systemImage: "command") { showsOverlay = true }
+              .buttonStyle(.kit)
+          }
+        }
+      }
       SpecimenSection("States") {
         SpecimenGrid(minWidth: 460) {
           Specimen("Running", code: "PaletteItem(\"Build\", systemImage: \"hammer\", status: .working, returnLabel: \"Stop\") { stop() }") {
-            KitPalette(query: .constant(""), prompt: "Search", status: .working, hints: []) {
+            KitPalette(query: .constant(""), prompt: "Search", status: .working, hints: [], focusesOnAppear: false) {
               PaletteGroup("Running in atlas", meta: ["Build · 0:42"], systemImage: "bolt", status: .working) {
                 PaletteItem("Build", systemImage: "hammer", hue: .orange, detail: "Atlas · Building · 0:42", status: .working, returnLabel: "Stop") {}
                 PaletteItem("Deploy", systemImage: "paperplane", hue: .blue, status: .working(progress: 0.3), returnLabel: "Stop") {}
@@ -390,13 +419,35 @@ struct PalettePage: View {
             }
           }
           Specimen("Disabled items, custom hints", code: "PaletteItem(\"Archive\", systemImage: \"archivebox\", isEnabled: false) { … }") {
-            KitPalette(query: .constant(""), prompt: "Open Quickly", hints: [PaletteHint(["⌘", "↩"], "Beside"), PaletteHint(["esc"], "Close")]) {
+            KitPalette(query: .constant(""), prompt: "Open Quickly", hints: [PaletteHint(["⌘", "↩"], "Beside"), PaletteHint(["esc"], "Close")], focusesOnAppear: false) {
               PaletteGroup("Files", meta: ["Atlas"], systemImage: "doc") {
                 PaletteItem("TripStore.swift", systemImage: "swift", hue: .orange, detail: "Sources/AtlasCore") {}
                 PaletteItem("Archive", systemImage: "archivebox", hue: .gray, note: "Needs a release build", isEnabled: false) {}
               }
             }
           }
+        }
+      }
+    }
+    .kitPaletteOverlay(isPresented: $showsOverlay) { quickOpenPalette(focuses: true) }
+  }
+
+  private func quickOpenPalette(focuses: Bool) -> some View {
+    KitPalette(
+      query: $quickOpen, prompt: "Open Quickly", status: .done, dismiss: { showsOverlay = false }, focusesOnAppear: focuses
+    ) {
+      PaletteGroup("Files in atlas", meta: ["3 matches"], systemImage: "doc.text.magnifyingglass", hue: .teal) {
+        PaletteItem("TripStore.swift", subtitle: "Sources/AtlasCore", matches: [0, 4, 6], icon: { FileLetterIcon(letter: "S", hue: .orange) }) {
+          ran = "TripStore.swift"
+          showsOverlay = false
+        }
+        PaletteItem("TripStoreTests.swift", subtitle: "Tests/AtlasCoreTests", matches: [0, 4, 9], subtitleMatches: [0], icon: { FileLetterIcon(letter: "T", hue: .purple) }) {
+          ran = "TripStoreTests.swift"
+          showsOverlay = false
+        }
+        PaletteItem("Trip.swift", systemImage: "swift", hue: .orange, subtitle: "Sources/AtlasCore", matches: [0]) {
+          ran = "Trip.swift"
+          showsOverlay = false
         }
       }
     }
@@ -555,6 +606,21 @@ struct SettingsPage: View {
         }
       }
     }
+  }
+}
+
+/// A file icon drawn as a letter on a hue, like Code's: what a custom icon view in a palette, tab or path looks like.
+struct FileLetterIcon: View {
+  var letter: String
+  var hue: Hue
+  var size: CGFloat = 20
+
+  var body: some View {
+    Text(letter)
+      .font(.system(size: size * 0.55, weight: .bold, design: .rounded))
+      .foregroundStyle(.white)
+      .frame(width: size, height: size)
+      .background(hue.fill, in: RoundedRectangle(cornerRadius: size * 0.27, style: .continuous))
   }
 }
 

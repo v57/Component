@@ -25,6 +25,7 @@ public struct KitPalette<Scope: View, Content: View>: View {
   var hints: [PaletteHint]
   var maxHeight: CGFloat
   var dismiss: (() -> Void)?
+  var focusesOnAppear: Bool
   var scope: Scope
   var content: Content
   @State private var nav = DataNavModel()
@@ -33,10 +34,12 @@ public struct KitPalette<Scope: View, Content: View>: View {
   @Environment(\.dataRendersFlat) private var flat
   @Environment(\.kitIdiom) private var idiom
 
+  /// A palette; `focusesOnAppear` false leaves the search field unfocused when it shows (a palette embedded in a
+  /// page rather than summoned).
   public init(
     query: Binding<String>, prompt: String = "Search", status: WorkStatus = .idle,
     hints: [PaletteHint] = PaletteHint.standard, maxHeight: CGFloat = 440, dismiss: (() -> Void)? = nil,
-    @ViewBuilder scope: () -> Scope, @ViewBuilder content: () -> Content
+    focusesOnAppear: Bool = true, @ViewBuilder scope: () -> Scope, @ViewBuilder content: () -> Content
   ) {
     self._query = query
     self.prompt = prompt
@@ -44,6 +47,7 @@ public struct KitPalette<Scope: View, Content: View>: View {
     self.hints = hints
     self.maxHeight = maxHeight
     self.dismiss = dismiss
+    self.focusesOnAppear = focusesOnAppear
     self.scope = scope()
     self.content = content()
   }
@@ -67,7 +71,7 @@ public struct KitPalette<Scope: View, Content: View>: View {
       MainActor.assumeIsolated { nav.update(ids: ids) }
     }
     .onChange(of: query) { nav.selected = nav.ids.first }
-    .onAppear { isFocused = true }
+    .onAppear { if focusesOnAppear { isFocused = true } }
   }
 
   private var searchLine: some View {
@@ -148,11 +152,11 @@ extension KitPalette where Scope == EmptyView {
   public init(
     query: Binding<String>, prompt: String = "Search", status: WorkStatus = .idle,
     hints: [PaletteHint] = PaletteHint.standard, maxHeight: CGFloat = 440, dismiss: (() -> Void)? = nil,
-    @ViewBuilder content: () -> Content
+    focusesOnAppear: Bool = true, @ViewBuilder content: () -> Content
   ) {
     self.init(
       query: query, prompt: prompt, status: status, hints: hints, maxHeight: maxHeight, dismiss: dismiss,
-      scope: { EmptyView() }, content: content)
+      focusesOnAppear: focusesOnAppear, scope: { EmptyView() }, content: content)
   }
 }
 
@@ -232,14 +236,27 @@ extension PaletteGroup where Accessory == EmptyView {
 
 // MARK: - Items
 
-/// One result in a palette: a solid tile (or a live icon while it runs), the title with the query's match in bold,
-/// a mono detail (the command it runs, the folder), a note in orange ("Stops Build first"), the shortcut; the
-/// selected row is raised and shows ↩ (with `returnLabel`, what Return does).
+/// One result in a palette: a solid tile (or a live icon while it runs, or any icon view), the title with the
+/// query's match in bold, a mono detail (the command it runs, the folder), a note in orange ("Stops Build first"),
+/// the shortcut; the selected row is raised and shows ↩ (with `returnLabel`, what Return does).
+///
+/// `subtitle` adds a second line (a file's folder, a symbol's location); `matches` bolds the given UTF-16 offsets of
+/// the title (a fuzzy matcher's positions) instead of the query's first occurrence, `subtitleMatches` those of the
+/// subtitle.
+///
+/// ```swift
+/// PaletteItem("Build", systemImage: "hammer", hue: .orange, detail: "xcodebuild … build", shortcut: "⌘B") { build() }
+/// PaletteItem(file.name, subtitle: file.folder, matches: match.positions, icon: { FileIcon(file) }) { open(file) }
+/// ```
 public struct PaletteItem: View {
   var title: String
   var id: String
   var systemImage: String
   var hue: Hue
+  var subtitle: String?
+  var matches: [Int]?
+  var subtitleMatches: [Int]?
+  var icon: AnyView?
   var detail: String?
   var note: String?
   var shortcut: String?
@@ -253,14 +270,18 @@ public struct PaletteItem: View {
   @State private var isHovered = false
 
   public init(
-    _ title: String, id: String? = nil, systemImage: String, hue: Hue = .accent, detail: String? = nil,
+    _ title: String, id: String? = nil, systemImage: String, hue: Hue = .accent, subtitle: String? = nil,
+    matches: [Int]? = nil, subtitleMatches: [Int]? = nil, detail: String? = nil,
     note: String? = nil, shortcut: String? = nil, status: WorkStatus = .idle, returnLabel: String? = nil,
     isEnabled: Bool = true, action: @escaping () -> Void
   ) {
     self.title = title
-    self.id = id ?? title + (detail ?? "")
+    self.id = id ?? title + (subtitle ?? "") + (detail ?? "")
     self.systemImage = systemImage
     self.hue = hue
+    self.subtitle = subtitle
+    self.matches = matches
+    self.subtitleMatches = subtitleMatches
     self.detail = detail
     self.note = note
     self.shortcut = shortcut
@@ -270,22 +291,45 @@ public struct PaletteItem: View {
     self.action = action
   }
 
+  /// A result with any icon view (a file's icon drawn as letters, an avatar), 20pt.
+  public init<Icon: View>(
+    _ title: String, id: String? = nil, subtitle: String? = nil, matches: [Int]? = nil,
+    subtitleMatches: [Int]? = nil, detail: String? = nil, note: String? = nil, shortcut: String? = nil,
+    returnLabel: String? = nil, isEnabled: Bool = true, @ViewBuilder icon: () -> Icon,
+    action: @escaping () -> Void
+  ) {
+    self.init(
+      title, id: id, systemImage: "", subtitle: subtitle, matches: matches, subtitleMatches: subtitleMatches,
+      detail: detail, note: note, shortcut: shortcut, returnLabel: returnLabel, isEnabled: isEnabled, action: action)
+    self.icon = AnyView(icon())
+  }
+
   private var isSelected: Bool { nav?.selected == id }
 
   public var body: some View {
     HStack(spacing: 10) {
       Group {
-        if status == .idle {
+        if let icon {
+          icon.frame(width: 20, height: 20)
+        } else if status == .idle {
           Tile(systemImage: systemImage, hue: hue, size: 20, style: .solid)
         } else {
           LiveIcon(systemImage: systemImage, hue: hue, status: status, size: 20)
         }
       }
       .opacity(isEnabled ? 1 : 0.45)
-      Text(PaletteMatch.marked(title, query: query))
-        .foregroundStyle(isEnabled ? AnyShapeStyle(.kitLabel) : AnyShapeStyle(.kitTertiary))
-        .lineLimit(1)
-        .layoutPriority(1)
+      VStack(alignment: .leading, spacing: 1) {
+        Text(matches.map { PaletteMatch.marked(title, offsets: $0) } ?? PaletteMatch.marked(title, query: query))
+          .foregroundStyle(isEnabled ? AnyShapeStyle(.kitLabel) : AnyShapeStyle(.kitTertiary))
+          .lineLimit(1)
+        if let subtitle {
+          Text(subtitleMatches.map { PaletteMatch.marked(subtitle, offsets: $0) } ?? AttributedString(subtitle))
+            .kitFont(.caption)
+            .lineLimit(1)
+            .truncationMode(.middle)
+        }
+      }
+      .layoutPriority(1)
       if let detail {
         Text(detail)
           .font(.system(size: 11, design: .monospaced))
@@ -311,7 +355,8 @@ public struct PaletteItem: View {
       }
     }
     .padding(.horizontal, 8)
-    .frame(minHeight: idiom.isTouch ? 44 : 36)
+    .padding(.vertical, subtitle == nil ? 0 : 3)
+    .frame(minHeight: subtitle == nil ? (idiom.isTouch ? 44 : 36) : KitMetrics.twoLineRow(idiom))
     .background {
       if isSelected {
         SurfaceShape(surface: .raised, cornerRadius: KitMetrics.radius)
@@ -331,6 +376,21 @@ public struct PaletteItem: View {
 }
 
 enum PaletteMatch {
+  /// The title with the characters at `offsets` (UTF-16, as fuzzy matchers report them) in semibold; offsets past
+  /// the end are ignored.
+  static func marked(_ title: String, offsets: [Int]) -> AttributedString {
+    var text = AttributedString(title)
+    let utf16 = title.utf16
+    for offset in Set(offsets).sorted() where offset >= 0 && offset < utf16.count {
+      let start = utf16.index(utf16.startIndex, offsetBy: offset)
+      guard let lower = start.samePosition(in: title) else { continue }
+      let upper = title.index(after: lower)
+      guard let range = Range(lower..<upper, in: text) else { continue }
+      text[range].inlinePresentationIntent = .stronglyEmphasized
+    }
+    return text
+  }
+
   /// The title with the first case-insensitive occurrence of `query` in semibold.
   static func marked(_ title: String, query: String) -> AttributedString {
     var text = AttributedString(title)
@@ -338,6 +398,56 @@ enum PaletteMatch {
     guard !needle.isEmpty, let range = text.range(of: needle, options: .caseInsensitive) else { return text }
     text[range].inlinePresentationIntent = .stronglyEmphasized
     return text
+  }
+}
+
+// MARK: - Overlay
+
+extension View {
+  /// Shows a palette over this view while `isPresented`: the window dims (`kitScrim`), the palette sits at the top
+  /// centre, 560pt wide at most (8pt from the edges on a narrow window), and a click on the dim closes it. Escape
+  /// closes it through the palette's own `dismiss`.
+  ///
+  /// ```swift
+  /// Workspace()
+  ///   .kitPaletteOverlay(isPresented: $showsQuickOpen) {
+  ///     KitPalette(query: $query, prompt: "Open Quickly", dismiss: { showsQuickOpen = false }) { … }
+  ///   }
+  /// ```
+  public func kitPaletteOverlay<Palette: View>(
+    isPresented: Binding<Bool>, width: CGFloat = 560, @ViewBuilder palette: @escaping () -> Palette
+  ) -> some View {
+    overlay {
+      DataPaletteOverlay(isPresented: isPresented, width: width, palette: palette)
+    }
+  }
+}
+
+private struct DataPaletteOverlay<Palette: View>: View {
+  @Binding var isPresented: Bool
+  let width: CGFloat
+  let palette: () -> Palette
+  @Environment(\.kitIdiom) private var idiom
+
+  var body: some View {
+    ZStack(alignment: .top) {
+      if isPresented {
+        Rectangle()
+          .fill(.kitScrim)
+          .ignoresSafeArea()
+          .contentShape(Rectangle())
+          .onTapGesture { withKitAnimation(.kitFast) { isPresented = false } }
+          .accessibilityAddTraits(.isButton)
+          .accessibilityLabel("Close")
+          .transition(.opacity)
+        palette()
+          .frame(maxWidth: width)
+          .padding(.horizontal, KitMetrics.gutter)
+          .padding(.top, idiom.isTouch ? 16 : KitMetrics.gutter)
+          .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
+      }
+    }
+    .animation(.kitFast, value: isPresented)
   }
 }
 

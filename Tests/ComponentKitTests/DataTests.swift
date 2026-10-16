@@ -130,3 +130,15 @@ import Testing
   #expect(String(marked[strong.first!.range].characters) == "Store")
   #expect(PaletteMatch.marked("Build", query: " ").runs.count == 1)
 }
+
+// MARK: - Palette match offsets
+
+@Test func paletteMarksFuzzyOffsets() {
+  let text = PaletteMatch.marked("TripStore.swift", offsets: [0, 4, 4, 99, -1])
+  let bold = text.runs.filter { $0.inlinePresentationIntent == .stronglyEmphasized }.map { String(text[$0.range].characters) }
+  #expect(bold == ["T", "S"])
+  // Offsets count UTF-16 units: "é" is one, the emoji two.
+  let accented = PaletteMatch.marked("é🙂x", offsets: [3])
+  let marked = accented.runs.filter { $0.inlinePresentationIntent == .stronglyEmphasized }.map { String(accented[$0.range].characters) }
+  #expect(marked == ["x"])
+}

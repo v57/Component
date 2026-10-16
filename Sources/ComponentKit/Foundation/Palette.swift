@@ -130,6 +130,8 @@ extension ShapeStyle where Self == KitColor {
   public static var kitField: KitColor { .field }
   public static var kitHover: KitColor { .hover }
   public static var kitPress: KitColor { .press }
+  /// The dim under a modal palette or a sheet: black at 18% (40% in dark).
+  public static var kitScrim: KitColor { .scrim }
 }
 
 // MARK: - Hues
