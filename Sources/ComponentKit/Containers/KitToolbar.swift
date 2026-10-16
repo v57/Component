@@ -178,7 +178,7 @@ extension View {
   }
 }
 
-/// Places the bar: a top bar the content scrolls under (`KitBarMode`), over the title bar on the Mac and in place
+/// Places the bar: a top bar the content scrolls under, over the title bar on the Mac and in place
 /// of the navigation bar on iPhone and iPad.
 private struct ContKitToolbar<Title: View>: ViewModifier {
   let windowTitle: String
@@ -193,7 +193,7 @@ private struct ContKitToolbar<Title: View>: ViewModifier {
   }
 }
 
-/// The bar as a top bar the content scrolls under, per `KitBarMode`, on the window's ground. On the Mac the view
+/// The bar as a top safe-area inset the content scrolls under, with a fade of the window's ground. On the Mac the view
 /// runs up into the title bar, so the bar takes its place.
 private struct ContTopBar<Bar: View>: ViewModifier {
   @ViewBuilder var bar: Bar

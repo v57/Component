@@ -154,7 +154,7 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
         content
       }
       .padding(.horizontal, inset)
-      // The ends' gaps are padding, not safe area: a `safeAreaBar`'s band covers the whole safe area at its edge.
+      // The ends' gaps are padding, not safe area, so the bars' fades end at the bars.
       .padding(.top, 2)
       .padding(.bottom, inset)
     }
@@ -164,8 +164,8 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     .modifier(ContRowKeyboard(current: selection, select: setSelection, onReturn: returnAction, onPrimary: primary))
     // A click on a row focuses the sidebar, like a click into a `List`.
     .simultaneousGesture(TapGesture().onEnded { focused = true })
-    // The title bar's scroll edge (the system's bar), and the bottom bar, per `KitBarMode`.
-    .contEdgeEffect(.top)
+    // No system scroll edge under the title bar; the bottom bar as an inset.
+    .contEdgeEffectHidden(.top)
     .contEdgeBar(.bottom) {
       if showsBar {
         ContSidebarBar(

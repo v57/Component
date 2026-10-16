@@ -261,7 +261,6 @@ struct CatalogView: View {
         }
         .kitSidebarToggle(columnVisibility: $columns)
     }
-    .kitBarMode(model.toolbarBar ? .bar : .inset)
     .onChange(of: model.page) { compactColumn = .detail }
     .onAppear { if model.hidesSidebar { columns = .detailOnly } }
   }
@@ -315,7 +314,7 @@ struct CatalogSidebar: View {
 
 // MARK: - Toolbar
 
-/// The catalog's controls: appearance, accent, idiom, Increase Contrast, an inactive window and the toolbar's mode. As the window narrows
+/// The catalog's controls: appearance, accent, idiom, Increase Contrast and an inactive window. As the window narrows
 /// they go icon-only, then fold into the "…" menu, the chips first and the appearance last.
 enum CatalogToolbar {
   @MainActor @ToolbarSlotBuilder
@@ -363,13 +362,11 @@ enum CatalogToolbar {
       ChipTrack {
         Toggle("Contrast", isOn: $model.increaseContrast)
         Toggle("Inactive", isOn: $model.inactiveWindow)
-        Toggle("Bar", isOn: $model.toolbarBar)
       }
-      .help("Increase Contrast, an inactive window, and the kit's bars (toolbar, sidebar) as safeAreaBars (off: plain insets)")
+      .help("Increase Contrast and an inactive window")
     } menu: {
       Toggle("Increase Contrast", isOn: $model.increaseContrast)
       Toggle("Inactive Window", isOn: $model.inactiveWindow)
-      Toggle("Bars as safeAreaBar", isOn: $model.toolbarBar)
     }
   }
 }
