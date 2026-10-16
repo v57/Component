@@ -486,15 +486,25 @@ struct FieldsPage: View {
         }
       }
       SpecimenSection("Live check", note: "Type a URL: the field checks it as you type.") {
-        Specimen("Validating", code: "TextField(\"URL\", text: $url).kitField(status: isChecking ? .checking : isValid ? .valid : .error)") {
-          TextField("Repository URL", text: $wrong)
-            .kitField(status: fieldStatus, mono: true)
-            .kitFieldError(checking || isValid ? nil : "Starts with https:// or git@")
-            .task(id: wrong) {
-              checking = true
-              try? await Task.sleep(for: .milliseconds(700))
-              checking = false
-            }
+        Specimen(
+          "Validating",
+          code: """
+            TextField("URL", text: $url).kitField(status: isChecking ? .checking : isValid ? .valid : .error)
+            Button("Paste") { url = KitPasteboard.string() ?? url }   // reads the pasteboard's text
+            """
+        ) {
+          HStack(spacing: 8) {
+            TextField("Repository URL", text: $wrong)
+              .kitField(status: fieldStatus, mono: true)
+              .kitFieldError(checking || isValid ? nil : "Starts with https:// or git@")
+              .task(id: wrong) {
+                checking = true
+                try? await Task.sleep(for: .milliseconds(700))
+                checking = false
+              }
+            Button("Paste", systemImage: "doc.on.clipboard") { wrong = KitPasteboard.string() ?? wrong }
+              .buttonStyle(.kit)
+          }
         }
       }
     }

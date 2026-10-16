@@ -382,6 +382,16 @@ enum ContPlatform {
     #endif
   }
 
+  static func pastedString() -> String? {
+    #if canImport(AppKit)
+      NSPasteboard.general.string(forType: .string)
+    #elseif canImport(UIKit)
+      UIPasteboard.general.hasStrings ? UIPasteboard.general.string : nil
+    #else
+      nil
+    #endif
+  }
+
   /// Whether the Mac can show or hide the window's sidebar through the responder chain (a `NavigationSplitView`).
   static var canToggleSidebar: Bool {
     #if canImport(AppKit)
