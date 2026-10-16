@@ -163,3 +163,11 @@ private var navRows: [(value: AnyHashable, indent: Int, isOpen: Bool?)] { [
   #expect(ContSplit.size(start: 200, translation: 50, paneLeads: false, range: 100...400) == 150)
   #expect(ContSplit.size(start: 200, translation: 500, paneLeads: true, range: 100...400) == 400)
 }
+
+@Test func cardSlicesByPosition() {
+  #expect(KitCardSlice(0, of: 1) == .only)
+  #expect(KitCardSlice(0, of: 3) == .first)
+  #expect(KitCardSlice(1, of: 3) == .middle)
+  #expect(KitCardSlice(2, of: 3) == .last)
+  #expect(KitCardSlice(0, of: 0) == .only)
+}

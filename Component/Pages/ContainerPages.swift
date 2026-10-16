@@ -140,6 +140,35 @@ struct SectionsPage: View {
           .frame(width: 320)
         }
       }
+      SpecimenSection("A card over lazy rows", note: "Long histories: each row draws its slice of one card, so only the rows on screen exist.") {
+        HStack(alignment: .top, spacing: 20) {
+          ScrollView {
+            LazyVStack(spacing: 0) {
+              LazyCard(Array(1...200), id: \.self) { number in
+                HStack {
+                  Text("Commit \(number)")
+                  Spacer()
+                  Text("\(number) hr ago").kitFont(.caption)
+                }
+                .padding(.horizontal, 6)
+                .frame(minHeight: 30)
+              }
+            }
+            .padding(KitMetrics.gutter)
+          }
+          .frame(width: 320, height: 260)
+          .background(.kitPanel, in: RoundedRectangle(cornerRadius: KitMetrics.radiusXL, style: .continuous))
+          CodeSnippet(
+            """
+            ScrollView {
+              LazyVStack(spacing: 0) {
+                LazyCard(commits) { commit in CommitRow(commit) }
+              }
+            }
+            // or by hand: row.kitCardSlice(index, of: count)
+            """)
+        }
+      }
     }
   }
 }
