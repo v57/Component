@@ -476,8 +476,20 @@ extension MenusPage {
     Button("Open", systemImage: "arrow.up.right.square") { picked = "\(menu): Open" }
     Button("Rename…", systemImage: "pencil") { picked = "\(menu): Rename" }
     Button("Copy Path", systemImage: "doc.on.doc") { picked = "\(menu): Copy Path" }
+    if menu == "Kit" {
+      KitSubmenu("Share", systemImage: "square.and.arrow.up") { shareRows(menu) }
+    } else {
+      Menu("Share", systemImage: "square.and.arrow.up") { shareRows(menu) }
+    }
     Divider()
     Button("Move to Trash", systemImage: "trash", role: .destructive) { picked = "\(menu): Move to Trash" }
+  }
+}
+
+extension MenusPage {
+  @ViewBuilder fileprivate func shareRows(_ menu: String) -> some View {
+    Button("Mail", systemImage: "envelope") { picked = "\(menu): Share › Mail" }
+    Button("Messages", systemImage: "message") { picked = "\(menu): Share › Messages" }
   }
 }
 

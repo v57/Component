@@ -287,6 +287,8 @@ struct KitMenuRow<Label: View>: View {
   var checked: Bool? = nil
   var role: ButtonRole? = nil
   var isSubmenu = false
+  /// An open touch submenu's first row: its title in bold with a down chevron; picking it folds the submenu.
+  var isHeader = false
   /// The row's id in its menu (a submenu passes its own, to know when it is open).
   var rowID: UUID? = nil
   var trigger: () -> Void
@@ -318,15 +320,16 @@ struct KitMenuRow<Label: View>: View {
       }
       label
         .lineLimit(1)
+        .fontWeight(isHeader ? .semibold : nil)
         .onPreferenceChange(KitMenuHasIcon.self) { value in hasIcon = value }
       Spacer(minLength: 8)
       if let hint, !isSubmenu {
-        Text(hint)
+        Text(Self.textPresentation(hint))
           .font(.system(size: metrics.hintFont))
           .foregroundStyle(isHighlighted ? AnyShapeStyle(Color.white.opacity(0.8)) : AnyShapeStyle(.kitTertiary))
       }
-      if isSubmenu {
-        Image(systemName: "chevron.right")
+      if isSubmenu || isHeader {
+        Image(systemName: isHeader ? "chevron.down" : "chevron.right")
           .font(.system(size: metrics.font * 0.75, weight: .semibold))
           .foregroundStyle(isHighlighted ? AnyShapeStyle(Color.white.opacity(0.8)) : AnyShapeStyle(.kitSecondary))
       }
@@ -353,7 +356,21 @@ struct KitMenuRow<Label: View>: View {
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(checked == true ? [.isButton, .isSelected] : .isButton)
     .accessibilityAction { if isEnabled { trigger() } }
+    // On touch an open submenu covers its menu, whose other rows fade behind it.
+    .opacity(idiom.isTouch && model?.openSubmenu != nil && model?.openSubmenu != id ? 0.3 : 1)
     .zIndex(model?.openSubmenu == id ? 1 : 0)
+  }
+
+  /// Symbols such as ↩ draw as emoji on iOS unless asked for their text form.
+  static func textPresentation(_ hint: String) -> String {
+    var scalars = String.UnicodeScalarView()
+    for scalar in hint.unicodeScalars {
+      scalars.append(scalar)
+      if scalar.properties.isEmoji && !scalar.properties.isEmojiPresentation && !scalar.isASCII {
+        scalars.append("\u{FE0E}")
+      }
+    }
+    return String(scalars)
   }
 
   private var titleStyle: AnyShapeStyle {
@@ -544,13 +561,23 @@ public struct KitSubmenu<Content: View>: View {
   private var isOpen: Bool { forced || model?.openSubmenu == rowID }
 
   public var body: some View {
+    let metrics = KitMenuMetrics(idiom)
     KitMenuRow(isSubmenu: true, rowID: rowID, trigger: { model?.openSubmenu = rowID }) {
       if let systemImage { Label(title, systemImage: systemImage) } else { Text(title) }
     }
     .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(KitMenuModel.space)) } action: { rowFrame = $0 }
     .overlay(alignment: .topLeading) {
       if isOpen {
-        KitMenuCard(model: child) { content }
+        KitMenuCard(model: child, minWidth: idiom.isTouch ? rowFrame.width + 2 * metrics.cardPadding + 8 : nil) {
+          if idiom.isTouch {
+            // As iOS: the submenu stacks over its menu from this row, headed by its title, which folds it.
+            KitMenuRow(isHeader: true, trigger: { model?.openSubmenu = nil }) {
+              if let systemImage { Label(title, systemImage: systemImage) } else { Text(title) }
+            }
+            Divider()
+          }
+          content
+        }
           .onGeometryChange(for: CGSize.self) { $0.size } action: { childSize = $0 }
           .environment(\.kitMenuForcedHighlight, false)
           .offset(offset)
@@ -562,12 +589,21 @@ public struct KitSubmenu<Content: View>: View {
           }
       }
     }
+    // The open submenu lies over the rows after it.
+    .zIndex(isOpen ? 1 : 0)
   }
 
   /// Beside the row, its first row level with this one: on the trailing side, or the leading side when the
-  /// trailing one has no room; lifted to stay on screen.
+  /// trailing one has no room; on touch, over the menu from this row, a little wider. Lifted to stay on screen.
   private var offset: CGSize {
     let metrics = KitMenuMetrics(idiom)
+    if idiom.isTouch {
+      var y = -metrics.cardPadding - 4
+      if let bounds, rowFrame.minY + y + childSize.height > bounds.height - 8 {
+        y = bounds.height - 8 - childSize.height - rowFrame.minY
+      }
+      return CGSize(width: -metrics.cardPadding - 4, height: y)
+    }
     let gap = metrics.cardPadding + 2
     let trailing = rowFrame.width + gap
     var x = trailing
@@ -919,7 +955,9 @@ struct KitMenuOverlay<Content: View>: View {
       // On touch, as the system's: beside the pressed view, not over it (the finger and the view stay clear):
       // under it, starting at the finger, or above it when there's no room below.
       let trigger = model.trigger
-      let x = min(max(anchor.minX, margin), max(margin, bounds.width - size.width - margin))
+      // iPhone centres it on the view; iPad starts it at the finger.
+      let start = idiom == .phone ? trigger.midX - size.width / 2 : anchor.minX
+      let x = min(max(start, margin), max(margin, bounds.width - size.width - margin))
       if trigger.maxY + margin + size.height <= bounds.height - margin {
         return (CGPoint(x: x, y: trigger.maxY + margin), false)
       }
