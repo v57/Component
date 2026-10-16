@@ -190,6 +190,7 @@ struct SidebarPage: View {
   @State private var note: Int? = 2
   @State private var notes = Array(1...6)
   @State private var branch: String? = "main"
+  @State private var opened: String?
 
   var body: some View {
     CatalogPage(page: .sidebar, maxWidth: 1100) {
@@ -205,11 +206,11 @@ struct SidebarPage: View {
                   SidebarRow(value: repo.name, repo.name, subtitle: repo.branch) {
                     Tile(letters: String(repo.name.prefix(1)).uppercased(), hue: StableHue.pick(repo.name), size: 18)
                   }
+                  .onDoubleClick { renaming = repo.name }
                   .kitRename(
                     isRenaming: Binding(get: { renaming == repo.name }, set: { if !$0 { renaming = nil } }),
                     onCommit: { name in rename(repo, to: name) }
                   )
-                  .simultaneousGesture(TapGesture(count: 2).onEnded { renaming = repo.name })
                 }
               } accessory: {
                 Button("Add Repository", systemImage: "plus") {
@@ -239,6 +240,7 @@ struct SidebarPage: View {
                 KitSection("Repositories", meta: ["5 repositories"], systemImage: "folder") {
                   ReorderableSection(repos, move: { repos.move(fromOffsets: $0, toOffset: $1) }) { repo in
                     SidebarRow(value: repo.id, repo.name, subtitle: repo.branch, systemImage: "shippingbox")
+                      .onDoubleClick { renaming = repo.id }
                       .kitRename(isRenaming: $renaming) { rename(repo, to: $0) }
                   }
                 } accessory: {
@@ -315,9 +317,12 @@ struct SidebarPage: View {
                   }
               }
             }
+            .primaryAction { (index: Int) in opened = sampleNotes[index % sampleNotes.count].0 }
             .kitPane(.secondary)
           }
           .frame(width: 300)
+          VStack(alignment: .leading, spacing: 12) {
+          Text(opened.map { "Opened: \($0)" } ?? "Double-click a note (or Return) to open it").kitFont(.headline)
           CodeSnippet(
             """
             KitList(selection: $note) {
@@ -327,9 +332,12 @@ struct SidebarPage: View {
                   .swipeActions { Button("Delete", systemImage: "trash", role: .destructive) { … } }
               }
             }
-            .onReturn { open(note) }
+            .primaryAction { (id: Note.ID) in open(id) }   // double click, and Return
             .kitPane(.secondary)
+
+            SidebarRow(value: file.id, file.name, systemImage: "doc").onDoubleClick { open(file) }   // one row
             """)
+          }
         }
       }
       SpecimenSection(

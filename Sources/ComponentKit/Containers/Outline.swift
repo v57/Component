@@ -203,6 +203,7 @@ struct ContRowKeyboard: ViewModifier {
   let current: AnyHashable?
   let select: @MainActor (AnyHashable) -> Void
   let onReturn: (@MainActor () -> Void)?
+  var onPrimary: (@MainActor (AnyHashable) -> Void)? = nil
   @State private var rows: [ContRowNavItem] = []
 
   func body(content: Content) -> some View {
@@ -229,6 +230,8 @@ struct ContRowKeyboard: ViewModifier {
         action()
       } else if let onReturn {
         onReturn()
+      } else if let onPrimary, let current {
+        onPrimary(current)
       } else if let isExpanded = row?.disclosure?.isExpanded {
         withKitAnimation { isExpanded.wrappedValue.toggle() }
       } else {

@@ -11,6 +11,8 @@ struct ContSidebarSelection {
   /// The sidebar holds keyboard focus (or is on a touch idiom, where there is no other focus).
   var isFocused: Bool
   var namespace: Namespace.ID
+  /// The container's double-click (and Return) action on a row's value.
+  var primaryAction: (@MainActor (AnyHashable) -> Void)? = nil
 }
 
 /// A row's own state, for what draws inside it (the icon tile turns to the accent on the emphasized selection).
@@ -88,6 +90,7 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   private let bottomBar: BottomBar
   private var statusView: AnyView?
   private var returnAction: (@MainActor () -> Void)?
+  private var primary: (@MainActor (AnyHashable) -> Void)?
   @FocusState private var focused: Bool
   @Namespace private var namespace
   @State private var reorder = ContReorderState()
@@ -152,7 +155,7 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
       .focusable()
       .focusEffectDisabled()
       .focused($focused)
-      .modifier(ContRowKeyboard(current: selection, select: setSelection, onReturn: returnAction))
+      .modifier(ContRowKeyboard(current: selection, select: setSelection, onReturn: returnAction, onPrimary: primary))
       // A click on a row focuses the sidebar, like a click into a `List`.
       .simultaneousGesture(TapGesture().onEnded { focused = true })
       if showsBar {
@@ -167,7 +170,8 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     .environment(
       \.contSidebarSelection,
       ContSidebarSelection(
-        value: selection, select: setSelection, isFocused: focused || idiom.isTouch, namespace: namespace)
+        value: selection, select: setSelection, isFocused: focused || idiom.isTouch, namespace: namespace,
+        primaryAction: primary)
     )
     .environment(\.contReorderState, reorder)
     // The selection card glides to the newly selected row, and settles or goes flat as focus comes and goes.
@@ -202,6 +206,21 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   public func onReturn(_ action: @escaping @MainActor () -> Void) -> Self {
     var sidebar = self
     sidebar.returnAction = action
+    return sidebar
+  }
+
+  /// What a double click on a row does with its value (open a file, connect to a host); Return runs it too on the
+  /// selected row while the sidebar has keyboard focus, unless `onReturn` is set. Rows with their own `.action` or
+  /// `.onDoubleClick` keep theirs. A single click still selects at once.
+  ///
+  /// ```swift
+  /// KitSidebar(selection: $file) { … }.primaryAction { (url: URL) in open(url) }
+  /// ```
+  public func primaryAction<Value: Hashable>(_ action: @escaping @MainActor (Value) -> Void) -> Self {
+    var sidebar = self
+    sidebar.primary = { value in
+      if let value = value.base as? Value { action(value) }
+    }
     return sidebar
   }
 
@@ -370,6 +389,7 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
   var isExpanded: Binding<Bool>?
   var isCurrent = false
   var action: (@MainActor () -> Void)?
+  var doubleClick: (@MainActor () -> Void)?
   @Environment(\.contSidebarSelection) private var selection
   @Environment(\.contRowTag) private var tag
   @Environment(\.contRowIndent) private var indent
@@ -496,6 +516,25 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
     return row
   }
 
+  /// Runs `action` on a double click (a double tap on touch), after the first click selected the row: open the
+  /// file, connect, rename. It wins over the container's `primaryAction`.
+  ///
+  /// ```swift
+  /// SidebarRow(value: file.id, file.name, systemImage: "doc").onDoubleClick { open(file) }
+  /// ```
+  public func onDoubleClick(_ action: @escaping @MainActor () -> Void) -> Self {
+    var row = self
+    row.doubleClick = action
+    return row
+  }
+
+  /// The double click's action: the row's own, or the container's primary action on the row's value.
+  private var doubleClickAction: (@MainActor () -> Void)? {
+    if let doubleClick { return doubleClick }
+    guard action == nil, let rowValue, let primary = selection?.primaryAction else { return nil }
+    return { primary(rowValue) }
+  }
+
   private var rowValue: AnyHashable? { value ?? tag }
   private var compact: Bool { (style == .plain || density == .compact) && !idiom.isTouch }
   /// The row's own disclosure, or the one its `KitOutline` node gives it.
@@ -573,6 +612,13 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
         selection?.select(rowValue)
       }
     }
+    // Alongside the single tap, so selecting doesn't wait for a second click.
+    .simultaneousGesture(
+      TapGesture(count: 2).onEnded {
+        guard !isRenaming else { return }
+        doubleClickAction?()
+      }, including: doubleClickAction == nil ? .subviews : .all
+    )
     .preference(
       key: ContRowNavKey.self,
       value: rowValue.map { [ContRowNavItem(value: $0, indent: indent, disclosure: disclosure, action: action)] } ?? [])

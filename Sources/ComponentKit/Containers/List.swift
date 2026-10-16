@@ -23,6 +23,7 @@ public struct KitList<Content: View>: View {
   private let setSelection: @MainActor (AnyHashable) -> Void
   private let content: Content
   private var returnAction: (@MainActor () -> Void)?
+  private var primary: (@MainActor (AnyHashable) -> Void)?
   @FocusState private var focused: Bool
   @Namespace private var namespace
   @Environment(\.kitIdiom) private var idiom
@@ -55,6 +56,20 @@ public struct KitList<Content: View>: View {
     return list
   }
 
+  /// What a double click on a row does with its value (open the note in a window, play the file); Return runs it too
+  /// on the selected row while the list has keyboard focus, unless `onReturn` is set.
+  ///
+  /// ```swift
+  /// KitList(selection: $file) { … }.primaryAction { (id: File.ID) in open(id) }
+  /// ```
+  public func primaryAction<Value: Hashable>(_ action: @escaping @MainActor (Value) -> Void) -> Self {
+    var list = self
+    list.primary = { value in
+      if let value = value.base as? Value { action(value) }
+    }
+    return list
+  }
+
   public var body: some View {
     let selection = getSelection()
     let inset = ContMetrics.sidebarInset(idiom)
@@ -71,12 +86,13 @@ public struct KitList<Content: View>: View {
     .focusable()
     .focusEffectDisabled()
     .focused($focused)
-    .modifier(ContRowKeyboard(current: selection, select: setSelection, onReturn: returnAction))
+    .modifier(ContRowKeyboard(current: selection, select: setSelection, onReturn: returnAction, onPrimary: primary))
     .simultaneousGesture(TapGesture().onEnded { focused = true })
     .environment(
       \.contSidebarSelection,
       ContSidebarSelection(
-        value: selection, select: setSelection, isFocused: focused || idiom.isTouch, namespace: namespace)
+        value: selection, select: setSelection, isFocused: focused || idiom.isTouch, namespace: namespace,
+        primaryAction: primary)
     )
     .animation(.kit, value: selection)
     .animation(.kit, value: focused)
