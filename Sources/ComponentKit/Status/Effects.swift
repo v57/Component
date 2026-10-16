@@ -307,10 +307,11 @@ private struct Sparkles: View {
       let rect = CGRect(origin: .zero, size: size).insetBy(dx: spread, dy: spread)
       var random = SeededRandom(seed: seed)
       for (i, spot) in Self.spots.enumerated() {
+        // Every star takes its jitter, shown or not, so a star that ends doesn't move the others.
+        let jitter = CGPoint(x: random.next(in: -4...4), y: random.next(in: -3...3))
         let delay = Double(i) * 0.09
         let local = (t - delay) / 0.5
         guard local > 0, local < 1 else { continue }
-        let jitter = CGPoint(x: random.next(in: -4...4), y: random.next(in: -3...3))
         let center = CGPoint(
           x: rect.minX + rect.width * spot.x + jitter.x, y: rect.minY + rect.height * spot.y + jitter.y)
         let scale = sin(local * .pi)
