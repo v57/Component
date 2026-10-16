@@ -181,6 +181,8 @@ final class KitMenuModel {
   /// How far the pointer has strayed toward closing the menu: 0 near it, 1 at the edge of closing. The menu
   /// shrinks (to 80%) and fades (to 50%) with it.
   var fade: Double = 0
+  /// The menu is on its way out (it strayed too far): it shrinks and fades away before its window goes.
+  var isClosing = false
   var openSubmenu: UUID?
   private(set) var rows: [UUID: Row] = [:]
   /// Some row has an icon, so every row keeps the icon column and the titles line up.
@@ -769,11 +771,8 @@ struct KitMenuOverlay<Content: View>: View {
           .accessibilityHidden(true)
         KitMenuCard(model: model, minWidth: matchesWidth ? anchor.width : nil) { content }
           .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }
-          .scaleEffect(
-            (shown || reduceMotion ? 1 : 0.96) * (1 - 0.2 * model.fade),
-            anchor: place.above ? .bottomLeading : .topLeading
-          )
-          .opacity((shown && size != nil ? 1 : 0) * (1 - 0.5 * model.fade))
+          .scaleEffect(scale)
+          .opacity(model.isClosing ? 0 : (shown && size != nil ? 1 : 0) * (1 - 0.5 * model.fade))
           .offset(x: place.origin.x, y: place.origin.y)
       }
       .coordinateSpace(name: KitMenuModel.space)
@@ -795,6 +794,13 @@ struct KitMenuOverlay<Content: View>: View {
       withAnimation(.smooth(duration: 0.18)) { shown = true }
     }
     .onChange(of: anchor) { model.anchor = anchor }
+  }
+
+  /// Opening grows it in from 96%; straying shrinks it toward 80%; closing takes it on down as it fades.
+  private var scale: CGFloat {
+    if reduceMotion { return 1 }
+    if model.isClosing { return 0.7 }
+    return (shown ? 1 : 0.96) * (1 - 0.2 * model.fade)
   }
 
   private func placement(in bounds: CGSize) -> (origin: CGPoint, above: Bool) {
@@ -984,8 +990,19 @@ struct KitMenuOverlay<Content: View>: View {
       }.min() ?? 0
       if distance <= fadeDistance { pointerWasNear = true }
       guard pointerWasNear, !isTracking() else { return setFade(0, of: model) }
-      if distance > awayDistance { return dismiss() }
+      if distance > awayDistance { return closeAnimated(model) }
       setFade(max(0, (distance - fadeDistance) / (awayDistance - fadeDistance)), of: model)
+    }
+
+    /// Past the away distance: the menu finishes shrinking and fades out, then its panel goes.
+    private func closeAnimated(_ model: KitMenuModel) {
+      awayTimer?.invalidate()
+      awayTimer = nil
+      withAnimation(.smooth(duration: 0.18)) { model.isClosing = true }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self, weak model] in
+        guard let self, let model, self.model === model else { return }
+        self.dismiss()
+      }
     }
 
     /// The timer samples every 0.1 s; animating each step over that time makes the change continuous.
