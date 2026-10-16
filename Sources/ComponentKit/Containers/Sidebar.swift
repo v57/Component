@@ -144,21 +144,23 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   public var body: some View {
     let selection = getSelection()
     let inset = ContMetrics.sidebarInset(idiom)
-    VStack(spacing: 0) {
-      ContEdgeScroll {
-        LazyVStack(alignment: .leading, spacing: style == .plain ? 8 : ContMetrics.sectionSpacing(idiom)) {
-          content
-        }
-        .padding(.horizontal, inset)
-        .padding(.top, 2)
-        .padding(.bottom, inset)
+    // The rows run on under the title bar and the bottom bar (safe area, not padding), so the system's scroll edge
+    // blurs them there; the bar's cards carry their own shadows over the rows.
+    ScrollView {
+      LazyVStack(alignment: .leading, spacing: style == .plain ? 8 : ContMetrics.sectionSpacing(idiom)) {
+        content
       }
-      .focusable()
-      .focusEffectDisabled()
-      .focused($focused)
-      .modifier(ContRowKeyboard(current: selection, select: setSelection, onReturn: returnAction, onPrimary: primary))
-      // A click on a row focuses the sidebar, like a click into a `List`.
-      .simultaneousGesture(TapGesture().onEnded { focused = true })
+      .padding(.horizontal, inset)
+    }
+    .safeAreaPadding(.top, 2)
+    .safeAreaPadding(.bottom, inset)
+    .focusable()
+    .focusEffectDisabled()
+    .focused($focused)
+    .modifier(ContRowKeyboard(current: selection, select: setSelection, onReturn: returnAction, onPrimary: primary))
+    // A click on a row focuses the sidebar, like a click into a `List`.
+    .simultaneousGesture(TapGesture().onEnded { focused = true })
+    .safeAreaInset(edge: .bottom, spacing: 0) {
       if showsBar {
         ContSidebarBar(
           searchText: searchText, prompt: searchPrompt, isSearching: isSearching, toggle: toggle,
@@ -384,7 +386,7 @@ private struct ContShowSidebarItem: ToolbarContent {
 
 // MARK: - Bottom bar
 
-/// The sidebar's bar at the bottom safe area: the square search button leads; the actions and the sidebar toggle share
+/// The sidebar's bar, a bottom safe-area inset the rows scroll on under: the square search button leads; the actions and the sidebar toggle share
 /// one card at the end. While searching, the search line (the controls' `SidebarSearchButton`) takes the whole bar.
 struct ContSidebarBar<Actions: View>: View {
   let searchText: Binding<String>?
