@@ -3,10 +3,11 @@ import SwiftUI
 // A lazy stack for scroll views of a few heavy views (a page of specimens, a sidebar of section cards), where a
 // `LazyVStack` builds each view in the frame it scrolls in and drops frames there. Here a view is built:
 // - at once while it is on screen (what shows must be there);
-// - ahead of the screen (a screen's height) and, while scrolling rests, further ahead (three screens), a few views a
+// - ahead of the screen (a screen's height) and, while scrolling rests, further ahead (two screens), a few views a
 //   frame across every stack in the app (the nearest, with its stack's others within a third of a screen: each
 //   change lays the page out again, so small views go together), so building never piles up in one frame;
-// - and let go past six screens, keeping its measured height, so the page never jumps when it comes back.
+// - and let go past three screens, keeping its measured height, so the page never jumps when it comes back (built
+//   views far off still lay out and track the scroll, which a long page feels).
 // Stacks nest: a section's rows in a stack of their own come a few at a time rather than with their card, and a stack
 // inside an item (in a scroll view of its own) is no nearer the screen than its item. Each item observes only its own
 // state, so building one redraws that one. Outside a scroll view everything is built. Before macOS 15 and iOS 18 (no
@@ -92,12 +93,13 @@ private struct ContLazyStack<Content: View>: View {
       .onAppear { model.setItems(ids, spacing: spacing, parent: parent) }
       .onChange(of: ids) { model.setItems(ids, spacing: spacing, parent: parent) }
     }
-    // Where the scroll view's visible bounds fall in the stack, a little coarse so it reports every 16pt at most.
+    // Where the scroll view's visible bounds fall in the stack, rounded out to 64pt so it plans every 64pt at most
+    // (a long page nests many stacks, and each plans when it moves) and still covers all that shows.
     .onGeometryChange(for: ContLazyWindow?.self) { proxy in
       guard let visible = proxy.bounds(of: .scrollView) else { return nil }
       return ContLazyWindow(
-        top: (visible.minY / 16).rounded(.down) * 16, bottom: (visible.maxY / 16).rounded(.up) * 16,
-        height: (visible.height / 16).rounded() * 16)
+        top: (visible.minY / 64).rounded(.down) * 64, bottom: (visible.maxY / 64).rounded(.up) * 64,
+        height: (visible.height / 64).rounded() * 64)
     } action: { window in
       model.update(window)
     }
@@ -166,11 +168,13 @@ final class ContLazyModel {
   /// How far each item is from the screen, as of the last plan; the stacks inside an item read it.
   @ObservationIgnored private var distances: [AnyHashable: CGFloat] = [:]
   @ObservationIgnored private var children: [AnyHashable: [ContLazyWeak]] = [:]
+  /// The items waiting in the scheduler, so planning touches it only for changes.
+  @ObservationIgnored private var queued: Set<AnyHashable> = []
 
   /// How far ahead views are built while scrolling, and while the scroll rests, in screens; past `release` they go.
   static let ahead: CGFloat = 1
-  static let restingAhead: CGFloat = 3
-  static let release: CGFloat = 6
+  static let restingAhead: CGFloat = 2
+  static let release: CGFloat = 3
 
   func flag(_ id: AnyHashable) -> ContLazyFlag {
     if let flag = flags[id] { return flag }
@@ -218,6 +222,7 @@ final class ContLazyModel {
   }
 
   func cancel() {
+    queued.removeAll()
     ContLazyScheduler.shared.remove(self)
   }
 
@@ -275,17 +280,13 @@ final class ContLazyModel {
       distances[id] = distance
       if distance == 0 {
         if !built.contains(id) { now.insert(id) }
-        scheduler.dequeue(self, id)
-      } else if distance <= ahead {
-        if built.contains(id) {
-          scheduler.dequeue(self, id)
-        } else {
-          scheduler.enqueue(self, id, priority: distance) { [weak self] in self?.build([id]) }
-        }
+        unqueue(id)
+      } else if distance <= ahead, !built.contains(id) {
+        queue(id, priority: distance, release: false)
       } else if distance > screen * Self.release, built.contains(id) {
-        scheduler.enqueue(self, id, priority: .greatestFiniteMagnitude) { [weak self] in self?.release(id) }
+        queue(id, priority: .greatestFiniteMagnitude, release: true)
       } else {
-        scheduler.dequeue(self, id)
+        unqueue(id)
       }
     }
     if !now.isEmpty { build(now) }
@@ -293,6 +294,22 @@ final class ContLazyModel {
     for id in changed {
       for child in children[id] ?? [] { child.model?.plan() }
     }
+  }
+
+  private func queue(_ id: AnyHashable, priority: CGFloat, release: Bool) {
+    queued.insert(id)
+    ContLazyScheduler.shared.enqueue(self, id, priority: priority, release: release)
+  }
+
+  private func unqueue(_ id: AnyHashable) {
+    guard queued.remove(id) != nil else { return }
+    ContLazyScheduler.shared.dequeue(self, id)
+  }
+
+  /// The scheduler's turn for a queued item.
+  func perform(_ id: AnyHashable, release: Bool) {
+    queued.remove(id)
+    if release { self.release(id) } else { build([id]) }
   }
 
   private func build(_ ids: Set<AnyHashable>) {
@@ -336,7 +353,9 @@ final class ContLazyScheduler {
 
   private struct Job {
     var priority: CGFloat
-    var run: @MainActor () -> Void
+    weak var model: ContLazyModel?
+    var item: AnyHashable
+    var release: Bool
   }
 
   private var jobs: [Key: Job] = [:]
@@ -357,7 +376,7 @@ final class ContLazyScheduler {
     jobs = jobs.filter { $0.key.model != id }
   }
 
-  /// A scroll view moved: build only a screen ahead until it rests 150 ms, then three.
+  /// A scroll view moved: build only a screen ahead until it rests 150 ms, then two.
   func scrolled() {
     isResting = false
     restTask?.cancel()
@@ -370,8 +389,14 @@ final class ContLazyScheduler {
     }
   }
 
-  func enqueue(_ model: ContLazyModel, _ item: AnyHashable, priority: CGFloat, run: @escaping @MainActor () -> Void) {
-    jobs[Key(model: ObjectIdentifier(model), item: item)] = Job(priority: priority, run: run)
+  func enqueue(_ model: ContLazyModel, _ item: AnyHashable, priority: CGFloat, release: Bool) {
+    let key = Key(model: ObjectIdentifier(model), item: item)
+    if jobs[key] != nil {
+      jobs[key]?.priority = priority
+      jobs[key]?.release = release
+    } else {
+      jobs[key] = Job(priority: priority, model: model, item: item, release: release)
+    }
     start()
   }
 
@@ -382,18 +407,31 @@ final class ContLazyScheduler {
   private func start() {
     guard loop == nil else { return }
     loop = Task { [weak self] in
+      var span = Self.batchSpan
+      let clock = ContinuousClock()
       while let self, let next = self.jobs.min(by: { $0.value.priority < $1.value.priority }) {
-        // With it, the same stack's views within a third of a screen of it: each change lays the page out again,
-        // so a few small views at once cost less than one at a time.
+        // With it, the same stack's views within `span` of it: each change lays the page out again, so a few small
+        // views at once cost less than one at a time.
         let batch = self.jobs.filter {
-          $0.key.model == next.key.model && $0.value.priority <= next.value.priority + Self.batchSpan
+          $0.key.model == next.key.model && $0.value.priority <= next.value.priority + span
         }
+        let start = clock.now
         for (key, job) in batch {
           self.jobs[key] = nil
-          job.run()
+          job.model?.perform(job.item, release: job.release)
         }
         // A batch a frame: the next waits for this one's frame to go out.
         try? await Task.sleep(for: .milliseconds(17))
+        // What the frame took past the wait is what the batch cost. A heavy one (a frame missed) makes the next a
+        // single view and rests as long as it took, so building never holds the main thread more than half the
+        // time while a page scrolls; light ones let the batch grow back.
+        let cost = (clock.now - start) - .milliseconds(17)
+        if cost > .milliseconds(8) {
+          span = 0
+          try? await Task.sleep(for: min(cost, .milliseconds(100)))
+        } else {
+          span = min(span + 100, Self.batchSpan)
+        }
       }
       self?.loop = nil
     }
