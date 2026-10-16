@@ -596,6 +596,22 @@ struct StepperPage: View {
               Image(systemName: "speaker.wave.3.fill").foregroundStyle(.kitSecondary)
             }
           }
+          Specimen(
+            "Over a video", note: "White track at 50%, one soft shadow per part, no outline.", padding: 0,
+            code: "KitSlider(\"Position\", value: $time, in: 0...duration).kitSliderStyle(.overlay)"
+          ) {
+            HStack(spacing: 10) {
+              Text("0:42").font(.system(size: 12, weight: .medium)).monospacedDigit()
+              KitSlider("Position", value: $volume).kitSliderStyle(.overlay)
+              Text("3:10").font(.system(size: 12, weight: .medium)).monospacedDigit()
+            }
+            .foregroundStyle(Color.white.opacity(0.92))
+            .padding(.horizontal, 16)
+            .padding(.top, 60)
+            .padding(.bottom, 14)
+            .background(
+              LinearGradient(colors: [Color(white: 0.95), .orange, .black.opacity(0.7)], startPoint: .top, endPoint: .bottom))
+          }
         }
       }
     }

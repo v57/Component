@@ -8,6 +8,8 @@ extension KitColor {
   static let ctlGhost = KitColor(.white(0.5), .white(0.08), more: .white(0.7), .white(0.14))
   /// A switch's and a slider's knob: white in both appearances.
   static let ctlKnob = KitColor(.white(1), .white(1))
+  /// A slider's track over a video or a photo: white at 50% in both appearances.
+  static let ctlOnMedia = KitColor(.white(0.5), .white(0.5))
   /// The toolbar capsule's ground (light glass, the opaque card step in dark).
   static let ctlGlass = KitColor(.white(0.86), RGBA(0x262628))
   static let ctlGlassEdge = KitColor(.black(0.1), .white(0.12))

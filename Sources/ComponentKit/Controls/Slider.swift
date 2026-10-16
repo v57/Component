@@ -1,5 +1,29 @@
 import SwiftUI
 
+/// Where a slider sits: on the kit's grounds, or over a picture or video.
+public enum KitSliderStyle: Hashable, Sendable {
+  /// The field track and the accent fill (forms, inspectors).
+  case standard
+  /// Over a video or a photo (a player's scrubber, volume): the track is white at 50%, each part (track, fill, knob)
+  /// casts one soft shadow so it holds on a bright frame, and nothing has an outline.
+  case overlay
+}
+
+extension EnvironmentValues {
+  @Entry var kitSliderStyle: KitSliderStyle = .standard
+}
+
+extension View {
+  /// Sets how the `KitSlider`s inside draw: `.standard`, or `.overlay` over a video.
+  ///
+  /// ```swift
+  /// KitSlider("Position", value: $time, in: 0...duration).kitSliderStyle(.overlay)
+  /// ```
+  public func kitSliderStyle(_ style: KitSliderStyle) -> some View {
+    environment(\.kitSliderStyle, style)
+  }
+}
+
 /// The kit's slider: a 6pt field track filled with the accent up to a white pill knob, the value in a bubble above
 /// the knob while dragging. Hover rings the knob at half the accent; keyboard focus gives it the solid ring, and
 /// ← → (↓ ↑) move it by `step` (or a twentieth of the range). VoiceOver reads an adjustable value.
@@ -18,6 +42,7 @@ public struct KitSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloa
   var onEditingChanged: (Bool) -> Void
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.isEnabled) private var isEnabled
+  @Environment(\.kitSliderStyle) private var style
   @FocusState private var isFocused: Bool
   @State private var isDragging = false
   @State private var isHovered = false
@@ -44,15 +69,18 @@ public struct KitSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloa
       let width = geometry.size.width
       let fraction = CtlSliderMath.fraction(Double(value), in: Double(range.lowerBound)...Double(range.upperBound))
       let center = CtlSliderMath.knobCenter(fraction: fraction, width: width, knobWidth: metrics.knobWidth)
+      let overlay = style == .overlay
       ZStack(alignment: .leading) {
-        Capsule().fill(.kitFill)
+        Capsule().fill(overlay ? AnyShapeStyle(KitColor.ctlOnMedia) : AnyShapeStyle(.kitFill))
           .frame(height: metrics.track)
+          .shadow(color: .black.opacity(overlay ? 0.3 : 0), radius: 2, y: 0.5)
         Capsule().fill(Hue.accent.fill)
           .frame(width: max(center, metrics.track), height: metrics.track)
+          .shadow(color: .black.opacity(overlay ? 0.25 : 0), radius: 2, y: 0.5)
         Capsule()
           .fill(KitColor.ctlKnob)
-          .overlay(Capsule().strokeBorder(Color.black.opacity(0.1), lineWidth: 0.5))
-          .shadow(color: .black.opacity(0.2), radius: 1.5, y: 1)
+          .overlay(Capsule().strokeBorder(Color.black.opacity(overlay ? 0 : 0.1), lineWidth: 0.5))
+          .shadow(color: .black.opacity(overlay ? 0.45 : 0.2), radius: overlay ? 2.5 : 1.5, y: 1)
           .frame(width: metrics.knobWidth, height: metrics.knobHeight)
           .ctlFieldRing((isHovered || isDragging) && !isFocused, cornerRadius: metrics.knobHeight / 2)
           .ctlStandaloneRing(isFocused, cornerRadius: nil)
@@ -186,6 +214,9 @@ struct CtlSliderMetrics {
   VStack(spacing: 24) {
     KitSlider("Scale", value: $scale, in: 0.5...2, step: 0.1, valueBubble: .visible) { "\(Int($0 * 100))%" }
     KitSlider("Volume", value: $volume)
+    KitSlider("Position", value: $volume).kitSliderStyle(.overlay)
+      .padding(12)
+      .background(LinearGradient(colors: [.orange, .white], startPoint: .leading, endPoint: .trailing))
   }
   .padding(30)
   .frame(width: 260)
