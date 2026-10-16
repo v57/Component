@@ -235,6 +235,92 @@ extension View {
   }
 }
 
+/// One button of a `kitConfirmation` with several choices.
+///
+/// ```swift
+/// KitConfirmationButton("Force Delete", role: .destructive) { git.deleteBranch(name, force: true) }
+/// ```
+public struct KitConfirmationButton: Identifiable {
+  public let id = UUID()
+  public var title: String
+  public var role: ButtonRole?
+  /// The one Return presses, drawn filled; by default the last button.
+  public var isDefault: Bool
+  var action: @MainActor () -> Void
+
+  public init(
+    _ title: String, role: ButtonRole? = nil, isDefault: Bool = false, action: @escaping @MainActor () -> Void
+  ) {
+    self.title = title
+    self.role = role
+    self.isDefault = isDefault
+    self.action = action
+  }
+}
+
+extension View {
+  /// Asks before an action with several ways to go (Delete / Force Delete / Delete Local and Remote): the same sheet
+  /// as the one-button confirmation, with Cancel and each button; the default one (marked, or the last) is filled
+  /// and takes Return, the others are plain (red when destructive). Any button closes the sheet.
+  ///
+  /// ```swift
+  /// .kitConfirmation("Delete feature/login?", isPresented: $confirming, message: "It isn't merged into main.",
+  ///                  systemImage: "trash", buttons: [
+  ///   KitConfirmationButton("Delete Local and Remote", role: .destructive) { deleteBoth() },
+  ///   KitConfirmationButton("Force Delete", role: .destructive, isDefault: true) { forceDelete() },
+  /// ])
+  /// ```
+  public func kitConfirmation(
+    _ title: String, isPresented: Binding<Bool>, message: String? = nil,
+    systemImage: String = "exclamationmark.triangle", hue: Hue? = nil, buttons: [KitConfirmationButton]
+  ) -> some View {
+    sheet(isPresented: isPresented) {
+      ContMultiConfirmation(
+        title: title, message: message, systemImage: systemImage, hue: hue, buttons: buttons,
+        dismiss: { isPresented.wrappedValue = false })
+    }
+  }
+}
+
+struct ContMultiConfirmation: View {
+  let title: String
+  let message: String?
+  let systemImage: String
+  let hue: Hue?
+  let buttons: [KitConfirmationButton]
+  let dismiss: @MainActor () -> Void
+
+  var body: some View {
+    let defaultID = (buttons.first { $0.isDefault } ?? buttons.last)?.id
+    let tint = hue ?? (buttons.contains { $0.role == .destructive } ? .red : .accent)
+    var sheet = KitSheet(
+      title: title, meta: message, width: buttons.count > 2 ? 520 : 420,
+      icon: { LiveIcon(systemImage: systemImage, hue: tint, status: .idle, size: 32) },
+      content: { EmptyView() },
+      footer: {
+        Button("Cancel", role: .cancel) { dismiss() }
+          .keyboardShortcut(.cancelAction)
+        ForEach(buttons) { button in
+          if button.id == defaultID {
+            Button(button.title, role: button.role) {
+              button.action()
+              dismiss()
+            }
+            .buttonStyle(.kitPrimary)
+            .keyboardShortcut(.defaultAction)
+          } else {
+            Button(button.title, role: button.role) {
+              button.action()
+              dismiss()
+            }
+          }
+        }
+      })
+    sheet.topAligned = true
+    return sheet
+  }
+}
+
 struct ContConfirmation: View {
   let title: String
   let message: String?
@@ -282,6 +368,12 @@ struct ContConfirmation: View {
     ContConfirmation(
       title: "Delete harbor?", message: "Its worktree and 2 stashes are deleted too. This can't be undone.",
       systemImage: "trash", confirm: "Delete", role: .destructive, action: {}, dismiss: {})
+    ContMultiConfirmation(
+      title: "Delete feature/login?", message: "It isn't merged into main.", systemImage: "trash", hue: nil,
+      buttons: [
+        KitConfirmationButton("Delete Local and Remote", role: .destructive) {},
+        KitConfirmationButton("Force Delete", role: .destructive) {},
+      ], dismiss: {})
   }
   .padding()
   .componentKit()

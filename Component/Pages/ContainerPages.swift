@@ -876,6 +876,7 @@ struct FormsPage: View {
 // MARK: - Sheets
 
 struct SheetsPage: View {
+  @State private var choosing = false
   @State private var url = "https://github.com/v57/Component.git"
   @State private var cloning = false
   @State private var confirming = false
@@ -947,6 +948,27 @@ struct SheetsPage: View {
             Button("Clone") { clone() }.buttonStyle(.kitPrimary).keyboardShortcut(.defaultAction)
           }
           """)
+      }
+      SpecimenSection("Several choices", note: "Cancel and each way to go; the default is filled and takes Return.") {
+        Specimen(
+          "kitConfirmation(…, buttons:)",
+          code: """
+            .kitConfirmation("Delete feature/login?", isPresented: $confirming, message: "It isn't merged into main.",
+                             systemImage: "trash", buttons: [
+              KitConfirmationButton("Delete Local and Remote", role: .destructive) { … },
+              KitConfirmationButton("Force Delete", role: .destructive, isDefault: true) { … },
+            ])
+            """
+        ) {
+          Button("Delete Branch…", role: .destructive) { choosing = true }
+            .buttonStyle(.kit)
+            .kitConfirmation(
+              "Delete feature/login?", isPresented: $choosing, message: "It isn't merged into main.", systemImage: "trash",
+              buttons: [
+                KitConfirmationButton("Delete Local and Remote", role: .destructive) { deleted += 1 },
+                KitConfirmationButton("Force Delete", role: .destructive, isDefault: true) { deleted += 1 },
+              ])
+        }
       }
     }
   }
@@ -1043,6 +1065,20 @@ struct FeedbackPage: View {
             EmptyState(systemImage: "magnifyingglass", title: "No Results", message: "Nothing matches “Lisbon”.")
               .frame(height: 240)
               .environment(\.kitWindowIsActive, false)
+          }
+        }
+      }
+      SpecimenSection("A toast with an action", note: "A follow-up beside Undo: Push after a commit, Publish after a release.") {
+        Specimen(
+          "Toast(…, action:)",
+          code: "showToast(Toast(\"Committed 3 files\", systemImage: \"checkmark\", action: \"Push\", undo: { … }) { push() })"
+        ) {
+          VStack(alignment: .leading, spacing: 12) {
+            ToastView(toast: Toast("Committed 3 files", systemImage: "checkmark", action: "Push", undo: {}) {}, dismiss: {})
+            Button("Show It") {
+              showToast(Toast("Committed 3 files", systemImage: "checkmark", action: "Push", undo: { undone += 1 }) {})
+            }
+            .buttonStyle(.kit)
           }
         }
       }
