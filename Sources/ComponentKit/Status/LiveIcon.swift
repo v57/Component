@@ -150,24 +150,3 @@ extension LiveIcon where Content == Image {
     self.init(hue: hue, status: status, size: size, shape: shape) { Image(systemName: systemImage) }
   }
 }
-
-/// A rounded rectangle path that starts at the top centre, so `trim` fills it clockwise like a progress ring.
-struct TopStartRoundedRect: Shape {
-  var cornerRadius: CGFloat
-
-  func path(in rect: CGRect) -> Path {
-    let r = min(cornerRadius, rect.width / 2, rect.height / 2)
-    var p = Path()
-    p.move(to: CGPoint(x: rect.midX, y: rect.minY))
-    p.addLine(to: CGPoint(x: rect.maxX - r, y: rect.minY))
-    p.addArc(tangent1End: CGPoint(x: rect.maxX, y: rect.minY), tangent2End: CGPoint(x: rect.maxX, y: rect.minY + r), radius: r)
-    p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
-    p.addArc(tangent1End: CGPoint(x: rect.maxX, y: rect.maxY), tangent2End: CGPoint(x: rect.maxX - r, y: rect.maxY), radius: r)
-    p.addLine(to: CGPoint(x: rect.minX + r, y: rect.maxY))
-    p.addArc(tangent1End: CGPoint(x: rect.minX, y: rect.maxY), tangent2End: CGPoint(x: rect.minX, y: rect.maxY - r), radius: r)
-    p.addLine(to: CGPoint(x: rect.minX, y: rect.minY + r))
-    p.addArc(tangent1End: CGPoint(x: rect.minX, y: rect.minY), tangent2End: CGPoint(x: rect.minX + r, y: rect.minY), radius: r)
-    p.closeSubpath()
-    return p
-  }
-}

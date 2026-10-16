@@ -272,11 +272,12 @@ struct RingDrawing: View, Animatable {
     }
   }
 
-  /// The ring follows the tile's shape, starting at the top centre and going clockwise.
+  /// The ring follows the tile's shape (continuous corners, like the tile), starting at the top centre and going
+  /// clockwise: both paths start at the right middle, and the ring is square, so a quarter turn back moves the start.
   private func ringPath() -> AnyShape {
     switch shape {
     case .circle: AnyShape(Circle().rotation(.degrees(-90)))
-    case .rounded: AnyShape(TopStartRoundedRect(cornerRadius: size * 0.29 + outset))
+    case .rounded: AnyShape(RoundedRectangle(cornerRadius: size * 0.29 + outset, style: .continuous).rotation(.degrees(-90)))
     }
   }
 }
