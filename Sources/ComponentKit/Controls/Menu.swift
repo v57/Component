@@ -36,7 +36,26 @@ extension View {
   public func kitMenu<MenuContent: View>(
     isPresented: Binding<Bool>, matchesWidth: Bool = false, @ViewBuilder content: @escaping () -> MenuContent
   ) -> some View {
-    modifier(KitMenuPresenter(binding: isPresented, isTrigger: false, matchesWidth: matchesWidth, menu: content))
+    modifier(KitMenuPresenter(binding: isPresented, kind: .attached, matchesWidth: matchesWidth, menu: content))
+  }
+
+  /// The view's context menu, drawn by the kit, as `.contextMenu` opens the system's: a secondary click (right-click
+  /// or Control-click) on the Mac opens it at the pointer, a long press on iPad and iPhone opens it at the finger
+  /// (with a tap of haptics and a dim behind). Holding on, the pointer or finger highlights the row under it and
+  /// letting go there picks it; letting go anywhere else on the view leaves the menu open to pick with a click or a
+  /// tap. VoiceOver's actions include Show Menu.
+  ///
+  /// ```swift
+  /// FileRow(file)
+  ///   .kitContextMenu {
+  ///     Button("Open", systemImage: "arrow.up.right.square") { open(file) }
+  ///     Button("Copy Path", systemImage: "doc.on.doc") { copy(file.path) }
+  ///     Divider()
+  ///     Button("Move to Trash", systemImage: "trash", role: .destructive) { trash(file) }
+  ///   }
+  /// ```
+  public func kitContextMenu<MenuContent: View>(@ViewBuilder content: @escaping () -> MenuContent) -> some View {
+    modifier(KitMenuPresenter(binding: nil, kind: .context, matchesWidth: false, menu: content))
   }
 
   /// Makes this view a menu's trigger, as a pop-up button: pressing it opens the kit's menu under it, and releasing
@@ -53,14 +72,14 @@ extension View {
   public func kitMenu<MenuContent: View>(
     matchesWidth: Bool = false, @ViewBuilder content: @escaping () -> MenuContent
   ) -> some View {
-    modifier(KitMenuPresenter(binding: nil, isTrigger: true, matchesWidth: matchesWidth, menu: content))
+    modifier(KitMenuPresenter(binding: nil, kind: .trigger, matchesWidth: matchesWidth, menu: content))
   }
 
   /// A trigger whose open state the caller also reads (a pop-up drawn pressed while its menu is open).
   func kitMenuTrigger<MenuContent: View>(
     isPresented: Binding<Bool>, matchesWidth: Bool = false, @ViewBuilder content: @escaping () -> MenuContent
   ) -> some View {
-    modifier(KitMenuPresenter(binding: isPresented, isTrigger: true, matchesWidth: matchesWidth, menu: content))
+    modifier(KitMenuPresenter(binding: isPresented, kind: .trigger, matchesWidth: matchesWidth, menu: content))
   }
 
   /// The hint at the end of a menu row: a shortcut (`"⌘N"`), a number key, or `"↩"`.
@@ -190,6 +209,11 @@ final class KitMenuModel {
   /// The card, and the view the menu opened from, in the menu window's space.
   @ObservationIgnored var cardFrame: CGRect = .zero
   @ObservationIgnored var anchor: CGRect = .zero
+  /// The view that opened the menu (for a pop-up, the same as the anchor; for a context menu, the anchor is the
+  /// point that was clicked or pressed on it).
+  @ObservationIgnored var trigger: CGRect = .zero
+  /// A context menu: it opens at a point (and on touch, over a dim).
+  @ObservationIgnored var isContext = false
   /// The open submenu's model (a submenu's parent is the menu it opens from).
   @ObservationIgnored var child: KitMenuModel?
   @ObservationIgnored weak var parent: KitMenuModel?
@@ -600,11 +624,22 @@ public struct KitMenuFooter: View {
 
 
 
+enum KitMenuKind {
+  /// Opened from code (`.kitMenu(isPresented:)`).
+  case attached
+  /// The view is a pop-up's trigger: press opens, release picks.
+  case trigger
+  /// The view's context menu: a secondary click or a long press opens it at that point.
+  case context
+}
+
+/// A context menu gesture's phases, from the platform's events.
+enum KitContextPhase { case began, changed, ended, cancelled }
+
 struct KitMenuPresenter<MenuContent: View>: ViewModifier {
   /// The open state, when the caller holds it (otherwise the presenter does).
   var binding: Binding<Bool>?
-  /// The view is the menu's trigger: press opens, release picks.
-  var isTrigger: Bool
+  var kind: KitMenuKind
   var matchesWidth: Bool
   var menu: () -> MenuContent
   @State private var ownIsOpen = false
@@ -623,11 +658,15 @@ struct KitMenuPresenter<MenuContent: View>: ViewModifier {
   func body(content: Content) -> some View {
     #if canImport(AppKit) || canImport(UIKit)
       Group {
-        if isTrigger { trigger(content) } else { content }
+        switch kind {
+        case .attached: content
+        case .trigger: trigger(content)
+        case .context: context(content)
+        }
       }
       .background {
         KitMenuAnchor(
-          session: session, isPresented: isPresented,
+          session: session, isPresented: isPresented, isContext: kind == .context,
           menu: { model, anchor in AnyView(overlay(model, anchor)) }
         )
         .allowsHitTesting(false)
@@ -635,7 +674,7 @@ struct KitMenuPresenter<MenuContent: View>: ViewModifier {
       }
     #else
       Group {
-        if isTrigger { content.onTapGesture { isPresented.wrappedValue = true } } else { content }
+        if kind == .attached { content } else { content.onTapGesture { isPresented.wrappedValue = true } }
       }
       .popover(isPresented: isPresented) {
         let model = KitMenuModel()
@@ -658,6 +697,7 @@ struct KitMenuPresenter<MenuContent: View>: ViewModifier {
             if !session.isPressing {
               session.isPressing = true
               session.pressCloses = isPresented.wrappedValue
+              session.contextPoint = nil
               isPresented.wrappedValue.toggle()
             } else if !session.pressCloses {
               session.track(value.location)
@@ -682,6 +722,24 @@ struct KitMenuPresenter<MenuContent: View>: ViewModifier {
       .accessibilityAction { if isEnabled { isPresented.wrappedValue.toggle() } }
   }
 
+  /// A context menu's source: on the Mac a view over it takes secondary clicks (and nothing else); on touch the
+  /// long press is the anchor's (`KitMenuAnchor`).
+  @ViewBuilder private func context(_ content: Content) -> some View {
+    #if canImport(AppKit)
+      content
+        .overlay {
+          KitContextClickCatcher { phase, point in
+            guard isEnabled else { return }
+            session.context(phase, at: point, isPresented: isPresented)
+          }
+        }
+        .accessibilityAction(named: Text("Show Menu")) { session.showContext(isPresented: isPresented) }
+    #else
+      content
+        .accessibilityAction(named: Text("Show Menu")) { session.showContext(isPresented: isPresented) }
+    #endif
+  }
+
   /// The menu's floating root: the anchor's environment carried over, since it lives in its own window.
   private func overlay(_ model: KitMenuModel, _ anchor: CGRect) -> some View {
     KitMenuOverlay(model: model, anchor: anchor, matchesWidth: matchesWidth) { menu() }
@@ -698,9 +756,15 @@ struct KitMenuPresenter<MenuContent: View>: ViewModifier {
 }
 
 /// A trigger's press, and the menu it opened: where the pointer is during the press, mapped into the menu's
-/// window (the anchor's origin plus the pointer's place on the trigger).
+/// window (the trigger's origin plus the pointer's place on it).
 @MainActor
 final class KitMenuSession {
+  #if canImport(UIKit) && !os(macOS)
+    static let isTouch = true
+  #else
+    static let isTouch = false
+  #endif
+
   var isPressing = false
   /// This press began on an open menu, so it closes it and picks nothing.
   var pressCloses = false
@@ -724,9 +788,36 @@ final class KitMenuSession {
     #endif
   }
 
+  /// Where a context menu opens on the view (its top-left coordinates); `nil` for a pop-up under it.
+  var contextPoint: CGPoint?
+
   private func point(_ local: CGPoint) -> CGPoint? {
     guard let model else { return nil }
-    return CGPoint(x: model.anchor.minX + local.x, y: model.anchor.minY + local.y)
+    return CGPoint(x: model.trigger.minX + local.x, y: model.trigger.minY + local.y)
+  }
+
+  /// A secondary click or a long press on a context menu's view, from press to release.
+  func context(_ phase: KitContextPhase, at local: CGPoint, isPresented: Binding<Bool>) {
+    switch phase {
+    case .began:
+      contextPoint = local
+      isPressing = true
+      pressCloses = false
+      isPresented.wrappedValue = true
+    case .changed:
+      track(local)
+    case .ended:
+      isPressing = false
+      release(local)
+    case .cancelled:
+      isPressing = false
+    }
+  }
+
+  /// VoiceOver's Show Menu: the menu under the view, as a pop-up's.
+  func showContext(isPresented: Binding<Bool>) {
+    contextPoint = nil
+    isPresented.wrappedValue = true
   }
 
   /// The pointer moved during the press: highlight the row under it.
@@ -740,9 +831,24 @@ final class KitMenuSession {
     guard let model, let point = point(local) else { return }
     if let hit = model.row(at: point), let row = hit.menu.rows[hit.id], row.isEnabled {
       if !row.isSubmenu { row.trigger() }
-    } else if !model.anchor.contains(point), !model.cardFrames.contains(where: { $0.contains(point) }) {
+    } else if model.isContext && Self.isTouch {
+      // A finger lifted off a context menu leaves it open, as the system's does.
+    } else if !model.trigger.contains(point), !model.cardFrames.contains(where: { $0.contains(point) }) {
       model.dismiss()
     }
+  }
+}
+
+/// The ground behind a menu, with a hole over `cutout` (the view a touch context menu came from).
+struct KitMenuDim: Shape {
+  var cutout: CGRect?
+
+  func path(in rect: CGRect) -> Path {
+    var path = Path(rect)
+    if let cutout {
+      path.addPath(Path(roundedRect: cutout, cornerRadius: KitMetrics.radiusCard, style: .continuous))
+    }
+    return path
   }
 }
 
@@ -757,6 +863,7 @@ struct KitMenuOverlay<Content: View>: View {
   @State private var shown = false
   @FocusState private var isFocused: Bool
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.kitIdiom) private var idiom
 
   private let gap: CGFloat = 4
   private let margin: CGFloat = 8
@@ -765,7 +872,10 @@ struct KitMenuOverlay<Content: View>: View {
     GeometryReader { proxy in
       let place = placement(in: proxy.size)
       ZStack(alignment: .topLeading) {
-        Color.clear
+        // On touch a context menu dims everything but its view, which stays bright as the system's lifts it.
+        KitMenuDim(cutout: model.isContext && idiom.isTouch ? model.trigger : nil)
+          .fill(model.isContext && idiom.isTouch ? AnyShapeStyle(.kitScrim) : AnyShapeStyle(.clear), style: FillStyle(eoFill: true))
+          .opacity(shown && !model.isClosing ? 1 : 0)
           .contentShape(Rectangle())
           .onTapGesture { model.dismiss() }
           .accessibilityHidden(true)
@@ -805,6 +915,28 @@ struct KitMenuOverlay<Content: View>: View {
 
   private func placement(in bounds: CGSize) -> (origin: CGPoint, above: Bool) {
     let size = size ?? .zero
+    if model.isContext && idiom.isTouch {
+      // On touch, as the system's: beside the pressed view, not over it (the finger and the view stay clear):
+      // under it, starting at the finger, or above it when there's no room below.
+      let trigger = model.trigger
+      let x = min(max(anchor.minX, margin), max(margin, bounds.width - size.width - margin))
+      if trigger.maxY + margin + size.height <= bounds.height - margin {
+        return (CGPoint(x: x, y: trigger.maxY + margin), false)
+      }
+      if trigger.minY - margin - size.height >= margin {
+        return (CGPoint(x: x, y: trigger.minY - margin - size.height), true)
+      }
+    }
+    if model.isContext {
+      // At the point, its top-left corner just past it; flipped left or up when it would run off the edge.
+      var x = anchor.minX + 1
+      var y = anchor.minY + 1
+      if x + size.width > bounds.width - margin { x = anchor.minX - size.width - 1 }
+      if y + size.height > bounds.height - margin { y = anchor.minY - size.height - 1 }
+      x = min(max(x, margin), max(margin, bounds.width - size.width - margin))
+      y = min(max(y, margin), max(margin, bounds.height - size.height - margin))
+      return (CGPoint(x: x, y: y), y < anchor.minY)
+    }
     let x = min(max(anchor.minX, margin), max(margin, bounds.width - size.width - margin))
     let below = anchor.maxY + gap
     if below + size.height + margin <= bounds.height || anchor.minY - gap - size.height < margin {
@@ -822,6 +954,7 @@ struct KitMenuOverlay<Content: View>: View {
   struct KitMenuAnchor: NSViewRepresentable {
     let session: KitMenuSession
     @Binding var isPresented: Bool
+    var isContext = false
     var menu: (KitMenuModel, CGRect) -> AnyView
 
     func makeNSView(context: Context) -> KitMenuAnchorView { KitMenuAnchorView() }
@@ -831,9 +964,11 @@ struct KitMenuOverlay<Content: View>: View {
       controller.close = { isPresented = false }
       controller.menu = menu
       // A menu that starts open waits for the view to land in its window.
-      view.movedToWindow = { [weak view] in if isPresented, let view { controller.show(from: view) } }
+      view.movedToWindow = { [weak view] in
+        if isPresented, let view { controller.show(from: view, at: session.contextPoint) }
+      }
       view.onDismantle = { controller.hide() }
-      if isPresented { controller.show(from: view) } else { controller.hide() }
+      if isPresented { controller.show(from: view, at: session.contextPoint) } else { controller.hide() }
     }
 
     static func dismantleNSView(_ view: KitMenuAnchorView, coordinator: ()) {
@@ -870,16 +1005,19 @@ struct KitMenuOverlay<Content: View>: View {
     private let awayDistance: CGFloat = 100
     private let fadeDistance: CGFloat = 50
 
-    func show(from view: NSView) {
+    func show(from view: NSView, at point: CGPoint? = nil) {
       guard let window = view.window, let screen = window.screen ?? NSScreen.main else { return }
       let model = self.model ?? KitMenuModel()
       model.dismiss = { [weak self] in self?.dismiss() }
       self.model = model
       let screenFrame = screen.frame
       let rect = window.convertToScreen(view.convert(view.bounds, to: nil))
-      // The anchor in the panel's top-left coordinates.
-      let anchor = CGRect(
+      // The view in the panel's top-left coordinates; a context menu's anchor is the point on it.
+      let trigger = CGRect(
         x: rect.minX - screenFrame.minX, y: screenFrame.maxY - rect.maxY, width: rect.width, height: rect.height)
+      let anchor = point.map { CGRect(x: trigger.minX + $0.x, y: trigger.minY + $0.y, width: 0, height: 0) } ?? trigger
+      model.trigger = trigger
+      model.isContext = point != nil
       model.anchor = anchor
       let root = menu(model, anchor)
       if let host {
@@ -1031,6 +1169,53 @@ struct KitMenuOverlay<Content: View>: View {
     }
   }
 
+  /// Over a context menu's view: takes secondary clicks (right-click, Control-click) and the drags and release
+  /// that follow, and lets every other event through to the view.
+  struct KitContextClickCatcher: NSViewRepresentable {
+    var onEvent: (KitContextPhase, CGPoint) -> Void
+
+    func makeNSView(context: Context) -> KitContextClickView { KitContextClickView() }
+    func updateNSView(_ view: KitContextClickView, context: Context) { view.onEvent = onEvent }
+  }
+
+  final class KitContextClickView: NSView {
+    var onEvent: (KitContextPhase, CGPoint) -> Void = { _, _ in }
+    /// The press is a Control-click (the left button), so its drags and release are the left button's.
+    private var controlClick = false
+
+    override var isFlipped: Bool { true }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+      guard let event = NSApp.currentEvent else { return nil }
+      let secondary =
+        event.type == .rightMouseDown || (event.type == .leftMouseDown && event.modifierFlags.contains(.control))
+      return secondary ? super.hitTest(point) : nil
+    }
+
+    override func menu(for event: NSEvent) -> NSMenu? { nil }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    private func location(_ event: NSEvent) -> CGPoint { convert(event.locationInWindow, from: nil) }
+
+    override func rightMouseDown(with event: NSEvent) { onEvent(.began, location(event)) }
+    override func rightMouseDragged(with event: NSEvent) { onEvent(.changed, location(event)) }
+    override func rightMouseUp(with event: NSEvent) { onEvent(.ended, location(event)) }
+
+    override func mouseDown(with event: NSEvent) {
+      guard event.modifierFlags.contains(.control) else { return super.mouseDown(with: event) }
+      controlClick = true
+      onEvent(.began, location(event))
+    }
+    override func mouseDragged(with event: NSEvent) {
+      if controlClick { onEvent(.changed, location(event)) } else { super.mouseDragged(with: event) }
+    }
+    override func mouseUp(with event: NSEvent) {
+      guard controlClick else { return super.mouseUp(with: event) }
+      controlClick = false
+      onEvent(.ended, location(event))
+    }
+  }
+
   final class KitMenuAnchorView: NSView {
     var movedToWindow: () -> Void = {}
     var onDismantle: () -> Void = {}
@@ -1052,6 +1237,7 @@ struct KitMenuOverlay<Content: View>: View {
   struct KitMenuAnchor: UIViewRepresentable {
     let session: KitMenuSession
     @Binding var isPresented: Bool
+    var isContext = false
     var menu: (KitMenuModel, CGRect) -> AnyView
 
     func makeUIView(context: Context) -> KitMenuAnchorView {
@@ -1062,12 +1248,17 @@ struct KitMenuOverlay<Content: View>: View {
 
     func updateUIView(_ view: KitMenuAnchorView, context: Context) {
       let controller = session.controller
+      let session = session
+      let presented = $isPresented
+      view.onLongPress = isContext ? { phase, point in session.context(phase, at: point, isPresented: presented) } : nil
       controller.close = { isPresented = false }
       controller.menu = menu
       // A menu that starts open waits for the view to land in its window.
-      view.movedToWindow = { [weak view] in if isPresented, let view { controller.show(from: view) } }
+      view.movedToWindow = { [weak view] in
+        if isPresented, let view { controller.show(from: view, at: session.contextPoint) }
+      }
       view.onDismantle = { controller.hide() }
-      if isPresented { controller.show(from: view) } else { controller.hide() }
+      if isPresented { controller.show(from: view, at: session.contextPoint) } else { controller.hide() }
     }
 
     static func dismantleUIView(_ view: KitMenuAnchorView, coordinator: ()) {
@@ -1076,14 +1267,66 @@ struct KitMenuOverlay<Content: View>: View {
     }
   }
 
-  final class KitMenuAnchorView: UIView {
+  final class KitMenuAnchorView: UIView, UIGestureRecognizerDelegate {
     var movedToWindow: () -> Void = {}
     var onDismantle: () -> Void = {}
+    /// A context menu's long press: set, the view's window gets a long-press recognizer for touches on this view.
+    var onLongPress: ((KitContextPhase, CGPoint) -> Void)? {
+      didSet { installLongPress() }
+    }
+    private var longPress: UILongPressGestureRecognizer?
+
     override func didMoveToWindow() {
       super.didMoveToWindow()
+      installLongPress()
       if window != nil { DispatchQueue.main.async { [weak self] in self?.movedToWindow() } }
     }
-    func dismantled() { onDismantle() }
+
+    func dismantled() {
+      onDismantle()
+      onLongPress = nil
+    }
+
+    /// The press lives on the window (this view sits behind the content and takes no touches), and only begins for
+    /// touches inside this view; once it's recognized, the touch is the menu's (the content's own gestures cancel).
+    private func installLongPress() {
+      let wanted = onLongPress != nil ? window : nil
+      if longPress?.view === wanted, longPress != nil || wanted == nil { return }
+      if let longPress { longPress.view?.removeGestureRecognizer(longPress) }
+      longPress = nil
+      guard let wanted else { return }
+      let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(pressed(_:)))
+      recognizer.minimumPressDuration = 0.5
+      recognizer.delegate = self
+      wanted.addGestureRecognizer(recognizer)
+      longPress = recognizer
+    }
+
+    @objc private func pressed(_ recognizer: UILongPressGestureRecognizer) {
+      let point = recognizer.location(in: self)
+      switch recognizer.state {
+      case .began:
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        onLongPress?(.began, point)
+      case .changed: onLongPress?(.changed, point)
+      case .ended: onLongPress?(.ended, point)
+      case .cancelled, .failed: onLongPress?(.cancelled, point)
+      default: break
+      }
+    }
+
+    func gestureRecognizer(_ recognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+      window != nil && !isHiddenInTree && bounds.contains(touch.location(in: self))
+    }
+
+    private var isHiddenInTree: Bool {
+      var view: UIView? = self
+      while let current = view {
+        if current.isHidden || current.alpha < 0.01 { return true }
+        view = current.superview
+      }
+      return false
+    }
   }
 
   /// The menu's window above the scene: a tap outside the menu closes it (the window's catcher), as does the app
@@ -1098,13 +1341,17 @@ struct KitMenuOverlay<Content: View>: View {
     private var host: UIHostingController<AnyView>?
     private var observers: [NSObjectProtocol] = []
 
-    func show(from view: UIView) {
+    func show(from view: UIView, at point: CGPoint? = nil) {
       guard let scene = view.window?.windowScene else { return }
       let model = self.model ?? KitMenuModel()
       model.dismiss = { [weak self] in self?.dismiss() }
       self.model = model
       let window = self.window ?? UIWindow(windowScene: scene)
-      let anchor = view.convert(view.bounds, to: window)
+      // The view in the menu window's coordinates; a context menu's anchor is the point on it.
+      let trigger = view.convert(view.bounds, to: window)
+      let anchor = point.map { CGRect(x: trigger.minX + $0.x, y: trigger.minY + $0.y, width: 0, height: 0) } ?? trigger
+      model.trigger = trigger
+      model.isContext = point != nil
       model.anchor = anchor
       let root = menu(model, anchor)
       if let host {

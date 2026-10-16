@@ -27,3 +27,4 @@ KANBAN*.md
 
 # Per-agent SwiftPM scratch folders
 .build-*/
+build-ios/

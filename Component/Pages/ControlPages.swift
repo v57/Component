@@ -281,6 +281,7 @@ struct MenusPage: View {
   @State private var sort = "Name"
   @State private var foldersFirst = true
   @State private var showsMore = ProcessInfo.processInfo.arguments.contains("--open-menu")
+  @State private var picked = "Nothing yet"
 
   var body: some View {
     CatalogPage(page: .menus) {
@@ -399,6 +400,24 @@ struct MenusPage: View {
         }
       }
       SpecimenSection(
+        "Context menus",
+        note: "Right-click or Control-click on the Mac, a long press on touch. The kit's (left) beside the system's "
+          + "(right), with the same rows: hold on and let go over a row to pick it."
+      ) {
+        SpecimenGrid(minWidth: 320) {
+          Specimen(
+            ".kitContextMenu", note: "Drawn by the kit",
+            code: "row.kitContextMenu {\n  Button(\"Open\", systemImage: \"arrow.up.right.square\") { … }\n}"
+          ) {
+            contextTarget("Kit menu").kitContextMenu { contextRows("Kit") }
+          }
+          Specimen(".contextMenu", note: "The system's, to compare", code: "row.contextMenu { … }") {
+            contextTarget("System menu").contextMenu { contextRows("System") }
+          }
+        }
+        Text("Last picked: \(picked)").kitFont(.caption).foregroundStyle(.kitSecondary)
+      }
+      SpecimenSection(
         "Anywhere",
         note: ".kitMenu { } makes any view a trigger (press opens, release picks, a click leaves it open); "
           + ".kitMenu(isPresented:) opens it from code."
@@ -438,6 +457,27 @@ struct MenusPage: View {
         }
       }
     }
+  }
+}
+
+extension MenusPage {
+  fileprivate func contextTarget(_ title: String) -> some View {
+    VStack(spacing: 6) {
+      Image(systemName: "cursorarrow.click.2").font(.system(size: 22)).foregroundStyle(.kitSecondary)
+      Text(title).kitFont(.headline)
+      Text("Right-click or long press").kitFont(.caption).foregroundStyle(.kitSecondary)
+    }
+    .frame(maxWidth: .infinity, minHeight: 120)
+    .kitSurface(.card)
+    .contentShape(Rectangle())
+  }
+
+  @ViewBuilder fileprivate func contextRows(_ menu: String) -> some View {
+    Button("Open", systemImage: "arrow.up.right.square") { picked = "\(menu): Open" }
+    Button("Rename…", systemImage: "pencil") { picked = "\(menu): Rename" }
+    Button("Copy Path", systemImage: "doc.on.doc") { picked = "\(menu): Copy Path" }
+    Divider()
+    Button("Move to Trash", systemImage: "trash", role: .destructive) { picked = "\(menu): Move to Trash" }
   }
 }
 
