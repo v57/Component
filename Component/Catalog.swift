@@ -189,7 +189,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     case .metrics: "Radii, the gutter, control and row heights"
     case .liveIcon: "The tile that carries work: progress, done, failed"
     case .workStatus: "A piece of work through its states, in every component"
-    case .effects: "Success, failure, pop, wash and pulse"
+    case .effects: "Feedback washes, confetti, floating and sent symbols, sparkles"
     case .buttons: "Secondary, primary, plain, icon; sizes, roles, disabled"
     case .toggles: "Switch, checkbox, chip and the chip track"
     case .segmented: "Field track, wide and pop-ups"

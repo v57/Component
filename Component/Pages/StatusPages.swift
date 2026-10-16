@@ -277,8 +277,10 @@ struct WorkStatusPage: View {
 
 struct EffectsPage: View {
   @State private var counts: [KitEffect: Int] = [:]
+  /// Replays every effect on a loop (`--cycle` starts it, for captures).
+  @State private var cycling = ProcessInfo.processInfo.arguments.contains("--cycle")
 
-  let effects: [(KitEffect, String, String)] = [
+  let feedback: [(KitEffect, String, String)] = [
     (.success, "success", "It worked: a green wash and a small pop"),
     (.failure, "failure", "It didn't: a red wash and a shake"),
     (.pop, "pop", "Something arrived: a quick scale"),
@@ -292,7 +294,7 @@ struct EffectsPage: View {
         "Effects", note: "Apps report the event; the kit decides the look. Nothing plays in an inactive window."
       ) {
         SpecimenGrid(minWidth: 280) {
-          ForEach(effects, id: \.1) { effect, name, use in
+          ForEach(feedback, id: \.1) { effect, name, use in
             Specimen(".\(name)", note: use, code: "view.effect(.\(name), on: \(name)Count)") {
               HStack(spacing: 14) {
                 Text("Trip to Lisbon")
@@ -300,12 +302,102 @@ struct EffectsPage: View {
                   .frame(height: 36)
                   .kitSurface(.card)
                   .effect(effect, on: counts[effect, default: 0], cornerRadius: KitMetrics.radiusCard)
-                Button("Play") { counts[effect, default: 0] += 1 }.buttonStyle(.kit).controlSize(.small)
+                play(effect)
               }
             }
           }
         }
       }
+      SpecimenSection(
+        "Flourishes",
+        note: "Bigger moments: pieces leave the view and fly off. They draw outside the view, so give it room; "
+          + "Reduce Motion keeps only a wash of their colour."
+      ) {
+        SpecimenGrid(minWidth: 280) {
+          Specimen(".burst", note: "Worth celebrating: confetti", padding: 40,
+                   code: "Button(\"Publish\") { … }.effect(.burst, on: published)") {
+            Button("Publish", systemImage: "checkmark.seal") { bump(.burst) }
+              .buttonStyle(.kitPrimary)
+              .effect(.burst, on: count(.burst))
+          }
+          Specimen(".float", note: "Kept or counted: the symbol rises", padding: 40,
+                   code: "Button(\"Like\") { … }.effect(.float(\"heart.fill\", .pink), on: likes)") {
+            HStack(spacing: 10) {
+              Button("Like", systemImage: "heart") { bump(.float("heart.fill", .pink)) }
+                .buttonStyle(.kit)
+                .effect(.float("heart.fill", .pink), on: count(.float("heart.fill", .pink)))
+              Button("Star", systemImage: "star") { bump(.float("star.fill", .yellow)) }
+                .buttonStyle(.kit)
+                .effect(.float("star.fill", .yellow), on: count(.float("star.fill", .yellow)))
+              Button("Add", systemImage: "plus") { bump(.float()) }
+                .buttonStyle(.kit)
+                .effect(.float(), on: count(.float()))
+            }
+          }
+          Specimen(".send", note: "Sent off: the symbol flies away", padding: 40,
+                   code: "Button(\"Send\") { … }.effect(.send(\"paperplane.fill\"), on: sent)") {
+            HStack(spacing: 10) {
+              Button("Send", systemImage: "paperplane") { bump(.send()) }
+                .buttonStyle(.kitPrimary)
+                .effect(.send(), on: count(.send()))
+              Button("Push", systemImage: "arrow.up") { bump(.send("arrow.up.circle.fill", .green)) }
+                .buttonStyle(.kit)
+                .effect(.send("arrow.up.circle.fill", .green), on: count(.send("arrow.up.circle.fill", .green)))
+            }
+          }
+          Specimen(".sparkle", note: "New or generated: stars twinkle", padding: 40,
+                   code: "Button(\"Summarize\") { … }.effect(.sparkle, on: summaries)") {
+            Button("Summarize", systemImage: "sparkles") { bump(.sparkle) }
+              .buttonStyle(.kit)
+              .effect(.sparkle, on: count(.sparkle))
+          }
+          Specimen(".shimmer", note: "Refreshed: a band of light sweeps across", padding: 40,
+                   code: "card.effect(.shimmer, on: lastRefresh)") {
+            HStack(spacing: 14) {
+              VStack(alignment: .leading, spacing: 2) {
+                Text("Inbox")
+                Text("Updated just now").kitFont(.caption).foregroundStyle(.kitSecondary)
+              }
+              .padding(.horizontal, 12)
+              .frame(width: 160, height: 48, alignment: .leading)
+              .kitSurface(.card)
+              .effect(.shimmer, on: count(.shimmer), cornerRadius: KitMetrics.radiusCard)
+              play(.shimmer)
+            }
+          }
+          Specimen(".wiggle", note: "Not now: a short tilt", padding: 40,
+                   code: "row.effect(.wiggle, on: lockedTaps)") {
+            Button { bump(.wiggle) } label: {
+              Label("Archive is locked", systemImage: "lock")
+                .padding(.horizontal, 12)
+                .frame(height: 36)
+                .kitSurface(.card)
+            }
+            .buttonStyle(.plain)
+            .effect(.wiggle, on: count(.wiggle), cornerRadius: KitMetrics.radiusCard)
+          }
+        }
+      }
     }
+    // Captures run in a background window, where effects never play.
+    .transformEnvironment(\.kitWindowIsActive) { if cycling { $0 = true } }
+    .task(id: cycling) {
+      while cycling, !Task.isCancelled {
+        for effect in Self.all { bump(effect) }
+        try? await Task.sleep(for: .seconds(1.6))
+      }
+    }
+  }
+
+  private static let all: [KitEffect] = [
+    .success, .failure, .pop, .wash, .pulse, .burst, .float("heart.fill", .pink), .float("star.fill", .yellow),
+    .float(), .send(), .send("arrow.up.circle.fill", .green), .sparkle, .shimmer, .wiggle,
+  ]
+
+  private func count(_ effect: KitEffect) -> Int { counts[effect, default: 0] }
+  private func bump(_ effect: KitEffect) { counts[effect, default: 0] += 1 }
+
+  private func play(_ effect: KitEffect) -> some View {
+    Button("Play") { bump(effect) }.buttonStyle(.kit).controlSize(.small)
   }
 }
