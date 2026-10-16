@@ -87,6 +87,9 @@ public struct Toast: Identifiable {
   public var message: String
   public var systemImage: String?
   public var undo: (@MainActor () -> Void)?
+  /// A follow-up action besides Undo ("Push", "Publish", "Show"): its title and what it does.
+  public var actionTitle: String?
+  public var action: (@MainActor () -> Void)?
   /// How long it stays (the pointer resting on it keeps it).
   public var duration: Duration
 
@@ -98,6 +101,20 @@ public struct Toast: Identifiable {
     self.systemImage = systemImage
     self.duration = duration
     self.undo = undo
+  }
+
+  /// A toast with a follow-up action (in the accent, after the message) and an optional Undo.
+  ///
+  /// ```swift
+  /// showToast(Toast("Committed 3 files", systemImage: "checkmark", action: "Push") { push() })
+  /// ```
+  public init(
+    _ message: String, systemImage: String? = nil, duration: Duration = .seconds(6), action title: String,
+    undo: (@MainActor () -> Void)? = nil, perform: @escaping @MainActor () -> Void
+  ) {
+    self.init(message, systemImage: systemImage, duration: duration, undo: undo)
+    self.actionTitle = title
+    self.action = perform
   }
 }
 
@@ -177,7 +194,8 @@ private struct ContToastHost: ViewModifier {
   }
 }
 
-/// A toast as drawn: a floating card with a gray icon tile, the message, a plain Undo and a dismiss button.
+/// A toast as drawn: a floating card with a gray icon tile, the message, a plain Undo, the follow-up action as a
+/// small primary button, and a dismiss button.
 public struct ToastView: View {
   var toast: Toast
   var dismiss: () -> Void
@@ -208,7 +226,15 @@ public struct ToastView: View {
         }
         .buttonStyle(.kitPlain)
         .controlSize(.small)
-        .fontWeight(.semibold)
+        .fontWeight(toast.action == nil ? .semibold : .medium)
+      }
+      if let title = toast.actionTitle, let action = toast.action {
+        Button(title) {
+          action()
+          dismiss()
+        }
+        .buttonStyle(.kitPrimary)
+        .controlSize(.small)
       }
       Button("Dismiss", systemImage: "xmark", action: dismiss)
         .buttonStyle(.kitIcon)
