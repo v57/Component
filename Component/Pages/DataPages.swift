@@ -523,6 +523,25 @@ struct SettingsPage: View {
           }
           """)
       }
+      SpecimenSection("In a Settings scene", note: "Say what the window looks like; the kit lays the sidebar and the title row out for it.") {
+        HStack(alignment: .top, spacing: 20) {
+          VStack(alignment: .leading, spacing: 6) {
+            Text("A standard titled window").kitFont(.headline)
+            WindowFrame(height: 300) { SampleSettings(selection: $pane, window: .titled) }
+          }
+          CodeSnippet(
+            """
+            Settings {
+              KitSettings(selection: $pane, window: .titled) { … }.componentKit()
+            }
+
+            Settings {
+              KitSettings(selection: $pane, window: .hiddenTitleBar) { … }.componentKit()
+            }
+            .windowStyle(.hiddenTitleBar)   // the sidebar runs up under the window's buttons
+            """)
+        }
+      }
     }
   }
 }
@@ -530,6 +549,7 @@ struct SettingsPage: View {
 /// Settings made of kit pieces only, shared by the Settings page and scenario.
 struct SampleSettings: View {
   @Binding var selection: String
+  var window: KitSettingsWindow = .framed
   @State private var showWelcome = true
   @State private var wrap = true
   @State private var fontSize = 13
@@ -539,7 +559,7 @@ struct SampleSettings: View {
   @State private var check: WorkStatus = .idle
 
   var body: some View {
-    KitSettings(selection: $selection) {
+    KitSettings(selection: $selection, window: window) {
       SettingsPane("General", systemImage: "gearshape") {
         FormCard {
           FormRow("Show the welcome window", help: "When the app opens with nothing", systemImage: "macwindow", hue: .blue) {

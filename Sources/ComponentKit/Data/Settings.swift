@@ -16,15 +16,36 @@ import SwiftUI
 /// ```
 public struct KitSettings<Content: View>: View {
   @Binding var selection: String
+  var window: KitSettingsWindow
   var content: Content
   @State private var panes: [SettingsPaneInfo] = []
   @State private var showsPane = false
   @FocusState private var isSidebarFocused: Bool
   @Environment(\.kitIdiom) private var idiom
 
-  public init(selection: Binding<String>, @ViewBuilder content: () -> Content) {
+  /// Settings with the panes in `content`; `window` says what the window around them looks like (on the Mac).
+  ///
+  /// ```swift
+  /// Settings { SettingsView().componentKit() }                                         // KitSettings(…, window: .titled)
+  /// Settings { SettingsView().componentKit() }.windowStyle(.hiddenTitleBar)            // KitSettings(…, window: .hiddenTitleBar)
+  /// ```
+  public init(
+    selection: Binding<String>, window: KitSettingsWindow = .framed, @ViewBuilder content: () -> Content
+  ) {
     self._selection = selection
+    self.window = window
     self.content = content()
+  }
+
+  /// The room left at the top of the sidebar, and the height of the pane's title row.
+  private var topInset: CGFloat {
+    guard idiom == .mac else { return 20 }
+    return window == .titled ? KitMetrics.gutter : KitMetrics.titlebarHeight
+  }
+
+  private var titleHeight: CGFloat {
+    guard idiom == .mac else { return 56 }
+    return window == .titled ? 40 : KitMetrics.titlebarHeight
   }
 
   /// The selected pane, or the first one when the selection names none.
@@ -48,6 +69,7 @@ public struct KitSettings<Content: View>: View {
     .onPreferenceChange(SettingsPanesKey.self) { value in
       MainActor.assumeIsolated { panes = value }
     }
+    .modifier(SettingsUnderTitleBar(isOn: window == .hiddenTitleBar && idiom == .mac))
   }
 
   // MARK: Sidebar
@@ -74,7 +96,7 @@ public struct KitSettings<Content: View>: View {
       Spacer(minLength: 0)
     }
     .padding(.horizontal, KitMetrics.gutter)
-    .padding(.top, idiom == .mac ? KitMetrics.titlebarHeight : 20)
+    .padding(.top, topInset)
     .frame(maxHeight: .infinity, alignment: .top)
     .background(.kitSidebar)
     .focusable()
@@ -112,12 +134,38 @@ public struct KitSettings<Content: View>: View {
           .contentTransition(.opacity)
       }
       .padding(.horizontal, 24)
-      .frame(height: idiom == .mac ? KitMetrics.titlebarHeight : 56, alignment: .center)
+      .frame(height: titleHeight, alignment: .center)
       ZStack(alignment: .topLeading) { content }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .background(.kitWindow)
+  }
+}
+
+/// The window `KitSettings` sits in, on the Mac (iPad and iPhone ignore it).
+public enum KitSettingsWindow: Hashable, Sendable {
+  /// Room for a title bar drawn over the sidebar's top (52pt), as when the settings sit in a frame of their own or
+  /// a window whose content already runs under its title bar.
+  case framed
+  /// A window with a hidden title bar (`.windowStyle(.hiddenTitleBar)`, a Settings scene too): the kit runs its
+  /// sidebar and title row up under the window's buttons itself, no offset needed.
+  case hiddenTitleBar
+  /// A standard titled window (a plain `Settings` scene): the content starts under the title bar, so the sidebar
+  /// starts 8pt down and the pane's title row is 40pt.
+  case titled
+}
+
+/// Lets the settings run up under a hidden title bar.
+private struct SettingsUnderTitleBar: ViewModifier {
+  let isOn: Bool
+
+  func body(content: Content) -> some View {
+    if isOn {
+      content.ignoresSafeArea(.container, edges: .top)
+    } else {
+      content
+    }
   }
 }
 
