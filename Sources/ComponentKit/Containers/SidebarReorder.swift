@@ -292,17 +292,45 @@ extension View {
       ContReorderableModifier(
         list: AnyHashable(list), index: items.firstIndex { $0.id == item.id } ?? 0, move: move))
   }
+
+  /// Makes one row of a hand-built list reorderable by dragging, and lets it take other drops too (files, URLs,
+  /// text): under such a drag it wears the drop target and `perform` gets the drag's providers, one per item. Drags
+  /// from this app count (see `ReorderableSection.alsoAccepts`). SwiftUI gives a drop to the innermost target only,
+  /// so a reorderable row that takes files needs this rather than an `onDrop` of its own.
+  ///
+  /// ```swift
+  /// ForEach(hosts) { host in
+  ///   HostRow(host)
+  ///     .kitReorderable(host, in: hosts, list: "hosts", alsoAccepts: [.fileURL], perform: { upload($0, to: host) }) {
+  ///       hosts.move(fromOffsets: $0, toOffset: $1)
+  ///     }
+  ///   ForEach(host.sessions) { SessionRow($0).kitRowIndent(1) }
+  /// }
+  /// ```
+  public func kitReorderable<Item: Identifiable>(
+    _ item: Item, in items: [Item], list: some Hashable, alsoAccepts types: [UTType],
+    perform: @escaping ([NSItemProvider]) -> Bool, move: @escaping (IndexSet, Int) -> Void
+  ) -> some View {
+    modifier(
+      ContReorderableModifier(
+        list: AnyHashable(list), index: items.firstIndex { $0.id == item.id } ?? 0, move: move, accepts: types,
+        perform: perform))
+  }
 }
 
 private struct ContReorderableModifier: ViewModifier {
   let list: AnyHashable
   let index: Int
   let move: (IndexSet, Int) -> Void
+  var accepts: [UTType] = []
+  var perform: (([NSItemProvider]) -> Bool)? = nil
   @Environment(\.contReorderState) private var shared
   @State private var ownState = ContReorderState()
 
   func body(content: Content) -> some View {
-    content.modifier(ContReorderRow(list: list, index: index, move: move, state: shared ?? ownState))
+    content.modifier(
+      ContReorderRow(
+        list: list, index: index, move: move, state: shared ?? ownState, accepts: accepts, perform: perform))
   }
 }
 

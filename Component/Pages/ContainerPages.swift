@@ -1200,6 +1200,7 @@ struct DragDropPage: View {
   @State private var photos = ["IMG_0412", "IMG_0413", "IMG_0418", "IMG_0420", "IMG_0431"]
   @State private var picked: Set<String> = ["IMG_0413", "IMG_0420"]
   @State private var hostGroups = sampleHostGroups
+  @State private var handHosts = sampleHostGroups
 
   var body: some View {
     CatalogPage(page: .dragDrop) {
@@ -1300,6 +1301,37 @@ struct DragDropPage: View {
             }
             .frame(width: 220)
           }
+        }
+        Specimen(
+          "kitReorderable with alsoAccepts", ground: .sidebar,
+          code: """
+            ForEach(hosts) { host in
+              SidebarRow(host.name, systemImage: "server.rack")
+                .kitReorderable(host, in: hosts, list: "hosts", alsoAccepts: [.plainText], perform: { attach($0, to: host) }) {
+                  hosts.move(fromOffsets: $0, toOffset: $1)
+                }
+              ForEach(host.sessions) { SidebarRow($0, systemImage: "terminal").kitRowIndent(1) }
+            }
+            """
+        ) {
+          VStack(alignment: .leading, spacing: 2) {
+            ForEach(handHosts) { host in
+              SidebarRow(host.name, subtitle: cityNotes[host.name]?.joined(separator: ", "), systemImage: "server.rack")
+                .kitReorderable(host, in: handHosts, list: "hand-hosts", alsoAccepts: [.plainText], perform: { providers in
+                  for provider in providers {
+                    _ = provider.loadObject(ofClass: NSString.self) { text, _ in
+                      guard let text = text as? String else { return }
+                      Task { @MainActor in cityNotes[host.name, default: []].append(text) }
+                    }
+                  }
+                  return true
+                }) { handHosts.move(fromOffsets: $0, toOffset: $1) }
+              ForEach(host.sessions, id: \.self) { session in
+                SidebarRow(session, systemImage: "terminal").kitRowIndent(1)
+              }
+            }
+          }
+          .frame(width: 260)
         }
       }
       SpecimenSection(
