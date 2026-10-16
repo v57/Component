@@ -96,6 +96,7 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   @State private var reorder = ContReorderState()
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.kitSectionStyle) private var style
+  @Environment(\.contThreeColumns) private var threeColumns
 
   /// A sidebar whose rows select an optional value.
   ///
@@ -226,9 +227,11 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
 
   private var toggle: (@MainActor () -> Void)? {
     if let columnVisibility {
+      let threeColumns = threeColumns
       return {
         withAnimation(.kitSlow) {
-          columnVisibility.wrappedValue = columnVisibility.wrappedValue == .detailOnly ? .all : .detailOnly
+          columnVisibility.wrappedValue = ContSplitVisibility.toggled(
+            columnVisibility.wrappedValue, threeColumns: threeColumns)
         }
       }
     }
@@ -263,10 +266,16 @@ extension KitSidebar where BottomBar == EmptyView {
 
 // MARK: - Showing a hidden sidebar
 
+extension EnvironmentValues {
+  @Entry var contThreeColumns = false
+}
+
 extension View {
-  /// Brings back a sidebar the kit's toggle hid: while the split view shows the detail alone, a "Show Sidebar" button
-  /// leads the detail's toolbar. Put it on the detail column, with the same visibility binding the `KitSidebar` got
-  /// (on iPad and iPhone the bar's toggle sets it to `.detailOnly`, and the split view's own toggle may be removed).
+  /// Brings back a sidebar the kit's toggle hid: while the sidebar is hidden, a "Show Sidebar" button leads the
+  /// toolbar. Put it on the detail column (the content column in a three-column split), with the same visibility
+  /// binding the `KitSidebar` got (on iPad and iPhone the bar's toggle hides it, and the split view's own toggle may
+  /// be removed). On iPad it also shows at `.automatic` while the split keeps the sidebar out of the way (portrait,
+  /// or always in a three-column split).
   ///
   /// ```swift
   /// NavigationSplitView(columnVisibility: $columns) {
@@ -277,18 +286,93 @@ extension View {
   /// }
   /// ```
   public func kitSidebarToggle(columnVisibility: Binding<NavigationSplitViewVisibility>) -> some View {
-    toolbar {
-      ContShowSidebarItem(columnVisibility: columnVisibility)
+    modifier(ContShowSidebar(columnVisibility: columnVisibility))
+  }
+
+  /// Says the split view below has three columns (sidebar, content, detail): the kit's sidebar toggle then hides the
+  /// sidebar alone (`.doubleColumn`) instead of the content column with it (`.detailOnly`), and `kitSidebarToggle`
+  /// shows its button whenever the sidebar is out. Put it on the `NavigationSplitView`.
+  ///
+  /// ```swift
+  /// NavigationSplitView(columnVisibility: $columns) {
+  ///   KitSidebar(selection: $folder, columnVisibility: $columns) { … }
+  /// } content: {
+  ///   NoteList().kitSidebarToggle(columnVisibility: $columns)
+  /// } detail: {
+  ///   Editor()
+  /// }
+  /// .kitThreeColumnSplit()
+  /// ```
+  public func kitThreeColumnSplit(_ isOn: Bool = true) -> some View {
+    environment(\.contThreeColumns, isOn)
+  }
+}
+
+/// What the sidebar toggles do with a split view's visibility, apart from views.
+enum ContSplitVisibility {
+  /// Whether the sidebar is out of sight at `visibility`. `.automatic` hides it in a three-column split and, on
+  /// touch, in portrait.
+  static func sidebarIsHidden(
+    _ visibility: NavigationSplitViewVisibility, threeColumns: Bool, isTouch: Bool, isPortrait: Bool
+  ) -> Bool {
+    if isAutomatic(visibility) { return isTouch && (threeColumns || isPortrait) }
+    switch visibility {
+    case .detailOnly: return true
+    case .doubleColumn: return threeColumns
+    default: return false
     }
+  }
+
+  /// Whether `visibility` is `.automatic`. It compares equal to the visibility it stands for (`.automatic ==
+  /// .doubleColumn`), so its own flag is read.
+  static func isAutomatic(_ visibility: NavigationSplitViewVisibility) -> Bool {
+    Mirror(reflecting: visibility).children.first { $0.label == "isAutomatic" }?.value as? Bool ?? false
+  }
+
+  /// The bar's toggle: hide the sidebar (the sidebar alone in a three-column split), or show every column.
+  static func toggled(_ visibility: NavigationSplitViewVisibility, threeColumns: Bool) -> NavigationSplitViewVisibility {
+    let automatic = isAutomatic(visibility)
+    if threeColumns {
+      return !automatic && (visibility == .detailOnly || visibility == .doubleColumn) ? .all : .doubleColumn
+    }
+    return !automatic && visibility == .detailOnly ? .all : .detailOnly
+  }
+}
+
+private struct ContShowSidebar: ViewModifier {
+  @Binding var columnVisibility: NavigationSplitViewVisibility
+  @State private var isPortrait = false
+  @Environment(\.kitIdiom) private var idiom
+  @Environment(\.contThreeColumns) private var threeColumns
+
+  func body(content: Content) -> some View {
+    content
+      .background {
+        if idiom.isTouch {
+          // The column's own shape stands in for the orientation: full height and narrower than tall in portrait.
+          GeometryReader { proxy in
+            Color.clear
+              .onAppear { isPortrait = proxy.size.height > proxy.size.width }
+              .onChange(of: proxy.size) { _, size in isPortrait = size.height > size.width }
+          }
+        }
+      }
+      .toolbar {
+        ContShowSidebarItem(
+          columnVisibility: $columnVisibility,
+          isHidden: ContSplitVisibility.sidebarIsHidden(
+            columnVisibility, threeColumns: threeColumns, isTouch: idiom.isTouch, isPortrait: isPortrait))
+      }
   }
 }
 
 private struct ContShowSidebarItem: ToolbarContent {
   @Binding var columnVisibility: NavigationSplitViewVisibility
+  let isHidden: Bool
 
   var body: some ToolbarContent {
     ToolbarItem(placement: .navigation) {
-      if columnVisibility == .detailOnly {
+      if isHidden {
         Button("Show Sidebar", systemImage: "sidebar.left") {
           withAnimation(.kitSlow) { columnVisibility = .all }
         }

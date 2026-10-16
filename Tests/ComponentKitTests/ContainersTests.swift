@@ -233,3 +233,37 @@ private func groupMoved(_ rows: [String], dragging: IndexSet, anchor: Int, to: I
   #expect(ContDragPasteboard.matching(types, accepts: [.url]) == ["public.file-url"])
   #expect(ContDragPasteboard.matching(types, accepts: []).isEmpty)
 }
+
+// MARK: - Split visibility
+
+@Test func twoColumnToggleHidesAndShowsTheSidebar() {
+  #expect(ContSplitVisibility.toggled(.all, threeColumns: false) == .detailOnly)
+  #expect(ContSplitVisibility.toggled(.automatic, threeColumns: false) == .detailOnly)
+  #expect(ContSplitVisibility.toggled(.detailOnly, threeColumns: false) == .all)
+}
+
+@Test func threeColumnToggleKeepsTheContentColumn() {
+  #expect(ContSplitVisibility.toggled(.all, threeColumns: true) == .doubleColumn)
+  #expect(ContSplitVisibility.toggled(.automatic, threeColumns: true) == .doubleColumn)
+  #expect(ContSplitVisibility.toggled(.doubleColumn, threeColumns: true) == .all)
+  #expect(ContSplitVisibility.toggled(.detailOnly, threeColumns: true) == .all)
+}
+
+@Test func sidebarCountsAsHiddenWhereTheSplitKeepsItOut() {
+  let hidden = ContSplitVisibility.sidebarIsHidden
+  #expect(hidden(.detailOnly, false, false, false))
+  #expect(!hidden(.doubleColumn, false, true, true))
+  #expect(hidden(.doubleColumn, true, true, false))
+  #expect(!hidden(.all, true, true, true))
+  // `.automatic`: on iPad in portrait, or in a three-column split; never on the Mac.
+  #expect(hidden(.automatic, false, true, true))
+  #expect(!hidden(.automatic, false, true, false))
+  #expect(hidden(.automatic, true, true, false))
+  #expect(!hidden(.automatic, true, false, false))
+}
+
+@Test func automaticVisibilityIsToldApart() {
+  #expect(ContSplitVisibility.isAutomatic(.automatic))
+  #expect(!ContSplitVisibility.isAutomatic(.doubleColumn))
+  #expect(!ContSplitVisibility.isAutomatic(.all))
+}

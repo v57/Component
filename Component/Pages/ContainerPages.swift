@@ -382,6 +382,8 @@ struct SidebarPage: View {
 
               Button("Find") { isSearching = true }.keyboardShortcut("f")
               Detail().kitSidebarToggle(columnVisibility: $columns)   // iPad: brings a hidden sidebar back
+              NavigationSplitView(columnVisibility: $columns) { … } content: { … } detail: { … }
+                .kitThreeColumnSplit()   // the toggles hide the sidebar alone (.doubleColumn)
               """)
           CodeSnippet(
             """
