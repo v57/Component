@@ -51,6 +51,13 @@ final class SimulatedWork {
 // MARK: - Live icon
 
 struct LiveIconPage: View {
+  @State private var indicatorStatus: WorkStatus = .working
+  /// Plays a scripted run through the states (`--cycle` starts it, for captures).
+  @State private var cycling = ProcessInfo.processInfo.arguments.contains("--cycle")
+  let indicatorStates: [(String, WorkStatus)] = [
+    ("Idle", .idle), ("Working", .working), ("30%", .working(progress: 0.3)), ("75%", .working(progress: 0.75)),
+    ("Paused", .paused(progress: 0.75)), ("Done", .done), ("Failed", .failed("exit 1")),
+  ]
   let states: [(String, WorkStatus)] = [
     ("Idle", .idle), ("Working", .working), ("40%", .working(progress: 0.4)), ("Paused", .paused(progress: 0.6)),
     ("Done", .done), ("Failed", .failed("exit 1")),
@@ -102,16 +109,37 @@ struct LiveIconPage: View {
       }
       SpecimenSection(
         "Work indicators",
-        note: "Work of unknown length. Every style follows the tile's shape; pick one per app or per view."
+        note: "Work of unknown length. Every style follows the tile's shape and morphs into the progress ring; pick one per app or per view."
       ) {
-        Specimen("Rounded", code: "LiveIcon(systemImage: \"arrow.up\", status: .working).kitWorkIndicator(.comet)") {
+        HStack(spacing: 12) {
+          KitSegmented(selection: $indicatorStatus, options: indicatorStates)
+          Toggle("Cycle", isOn: $cycling).toggleStyle(.kitCheckbox)
+          Spacer()
+        }
+        Specimen("Rounded", code: "LiveIcon(systemImage: \"arrow.up\", status: push).kitWorkIndicator(.comet)") {
           indicatorsRow(shape: .rounded, size: 24)
         }
-        Specimen("Rounded, 32pt", code: "LiveIcon(systemImage: \"sparkles\", hue: .purple, status: .working, size: 32)") {
+        Specimen("Rounded, 32pt", code: "LiveIcon(systemImage: \"sparkles\", hue: .purple, status: push, size: 32)") {
           indicatorsRow(shape: .rounded, size: 32, hue: .purple, systemImage: "sparkles")
         }
-        Specimen("Circle", code: "LiveIcon(systemImage: \"arrow.down\", status: .working, shape: .circle).kitWorkIndicator(.ripple)") {
+        Specimen("Circle", code: "LiveIcon(systemImage: \"arrow.down\", status: push, shape: .circle).kitWorkIndicator(.ripple)") {
           indicatorsRow(shape: .circle, size: 24, hue: .green, systemImage: "arrow.down")
+        }
+      }
+      .task(id: cycling) {
+        guard cycling else { return }
+        // A typical run: unknown at first, then known, then finished; every other run fails.
+        let script: [(WorkStatus, Double)] = [
+          (.idle, 0.8), (.working, 2.4), (.working(progress: 0.3), 0.9), (.working(progress: 0.65), 0.9),
+          (.working(progress: 0.9), 0.7), (.done, 1.6), (.idle, 0.8), (.working, 1.8), (.paused(progress: nil), 1.2),
+          (.working, 1.4), (.failed("exit 1"), 1.6),
+        ]
+        while !Task.isCancelled {
+          for (status, seconds) in script {
+            indicatorStatus = status
+            try? await Task.sleep(for: .seconds(seconds))
+            if Task.isCancelled { return }
+          }
         }
       }
       SpecimenSection("Any glyph") {
@@ -135,7 +163,7 @@ struct LiveIconPage: View {
     HStack(spacing: 22) {
       ForEach(KitWorkIndicator.allCases, id: \.self) { indicator in
         Labeled(indicator.rawValue) {
-          LiveIcon(systemImage: systemImage, hue: hue, status: .working, size: size, shape: shape)
+          LiveIcon(systemImage: systemImage, hue: hue, status: indicatorStatus, size: size, shape: shape)
             .kitWorkIndicator(indicator)
             .frame(width: size + 8, height: size + 8)
         }
