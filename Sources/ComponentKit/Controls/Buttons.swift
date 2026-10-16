@@ -88,7 +88,11 @@ struct KitButton: View {
   private var horizontalPadding: CGFloat { kind == .plain ? 8 : 12 }
 
   private var foreground: AnyShapeStyle {
-    if isDestructive { return kind == .primary ? AnyShapeStyle(Color.white) : AnyShapeStyle(Hue.red.text) }
+    if isDestructive {
+      // A disabled destructive primary sits on the raised ground like any disabled primary: white would vanish.
+      if kind == .primary { return isEnabled ? AnyShapeStyle(Color.white) : AnyShapeStyle(.kitSecondary) }
+      return AnyShapeStyle(Hue.red.text)
+    }
     switch kind {
     case .primary: return isEnabled ? AnyShapeStyle(Color.white) : AnyShapeStyle(.kitSecondary)
     case .plain: return AnyShapeStyle(Hue.accent.text)
