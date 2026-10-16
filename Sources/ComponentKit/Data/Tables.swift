@@ -110,6 +110,31 @@ public struct KitGridColumn<Row>: Identifiable {
       value: { $0[keyPath: keyPath] }, edit: edit)
   }
 
+  /// A column that draws any view per row and still edits as text: `value` is the text the field starts from,
+  /// `edit` gets what was typed (Return or a double click on the focused cell, as a text column).
+  ///
+  /// ```swift
+  /// KitGridColumn<Order>("status", width: 110, value: { $0.status }, edit: { store.set(\.status, $1, of: $0) }) { order in
+  ///   Chip(status: order.status)
+  /// }
+  /// ```
+  public init<Content: View>(
+    _ title: String, id: String? = nil, detail: String? = nil, systemImage: String? = nil, width: CGFloat = 120,
+    alignment: Alignment = .leading, mono: Bool = false, value: @escaping (Row) -> String?,
+    edit: @escaping (Row, String) -> Void, @ViewBuilder content: @escaping (Row) -> Content
+  ) {
+    self.id = id ?? title
+    self.title = title
+    self.detail = detail
+    self.systemImage = systemImage
+    self.width = width
+    self.alignment = alignment
+    self.isMono = mono
+    self.value = value
+    self.cell = { AnyView(content($0)) }
+    self.edit = edit
+  }
+
   /// A column that draws any view per row (chips, links, a JSON preview).
   public init<Content: View>(
     _ title: String, id: String? = nil, detail: String? = nil, systemImage: String? = nil, width: CGFloat = 120,
@@ -130,9 +155,32 @@ public struct KitGridColumn<Row>: Identifiable {
   var frameAlignment: SwiftUI.Alignment { alignment == .trailing ? .trailing : .leading }
 }
 
+/// How tall a grid's rows are.
+public enum KitGridRowHeight: Hashable, Sendable {
+  /// One line: 34pt (44 on touch).
+  case standard
+  /// At least one line, growing with the cells (multi-line comments, plural forms): text cells wrap.
+  case automatic
+}
+
 // MARK: - Layout and navigation (pure, tested)
 
 enum KitGridLayout {
+  /// The rows an outline shows, in order, with their depth: each row, then (while it's open) its children.
+  static func flatten<Row, ID: Hashable>(
+    _ rows: [Row], id: (Row) -> ID, children: ((Row) -> [Row]?)?, isOpen: (ID) -> Bool, depth: Int = 0
+  ) -> [(row: Row, depth: Int, hasChildren: Bool)] {
+    var out: [(row: Row, depth: Int, hasChildren: Bool)] = []
+    for row in rows {
+      let kids = children?(row)
+      out.append((row, depth, kids != nil))
+      if let kids, isOpen(id(row)) {
+        out += flatten(kids, id: id, children: children, isOpen: isOpen, depth: depth + 1)
+      }
+    }
+    return out
+  }
+
   /// Column widths: each column's own (or resized) width; the last one also takes what's left of `available`.
   static func widths(_ base: [CGFloat], available: CGFloat) -> [CGFloat] {
     guard var last = base.last else { return [] }
@@ -175,7 +223,13 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
   @Binding var sort: KitGridSort?
   var rowState: ((Row) -> KitGridRowState?)?
   var footer: Footer
+  var children: KeyPath<Row, [Row]?>?
+  var expandedBinding: Binding<Set<Row.ID>>?
+  var heightMode: KitGridRowHeight
+  var primaryAction: ((Set<Row.ID>) -> Void)?
+  var menu: ((Set<Row.ID>) -> AnyView)?
 
+  @State private var ownExpanded: Set<Row.ID> = []
   @State private var resized: [String: CGFloat] = [:]
   @State private var available: CGFloat = 0
   @State private var focusRow: Row.ID?
@@ -189,9 +243,20 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.kitWindowIsActive) private var isActive
 
+  /// A grid of `rows`.
+  ///
+  /// - Parameters:
+  ///   - children: makes it an outline (Redis key groups, JSON): a row with children (`[]` counts) leads its first
+  ///     cell with a disclosure chevron and shows them one step in while open; ← → close and open it.
+  ///   - expanded: the ids of the open rows, to keep them; without it the grid keeps its own.
+  ///   - rowHeight: `.automatic` lets rows grow with their cells (text wraps).
+  ///   - primaryAction: what a double click on a cell that doesn't edit, or Return there, does with the selection
+  ///     (open the row, drill into a key).
   public init(
     _ rows: [Row], columns: [KitGridColumn<Row>], selection: Binding<Set<Row.ID>>,
     sort: Binding<KitGridSort?> = .constant(nil), rowState: ((Row) -> KitGridRowState?)? = nil,
+    children: KeyPath<Row, [Row]?>? = nil, expanded: Binding<Set<Row.ID>>? = nil,
+    rowHeight: KitGridRowHeight = .standard, primaryAction: ((Set<Row.ID>) -> Void)? = nil,
     @ViewBuilder footer: () -> Footer
   ) {
     self.rows = rows
@@ -199,7 +264,34 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
     self._selection = selection
     self._sort = sort
     self.rowState = rowState
+    self.children = children
+    self.expandedBinding = expanded
+    self.heightMode = rowHeight
+    self.primaryAction = primaryAction
     self.footer = footer()
+  }
+
+  /// A context menu for the rows: it gets the selection when the clicked row is in it, else just that row.
+  ///
+  /// ```swift
+  /// KitGrid(orders, columns: columns, selection: $selection).rowContextMenu { ids in
+  ///   Button("Copy as JSON") { copy(ids) }
+  ///   Button("Delete", role: .destructive) { delete(ids) }
+  /// }
+  /// ```
+  public func rowContextMenu<Menu: View>(@ViewBuilder _ menu: @escaping (Set<Row.ID>) -> Menu) -> Self {
+    var grid = self
+    grid.menu = { AnyView(menu($0)) }
+    return grid
+  }
+
+  private var expanded: Binding<Set<Row.ID>> { expandedBinding ?? $ownExpanded }
+
+  /// The rows shown, in order, with their depth in an outline.
+  private var visible: [(row: Row, depth: Int, hasChildren: Bool)] {
+    guard let children else { return rows.map { ($0, 0, false) } }
+    let open = expanded.wrappedValue
+    return KitGridLayout.flatten(rows, id: \.id, children: { $0[keyPath: children] }, isOpen: { open.contains($0) })
   }
 
   private var rowHeight: CGFloat { KitMetrics.tableRow(idiom) }
@@ -213,11 +305,12 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
 
   public var body: some View {
     let widths = widths
+    let visible = visible
     DataScroll(axes: [.horizontal, .vertical]) {
       LazyVStack(alignment: .leading, spacing: 2, pinnedViews: [.sectionHeaders]) {
         Section {
-          ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-            rowView(row, index: index, widths: widths)
+          ForEach(Array(visible.enumerated()), id: \.element.row.id) { index, item in
+            rowView(item.row, index: index, widths: widths, visible: visible)
           }
           footer
             .padding(.leading, 8)
@@ -236,7 +329,7 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
     .focused($isFocused)
     .focusEffectDisabled()
     .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow, .return, .escape, .tab]) { press in
-      handle(press)
+      handle(press, visible: visible)
     }
     .accessibilityElement(children: .contain)
   }
@@ -293,11 +386,14 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
 
   // MARK: Rows
 
-  private func rowView(_ row: Row, index: Int, widths: [CGFloat]) -> some View {
+  private func rowView(
+    _ row: Row, index: Int, widths: [CGFloat], visible: [(row: Row, depth: Int, hasChildren: Bool)]
+  ) -> some View {
     let state = rowState?(row)
     let selected = selection.contains(row.id)
-    let previousSelected = index > 0 && selection.contains(rows[index - 1].id)
-    let nextSelected = index + 1 < rows.count && selection.contains(rows[index + 1].id)
+    let previousSelected = index > 0 && selection.contains(visible[index - 1].row.id)
+    let nextSelected = index + 1 < visible.count && selection.contains(visible[index + 1].row.id)
+    let outline = children == nil ? nil : (depth: visible[index].depth, hasChildren: visible[index].hasChildren)
     return HStack(spacing: 0) {
       if rowState != nil {
         ZStack {
@@ -306,24 +402,27 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
         .frame(width: gutter)
       }
       ForEach(Array(columns.enumerated()), id: \.element.id) { column, item in
-        cell(row, column: item, index: column, width: widths[column], state: state)
+        cell(row, column: item, index: column, width: widths[column], state: state, outline: column == 0 ? outline : nil)
       }
     }
-    .frame(height: rowHeight)
+    .frame(minHeight: rowHeight, maxHeight: heightMode == .automatic ? nil : rowHeight)
+    .fixedSize(horizontal: false, vertical: heightMode == .automatic)
     .background {
       RowGround(
         selected: selected, striped: index % 2 == 1, hovered: hovered == row.id, state: state,
         mergeTop: selected && previousSelected, mergeBottom: selected && nextSelected, active: isActive)
     }
     .onHover { hovered = $0 ? row.id : (hovered == row.id ? nil : hovered) }
+    .modifier(GridRowMenu(ids: selected ? selection : [row.id], menu: menu))
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(selected ? .isSelected : [])
     .accessibilityValue(state?.title ?? "")
   }
 
-  private func cell(_ row: Row, column: KitGridColumn<Row>, index: Int, width: CGFloat, state: KitGridRowState?)
-    -> some View
-  {
+  private func cell(
+    _ row: Row, column: KitGridColumn<Row>, index: Int, width: CGFloat, state: KitGridRowState?,
+    outline: (depth: Int, hasChildren: Bool)?
+  ) -> some View {
     let focused = focusRow == row.id && focusColumn == index
     return ZStack(alignment: column.frameAlignment) {
       if focused {
@@ -349,8 +448,15 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
           }
           .padding(.horizontal, 8)
       } else {
-        cellContent(row, column: column, state: state)
-          .padding(.horizontal, 8)
+        HStack(spacing: 4) {
+          if let outline {
+            disclosure(row, hasChildren: outline.hasChildren)
+              .padding(.leading, CGFloat(outline.depth) * (idiom.isTouch ? 20 : 14))
+          }
+          cellContent(row, column: column, state: state)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, heightMode == .automatic ? 6 : 0)
       }
     }
     .frame(width: width, alignment: column.frameAlignment)
@@ -358,7 +464,11 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
     .contentShape(Rectangle())
     .onTapGesture(count: 2) {
       focus(row, column: index, extending: false)
-      beginEditing(row, column)
+      if column.edit != nil {
+        beginEditing(row, column)
+      } else {
+        primaryAction?(selection)
+      }
     }
     .simultaneousGesture(TapGesture().onEnded { focus(row, column: index, extending: false) })
   }
@@ -384,8 +494,35 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
       }
     }
     .strikethrough(deleted)
-    .lineLimit(1)
+    .lineLimit(heightMode == .automatic ? nil : 1)
     .truncationMode(.tail)
+  }
+
+  /// An outline row's chevron (or the empty slot of a leaf), which opens and closes it.
+  @ViewBuilder
+  private func disclosure(_ row: Row, hasChildren: Bool) -> some View {
+    let size: CGFloat = idiom.isTouch ? 14 : 12
+    if hasChildren {
+      let isOpen = expanded.wrappedValue.contains(row.id)
+      Button {
+        withKitAnimation { toggle(row.id) }
+      } label: {
+        Image(systemName: "chevron.right")
+          .font(.system(size: size * 0.75, weight: .semibold))
+          .foregroundStyle(.kitSecondary)
+          .rotationEffect(.degrees(isOpen ? 90 : 0))
+          .frame(width: size, height: size)
+          .contentShape(Rectangle().inset(by: -4))
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel(isOpen ? "Collapse" : "Expand")
+    } else {
+      Color.clear.frame(width: size, height: size)
+    }
+  }
+
+  private func toggle(_ id: Row.ID) {
+    if expanded.wrappedValue.contains(id) { expanded.wrappedValue.remove(id) } else { expanded.wrappedValue.insert(id) }
   }
 
   private func cellFont(_ column: KitGridColumn<Row>) -> Font {
@@ -405,15 +542,32 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
     if !extending { anchor = row.id }
   }
 
-  private func handle(_ press: KeyPress) -> KeyPress.Result {
-    let ids = rows.map(\.id)
+  private func handle(_ press: KeyPress, visible: [(row: Row, depth: Int, hasChildren: Bool)]) -> KeyPress.Result {
+    let shown = visible.map(\.row)
+    let ids = shown.map(\.id)
     switch press.key {
     case .upArrow, .downArrow:
       let offset = press.key == .upArrow ? -1 : 1
       let current = focusRow.flatMap { ids.firstIndex(of: $0) }
       let next = current.map { min(max($0 + offset, 0), ids.count - 1) } ?? (offset > 0 ? 0 : ids.count - 1)
       guard ids.indices.contains(next) else { return .ignored }
-      focus(rows[next], column: focusColumn ?? 0, extending: press.modifiers.contains(.shift))
+      focus(shown[next], column: focusColumn ?? 0, extending: press.modifiers.contains(.shift))
+      return .handled
+    case .leftArrow where children != nil && (focusColumn ?? 0) == 0,
+      .rightArrow where children != nil && (focusColumn ?? 0) == 0:
+      // In an outline, ← → on the first column close and open the focused row (or go to its parent).
+      guard let id = focusRow, let index = ids.firstIndex(of: id) else { return .ignored }
+      let isOpen = expanded.wrappedValue.contains(id)
+      if press.key == .rightArrow {
+        guard visible[index].hasChildren, !isOpen else { return moveColumn(press, ids: ids) }
+        withKitAnimation { toggle(id) }
+      } else if visible[index].hasChildren && isOpen {
+        withKitAnimation { toggle(id) }
+      } else if let parent = visible[..<index].last(where: { $0.depth < visible[index].depth }) {
+        focus(parent.row, column: 0, extending: false)
+      } else {
+        return .ignored
+      }
       return .handled
     case .leftArrow, .rightArrow, .tab:
       let back = press.key == .leftArrow || (press.key == .tab && press.modifiers.contains(.shift))
@@ -421,8 +575,11 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
       if focusRow == nil { focusRow = ids.first }
       return .handled
     case .return:
-      guard let id = focusRow, let row = rows.first(where: { $0.id == id }), let index = focusColumn else {
-        return .ignored
+      guard let id = focusRow, let row = shown.first(where: { $0.id == id }) else { return .ignored }
+      guard let index = focusColumn, columns[index].edit != nil else {
+        guard let primaryAction else { return .ignored }
+        primaryAction(selection)
+        return .handled
       }
       beginEditing(row, columns[index])
       return .handled
@@ -435,6 +592,12 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
     default:
       return .ignored
     }
+  }
+
+  private func moveColumn(_ press: KeyPress, ids: [Row.ID]) -> KeyPress.Result {
+    focusColumn = KitGridLayout.column(focusColumn, by: press.key == .leftArrow ? -1 : 1, count: columns.count)
+    if focusRow == nil { focusRow = ids.first }
+    return .handled
   }
 
   private func beginEditing(_ row: Row, _ column: KitGridColumn<Row>) {
@@ -460,9 +623,28 @@ extension KitGrid where Footer == EmptyView {
   /// A grid without a footer row.
   public init(
     _ rows: [Row], columns: [KitGridColumn<Row>], selection: Binding<Set<Row.ID>>,
-    sort: Binding<KitGridSort?> = .constant(nil), rowState: ((Row) -> KitGridRowState?)? = nil
+    sort: Binding<KitGridSort?> = .constant(nil), rowState: ((Row) -> KitGridRowState?)? = nil,
+    children: KeyPath<Row, [Row]?>? = nil, expanded: Binding<Set<Row.ID>>? = nil,
+    rowHeight: KitGridRowHeight = .standard, primaryAction: ((Set<Row.ID>) -> Void)? = nil
   ) {
-    self.init(rows, columns: columns, selection: selection, sort: sort, rowState: rowState) { EmptyView() }
+    self.init(
+      rows, columns: columns, selection: selection, sort: sort, rowState: rowState, children: children,
+      expanded: expanded, rowHeight: rowHeight, primaryAction: primaryAction
+    ) { EmptyView() }
+  }
+}
+
+/// A row's context menu, when the grid has one.
+private struct GridRowMenu<ID: Hashable>: ViewModifier {
+  let ids: Set<ID>
+  let menu: ((Set<ID>) -> AnyView)?
+
+  func body(content: Content) -> some View {
+    if let menu {
+      content.contextMenu { menu(ids) }
+    } else {
+      content
+    }
   }
 }
 

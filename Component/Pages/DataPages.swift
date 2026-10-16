@@ -95,11 +95,37 @@ final class OrdersModel {
   }
 }
 
+/// A Redis-like key for the outline grid specimen.
+struct SampleKey: Identifiable, Hashable {
+  var id: String { name }
+  var name: String
+  var type: String
+  var value: String
+  var children: [SampleKey]?
+}
+
+let sampleKeys = [
+  SampleKey(name: "user", type: "group", value: "3 keys", children: [
+    SampleKey(name: "user:1", type: "hash", value: "name, email, plan"),
+    SampleKey(name: "user:2", type: "hash", value: "name, email"),
+    SampleKey(name: "user:2:cart", type: "list", value: "4 items"),
+  ]),
+  SampleKey(name: "session", type: "group", value: "2 keys", children: [
+    SampleKey(name: "session:a91f", type: "string", value: "{\"user\": 1}"),
+    SampleKey(name: "session:b03c", type: "string", value: "{\"user\": 2}"),
+  ]),
+  SampleKey(name: "config", type: "string", value: "A comment long enough to wrap onto a second line when the rows grow with their cells"),
+]
+
 struct GridPage: View {
   @State private var model = OrdersModel()
   @State private var selection: Set<Int> = [10234]
   @State private var sort: KitGridSort? = KitGridSort("id", ascending: false)
   @State private var emptySelection: Set<Int> = []
+  @State private var keySelection: Set<String> = ["user:1"]
+  @State private var openKeys: Set<String> = ["user"]
+  @State private var keys = sampleKeys
+  @State private var opened = ""
 
   var body: some View {
     CatalogPage(page: .grid, maxWidth: 1100) {
@@ -152,7 +178,54 @@ struct GridPage: View {
           }
         }
       }
+      SpecimenSection(
+        "Outline, menu and growing rows",
+        note: "Keys in groups: ← → close and open the focused group; right-click for the menu; a double click or Return on a cell that doesn't edit opens the key. The type column draws a chip and still edits."
+      ) {
+        VStack(alignment: .leading, spacing: KitMetrics.gutter) {
+          KitGrid(
+            keys,
+            columns: [
+              KitGridColumn<SampleKey>("key", width: 200, mono: true) { $0.name },
+              KitGridColumn<SampleKey>("type", width: 120, value: { $0.type }, edit: { key, text in rename(key, type: text) }) { key in
+                Chip(key.type, hue: key.type == "group" ? .gray : .teal)
+              },
+              KitGridColumn<SampleKey>("value") { $0.value },
+            ],
+            selection: $keySelection, children: \.children, expanded: $openKeys, rowHeight: .automatic,
+            primaryAction: { ids in opened = ids.sorted().joined(separator: ", ") }
+          )
+          .rowContextMenu { ids in
+            Button("Copy Key Names") { KitPasteboard.copy(ids.sorted().joined(separator: "\n")) }
+            Button("Delete", role: .destructive) {}
+          }
+          .frame(height: 330)
+          Text(opened.isEmpty ? "Nothing opened" : "Opened \(opened)").kitFont(.caption)
+          CodeSnippet(
+            """
+            KitGrid(keys, columns: columns, selection: $selection,
+                    children: \\.children, expanded: $openGroups,     // an outline
+                    rowHeight: .automatic,                           // rows grow, text wraps
+                    primaryAction: { ids in open(ids) })             // double click, Return
+              .rowContextMenu { ids in Button("Delete", role: .destructive) { delete(ids) } }
+
+            KitGridColumn<Key>("type", width: 120, value: { $0.type }, edit: { setType($0, $1) }) { key in
+              Chip(key.type)                                         // custom content that still edits
+            }
+            """)
+        }
+      }
     }
+  }
+
+  private func rename(_ key: SampleKey, type: String) {
+    func update(_ list: inout [SampleKey]) {
+      for index in list.indices {
+        if list[index].name == key.name { list[index].type = type }
+        if list[index].children != nil { update(&list[index].children!) }
+      }
+    }
+    update(&keys)
   }
 }
 

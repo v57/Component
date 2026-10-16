@@ -142,3 +142,21 @@ import Testing
   let marked = accented.runs.filter { $0.inlinePresentationIntent == .stronglyEmphasized }.map { String(accented[$0.range].characters) }
   #expect(marked == ["x"])
 }
+
+// MARK: - Grid outline
+
+private struct Key { var name: String; var children: [Key]? }
+
+@Test func gridFlattensOpenRows() {
+  let keys = [
+    Key(name: "user", children: [Key(name: "user:1"), Key(name: "user:2", children: [Key(name: "user:2:cart")])]),
+    Key(name: "session", children: []),
+    Key(name: "config"),
+  ]
+  let closed = KitGridLayout.flatten(keys, id: \.name, children: \.children, isOpen: { _ in false })
+  #expect(closed.map(\.row.name) == ["user", "session", "config"])
+  #expect(closed.map(\.hasChildren) == [true, true, false])
+  let open = KitGridLayout.flatten(keys, id: \.name, children: \.children, isOpen: { $0 == "user" || $0 == "user:2" })
+  #expect(open.map(\.row.name) == ["user", "user:1", "user:2", "user:2:cart", "session", "config"])
+  #expect(open.map(\.depth) == [0, 1, 1, 2, 0, 0])
+}
