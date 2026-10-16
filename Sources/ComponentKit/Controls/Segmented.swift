@@ -88,6 +88,7 @@ public struct KitSegmented<Value: Hashable>: View {
   var segments: [KitSegment<Value>]
   @Environment(\.kitSegmentedStyle) private var style
   @Environment(\.kitIdiom) private var idiom
+  @Environment(\.contBarGround) private var barGround
   @FocusState private var focus: Value?
   @Namespace private var namespace
 
@@ -134,7 +135,7 @@ public struct KitSegmented<Value: Hashable>: View {
   private func track(_ metrics: CtlSegmentMetrics) -> some View {
     if style == .capsule {
       let shape = RoundedRectangle(cornerRadius: metrics.trackRadius, style: .continuous)
-      shape.fill(KitColor.ctlGlass)
+      shape.fill(KitColor.ctlGlass.overBarGround(barGround))
         .overlay(shape.strokeBorder(KitColor.ctlGlassEdge, lineWidth: 0.5))
         .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
     } else {

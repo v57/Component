@@ -119,6 +119,7 @@ public struct KitToolbar<Title: View>: View {
     .frame(height: height)
     .frame(maxWidth: .infinity)
     .background { ContWindowDragArea() }
+    .environment(\.contBarGround, KitColor.window)
     .animation(.kit, value: showSidebar != nil)
   }
 

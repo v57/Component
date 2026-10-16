@@ -71,6 +71,32 @@ struct RGBA: Hashable, Sendable {
   }
 
   func opacity(_ factor: Double) -> RGBA { RGBA(r: r, g: g, b: b, a: a * factor) }
+
+  /// `self` drawn over `ground` (source-over), as one colour.
+  func over(_ ground: RGBA) -> RGBA {
+    let alpha = a + ground.a * (1 - a)
+    guard alpha > 0 else { return RGBA(r: 0, g: 0, b: 0, a: 0) }
+    func channel(_ top: Double, _ bottom: Double) -> Double { (top * a + bottom * ground.a * (1 - a)) / alpha }
+    return RGBA(r: channel(r, ground.r), g: channel(g, ground.g), b: channel(b, ground.b), a: alpha)
+  }
+}
+
+/// A translucent token as it looks over `ground`, as one opaque colour where the ground is: what a bar's controls
+/// draw, so content scrolling under the bar doesn't show through them.
+struct ContOver: ShapeStyle {
+  let top: KitColor
+  let ground: KitColor
+
+  func resolve(in environment: EnvironmentValues) -> Color {
+    top.rgba(in: environment).over(ground.rgba(in: environment)).color
+  }
+}
+
+extension KitColor {
+  /// This colour over the bar ground in the environment (`contBarGround`), or itself outside a bar.
+  func overBarGround(_ ground: KitColor?) -> AnyShapeStyle {
+    ground.map { AnyShapeStyle(ContOver(top: self, ground: $0)) } ?? AnyShapeStyle(self)
+  }
 }
 
 extension Color.Resolved {

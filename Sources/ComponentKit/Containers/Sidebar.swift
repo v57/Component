@@ -171,6 +171,7 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
         ContSidebarBar(
           searchText: searchText, prompt: searchPrompt, isSearching: isSearching, toggle: barToggle,
           status: statusView, actions: { bottomBar })
+          .environment(\.contBarGround, KitColor.sidebar)
           .background { ContEdgeFade(edge: .bottom, ground: .kitSidebar) }
       }
     }
@@ -186,6 +187,7 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
             Button("Hide Sidebar", systemImage: "sidebar.left") { toggle() }
           }
           .help("Hide Sidebar")
+          .environment(\.contBarGround, KitColor.sidebar)
           .frame(height: topInset)
           .padding(.trailing, inset)
           .offset(y: -topInset)

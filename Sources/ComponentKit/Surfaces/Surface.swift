@@ -48,6 +48,7 @@ struct SurfaceShape: View {
   let cornerRadius: CGFloat
   @Environment(\.colorScheme) private var scheme
   @Environment(\.kitMoreContrast) private var moreContrast
+  @Environment(\.contBarGround) private var barGround
 
   var body: some View {
     let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -55,7 +56,8 @@ struct SurfaceShape: View {
     let more = moreContrast
     switch surface {
     case .card:
-      shape.fill(.kitCard)
+      // In a bar, opaque over the bar's ground (the card token is translucent in light mode).
+      shape.fill(KitColor.card.overBarGround(barGround))
         .overlay {
           if dark {
             TopHighlight(shape: shape, opacity: 0.08)
@@ -82,7 +84,7 @@ struct SurfaceShape: View {
         .overlay { if dark { TopHighlight(shape: shape, opacity: 0.12) } }
         .shadow(color: .black.opacity(dark ? 0.5 : 0.16), radius: dark ? 20 : 16, y: dark ? 16 : 12)
     case .field:
-      shape.fill(.kitField)
+      shape.fill(KitColor.field.overBarGround(barGround))
         .overlay { if more { shape.strokeBorder(.kitBorder, lineWidth: 1) } }
     case .fill:
       shape.fill(.kitFill)

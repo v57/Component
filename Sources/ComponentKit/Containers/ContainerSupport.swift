@@ -109,6 +109,12 @@ enum ContFlow {
 
 // MARK: - Bars the content scrolls under
 
+extension EnvironmentValues {
+  /// The ground of the bar around this view (the toolbar's window, the sidebar's): the bar's cards, tracks and wells
+  /// draw opaque over it, so content scrolling under the bar doesn't show through. `nil` outside bars.
+  @Entry var contBarGround: KitColor? = nil
+}
+
 extension View {
   /// A bar at `edge` the content scrolls under (the toolbar, the sidebar's bottom bar): a plain safe-area inset on
   /// every OS, with the system's scroll edge there off (macOS 26 and iOS 26), so newer systems look like the older
