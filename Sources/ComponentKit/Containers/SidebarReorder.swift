@@ -377,14 +377,17 @@ struct ContReorderRow: ViewModifier {
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.contOuterReorder) private var outer
   @State private var isTargeted = false
-  /// The row's frame in global coordinates: its width makes the drag image the row, so it lands on its slot; its
-  /// height and place tell the drop target where the pointer is (`ContReorderDropDelegate.settles`).
-  @State private var frame: CGRect?
+  /// The row's frame in global coordinates: its height and place tell the drop target where the pointer is
+  /// (`ContReorderDropDelegate.settles`). In a box rather than in state: it changes on every frame of a scroll and
+  /// only a drag reads it, while in state every row would draw again (and hand its rows a new environment) each frame.
+  @State private var geometry = ContRowGeometry()
+  /// The row's width, which makes the drag image the row, so it lands on its slot.
+  @State private var width: CGFloat?
 
   func body(content: Content) -> some View {
     let delegate = ContReorderDropDelegate(
       list: list, index: index, move: move, state: state, accepts: accepts, perform: perform, receive: receive,
-      isTargeted: $isTargeted, outer: outer, frame: frame ?? .zero)
+      isTargeted: $isTargeted, outer: outer, geometry: geometry)
     content
       // Reorderable rows inside this one (a group's sub-rows) share its drag and pass its rows' drags to it.
       .environment(\.contReorderState, state)
@@ -394,13 +397,14 @@ struct ContReorderRow: ViewModifier {
       .modifier(ContRowDragSource(begin: begin, exportURL: exportURL, preview: preview(content)))
       .modifier(ContDragSessionEnd(state: state))
       .onDrop(of: [ContReorderState.contentType] + accepts, delegate: delegate)
-      .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame = $0 }
+      .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { [geometry] in geometry.frame = $0 }
+      .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
   }
 
   /// Called as the drag starts (on the main thread, though the drag source's closures aren't isolated).
   private func begin() {
-    let (state, list, index, group, height) = (state, list, index, group, frame?.height ?? 0)
-    MainActor.assumeIsolated { state.start(list, at: index, with: group, height: height) }
+    let (state, list, index, group, geometry) = (state, list, index, group, geometry)
+    MainActor.assumeIsolated { state.start(list, at: index, with: group, height: geometry.frame.height) }
   }
 
   private func preview(_ content: Content) -> some View {
@@ -411,7 +415,7 @@ struct ContReorderRow: ViewModifier {
           Count(group.count, .attention).offset(x: 6, y: -6)
         }
       }
-      .frame(width: frame?.width ?? 220)
+      .frame(width: width ?? 220)
       .padding(8)
   }
 }
@@ -447,6 +451,11 @@ private struct ContRowDragSource<Preview: View>: ViewModifier {
     begin()
     return ContRowDrag(url: url())
   }
+}
+
+/// A reorderable row's frame in global coordinates, which its drop target reads as a drag passes.
+@MainActor final class ContRowGeometry {
+  var frame: CGRect = .zero
 }
 
 /// The reorder target of the row around this one (a group around its sub-rows), boxed: a target holds its outer one.
@@ -516,8 +525,11 @@ struct ContReorderDropDelegate: DropDelegate {
   var isTargeted: Binding<Bool>? = nil
   /// The target of the row around this one, for drags of its list.
   var outer: ContOuterReorder? = nil
+  /// Where the row is, in global coordinates.
+  var geometry: ContRowGeometry? = nil
+
   /// The row's frame in global coordinates (`.zero` before its first layout).
-  var frame: CGRect = .zero
+  var frame: CGRect { geometry?.frame ?? .zero }
 
   /// The pointer in global coordinates: `DropInfo` gives it in this row's, and a forwarded drag needs it in the outer
   /// row's.
