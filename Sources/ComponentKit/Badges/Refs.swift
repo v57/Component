@@ -106,8 +106,11 @@ public struct RefChip: View {
   @Environment(\.isEnabled) private var isEnabled
   @Environment(\.kitMoreContrast) private var moreContrast
 
-  public init(name: String, kind: Kind = .branch, isCurrent: Bool = false, hasUpstream: Bool = false) {
-    self.init(Ref(name: name, kind: kind, isCurrent: isCurrent, hasUpstream: hasUpstream))
+  public init(
+    name: String, kind: Kind = .branch, isCurrent: Bool = false, hasUpstream: Bool = false, detail: String? = nil,
+    maxWidth: CGFloat? = 168
+  ) {
+    self.init(Ref(name: name, kind: kind, isCurrent: isCurrent, hasUpstream: hasUpstream, detail: detail), maxWidth: maxWidth)
   }
 
   public init(_ ref: Ref, maxWidth: CGFloat? = 168) {
@@ -148,9 +151,9 @@ public struct RefChip: View {
     }
     .fixedSize(horizontal: false, vertical: true)
     .opacity(isEnabled ? 1 : 0.45)
-    .help(ref.name)
+    .help(ref.detail.map { "\(ref.name) · \($0)" } ?? ref.name)
     .accessibilityElement()
-    .accessibilityLabel(ref.accessibilityText)
+    .accessibilityLabel([ref.accessibilityText, ref.detail].compactMap { $0 }.joined(separator: ", "))
   }
 
   private func nameText(_ ink: AnyShapeStyle) -> Text {
@@ -409,11 +412,19 @@ struct CappedWidthLayout: Layout {
   }
 }
 
-/// The git branch glyph from Git's design: two commits on a line and a branch curving off.
-struct BranchGlyph: View {
+/// The git branch glyph from Git's design: two commits on a line and a branch curving off, stroked in the
+/// foreground style (SF Symbols' branch reads as a fork). A row's or a title's icon where the branch is the subject.
+///
+/// ```swift
+/// Label { Text(branch.name) } icon: { BranchGlyph(size: 14) }
+/// BranchGlyph().foregroundStyle(Hue.green.fill)
+/// ```
+public struct BranchGlyph: View {
   var size: CGFloat = 16
 
-  var body: some View {
+  public init(size: CGFloat = 16) { self.size = size }
+
+  public var body: some View {
     Canvas { context, canvas in
       let s = canvas.width / 16
       var path = Path()
