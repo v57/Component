@@ -63,20 +63,24 @@ struct CardSliceModifier: ViewModifier {
   }
 
   private var background: some View {
-    Color.clear
-      .background {
-        // The whole card, run past the ends this row doesn't have and cut there, so its edge and shadow show only
-        // where they belong.
-        SurfaceShape(surface: .card, cornerRadius: cornerRadius)
-          .padding(.top, slice.hasTop ? 0 : -(cornerRadius + 4))
-          .padding(.bottom, slice.hasBottom ? 0 : -(cornerRadius + 4))
-          .mask {
-            Rectangle()
-              .padding(.horizontal, -4)
-              .padding(.top, slice.hasTop ? -4 : 0)
-              .padding(.bottom, slice.hasBottom ? -4 : 0)
-          }
-      }
+    // The whole card, run past the ends this row doesn't have and cut there, so its edge and shadow show only where
+    // they belong. Cut by a rectangle clip rather than a mask: a mask is a layer of its own and an offscreen pass for
+    // every row on screen.
+    SurfaceShape(surface: .card, cornerRadius: cornerRadius)
+      .padding(.top, slice.hasTop ? 0 : -(cornerRadius + 4))
+      .padding(.bottom, slice.hasBottom ? 0 : -(cornerRadius + 4))
+      .clipShape(CardSliceClip(top: slice.hasTop ? 4 : 0, bottom: slice.hasBottom ? 4 : 0))
+  }
+}
+
+/// A slice's cut: the row, 4pt wider on each side (the card's edge and shadow) and `top`/`bottom` taller at the ends
+/// the card has there.
+private struct CardSliceClip: Shape {
+  let top: CGFloat
+  let bottom: CGFloat
+
+  func path(in rect: CGRect) -> Path {
+    Path(CGRect(x: rect.minX - 4, y: rect.minY - top, width: rect.width + 8, height: rect.height + top + bottom))
   }
 }
 
