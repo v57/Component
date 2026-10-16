@@ -76,6 +76,7 @@ struct CountsPage: View {
 // MARK: - Labels (chips)
 
 struct ChipsPage: View {
+  @State private var filters = ["status = shipped", "city contains Lisbon"]
   var body: some View {
     CatalogPage(page: .chips) {
       SpecimenSection("Soft", note: "The hue at 16% (20% in dark) under the hue's text tone; neutral without a hue.") {
@@ -152,6 +153,22 @@ struct ChipsPage: View {
           }
         }
       }
+      SpecimenSection("Filter tokens", note: "An active filter with its remove button: the condition on a soft token.") {
+        Specimen(
+          "FilterToken",
+          code: "FilterToken(filter.summary) { remove(filter) }\nFilterToken(Text(\"total > \") + Text(\"100\").bold(), hue: .orange) { … }"
+        ) {
+          HStack(spacing: 6) {
+            ForEach(filters, id: \.self) { filter in
+              FilterToken(filter) { withKitAnimation { filters.removeAll { $0 == filter } } }
+            }
+            FilterToken(Text("total > ") + Text("100").bold(), hue: .orange) {}
+            if filters.isEmpty {
+              Button("Reset") { withKitAnimation { filters = ["status = shipped", "city contains Lisbon"] } }.buttonStyle(.kitPlain)
+            }
+          }
+        }
+      }
     }
   }
 }
@@ -218,6 +235,16 @@ struct RefsPage: View {
             }
             Labeled("Not enough room: fewer chips") { RefChips(many).frame(width: 150, alignment: .leading) }
             Text("Picked: \(picked)").kitFont(.caption)
+          }
+        }
+      }
+      SpecimenSection("Pieces", note: "The branch glyph on its own, and a chip's detail in its tooltip.") {
+        Specimen("BranchGlyph and detail", code: "BranchGlyph(size: 16)\nRefChip(name: \"main\", isCurrent: true, detail: \"HEAD · 2 to push\")") {
+          HStack(spacing: 14) {
+            BranchGlyph(size: 16)
+            BranchGlyph(size: 20).foregroundStyle(Hue.green.fill)
+            RefChip(name: "main", isCurrent: true, detail: "HEAD · 2 to push")
+            RefChip(name: "origin/main", kind: .remote, detail: "fetched 2 hr ago")
           }
         }
       }
@@ -341,6 +368,17 @@ struct AvatarsPage: View {
               Avatar(name: "Database", kind: .app, systemImage: "cylinder.split.1x2", hue: .blue, size: 56)
               Avatar(name: "Component", kind: .app, size: 56)
             }
+          }
+        }
+      }
+      SpecimenSection("Pictures", note: "A photo or an icon in the kind's shape; presence, rings and dimming as for drawn ones.") {
+        Specimen("Avatar(name:image:)", code: "Avatar(name: user.name, image: photo, presence: .online, size: 32)\nAvatar(name: project.name, image: project.icon, kind: .thing)") {
+          HStack(spacing: 14) {
+            Avatar(name: "Maya Okafor", image: AppIcon.image(systemImage: "person.fill", hue: .pink), presence: .online, size: 32)
+            Avatar(name: "atlas", image: AppIcon.image(systemImage: "shippingbox", hue: .blue), kind: .thing, size: 32)
+            Avatar(name: "coder-1", image: AppIcon.image(systemImage: "cpu", hue: .purple), kind: .agent, status: .working, size: 32)
+            Avatar(name: "Git", image: AppIcon.image(systemImage: "arrow.triangle.branch", hue: .orange), kind: .app, size: 44)
+            Avatar(name: "Away", image: AppIcon.image(systemImage: "person.fill", hue: .teal), presence: .offline, size: 32)
           }
         }
       }
