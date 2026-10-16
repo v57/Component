@@ -281,7 +281,6 @@ struct MenusPage: View {
   @State private var sort = "Name"
   @State private var foldersFirst = true
   @State private var showsMore = ProcessInfo.processInfo.arguments.contains("--open-menu")
-  @State private var showsRowMenu = false
 
   var body: some View {
     CatalogPage(page: .menus) {
@@ -316,7 +315,7 @@ struct MenusPage: View {
             }
           }
           Specimen(
-            "Submenu", note: "Opens beside its row on hover, a click or →",
+            "Submenu", note: "Opens beside its row (the side with room) on hover, a click or →",
             code: "KitSubmenu(\"Open With\", systemImage: \"arrow.up.forward.app\") {\n  Button(\"Code\") { … }\n}"
           ) {
             KitMenu {
@@ -326,6 +325,7 @@ struct MenusPage: View {
                 Button("Markdown", systemImage: "doc.richtext") {}
                 Button("Shell", systemImage: "terminal") {}
               }
+              .kitMenuHighlighted()
               KitSubmenu("Sort by", systemImage: "arrow.up.arrow.down") {
                 KitMenuOptions(selection: $sort, options: [("Name", "Name"), ("Date Modified", "Date"), ("Size", "Size")])
               }
@@ -398,7 +398,11 @@ struct MenusPage: View {
           }
         }
       }
-      SpecimenSection("Anywhere", note: ".kitMenu(isPresented:) opens the menu under any view.") {
+      SpecimenSection(
+        "Anywhere",
+        note: ".kitMenu { } makes any view a trigger (press opens, release picks, a click leaves it open); "
+          + ".kitMenu(isPresented:) opens it from code."
+      ) {
         SpecimenGrid(minWidth: 320) {
           Specimen(
             "On a button",
@@ -413,7 +417,10 @@ struct MenusPage: View {
                 Button("Move to Trash", systemImage: "trash", role: .destructive) {}
               }
           }
-          Specimen("On a row", code: "row.onTapGesture { showsMenu = true }.kitMenu(isPresented: $showsMenu) { … }") {
+          Specimen(
+            "As a trigger", note: "Press opens, release over a row picks it",
+            code: "row.kitMenu(matchesWidth: true) {\n  Button(\"Open\") { … }\n}"
+          ) {
             HStack {
               Label("TripStore.swift", systemImage: "swift")
               Spacer()
@@ -422,9 +429,7 @@ struct MenusPage: View {
             .padding(.horizontal, 12)
             .frame(width: 240, height: 34)
             .kitSurface(.card)
-            .contentShape(Rectangle())
-            .onTapGesture { showsRowMenu = true }
-            .kitMenu(isPresented: $showsRowMenu, matchesWidth: true) {
+            .kitMenu(matchesWidth: true) {
               Button("Open", systemImage: "arrow.up.right.square") {}
               Button("Reveal in Sidebar", systemImage: "sidebar.left") {}
               Button("Copy Path", systemImage: "doc.on.doc") {}

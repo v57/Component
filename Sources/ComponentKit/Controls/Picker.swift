@@ -42,36 +42,32 @@ public struct KitPicker<Value: Hashable>: View {
   public var body: some View {
     let metrics = KitPickerMetrics(idiom)
     let shape = RoundedRectangle(cornerRadius: metrics.radius, style: .continuous)
-    Button {
-      isOpen.toggle()
-    } label: {
-      HStack(spacing: 6) {
-        if let systemImage = current?.systemImage {
-          Image(systemName: systemImage)
-            .imageScale(.small)
-            .foregroundStyle(.kitSecondary)
-        }
-        Text(current?.title ?? "")
-          .kitFont(.body)
-          .foregroundStyle(.kitLabel)
-          .lineLimit(1)
-          .frame(maxWidth: .infinity, alignment: .leading)
-        Image(systemName: "chevron.up.chevron.down")
-          .font(.system(size: metrics.chevron, weight: .semibold))
+    HStack(spacing: 6) {
+      if let systemImage = current?.systemImage {
+        Image(systemName: systemImage)
+          .imageScale(.small)
           .foregroundStyle(.kitSecondary)
       }
-      .padding(.leading, metrics.leading)
-      .padding(.trailing, metrics.trailing)
-      .frame(minWidth: metrics.minWidth, minHeight: metrics.height)
-      .background {
-        shape.fill(.kitField)
-        if (isHovered || isOpen) && isEnabled { shape.fill(.kitHover) }
-      }
-      .contentShape(shape)
+      Text(current?.title ?? "")
+        .kitFont(.body)
+        .foregroundStyle(.kitLabel)
+        .lineLimit(1)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      Image(systemName: "chevron.up.chevron.down")
+        .font(.system(size: metrics.chevron, weight: .semibold))
+        .foregroundStyle(.kitSecondary)
     }
-    .buttonStyle(.plain)
+    .padding(.leading, metrics.leading)
+    .padding(.trailing, metrics.trailing)
+    .frame(minWidth: metrics.minWidth, minHeight: metrics.height)
+    .background {
+      shape.fill(.kitField)
+      if (isHovered || isOpen) && isEnabled { shape.fill(.kitHover) }
+    }
+    .contentShape(shape)
     .fixedSize(horizontal: true, vertical: false)
-    .kitMenu(isPresented: $isOpen, matchesWidth: true) {
+    .focusable()
+    .kitMenuTrigger(isPresented: $isOpen, matchesWidth: true) {
       KitMenuOptions(selection: $selection, segments: segments)
     }
     .opacity(isEnabled ? 1 : 0.45)
@@ -151,35 +147,32 @@ public struct KitMenuButton<Content: View>: View {
   public var body: some View {
     let small = controlSize == .small || controlSize == .mini
     let height: CGFloat = idiom.isTouch ? (small ? 28 : 32) : (small ? 22 : 26)
-    Button {
-      isOpen.toggle()
-    } label: {
-      HStack(spacing: 5) {
-        if let systemImage {
-          Image(systemName: systemImage).font(.system(size: height * 0.4, weight: .semibold))
-        }
-        Text(title)
-          .font(.system(size: idiom.isTouch ? 15 : small ? 11 : 12, weight: .medium))
-          .lineLimit(1)
-        Image(systemName: "chevron.down")
-          .font(.system(size: height * 0.3, weight: .bold))
-          .foregroundStyle(.kitSecondary)
+    HStack(spacing: 5) {
+      if let systemImage {
+        Image(systemName: systemImage).font(.system(size: height * 0.4, weight: .semibold))
       }
-      .foregroundStyle(.kitLabel)
-      .padding(.horizontal, idiom.isTouch ? 10 : 8)
-      .frame(height: height)
-      .background {
-        CtlRaisedCard(cornerRadius: height * 0.3)
-          .overlay {
-            RoundedRectangle(cornerRadius: height * 0.3, style: .continuous)
-              .fill(Color.primary.opacity((isHovered || isOpen) && isEnabled ? 0.04 : 0))
-          }
-      }
-      .contentShape(Rectangle())
+      Text(title)
+        .font(.system(size: idiom.isTouch ? 15 : small ? 11 : 12, weight: .medium))
+        .lineLimit(1)
+      Image(systemName: "chevron.down")
+        .font(.system(size: height * 0.3, weight: .bold))
+        .foregroundStyle(.kitSecondary)
     }
-    .buttonStyle(.plain)
+    .foregroundStyle(.kitLabel)
+    .padding(.horizontal, idiom.isTouch ? 10 : 8)
+    .frame(height: height)
+    .background {
+      CtlRaisedCard(cornerRadius: height * 0.3)
+        .overlay {
+          RoundedRectangle(cornerRadius: height * 0.3, style: .continuous)
+            .fill(Color.primary.opacity((isHovered || isOpen) && isEnabled ? 0.04 : 0))
+        }
+    }
+    .contentShape(Rectangle())
     .fixedSize()
-    .kitMenu(isPresented: $isOpen) { content }
+    .focusable()
+    .focusEffectDisabled()
+    .kitMenuTrigger(isPresented: $isOpen) { content }
     .opacity(isEnabled ? 1 : 0.45)
     .onHover { isHovered = $0 }
     .animation(.kitFast, value: isHovered)
