@@ -144,18 +144,28 @@ private struct ContEdgeEffectHidden: ViewModifier {
 struct ContEdgeFade: View {
   var edge: VerticalEdge
   var ground: KitColor
-  @Environment(\.colorScheme) private var scheme
-  @Environment(\.kitMoreContrast) private var moreContrast
 
   var body: some View {
-    // The ground resolved here, so the fade is one gradient between two stops of it (no mask).
-    let color = ground.color(scheme, moreContrast: moreContrast)
-    LinearGradient(
-      colors: [color.opacity(0.4), color.opacity(0)],
-      startPoint: edge == .top ? .top : .bottom, endPoint: edge == .top ? .bottom : .top)
+    Rectangle()
+      .fill(ContGroundFade(ground: ground, edge: edge))
       .ignoresSafeArea(.container, edges: edge == .top ? .top : .bottom)
       .allowsHitTesting(false)
       .accessibilityHidden(true)
+  }
+}
+
+/// The fade as a style that resolves its ground where it's drawn, as `KitColor` does: one gradient between two stops
+/// of the ground (no mask, and no view reading the environment).
+struct ContGroundFade: ShapeStyle {
+  var ground: KitColor
+  var edge: VerticalEdge
+  var opacity = 0.4
+
+  func resolve(in environment: EnvironmentValues) -> LinearGradient {
+    let color = ground.resolve(in: environment)
+    return LinearGradient(
+      colors: [color.opacity(opacity), color.opacity(0)],
+      startPoint: edge == .top ? .top : .bottom, endPoint: edge == .top ? .bottom : .top)
   }
 }
 
