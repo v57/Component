@@ -1,9 +1,11 @@
 import SwiftUI
 
-/// One tab of a `KitTabStrip`: its id, title, an optional SF Symbol in a hue, and whether it has unsaved edits.
+/// One tab of a `KitTabStrip`: its id, title, an optional SF Symbol in a hue (or any icon view), whether it has
+/// unsaved edits, and whether it's a preview (a file shown until another replaces it: the title in italics).
 ///
 /// ```swift
 /// KitTab(id: file.id, title: "TripStore.swift", systemImage: "swift", hue: .orange, isEdited: true)
+/// KitTab(id: file.id, title: file.name, isPreview: true) { FileIcon(file) }
 /// ```
 public struct KitTab<ID: Hashable>: Identifiable {
   public var id: ID
@@ -13,13 +15,29 @@ public struct KitTab<ID: Hashable>: Identifiable {
   public var hue: Hue?
   /// Unsaved edits: a dot where the close button sits (the close button shows on hover).
   public var isEdited: Bool
+  /// A preview tab: its title in italics, until the app keeps it (an edit, a double click).
+  public var isPreview: Bool
+  /// An icon view in place of the SF Symbol (a file's icon drawn as letters), about 14pt.
+  public var icon: AnyView?
 
-  public init(id: ID, title: String, systemImage: String? = nil, hue: Hue? = nil, isEdited: Bool = false) {
+  public init(
+    id: ID, title: String, systemImage: String? = nil, hue: Hue? = nil, isEdited: Bool = false,
+    isPreview: Bool = false
+  ) {
     self.id = id
     self.title = title
     self.systemImage = systemImage
     self.hue = hue
     self.isEdited = isEdited
+    self.isPreview = isPreview
+  }
+
+  /// A tab with any icon view.
+  public init<Icon: View>(
+    id: ID, title: String, isEdited: Bool = false, isPreview: Bool = false, @ViewBuilder icon: () -> Icon
+  ) {
+    self.init(id: id, title: title, isEdited: isEdited, isPreview: isPreview)
+    self.icon = AnyView(icon())
   }
 }
 
@@ -38,27 +56,57 @@ public struct KitTabStrip<ID: Hashable>: View {
   @Binding var selection: ID?
   var onClose: ((ID) -> Void)?
   var onAdd: (() -> Void)?
+  var onMove: ((IndexSet, Int) -> Void)?
+  var menu: ((ID) -> AnyView)?
+  var onDoubleClick: ((ID) -> Void)?
   @Environment(\.kitIdiom) private var idiom
   @FocusState private var focus: ID?
   @Namespace private var namespace
+  @State private var reorder = ContReorderState()
+  @State private var list = UUID()
 
+  /// A tab strip; `onMove` lets the tabs reorder by dragging (it takes `.onMove`'s arguments, so
+  /// `tabs.move(fromOffsets:toOffset:)` fits).
   public init(
-    tabs: [KitTab<ID>], selection: Binding<ID?>, onClose: ((ID) -> Void)? = nil, onAdd: (() -> Void)? = nil
+    tabs: [KitTab<ID>], selection: Binding<ID?>, onClose: ((ID) -> Void)? = nil, onAdd: (() -> Void)? = nil,
+    onMove: ((IndexSet, Int) -> Void)? = nil
   ) {
     self.tabs = tabs
     _selection = selection
     self.onClose = onClose
     self.onAdd = onAdd
+    self.onMove = onMove
   }
 
   /// A tab strip that always has a selected tab.
   public init(
-    tabs: [KitTab<ID>], selection: Binding<ID>, onClose: ((ID) -> Void)? = nil, onAdd: (() -> Void)? = nil
+    tabs: [KitTab<ID>], selection: Binding<ID>, onClose: ((ID) -> Void)? = nil, onAdd: (() -> Void)? = nil,
+    onMove: ((IndexSet, Int) -> Void)? = nil
   ) {
     self.init(
       tabs: tabs,
       selection: Binding<ID?>(get: { selection.wrappedValue }, set: { if let id = $0 { selection.wrappedValue = id } }),
-      onClose: onClose, onAdd: onAdd)
+      onClose: onClose, onAdd: onAdd, onMove: onMove)
+  }
+
+  /// A context menu for each tab (Close Others, Keep Open, Reveal in Finder), given the tab's id.
+  ///
+  /// ```swift
+  /// KitTabStrip(tabs: tabs, selection: $current).tabContextMenu { id in
+  ///   Button("Close Other Tabs") { closeOthers(than: id) }
+  /// }
+  /// ```
+  public func tabContextMenu<Menu: View>(@ViewBuilder _ menu: @escaping (ID) -> Menu) -> Self {
+    var strip = self
+    strip.menu = { AnyView(menu($0)) }
+    return strip
+  }
+
+  /// What a double click on a tab does (keep a preview tab open).
+  public func onTabDoubleClick(_ action: @escaping (ID) -> Void) -> Self {
+    var strip = self
+    strip.onDoubleClick = action
+    return strip
   }
 
   public var body: some View {
@@ -78,13 +126,16 @@ public struct KitTabStrip<ID: Hashable>: View {
 
   private var row: some View {
     HStack(spacing: idiom.isTouch ? 6 : 4) {
-      ForEach(tabs) { tab in
+      ForEach(Array(tabs.enumerated()), id: \.element.id) { index, tab in
         CtlTabView(
           tab: tab, isSelected: tab.id == selection, isFocused: focus == tab.id, namespace: namespace,
           select: { withKitAnimation { selection = tab.id } },
           close: onClose.map { onClose in { onClose(tab.id) } }
         )
         .focused($focus, equals: tab.id)
+        .modifier(CtlTabExtras(id: tab.id, menu: menu, onDoubleClick: onDoubleClick))
+        .modifier(
+          CtlTabReorder(list: AnyHashable(list), index: index, move: onMove, state: reorder))
       }
       if let onAdd {
         Button("New Tab", systemImage: "plus", action: onAdd)
@@ -107,6 +158,41 @@ public struct KitTabStrip<ID: Hashable>: View {
   }
 }
 
+/// A tab's context menu and double click, when the strip has them.
+private struct CtlTabExtras<ID: Hashable>: ViewModifier {
+  let id: ID
+  let menu: ((ID) -> AnyView)?
+  let onDoubleClick: ((ID) -> Void)?
+
+  func body(content: Content) -> some View {
+    Group {
+      if let menu {
+        content.contextMenu { menu(id) }
+      } else {
+        content
+      }
+    }
+    .simultaneousGesture(
+      TapGesture(count: 2).onEnded { onDoubleClick?(id) }, including: onDoubleClick == nil ? .subviews : .all)
+  }
+}
+
+/// Dragging tabs to reorder them, when the strip takes `onMove`.
+private struct CtlTabReorder: ViewModifier {
+  let list: AnyHashable
+  let index: Int
+  let move: ((IndexSet, Int) -> Void)?
+  let state: ContReorderState
+
+  func body(content: Content) -> some View {
+    if let move {
+      content.modifier(ContReorderRow(list: list, index: index, move: move, state: state))
+    } else {
+      content
+    }
+  }
+}
+
 /// A tab: the selected one is the raised card, a hovered one takes the hover fill; the close button (or the edited
 /// dot) sits in an 18pt slot at the end that is always there, so tabs never change width on hover.
 struct CtlTabView<ID: Hashable>: View {
@@ -124,13 +210,20 @@ struct CtlTabView<ID: Hashable>: View {
     HStack(spacing: 6) {
       Button(action: select) {
         HStack(spacing: 6) {
-          if let systemImage = tab.systemImage {
+          if let icon = tab.icon {
+            icon.frame(width: idiom.isTouch ? 18 : 14, height: idiom.isTouch ? 18 : 14)
+          } else if let systemImage = tab.systemImage {
             Image(systemName: systemImage)
               .imageScale(.small)
               .foregroundStyle(tab.hue.map { AnyShapeStyle($0.fill) } ?? AnyShapeStyle(.foreground))
           }
-          CtlStableWeightText(tab.title, bold: isSelected)
-            .truncationMode(.tail)
+          ZStack {
+            // As wide as the semibold title, so a tab doesn't change width as it's selected.
+            // Italic goes first: a weight set before it drops it.
+            Text(tab.title).italic(tab.isPreview).fontWeight(.semibold).hidden()
+            Text(tab.title).italic(tab.isPreview).fontWeight(isSelected ? .semibold : .regular)
+          }
+          .truncationMode(.tail)
         }
         .frame(maxHeight: .infinity)
       }
@@ -213,12 +306,24 @@ public struct KitPathItem {
   public var systemImage: String?
   public var hue: Hue?
   public var action: (() -> Void)?
+  /// An icon view in place of the SF Symbol (a file's icon drawn as letters), about 14pt.
+  public var icon: AnyView?
 
   public init(_ title: String, systemImage: String? = nil, hue: Hue? = nil, action: (() -> Void)? = nil) {
     self.title = title
     self.systemImage = systemImage
     self.hue = hue
     self.action = action
+  }
+
+  /// A crumb with any icon view.
+  ///
+  /// ```swift
+  /// KitPathItem("TripStore.swift", icon: { FileIcon(file) }) { reveal(file) }
+  /// ```
+  public init<Icon: View>(_ title: String, @ViewBuilder icon: () -> Icon, action: (() -> Void)? = nil) {
+    self.init(title, action: action)
+    self.icon = AnyView(icon())
   }
 }
 
@@ -281,7 +386,9 @@ struct CtlCrumb: View {
       item.action?()
     } label: {
       HStack(spacing: 4) {
-        if let systemImage = item.systemImage {
+        if let icon = item.icon {
+          icon.frame(width: idiom.isTouch ? 18 : 14, height: idiom.isTouch ? 18 : 14)
+        } else if let systemImage = item.systemImage {
           Image(systemName: systemImage)
             .imageScale(.small)
             .foregroundStyle(item.hue.map { AnyShapeStyle($0.fill) } ?? AnyShapeStyle(.foreground))

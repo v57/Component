@@ -324,6 +324,10 @@ struct SegmentedPage: View {
 // MARK: - Tabs and path bar
 
 struct TabsPage: View {
+  private func keep(_ id: Int) {
+    if let index = files.firstIndex(where: { $0.id == id }) { files[index].preview = false }
+  }
+
   @State private var tabs: [KitTab<Int>] = [
     KitTab(id: 1, title: "TripStore.swift", systemImage: "swift", hue: .orange),
     KitTab(id: 2, title: "Trip.swift", systemImage: "swift", hue: .orange, isEdited: true),
@@ -333,6 +337,11 @@ struct TabsPage: View {
   @State private var selection = 1
   @State private var queries = 1
   @State private var crumbs = "TripStore.swift"
+  @State private var files: [(id: Int, name: String, letter: String, hue: Hue, preview: Bool)] = [
+    (1, "TripStore.swift", "S", .orange, false), (2, "Trip.swift", "S", .orange, true), (3, "README.md", "M", .blue, false),
+    (4, "Package.resolved", "J", .teal, false),
+  ]
+  @State private var file = 2
 
   var body: some View {
     CatalogPage(page: .tabs) {
@@ -355,6 +364,33 @@ struct TabsPage: View {
                 selection = id
               }
             })
+        }
+        Specimen(
+          "Preview, icons, reorder, menu",
+          note: "Drag tabs to reorder; right-click for the menu; double-click the italic preview to keep it.",
+          ground: .window, padding: 0,
+          code: """
+            KitTabStrip(tabs: files.map { file in
+                          KitTab(id: file.id, title: file.name, isPreview: file.isPreview) { FileIcon(file) }
+                        },
+                        selection: $current, onClose: { close($0) },
+                        onMove: { files.move(fromOffsets: $0, toOffset: $1) })
+              .tabContextMenu { id in Button("Close Other Tabs") { closeOthers(id) } }
+              .onTabDoubleClick { keep($0) }
+            """
+        ) {
+          KitTabStrip(
+            tabs: files.map { item in
+              KitTab(id: item.id, title: item.name, isPreview: item.preview) { FileLetterIcon(letter: item.letter, hue: item.hue, size: 14) }
+            },
+            selection: $file, onClose: { id in withKitAnimation { files.removeAll { $0.id == id } } },
+            onMove: { files.move(fromOffsets: $0, toOffset: $1) }
+          )
+          .tabContextMenu { id in
+            Button("Keep Open") { keep(id) }
+            Button("Close Other Tabs") { withKitAnimation { files.removeAll { $0.id != id } } }
+          }
+          .onTabDoubleClick { keep($0) }
         }
         Specimen("Many tabs scroll sideways", ground: .window, padding: 0, code: "// the strip scrolls when the tabs don't fit") {
           KitTabStrip(
@@ -383,6 +419,13 @@ struct TabsPage: View {
             KitPathItem("Sources", systemImage: "folder", hue: .blue) { crumbs = "Sources" },
             KitPathItem("AtlasCore", systemImage: "folder", hue: .blue) { crumbs = "AtlasCore" },
             KitPathItem("TripStore.swift", systemImage: "swift", hue: .orange),
+          ])
+        }
+        Specimen("Icon views", code: "KitPathItem(\"TripStore.swift\", icon: { FileIcon(file) }) { reveal(file) }") {
+          KitPathBar(components: [
+            KitPathItem("Atlas", systemImage: "folder", hue: .red) {},
+            KitPathItem("README.md", icon: { FileLetterIcon(letter: "M", hue: .blue, size: 14) }) {},
+            KitPathItem("TripStore.swift", icon: { FileLetterIcon(letter: "S", hue: .orange, size: 14) }),
           ])
         }
         Specimen("Plain titles", code: "KitPathBar([\"v57\", \"Git\", \"Shared\", \"Components.swift\"])") {
