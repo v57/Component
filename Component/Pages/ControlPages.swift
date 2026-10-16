@@ -126,13 +126,17 @@ struct TogglesPage: View {
   var body: some View {
     CatalogPage(page: .toggles) {
       SpecimenSection("Switch", note: "Tab to a switch for its focus ring; Space flips it.") {
-        Specimen("kitSwitch", code: "Toggle(\"Sync with iCloud\", isOn: $sync).toggleStyle(.kitSwitch)") {
+        Specimen(
+          "kitSwitch",
+          code: "Toggle(\"Sync with iCloud\", isOn: $sync).toggleStyle(.kitSwitch)\nToggle(\"Sync\", isOn: $sync).kitLabelsHidden()   // .labelsHidden() too, from macOS 15 / iOS 18"
+        ) {
           HStack(spacing: 28) {
             Labeled("On") { Toggle("Sync", isOn: $sync) }
             Labeled("Off") { Toggle("Sync", isOn: $off) }
             Labeled("Disabled on") { Toggle("Sync", isOn: .constant(true)).disabled(true) }
             Labeled("Disabled off") { Toggle("Sync", isOn: .constant(false)).disabled(true) }
             Labeled("Label hidden") { Toggle("Sync", isOn: $sync).labelsHidden() }
+            Labeled("kitLabelsHidden") { Toggle("Sync", isOn: $sync).kitLabelsHidden() }
           }
           .toggleStyle(.kitSwitch)
         }

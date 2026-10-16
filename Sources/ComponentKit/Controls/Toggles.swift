@@ -71,13 +71,33 @@ struct CtlToggle: View {
   }
 }
 
-/// A switch's or checkbox's label, hidden by `.labelsHidden()` (it stays for VoiceOver through the toggle's
-/// accessibility representation). Before macOS 15 and iOS 18 the environment doesn't say, so the label shows.
+extension EnvironmentValues {
+  @Entry var kitLabelsHidden: Bool = false
+}
+
+extension View {
+  /// Hides the labels of the controls inside, the kit's (switches, checkboxes) on every OS version as well as the
+  /// system's: `.labelsHidden()` alone reaches the kit's toggles only from macOS 15 and iOS 18, since before that
+  /// SwiftUI doesn't tell a style. The labels stay for VoiceOver.
+  ///
+  /// ```swift
+  /// FormRow("Sync with iCloud") { Toggle("Sync with iCloud", isOn: $sync).toggleStyle(.kitSwitch).kitLabelsHidden() }
+  /// ```
+  public func kitLabelsHidden() -> some View {
+    environment(\.kitLabelsHidden, true).labelsHidden()
+  }
+}
+
+/// A switch's or checkbox's label, hidden by `.kitLabelsHidden()` or (macOS 15 and iOS 18 on) `.labelsHidden()`; it
+/// stays for VoiceOver through the toggle's accessibility representation.
 struct CtlToggleLabel<Label: View>: View {
   @ViewBuilder var label: Label
+  @Environment(\.kitLabelsHidden) private var kitHidden
 
   var body: some View {
-    if #available(macOS 15.0, iOS 18.0, *) {
+    if kitHidden {
+      EmptyView()
+    } else if #available(macOS 15.0, iOS 18.0, *) {
       CtlHideableLabel { label }
     } else {
       label
@@ -285,6 +305,10 @@ public struct ChipTrack<Content: View>: View {
       Toggle("Off", isOn: $off)
     }
     .toggleStyle(.kitCheckbox)
+    HStack {
+      Toggle("Hidden label", isOn: $sync).toggleStyle(.kitSwitch).kitLabelsHidden()
+      Toggle("Hidden label", isOn: $remote).toggleStyle(.kitCheckbox).kitLabelsHidden()
+    }
     ChipTrack {
       Toggle("English", isOn: $english)
       Toggle("German", isOn: $german)
