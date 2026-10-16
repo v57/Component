@@ -1,15 +1,6 @@
 import SwiftUI
 
 // Pages still to come.
-struct ButtonsPage: View { var body: some View { Text("ButtonsPage") } }
-struct TogglesPage: View { var body: some View { Text("TogglesPage") } }
-struct SegmentedPage: View { var body: some View { Text("SegmentedPage") } }
-struct TabsPage: View { var body: some View { Text("TabsPage") } }
-struct FieldsPage: View { var body: some View { Text("FieldsPage") } }
-struct SearchPage: View { var body: some View { Text("SearchPage") } }
-struct StepperPage: View { var body: some View { Text("StepperPage") } }
-struct KeycapsPage: View { var body: some View { Text("KeycapsPage") } }
-struct ChoiceCardsPage: View { var body: some View { Text("ChoiceCardsPage") } }
 struct CountsPage: View { var body: some View { Text("CountsPage") } }
 struct ChipsPage: View { var body: some View { Text("ChipsPage") } }
 struct RefsPage: View { var body: some View { Text("RefsPage") } }
