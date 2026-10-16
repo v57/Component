@@ -12,6 +12,8 @@ public enum KitSectionStyle: Hashable, Sendable {
 extension EnvironmentValues {
   /// How the `KitSection`s below draw (`.kitSectionStyle(_:)`).
   @Entry public var kitSectionStyle: KitSectionStyle = .card
+  /// The sections are rows of a `KitList`.
+  @Entry var contInList = false
 }
 
 extension View {
@@ -51,6 +53,7 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
   @State private var isHovered = false
   @Environment(\.kitSectionStyle) private var style
   @Environment(\.kitIdiom) private var idiom
+  @Environment(\.contInList) private var inList
 
   /// A section with any icon, meta and accessory views.
   public init(
@@ -86,8 +89,44 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
 
   public var body: some View {
     switch style {
-    case .card: card
+    case .card:
+      if inList, #available(macOS 15.0, iOS 18.0, *) {
+        listCard
+      } else {
+        card
+      }
     case .plain: plain
+    }
+  }
+
+  // MARK: Card in a list
+
+  /// In a `KitList` the card is spread over the list's rows: the header and each row are rows of their own, each
+  /// drawing its slice of the card, so a row's `.swipeActions` and `.contextMenu` belong to that row alone.
+  @available(macOS 15.0, iOS 18.0, *)
+  private var listCard: some View {
+    Group(subviews: content) { rows in
+      let count = expanded ? rows.count : 0
+      let radius = ContMetrics.cardRadius(idiom)
+      // The list puts 1pt above and below each row: the slices run over it, and the cards keep the sidebar's gap.
+      let gap = (ContMetrics.sectionSpacing(idiom) - 2) / 2
+      header
+        .contentShape(Rectangle())
+        .onTapGesture(perform: toggle)
+        .modifier(SectionHeaderAccessibility(title: title, expanded: expanded, toggle: toggle))
+        .padding(.bottom, count > 0 ? 4 : 0)
+        .modifier(CardSliceModifier(slice: KitCardSlice(0, of: count + 1), cornerRadius: radius, bleed: 1))
+        .onHover { isHovered = $0 }
+        .padding(.top, gap)
+        .padding(.bottom, count > 0 ? 0 : gap)
+      if expanded {
+        ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+          row
+            .environment(\.contInList, false)
+            .modifier(CardSliceModifier(slice: KitCardSlice(index + 1, of: count + 1), cornerRadius: radius, bleed: 1))
+            .padding(.bottom, index == count - 1 ? gap : 0)
+        }
+      }
     }
   }
 

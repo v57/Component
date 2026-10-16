@@ -191,6 +191,7 @@ struct SidebarPage: View {
   @State private var notes = Array(1...6)
   @State private var branch: String? = "main"
   @State private var opened: String?
+  @State private var todayNotes = [10, 11, 12]
 
   var body: some View {
     CatalogPage(page: .sidebar, maxWidth: 1100) {
@@ -300,7 +301,7 @@ struct SidebarPage: View {
       }
       SpecimenSection(
         "A list without the bar",
-        note: "KitList: the sidebar's rows and selection for a content list (notes, results). Swipe a row on iPad or with the trackpad; arrow keys move."
+        note: "KitList: the sidebar's rows and selection for a content list (notes, results). Swipe a row on iPad or with the trackpad, also inside a card section; arrow keys move."
       ) {
         HStack(alignment: .top, spacing: 20) {
           WindowFrame(height: 360) {
@@ -321,6 +322,26 @@ struct SidebarPage: View {
             .kitPane(.secondary)
           }
           .frame(width: 300)
+          WindowFrame(height: 360) {
+            KitList(selection: $note) {
+              KitSection("Today", meta: ["\(todayNotes.count) notes"], systemImage: "sun.max", hue: .orange) {
+                ForEach(todayNotes, id: \.self) { index in
+                  SidebarRow(value: index, sampleNotes[index % sampleNotes.count].0, systemImage: "doc.text")
+                    .swipeActions {
+                      Button("Delete", systemImage: "trash", role: .destructive) {
+                        withKitAnimation { todayNotes.removeAll { $0 == index } }
+                      }
+                    }
+                }
+              }
+              KitSection("Earlier", meta: ["2 notes"], systemImage: "clock", hue: .gray) {
+                SidebarRow(value: 20, "Reading", systemImage: "doc.text")
+                SidebarRow(value: 21, "Groceries", systemImage: "doc.text")
+              }
+            }
+            .kitPane(.secondary)
+          }
+          .frame(width: 300)
           VStack(alignment: .leading, spacing: 12) {
           Text(opened.map { "Opened: \($0)" } ?? "Double-click a note (or Return) to open it").kitFont(.headline)
           CodeSnippet(
@@ -334,6 +355,12 @@ struct SidebarPage: View {
             }
             .primaryAction { (id: Note.ID) in open(id) }   // double click, and Return
             .kitPane(.secondary)
+
+            KitList(selection: $note) {       // card sections: each row is its own list row,
+              KitSection("Today", meta: ["3 notes"], systemImage: "sun.max") {   // so swipes are per row
+                ForEach(today) { SidebarRow(value: $0.id, $0.title, systemImage: "doc.text").swipeActions { … } }
+              }
+            }
 
             SidebarRow(value: file.id, file.name, systemImage: "doc").onDoubleClick { open(file) }   // one row
             """)

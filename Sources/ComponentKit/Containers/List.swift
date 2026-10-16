@@ -6,6 +6,9 @@ import SwiftUI
 /// SwiftUI's own `.swipeActions` (iOS and the Mac's trackpad), `.contextMenu` and `.onMove`; arrow keys move the
 /// selection and open tree rows, as in the sidebar.
 ///
+/// Card `KitSection`s in it spread over the list's rows (macOS 15 and iOS 18 on): the header and each row are list
+/// rows of their own drawing their slice of the card, so swipes and context menus belong to one row, not the card.
+///
 /// It draws no ground of its own: put it on a pane (`.kitPane(.secondary)`) or the sidebar colour.
 ///
 /// ```swift
@@ -79,6 +82,7 @@ public struct KitList<Content: View>: View {
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(top: 1, leading: inset, bottom: 1, trailing: inset))
     }
+    .environment(\.contInList, true)
     .listStyle(.plain)
     .scrollContentBackground(.hidden)
     .contentMargins(.vertical, inset / 2, for: .scrollContent)

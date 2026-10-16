@@ -43,9 +43,11 @@ extension View {
   }
 }
 
-private struct CardSliceModifier: ViewModifier {
+struct CardSliceModifier: ViewModifier {
   let slice: KitCardSlice
   let cornerRadius: CGFloat
+  /// How far the slice runs past the row's top and bottom where the card goes on: over a list's row insets.
+  var bleed: CGFloat = 0
 
   func body(content: Content) -> some View {
     let pad = KitMetrics.cardPadding
@@ -53,6 +55,15 @@ private struct CardSliceModifier: ViewModifier {
       .padding(.horizontal, pad)
       .padding(.top, slice.hasTop ? pad : 0)
       .padding(.bottom, slice.hasBottom ? pad : 0)
+      .background {
+        background
+          .padding(.top, slice.hasTop ? 0 : -bleed)
+          .padding(.bottom, slice.hasBottom ? 0 : -bleed)
+      }
+  }
+
+  private var background: some View {
+    Color.clear
       .background {
         // The whole card, run past the ends this row doesn't have and cut there, so its edge and shadow show only
         // where they belong.
