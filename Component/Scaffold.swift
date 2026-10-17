@@ -56,6 +56,7 @@ struct PageContent: View {
     case .settingsApp: SettingsScenarioPage()
     case .welcomeApp: WelcomeScenarioPage()
     case .longList: LongListPage()
+    case .longSection: LongSectionPage()
     case .allComponents: AllComponentsPage()
     }
   }

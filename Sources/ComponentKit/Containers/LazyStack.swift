@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 // A lazy stack for scroll views of a few heavy views (a page of specimens, a sidebar of section cards), where a
@@ -37,7 +38,8 @@ extension View {
 /// A vertical stack in a scroll view that builds its views near the screen only, steadier than a `LazyVStack` for
 /// a few heavy views: it builds ahead of the scroll, a few views a frame, lets far views go but keeps their heights,
 /// and nests (a card's rows in a stack of their own come a few at a time). For thousands of light rows (a log, a
-/// diff) use a `LazyVStack`, which never lays out the views it hasn't built.
+/// diff) use a `LazyVStack`, which never lays out the views it hasn't built; past a thousand views (a section of
+/// search results) the stack is one.
 ///
 /// ```swift
 /// ScrollView {
@@ -84,7 +86,17 @@ private struct ContLazyStack<Content: View>: View {
 
   var body: some View {
     Group(subviews: content) { subviews in
-      stack(subviews)
+      if subviews.count > ContLazyModel.rowLimit {
+        // Thousands of views (a search's matches in one section): each item would cost on every plan and every
+        // layout, so they go in a `LazyVStack`, which lays out only what it built.
+        LazyVStack(alignment: alignment, spacing: spacing) {
+          ForEach(subviews) { $0 }
+        }
+        .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .top))
+        .onAppear { model.cancel() }
+      } else {
+        stack(subviews)
+      }
     }
   }
 
@@ -143,9 +155,11 @@ private struct ContLazyItem: View {
 /// An item's own state, observed by it alone, so building one view redraws that view and not the stack. An
 /// `ObservableObject` the item subscribes to as it is made, not an `@Observable` read in its body: a change SwiftUI
 /// drops (see `build`) can be said again; an item whose body first ran as a page opened sometimes had no observation
-/// left to hear it.
+/// left to hear it. Its publisher is stored: the synthesized one is looked up in Combine's global table on every send,
+/// which grows with every flag, so a stack of thousands of rows spent most of its time there.
 @MainActor
 final class ContLazyFlag: ObservableObject {
+  nonisolated(unsafe) let objectWillChange = ObservableObjectPublisher()
   var isBuilt = false {
     willSet { if newValue != isBuilt { objectWillChange.send() } }
   }
@@ -210,6 +224,11 @@ final class ContLazyModel {
   /// The sum and count of the measured heights, for the estimate.
   @ObservationIgnored private var measuredSum: CGFloat = 0
   @ObservationIgnored private var measuredCount = 0
+  /// The estimate the far placeholders last took: they follow it only when it moves a quarter from there.
+  @ObservationIgnored private var placedEstimate: CGFloat?
+
+  /// Past this many views a stack is a `LazyVStack`: planning and laying out every item cost each frame of a scroll.
+  static let rowLimit = 1000
 
   /// How far ahead views are built while scrolling, and while the scroll rests, in screens; past `release` they go.
   static let ahead: CGFloat = 1
@@ -313,11 +332,13 @@ final class ContLazyModel {
     var changed: [ContLazySlot] = []
     var y: CGFloat = 0
     let estimate = self.estimate
+    // Far placeholders follow the estimate only when it moved a quarter since they last did: with thousands of rows,
+    // rewriting them on every plan (each change draws the placeholder again) held the main thread for seconds.
+    let refreshesFar = placedEstimate.map { abs($0 - estimate) > estimate / 4 } ?? true
+    if refreshesFar { placedEstimate = estimate }
     for slot in slots {
-      let height = slot.measured ?? estimate
-      // A placeholder still at an old guess takes the new one (the scroll height follows).
-      // (Past a quarter off: each change draws the placeholder again.)
-      if !slot.isBuilt, abs(slot.flag.height - height) > height / 4 { slot.flag.height = height }
+      // The height the layout has for it: a placeholder's own until it takes a new one.
+      let height = slot.isBuilt ? slot.measured ?? estimate : slot.flag.height
       let top = y
       let bottom = y + height
       y = bottom + spacing
@@ -332,6 +353,14 @@ final class ContLazyModel {
         changed.append(slot)
       }
       slot.distance = distance
+      if !slot.isBuilt {
+        // A placeholder still at an old guess takes the new one (the scroll height follows); a near one at once, past
+        // a quarter off (each change draws it again), a far one when the estimate moved.
+        let target = slot.measured ?? estimate
+        if abs(height - target) > target / 4, distance <= farDistance || refreshesFar || slot.measured != nil {
+          slot.flag.height = target
+        }
+      }
       if distance == 0 {
         if !slot.isBuilt { now.append(slot) }
         unqueue(slot)
