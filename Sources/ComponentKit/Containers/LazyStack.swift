@@ -110,7 +110,7 @@ private struct ContLazyStack<Content: View>: View {
 private struct ContLazyItem: View {
   let subview: Subview
   let id: AnyHashable
-  let flag: ContLazyFlag
+  @ObservedObject var flag: ContLazyFlag
   let model: ContLazyModel
 
   var body: some View {
@@ -124,12 +124,15 @@ private struct ContLazyItem: View {
   }
 }
 
-/// An item's own state, observed by it alone, so building one view redraws that view and not the stack.
-@MainActor @Observable
-final class ContLazyFlag {
-  var isBuilt = false
+/// An item's own state, observed by it alone, so building one view redraws that view and not the stack. An
+/// `ObservableObject` the item subscribes to as it is made, not an `@Observable` read in its body: a change SwiftUI
+/// drops (see `build`) can be said again; an item whose body first ran as a page opened sometimes had no observation
+/// left to hear it.
+@MainActor
+final class ContLazyFlag: ObservableObject {
+  @Published var isBuilt = false
   /// The placeholder's height.
-  var height: CGFloat
+  @Published var height: CGFloat
 
   init(height: CGFloat) { self.height = height }
 }
@@ -303,6 +306,14 @@ final class ContLazyModel {
     built.formUnion(missing)
     withTransaction(transaction) {
       for id in missing { flags[id]?.isBuilt = true }
+    }
+    // Said again once this update is over: SwiftUI sometimes drops a change made while it builds the page's first
+    // frame (in an `onAppear` or `onGeometryChange` action), and the item stays a blank placeholder.
+    Task { [weak self] in
+      guard let self else { return }
+      withTransaction(transaction) {
+        for id in missing where self.built.contains(id) { self.flags[id]?.isBuilt = true }
+      }
     }
   }
 
