@@ -21,6 +21,9 @@ import SwiftUI
     var unknownPages: [String] = []
     var speed = 1500.0
     var settle = 1.0
+    /// Scroll with scroll-wheel events, as a trackpad does, instead of setting the offset (the Mac; `--hitch-direct`
+    /// sets it). The scroll view and SwiftUI move the content themselves, so a jump is what a user would see.
+    var events = true
 
     init?(_ arguments: [String]) {
       func value(after flag: String) -> String? {
@@ -37,6 +40,7 @@ import SwiftUI
       }
       if let speed = value(after: "--hitch-speed").flatMap(Double.init), speed > 0 { self.speed = speed }
       if let settle = value(after: "--hitch-settle").flatMap(Double.init), settle >= 0 { self.settle = settle }
+      if arguments.contains("--hitch-direct") { events = false }
     }
   }
 
@@ -125,6 +129,11 @@ import SwiftUI
     var startedAt: CFTimeInterval = 0
     var line = 0
     var notes: [String] = []
+    /// Times the offset moved between frames without the test moving it (content above changed height, or the
+    /// scroll view anchored it): what a user sees as the page jumping or bouncing back.
+    var jumps = 0
+    var jumpTotal: CGFloat = 0
+    var worstJump: CGFloat = 0
 
     init(_ view: HitchScrollView, number: Int, vertical: Bool, isSidebar: Bool) {
       self.view = view
@@ -377,6 +386,21 @@ import SwiftUI
         return finishScroller(now)
       }
       scroller.stats.frames += 1
+      // Where the view is now against where the last frame put it: a jump is the page moving on its own. Scrolling
+      // goes on from there, as a user's scroll would.
+      let actual = view.hitchOffset(vertical: scroller.vertical)
+      let jump = actual - scroller.position
+      if abs(jump) > 3 {
+        scroller.jumps += 1
+        scroller.jumpTotal += abs(jump)
+        scroller.worstJump = max(scroller.worstJump, abs(jump))
+        if scroller.jumps <= 40, let block {
+          block.lines.append(
+            "    jump \(scroller.label) \(ms(jump)) pt at offset \(ms(scroller.position)), content "
+              + "\(describe(view.hitchContentSize))")
+        }
+        scroller.position = actual
+      }
       let limits = view.hitchLimits(vertical: scroller.vertical)
       let end = view.hitchEndsAtUpper(vertical: scroller.vertical) ? limits.upper : limits.lower
       let target = scroller.towardEnd ? end : scroller.start
@@ -384,8 +408,10 @@ import SwiftUI
       let position =
         target > scroller.position
         ? min(scroller.position + distance, target) : max(scroller.position - distance, target)
+      if !(options.events && view.hitchScroll(by: position - scroller.position, vertical: scroller.vertical)) {
+        view.setHitchOffset(position, vertical: scroller.vertical)
+      }
       scroller.position = position
-      view.setHitchOffset(position, vertical: scroller.vertical)
       if position == target {
         if scroller.towardEnd {
           scroller.towardEnd = false
@@ -406,6 +432,7 @@ import SwiftUI
           let line =
             "  scroller \(scroller.label) \(type(of: view)) at \(describe(view.hitchFrame)) content "
             + "\(describe(view.hitchContentSize)) depth \(view.hitchDepth): \(scroller.stats.scrollSummary), "
+            + "jumps \(scroller.jumps) (\(ms(scroller.jumpTotal)) pt, worst \(ms(scroller.worstJump)) pt), "
             + "\(seconds(now - scroller.startedAt)) s\(notes)"
           if scroller.line < block.lines.count { block.lines[scroller.line] = line } else { block.lines.append(line) }
         }
@@ -587,6 +614,9 @@ import SwiftUI
       func setHitchOffset(_ value: CGFloat, vertical: Bool) {
         contentOffset = vertical ? CGPoint(x: contentOffset.x, y: value) : CGPoint(x: value, y: contentOffset.y)
       }
+
+      /// No scroll-wheel events on iOS: the test sets the offset.
+      func hitchScroll(by delta: CGFloat, vertical: Bool) -> Bool { false }
     }
 
   #elseif os(macOS)
@@ -730,6 +760,28 @@ import SwiftUI
         contentView.scroll(to: origin)
         reflectScrolledClipView(contentView)
       }
+
+      /// Scrolls by `delta` points with a pixel scroll-wheel event, as a trackpad does, through the scroll view's own
+      /// handling (and SwiftUI's). Whole pixels: the rest carries to the next step.
+      func hitchScroll(by delta: CGFloat, vertical: Bool) -> Bool {
+        let total = delta + HitchWheel.remainder
+        let pixels = total.rounded(.towardZero)
+        HitchWheel.remainder = total - pixels
+        guard pixels != 0 else { return true }
+        let amount = Int32(-pixels)
+        guard
+          let cgEvent = CGEvent(
+            scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: vertical ? amount : 0,
+            wheel2: vertical ? 0 : amount, wheel3: 0),
+          let event = NSEvent(cgEvent: cgEvent)
+        else { return false }
+        scrollWheel(with: event)
+        return true
+      }
+    }
+
+    @MainActor enum HitchWheel {
+      static var remainder: CGFloat = 0
     }
   #endif
 #else

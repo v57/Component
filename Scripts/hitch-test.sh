@@ -7,7 +7,8 @@
 #   Scripts/hitch-test.sh mac [page,page,…]
 #
 # Environment: HITCH_SPEED (pt/s, 1500), HITCH_SETTLE (s, 1.0), HITCH_TIMEOUT (s, 900),
-# HITCH_OUT (where the report is copied, .build-hitch/hitch-<platform>.txt), HITCH_NO_BUILD=1 (reuse the last build).
+# HITCH_OUT (where the report is copied, .build-hitch/hitch-<platform>.txt), HITCH_NO_BUILD=1 (reuse the last build),
+# HITCH_EXTRA (more launch arguments, e.g. --hitch-direct).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -30,6 +31,7 @@ out=${HITCH_OUT:-$derived/hitch-$platform.txt}
 
 arguments=()
 [[ -n $pages ]] && arguments+=(--hitch-pages "$pages")
+[[ -n ${HITCH_EXTRA:-} ]] && arguments+=($HITCH_EXTRA)
 [[ -n ${HITCH_SPEED:-} ]] && arguments+=(--hitch-speed "$HITCH_SPEED")
 [[ -n ${HITCH_SETTLE:-} ]] && arguments+=(--hitch-settle "$HITCH_SETTLE")
 
