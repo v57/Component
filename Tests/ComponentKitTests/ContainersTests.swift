@@ -290,3 +290,21 @@ private func groupMoved(_ rows: [String], dragging: IndexSet, anchor: Int, to: I
   #expect(!ContSplitVisibility.isAutomatic(.doubleColumn))
   #expect(!ContSplitVisibility.isAutomatic(.all))
 }
+
+#if canImport(AppKit)
+  import AppKit
+
+  /// The kit's toolbar clears the title bar of a window the app made itself (Database's capture window, an
+  /// `NSHostingController` that bridges its toolbar, so it has one), when its content runs under the title bar.
+  @MainActor @Test func kitToolbarClearsAppMadeWindowsTitlebar() {
+    let window = NSWindow(
+      contentRect: CGRect(x: 0, y: 0, width: 400, height: 300), styleMask: [.titled, .fullSizeContentView],
+      backing: .buffered, defer: true)
+    window.toolbar = NSToolbar()
+    #expect(ContTitlebarClearView.clearsTitlebar(of: window))
+    window.titlebarAppearsTransparent = true
+    #expect(!ContTitlebarClearView.clearsTitlebar(of: window))
+    let below = NSWindow(contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: true)
+    #expect(!ContTitlebarClearView.clearsTitlebar(of: below))
+  }
+#endif

@@ -242,9 +242,10 @@ private struct ContSystemToolbarAway: ViewModifier {
 }
 
 #if os(macOS)
-  /// In a window an app hosts itself (an `NSHostingController`'s: a capture or debug window), SwiftUI's toolbar doesn't
-  /// reach the title bar, so hiding its background does nothing and the title bar's own background drew over the
-  /// kit's bar (a blank or faded bar). There, with the content under the title bar, the title bar goes transparent.
+  /// In a window an app hosts itself (an `NSHostingController`'s: a capture or debug window) hiding the toolbar's
+  /// background doesn't reach the title bar, even when the controller bridges its toolbar (`sceneBridgingOptions`),
+  /// and the title bar's own background drew over the kit's bar (a blank or faded bar). There, with the content under
+  /// the title bar, the title bar goes transparent.
   private struct ContTitlebarClear: NSViewRepresentable {
     func makeNSView(context: Context) -> ContTitlebarClearView { ContTitlebarClearView() }
     func updateNSView(_ view: ContTitlebarClearView, context: Context) {}
@@ -253,13 +254,16 @@ private struct ContSystemToolbarAway: ViewModifier {
   final class ContTitlebarClearView: NSView {
     override func viewDidMoveToWindow() {
       super.viewDidMoveToWindow()
-      // After this update: a scene window gets its toolbar (the kit's invisible item) as the view lands.
-      DispatchQueue.main.async { [weak self] in
-        guard let window = self?.window, window.toolbar == nil, window.styleMask.contains(.fullSizeContentView),
-          window.styleMask.contains(.titled), !window.titlebarAppearsTransparent
-        else { return }
-        window.titlebarAppearsTransparent = true
-      }
+      guard let window, Self.clearsTitlebar(of: window) else { return }
+      window.titlebarAppearsTransparent = true
+    }
+
+    /// A titled window the app made itself, whose content runs under its title bar. SwiftUI's scene windows are of its
+    /// own class (`SwiftUI.AppKitWindow`), where the kit hides the toolbar's background instead.
+    static func clearsTitlebar(of window: NSWindow) -> Bool {
+      let isScene = NSStringFromClass(type(of: window)).hasPrefix("SwiftUI.")
+      return !isScene && window.styleMask.contains(.titled) && window.styleMask.contains(.fullSizeContentView)
+        && !window.titlebarAppearsTransparent
     }
   }
 
