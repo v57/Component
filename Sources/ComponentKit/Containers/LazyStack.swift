@@ -73,6 +73,7 @@ public struct KitLazyStack<Content: View>: View {
 
 // MARK: - Stack
 
+
 @available(macOS 15, iOS 18, *)
 private struct ContLazyStack<Content: View>: View {
   let alignment: HorizontalAlignment
@@ -83,11 +84,17 @@ private struct ContLazyStack<Content: View>: View {
 
   var body: some View {
     Group(subviews: content) { subviews in
-      let ids = subviews.map { AnyHashable($0.id) }
+      stack(subviews)
+    }
+  }
+
+  private func stack(_ subviews: SubviewsCollection) -> some View {
+    let ids = subviews.map { AnyHashable($0.id) }
+    return Group {
       VStack(alignment: alignment, spacing: spacing) {
         ForEach(subviews) { subview in
           let id = AnyHashable(subview.id)
-          ContLazyItem(subview: subview, id: id, flag: model.flag(id), model: model)
+          ContLazyItem(subview: subview, id: id, flag: model.flag(id), model: model, alignment: alignment)
         }
       }
       .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .top))
@@ -115,15 +122,21 @@ private struct ContLazyItem: View {
   let id: AnyHashable
   @ObservedObject var flag: ContLazyFlag
   let model: ContLazyModel
+  let alignment: HorizontalAlignment
 
   var body: some View {
-    if flag.isBuilt {
-      subview
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { model.measured(id, $0) }
-        .environment(\.contLazyParent, ContLazyParent(model: model, item: id))
-    } else {
-      Color.clear.frame(height: flag.height)
+    // One container either way, the built view inside it: the item keeps its identity as it is built and let go.
+    // Switching between the view and a placeholder made SwiftUI set the scroll view's offset again, to where it was
+    // before the last scroll step, so the page jumped back as views went far off and were let go.
+    let alignment = Alignment(horizontal: alignment, vertical: .top)
+    ZStack(alignment: alignment) {
+      if flag.isBuilt {
+        subview
+          .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { model.measured(id, $0) }
+          .environment(\.contLazyParent, ContLazyParent(model: model, item: id))
+      }
     }
+    .frame(maxWidth: .infinity, minHeight: flag.isBuilt ? nil : flag.height, alignment: alignment)
   }
 }
 
@@ -133,11 +146,18 @@ private struct ContLazyItem: View {
 /// left to hear it.
 @MainActor
 final class ContLazyFlag: ObservableObject {
-  @Published var isBuilt = false
+  var isBuilt = false {
+    willSet { if newValue != isBuilt { objectWillChange.send() } }
+  }
   /// The placeholder's height.
-  @Published var height: CGFloat
+  var height: CGFloat {
+    willSet { if newValue != height { objectWillChange.send() } }
+  }
 
   init(height: CGFloat) { self.height = height }
+
+  /// Draws the item again (its state unchanged): for a change SwiftUI dropped.
+  func redraw() { objectWillChange.send() }
 }
 
 /// The scroll view's visible bounds in the stack's space; `nil` outside a scroll view.
@@ -164,6 +184,8 @@ final class ContLazySlot {
   let flag: ContLazyFlag
   var measured: CGFloat?
   var isBuilt = false
+  /// The built view has drawn (it measured itself since it was built).
+  var hasDrawn = false
   var isQueued = false
   /// How far it is from the screen, as of the last plan; the stacks inside it read it.
   var distance: CGFloat?
@@ -236,6 +258,7 @@ final class ContLazyModel {
     if let old { measuredSum -= old } else { measuredCount += 1 }
     measuredSum += height
     slot.measured = height
+    if slot.isBuilt { slot.hasDrawn = true }
     ContLazyScheduler.shared.measured(height, replacing: old)
     // The views below moved: plan again once this frame's sizes are in.
     guard old.map({ abs($0 - height) >= 1 }) ?? true else { return }
@@ -293,7 +316,8 @@ final class ContLazyModel {
     for slot in slots {
       let height = slot.measured ?? estimate
       // A placeholder still at an old guess takes the new one (the scroll height follows).
-      if !slot.isBuilt, abs(slot.flag.height - height) > height / 10 { slot.flag.height = height }
+      // (Past a quarter off: each change draws the placeholder again.)
+      if !slot.isBuilt, abs(slot.flag.height - height) > height / 4 { slot.flag.height = height }
       let top = y
       let bottom = y + height
       y = bottom + spacing
@@ -349,15 +373,19 @@ final class ContLazyModel {
     guard !missing.isEmpty else { return }
     var transaction = Transaction()
     transaction.disablesAnimations = true
-    for slot in missing { slot.isBuilt = true }
+    for slot in missing {
+      slot.isBuilt = true
+      slot.hasDrawn = false
+    }
     withTransaction(transaction) {
       for slot in missing { slot.flag.isBuilt = true }
     }
     // Said again once this update is over: SwiftUI sometimes drops a change made while it builds the page's first
     // frame (in an `onAppear` or `onGeometryChange` action), and the item stays a blank placeholder.
+    // Only for views that haven't drawn: setting it again draws the view again.
     Task {
       withTransaction(transaction) {
-        for slot in missing where slot.isBuilt { slot.flag.isBuilt = true }
+        for slot in missing where slot.isBuilt && !slot.hasDrawn { slot.flag.redraw() }
       }
     }
   }
@@ -378,6 +406,13 @@ struct ContLazyWeak {
 }
 
 // MARK: - Scheduler
+
+/// Whether a lazy stack's scroll view is moving (until it rests 150 ms), for what draws differently meanwhile.
+@MainActor @Observable
+final class ContLazyScrolling {
+  static let shared = ContLazyScrolling()
+  var isScrolling = false
+}
 
 /// Builds the queued views of every lazy stack a few a frame, nearest to its screen first, and tells the stacks when
 /// scrolling rests so they build further ahead.
@@ -429,11 +464,13 @@ final class ContLazyScheduler {
   /// A scroll view moved: build only a screen ahead until it rests 150 ms, then a quarter more.
   func scrolled() {
     isResting = false
+    if !ContLazyScrolling.shared.isScrolling { ContLazyScrolling.shared.isScrolling = true }
     restTask?.cancel()
     restTask = Task { [weak self] in
       try? await Task.sleep(for: .milliseconds(150))
       guard !Task.isCancelled, let self else { return }
       self.isResting = true
+      ContLazyScrolling.shared.isScrolling = false
       self.models = self.models.filter { $0.value.model != nil }
       for model in self.models.values { model.model?.plan() }
     }
