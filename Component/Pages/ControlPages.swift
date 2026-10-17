@@ -284,6 +284,8 @@ struct MenusPage: View {
   @State private var foldersFirst = true
   @State private var showsMore = ProcessInfo.processInfo.arguments.contains("--open-menu")
   @State private var picked = "Nothing yet"
+  @State private var provider = "anthropic"
+  @State private var branch = "feature/branch-1"
 
   var body: some View {
     CatalogPage(page: .menus) {
@@ -454,6 +456,115 @@ struct MenusPage: View {
               Button("Open", systemImage: "arrow.up.right.square") {}
               Button("Reveal in Sidebar", systemImage: "sidebar.left") {}
               Button("Copy Path", systemImage: "doc.on.doc") {}
+            }
+          }
+        }
+      }
+      SpecimenSection(
+        "Sections, long menus, split buttons",
+        note: "Section headers group rows (and a picker's options); a menu taller than its window scrolls; a split "
+          + "button is an action with a menu beside it; any button style can open a menu."
+      ) {
+        SpecimenGrid(minWidth: 280) {
+          Specimen(
+            "Sections", note: "A small header over each group",
+            code: "KitMenuSection(\"Local\") { … }\nDivider()\nKitMenuSection(\"Remote Branches\") { … }"
+          ) {
+            KitMenu {
+              KitMenuSection("Merge into main") {
+                Button("feature/maps", systemImage: "arrow.triangle.branch") {}
+                Button("fix/crash-12", systemImage: "arrow.triangle.branch") {}.kitMenuHighlighted()
+              }
+              Divider()
+              KitMenuSection("Remote Branches") {
+                Button("origin/release/1.2", systemImage: "cloud") {}
+                Button("origin/main", systemImage: "cloud") {}
+              }
+            }
+          }
+          Specimen(
+            "Grouped options", note: "KitPicker's options in sections",
+            code: "KitPicker(\"Provider\", selection: $provider, sections: [\n  (\"Local\", [KitSegment(\"Ollama\", value: \"ollama\")]),\n  (\"Cloud\", […]),\n])"
+          ) {
+            KitPicker(
+              "Provider", selection: $provider,
+              sections: [
+                ("Local", [KitSegment("Ollama", value: "ollama"), KitSegment("LM Studio", value: "lmstudio")]),
+                ("Cloud", [KitSegment("Anthropic", value: "anthropic"), KitSegment("OpenAI", value: "openai"), KitSegment("Mistral", value: "mistral")]),
+                ("Custom", [KitSegment("OpenAI-compatible", value: "custom")]),
+              ])
+          }
+          Specimen(
+            "A long menu", note: "Taller than the window: it scrolls",
+            code: "KitMenuButton(\"Branch\") { ForEach(branches) { Button($0.name) { … } } }"
+          ) {
+            KitMenuButton(branch, systemImage: "arrow.triangle.branch") {
+              KitMenuOptions(selection: $branch, options: (1...80).map { ("feature/branch-\($0)", "feature/branch-\($0)") })
+            }
+          }
+          Specimen(
+            "Split button", note: "The action, and a menu of the others",
+            code: "KitSplitButton(\"Translate\", systemImage: \"character.bubble\") { translate() } menu: {\n  Button(\"Missing Only\") { … }\n}"
+          ) {
+            HStack(spacing: 10) {
+              KitSplitButton("Translate", systemImage: "character.bubble") { picked = "Translate" } menu: {
+                Button("Translate Missing Only", systemImage: "text.badge.plus") { picked = "Missing only" }
+                Divider()
+                KitMenuSection("Engine") {
+                  KitMenuOptions(selection: $sort, options: [("On Device", "Name"), ("Claude", "Date")])
+                }
+              }
+              ToolGroup {
+                Button("Run", systemImage: "play.fill") {}
+                KitSplitButton("Test", systemImage: "checkmark.diamond") {} menu: {
+                  Button("Test Again") {}
+                  Button("Test Failed Only") {}
+                }
+              }
+            }
+          }
+          Specimen(
+            "Any button opens one", note: "KitMenuButton(style: .button) takes the style around it",
+            code: "ToolGroup {\n  KitMenuButton(\"Distribute\", systemImage: \"square.and.arrow.up\", style: .button) { … }\n}"
+          ) {
+            HStack(spacing: 10) {
+              ToolGroup {
+                Button("Build", systemImage: "hammer") {}
+                KitMenuButton("Distribute", systemImage: "square.and.arrow.up", style: .button) {
+                  Button("TestFlight", systemImage: "airplane") {}
+                  Button("Developer ID", systemImage: "checkmark.seal") {}
+                }
+              }
+              KitMenuButton("New", systemImage: "plus", style: .button) {
+                Button("New Session", systemImage: "terminal") {}
+                Button("New Host", systemImage: "server.rack") {}
+              }
+              .buttonStyle(.kitIcon)
+            }
+          }
+          Specimen(
+            "Share", note: "Shares once the menu has closed, from where it opened",
+            code: "KitMenuShare(items: [note.url])"
+          ) {
+            contextTarget("Share a note").kitContextMenu {
+              Button("Open", systemImage: "arrow.up.right.square") {}
+              KitMenuShare(items: [URL(string: "https://github.com/v57")!])
+            }
+          }
+          Specimen(
+            "Nested", note: "The innermost view's context menu wins",
+            code: "Card { Row().kitContextMenu { … } }.kitContextMenu { … }"
+          ) {
+            VStack(alignment: .leading, spacing: 4) {
+              Text("Folder (its own menu)").kitFont(.caption).foregroundStyle(.kitSecondary)
+              contextTarget("A file inside").kitContextMenu {
+                Button("Open File", systemImage: "doc") { picked = "Open File" }
+              }
+            }
+            .padding(10)
+            .kitSurface(.card)
+            .kitContextMenu {
+              Button("New File in Folder", systemImage: "doc.badge.plus") { picked = "New File in Folder" }
             }
           }
         }

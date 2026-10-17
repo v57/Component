@@ -355,6 +355,8 @@ private struct ContToolButton: View {
 extension EnvironmentValues {
   /// A tool drawn as on (a toggled tool, the open overflow menu).
   @Entry var contToolIsOn: Bool = false
+  /// The views are a `ToolGroup`'s tools.
+  @Entry var contInToolGroup: Bool = false
 }
 
 // MARK: - Filled field

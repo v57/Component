@@ -56,7 +56,8 @@ public struct KitTitle: View {
 
 /// A toolbar item for kit views (`KitTitle`, `ToolGroup`, `KitSegmented`, a round button): they draw their own cards,
 /// so on macOS 26 and iOS 26 the toolbar's shared glass stays out from behind them. Before, it's a plain
-/// `ToolbarItem`.
+/// `ToolbarItem`. A kit menu opens from a kit view here (a `ToolGroup`'s button, a `KitMenuButton`), not from a bare
+/// `Button`: SwiftUI makes that a native bar button and drops the menu's anchor (see `.kitMenu(isPresented:)`).
 ///
 /// ```swift
 /// .toolbar {
@@ -234,6 +235,7 @@ public struct ToolGroup<Content: View>: View {
   public var body: some View {
     let iconOnly = iconOnly || toolbarIconOnly
     HStack(spacing: 2) { content }
+      .environment(\.contInToolGroup, true)
       .buttonStyle(ContToolButtonStyle(iconOnly: iconOnly))
       .labelStyle(ContToolLabelStyle(iconOnly: iconOnly))
       .menuStyle(.button)

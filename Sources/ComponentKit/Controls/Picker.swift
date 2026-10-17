@@ -19,6 +19,8 @@ public struct KitPicker<Value: Hashable>: View {
   var title: String
   @Binding var selection: Value
   var segments: [KitSegment<Value>]
+  /// The options in titled groups (the menu's sections), when given so.
+  var sections: [(title: String, segments: [KitSegment<Value>])] = []
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.isEnabled) private var isEnabled
   @FocusState private var isFocused: Bool
@@ -35,6 +37,19 @@ public struct KitPicker<Value: Hashable>: View {
   /// A picker over titled values.
   public init(_ title: String = "", selection: Binding<Value>, options: [(String, Value)]) {
     self.init(title, selection: selection, segments: options.map { KitSegment($0.0, value: $0.1) })
+  }
+
+  /// A picker whose options come in titled groups, each a section of its menu (a provider's presets by kind).
+  ///
+  /// ```swift
+  /// KitPicker("Provider", selection: $provider, sections: [
+  ///   ("Local", [KitSegment("Ollama", value: .ollama)]),
+  ///   ("Cloud", [KitSegment("Anthropic", value: .anthropic), KitSegment("OpenAI", value: .openAI)]),
+  /// ])
+  /// ```
+  public init(_ title: String = "", selection: Binding<Value>, sections: [(String, [KitSegment<Value>])]) {
+    self.init(title, selection: selection, segments: sections.flatMap(\.1))
+    self.sections = sections.map { (title: $0.0, segments: $0.1) }
   }
 
   private var current: KitSegment<Value>? { segments.first { $0.value == selection } }
@@ -68,7 +83,16 @@ public struct KitPicker<Value: Hashable>: View {
     .fixedSize(horizontal: true, vertical: false)
     .focusable()
     .kitMenuTrigger(isPresented: $isOpen, matchesWidth: true) {
-      KitMenuOptions(selection: $selection, segments: segments)
+      if sections.isEmpty {
+        KitMenuOptions(selection: $selection, segments: segments)
+      } else {
+        ForEach(sections.indices, id: \.self) { index in
+          if index > 0 { Divider() }
+          KitMenuSection(sections[index].title) {
+            KitMenuOptions(selection: $selection, segments: sections[index].segments)
+          }
+        }
+      }
     }
     .opacity(isEnabled ? 1 : 0.45)
     .focused($isFocused)
@@ -128,9 +152,23 @@ struct KitPickerMetrics {
 /// KitMenuButton(scheme.name, systemImage: "hammer") { ForEach(schemes) { s in Button(s.name) { pick(s) } } }
 /// KitMenuButton("Match") { KitMenuOptions(selection: $match, options: [("Contains", .contains), ("Exact", .exact)]) }
 /// ```
+///
+/// `style: .button` draws it as the buttons around it instead (a `ToolGroup`'s tools, `.kitIcon`, `.kit`): a tool
+/// that opens a menu, drawn on while it is open.
+///
+/// ```swift
+/// ToolGroup {
+///   KitMenuButton("Distribute", systemImage: "square.and.arrow.up", style: .button) { … }
+/// }
+/// KitMenuButton("New", systemImage: "plus", style: .button) { … }.buttonStyle(.kitIcon)
+/// ```
+///
+/// In a system toolbar (`.toolbar`), put it in a `KitToolbarItem` with a kit view around it (`ToolGroup`): SwiftUI
+/// turns a bare `Button` there into a native bar button, which drops the kit menu's anchor.
 public struct KitMenuButton<Content: View>: View {
   var title: String
   var systemImage: String?
+  var style: KitMenuButtonStyle
   var content: Content
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.controlSize) private var controlSize
@@ -138,13 +176,36 @@ public struct KitMenuButton<Content: View>: View {
   @State private var isHovered = false
   @State private var isOpen = false
 
-  public init(_ title: String, systemImage: String? = nil, @ViewBuilder content: () -> Content) {
+  public init(
+    _ title: String, systemImage: String? = nil, style: KitMenuButtonStyle = .pill, @ViewBuilder content: () -> Content
+  ) {
     self.title = title
     self.systemImage = systemImage
+    self.style = style
     self.content = content()
   }
 
   public var body: some View {
+    switch style {
+    case .pill: pill
+    case .button: button
+    }
+  }
+
+  /// The surrounding button style's look; the menu opens under it as it is clicked or tapped.
+  private var button: some View {
+    Group {
+      if let systemImage {
+        Button(title, systemImage: systemImage) { isOpen.toggle() }
+      } else {
+        Button(title) { isOpen.toggle() }
+      }
+    }
+    .kitToolOn(isOpen)
+    .kitMenu(isPresented: $isOpen) { content }
+  }
+
+  @ViewBuilder private var pill: some View {
     let small = controlSize == .small || controlSize == .mini
     let height: CGFloat = idiom.isTouch ? (small ? 28 : 32) : (small ? 22 : 26)
     HStack(spacing: 5) {
@@ -177,6 +238,72 @@ public struct KitMenuButton<Content: View>: View {
     .onHover { isHovered = $0 }
     .animation(.kitFast, value: isHovered)
     .accessibilityLabel(title)
+  }
+}
+
+/// How a `KitMenuButton` draws.
+public enum KitMenuButtonStyle: Hashable, Sendable {
+  /// A raised pill with a chevron: a pop-up on its own.
+  case pill
+  /// Whatever button style is around it (a `ToolGroup`'s tools, `.kitIcon`, `.kit`).
+  case button
+}
+
+// MARK: - Split button
+
+/// A button with a menu beside it: the main action, and a chevron that opens the kit's menu of the others, as
+/// `Menu(primaryAction:)` (Translate, and Translate With ▸). In a `ToolGroup` it is two of its tools; on its own it
+/// draws a tool group of its own.
+///
+/// ```swift
+/// KitSplitButton("Translate", systemImage: "character.bubble") { translate() } menu: {
+///   Button("Translate Missing Only") { translate(missingOnly: true) }
+///   KitMenuOptions(selection: $engine, options: engines)
+/// }
+/// ```
+public struct KitSplitButton<Menu: View>: View {
+  var title: String
+  var systemImage: String?
+  var action: () -> Void
+  var menu: Menu
+  @Environment(\.contInToolGroup) private var inToolGroup
+  @Environment(\.kitIdiom) private var idiom
+  @State private var isOpen = false
+
+  public init(
+    _ title: String, systemImage: String? = nil, action: @escaping () -> Void, @ViewBuilder menu: () -> Menu
+  ) {
+    self.title = title
+    self.systemImage = systemImage
+    self.action = action
+    self.menu = menu()
+  }
+
+  public var body: some View {
+    if inToolGroup {
+      buttons
+    } else {
+      ToolGroup { buttons }
+    }
+  }
+
+  @ViewBuilder private var buttons: some View {
+    if let systemImage {
+      Button(title, systemImage: systemImage, action: action)
+    } else {
+      Button(title, action: action)
+    }
+    Button {
+      isOpen.toggle()
+    } label: {
+      Image(systemName: "chevron.down")
+        .font(.system(size: idiom.isTouch ? 11 : 9, weight: .bold))
+        .foregroundStyle(.kitSecondary)
+        .frame(width: idiom.isTouch ? 14 : 10)
+    }
+    .accessibilityLabel("\(title) Options")
+    .kitToolOn(isOpen)
+    .kitMenu(isPresented: $isOpen) { menu }
   }
 }
 
