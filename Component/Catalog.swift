@@ -253,16 +253,19 @@ struct CatalogView: View {
         .navigationSplitViewColumnWidth(min: 250, ideal: 270, max: 340)
         .defaultScrollAnchor(model.sidebarMiddle ? .center : nil)
     } detail: {
-      PageContent(page: model.page)
-        .id(model.page)
-        .environment(\.kitIdiom, model.idiom ?? platformIdiom)
-        .modifier(InactiveOverride(isOn: model.inactiveWindow))
-        .kitToolbar(model.page.title) {
-          Text(model.page.title).kitFont(.title2)
-        } tools: {
-          CatalogToolbar.tools(model)
-        }
-        .kitSidebarToggle(columnVisibility: $columns)
+      // The page's identity stays inside the column: an `id` on the column's root would be the whole detail's, and
+      // the split view would build the column again on every page, its toolbar too.
+      ZStack {
+        PageContent(page: model.page).id(model.page)
+      }
+      .environment(\.kitIdiom, model.idiom ?? platformIdiom)
+      .modifier(InactiveOverride(isOn: model.inactiveWindow))
+      .kitToolbar(model.page.title) {
+        Text(model.page.title).kitFont(.title2)
+      } tools: {
+        CatalogToolbar.tools(model)
+      }
+      .kitSidebarToggle(columnVisibility: $columns)
     }
     .onChange(of: model.page) { compactColumn = .detail }
     .onAppear {
