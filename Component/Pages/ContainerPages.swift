@@ -1345,15 +1345,21 @@ struct DragDropPage: View {
           .frame(width: 260)
         }
       }
-      SpecimenSection("Live", note: "Drag the notes to reorder them; drag a chip onto the folder.") {
+      SpecimenSection("Live", note: "Drag the notes to reorder them; drag a chip onto the folder. Each has a context menu too: on touch, hold for the menu, hold and drag to drag.") {
         Columns {
           Specimen(
             "ReorderableSection", ground: .sidebar,
-            code: "ReorderableSection(notes, id: \\.self, move: { notes.move(fromOffsets: $0, toOffset: $1) }) { note in\n  SidebarRow(note, systemImage: \"doc.text\")\n}"
+            code: "ReorderableSection(notes, id: \\.self, move: { notes.move(fromOffsets: $0, toOffset: $1) }) { note in\n  SidebarRow(note, systemImage: \"doc.text\")\n    .kitContextMenu { Button(\"Rename\", systemImage: \"pencil\") { … } }\n}"
           ) {
             VStack(alignment: .leading, spacing: 2) {
               ReorderableSection(notes, id: \.self, move: { notes.move(fromOffsets: $0, toOffset: $1) }) { note in
                 SidebarRow(note, systemImage: "doc.text")
+                  .kitContextMenu {
+                    Button("Rename", systemImage: "pencil") {}
+                    Button("Duplicate", systemImage: "plus.square.on.square") {}
+                    Divider()
+                    Button("Delete", systemImage: "trash", role: .destructive) {}
+                  }
               }
             }
             .frame(width: 260)
@@ -1365,7 +1371,9 @@ struct DragDropPage: View {
             VStack(alignment: .leading, spacing: 14) {
               HStack(spacing: 6) {
                 ForEach(["Lisbon", "Porto", "Tokyo"], id: \.self) { city in
-                  Chip(city, systemImage: "mappin", hue: .blue).draggable(city)
+                  Chip(city, systemImage: "mappin", hue: .blue)
+                    .draggable(city)
+                    .kitContextMenu { Button("Copy \(city)", systemImage: "doc.on.doc") {} }
                 }
               }
               SidebarRow("Inbox", subtitle: dropped.isEmpty ? "Drop a city here" : dropped.joined(separator: ", "), systemImage: "tray") {

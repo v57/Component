@@ -686,7 +686,11 @@ enum KitMenuKind {
 }
 
 /// A context menu gesture's phases, from the platform's events.
-enum KitContextPhase { case began, changed, ended, cancelled }
+enum KitContextPhase {
+  case began, changed, ended, cancelled
+  /// The press became a drag (touch: the view is also a drag source): the menu closes and the drag goes on.
+  case dragged
+}
 
 struct KitMenuPresenter<MenuContent: View>: ViewModifier {
   /// The open state, when the caller holds it (otherwise the presenter does).
@@ -863,6 +867,9 @@ final class KitMenuSession {
       release(local)
     case .cancelled:
       isPressing = false
+    case .dragged:
+      isPressing = false
+      model?.dismiss()
     }
   }
 
@@ -1360,17 +1367,58 @@ struct KitMenuOverlay<Content: View>: View {
       let point = recognizer.location(in: self)
       switch recognizer.state {
       case .began:
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        #if !os(visionOS)
+          UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        #endif
+        start = point
         onLongPress?(.began, point)
-      case .changed: onLongPress?(.changed, point)
+      case .changed:
+        // Held and dragged on a view that lifted for a drag (a reorderable row, a `.draggable`): the drag goes on,
+        // the menu goes, as the system's context menu does.
+        if isLifted, hypot(point.x - start.x, point.y - start.y) > 10 {
+          lifts.removeAll()
+          onLongPress?(.dragged, point)
+        } else {
+          onLongPress?(.changed, point)
+        }
       case .ended: onLongPress?(.ended, point)
-      case .cancelled, .failed: onLongPress?(.cancelled, point)
+      case .cancelled, .failed: onLongPress?(isLifted ? .dragged : .cancelled, point)
       default: break
       }
+      if recognizer.state == .ended || recognizer.state == .cancelled || recognizer.state == .failed {
+        lifts.removeAll()
+      }
+    }
+
+    /// Where the press began, in this view.
+    private var start: CGPoint = .zero
+    /// The drag interactions' recognizers that share this press: the view is a drag source too.
+    private var lifts: [Weak] = []
+    private struct Weak { weak var recognizer: UIGestureRecognizer? }
+
+    /// A drag source under the press lifted its view.
+    private var isLifted: Bool {
+      lifts.contains { $0.recognizer.map { $0.state == .began || $0.state == .changed } ?? false }
     }
 
     func gestureRecognizer(_ recognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
       window != nil && !isHiddenInTree && bounds.contains(touch.location(in: self))
+    }
+
+    /// The press shares the touch with a drag interaction's own long press (the lift of a reorderable row or a
+    /// `.draggable`): holding opens the menu, holding and dragging drags. Every other gesture yields to the menu.
+    func gestureRecognizer(
+      _ recognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
+    ) -> Bool {
+      guard Self.isDragLift(other) else { return false }
+      if !lifts.contains(where: { $0.recognizer === other }) { lifts.append(Weak(recognizer: other)) }
+      return true
+    }
+
+    /// A drag interaction's recognizer (UIKit names them so; SwiftUI's drag sources are drag interactions).
+    static func isDragLift(_ recognizer: UIGestureRecognizer) -> Bool {
+      let name = String(describing: type(of: recognizer))
+      return name.contains("Drag") || name.contains("Lift")
     }
 
     private var isHiddenInTree: Bool {

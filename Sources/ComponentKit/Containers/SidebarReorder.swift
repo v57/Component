@@ -60,6 +60,18 @@ final class ContReorderState {
     list = nil
     index = nil
     indices = []
+    isMoving = false
+  }
+
+  /// The drag's session is under way, so the dragged row is drawn as its slot. On touch a long press calls the drag
+  /// source as the row lifts, before any drag: a press let go there (or one that opened a context menu instead) has
+  /// no session to end, and its row stayed an empty slot. There it waits for the session to move; on the Mac the
+  /// source is called as the drag starts.
+  private(set) var isMoving = false
+
+  /// The session moved (`ContDragSessionEnd`).
+  func sessionMoved() {
+    if list != nil, !isMoving { isMoving = true }
   }
 
   /// Counts the drags, so a late `endAfterLanding` leaves a newer drag alone.
@@ -72,6 +84,7 @@ final class ContReorderState {
   func start(_ list: AnyHashable, at index: Int, with group: IndexSet? = nil, height: CGFloat) {
     drags += 1
     self.height = height
+    isMoving = !KitIdiom.current.isTouch
     begin(list, at: index, with: group)
   }
 
@@ -81,7 +94,7 @@ final class ContReorderState {
   func endAfterLanding() {
     let drag = drags
     Task { @MainActor [weak self] in
-      if #available(macOS 26.0, iOS 27.0, *) { try? await Task.sleep(for: .milliseconds(600)) }
+      if #available(macOS 26.0, iOS 27.0, visionOS 27.0, *) { try? await Task.sleep(for: .milliseconds(600)) }
       guard let self, self.drags == drag, self.list != nil else { return }
       withAnimation(.kitFast) { self.end() }
     }
@@ -478,8 +491,8 @@ private struct ContDraggedRowSlot: ViewModifier {
   @Environment(\.kitIdiom) private var idiom
 
   func body(content: Content) -> some View {
-    if #available(macOS 26.0, iOS 27.0, *) {
-      let isDragging = state.isDragging(list, at: index)
+    if #available(macOS 26.0, iOS 27.0, visionOS 27.0, *) {
+      let isDragging = state.isMoving && state.isDragging(list, at: index)
       content
         .opacity(isDragging ? 0 : 1)
         .background {
@@ -499,11 +512,15 @@ private struct ContDragSessionEnd: ViewModifier {
   let state: ContReorderState
 
   func body(content: Content) -> some View {
-    if #available(macOS 26.0, iOS 27.0, *) {
+    if #available(macOS 26.0, iOS 27.0, visionOS 27.0, *) {
       content
         .dragConfiguration(DragConfiguration(allowMove: true))
         .onDragSessionUpdated { session in
-          if case .ended = session.phase, state.list != nil { withAnimation(.kitFast) { state.end() } }
+          switch session.phase {
+          case .ended: if state.list != nil { withAnimation(.kitFast) { state.end() } }
+          case .active: state.sessionMoved()
+          default: break
+          }
         }
     } else {
       content
