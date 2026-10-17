@@ -3,9 +3,10 @@ import SwiftUI
 // A lazy stack for scroll views of a few heavy views (a page of specimens, a sidebar of section cards), where a
 // `LazyVStack` builds each view in the frame it scrolls in and drops frames there. Here a view is built:
 // - at once while it is on screen (what shows must be there);
-// - ahead of the screen (a screen's height) and, while scrolling rests, a little further (a screen and a quarter), a few views a
-//   frame across every stack in the app (the nearest, with its stack's others within a third of a screen: each
-//   change lays the page out again, so small views go together), so building never piles up in one frame;
+// - ahead of the screen (a screen's height) and, while scrolling rests, a little further (a screen and a quarter),
+//   a few views a frame across every stack in the app (the nearest, with its stack's others within a third of a
+//   screen: each change lays the page out again, so small views go together), so building never piles up in one
+//   frame;
 // - and let go past two screens, keeping its measured height, so the page never jumps when it comes back (built
 //   views far off still lay out and track the scroll, which a long page feels).
 // Stacks nest: a section's rows in a stack of their own come a few at a time rather than with their card, and a stack
