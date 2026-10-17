@@ -208,8 +208,10 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     #endif
     .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { topInset = $0 }
     .background { Rectangle().fill(.kitSidebar).ignoresSafeArea() }
-    // Its own floor: a split view's column minimum gives way under a full toolbar.
-    .frame(minWidth: KitMetrics.sidebarMinWidth(idiom))
+    // Its own floor: a split view's column minimum gives way under a full toolbar. Not in an iPad three-column
+    // split, whose sidebar column is narrower than the floor in portrait (about 200pt): held wider, the cards ran
+    // past both edges of the column. There it takes the column's width.
+    .frame(minWidth: threeColumns && idiom.isTouch ? nil : KitMetrics.sidebarMinWidth(idiom))
     .environment(
       \.contSidebarSelection,
       ContSidebarSelection(
