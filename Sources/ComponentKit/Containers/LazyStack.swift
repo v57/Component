@@ -157,62 +157,86 @@ struct ContLazyParent: Equatable {
 
 // MARK: - Model
 
+/// One item's bookkeeping, kept in the stack's order so planning walks an array instead of hashing ids.
+@MainActor
+final class ContLazySlot {
+  let id: AnyHashable
+  let flag: ContLazyFlag
+  var measured: CGFloat?
+  var isBuilt = false
+  var isQueued = false
+  /// How far it is from the screen, as of the last plan; the stacks inside it read it.
+  var distance: CGFloat?
+  var children: [ContLazyWeak] = []
+
+  init(id: AnyHashable, height: CGFloat) {
+    self.id = id
+    flag = ContLazyFlag(height: height)
+  }
+}
+
 /// Which views of a stack are built, and their heights.
 @MainActor @Observable
 final class ContLazyModel {
-  @ObservationIgnored private var built: Set<AnyHashable> = []
-  @ObservationIgnored private var flags: [AnyHashable: ContLazyFlag] = [:]
-  @ObservationIgnored private var items: [AnyHashable] = []
+  @ObservationIgnored private var slots: [ContLazySlot] = []
+  @ObservationIgnored private var byID: [AnyHashable: ContLazySlot] = [:]
   @ObservationIgnored private var spacing: CGFloat = 8
-  @ObservationIgnored private var heights: [AnyHashable: CGFloat] = [:]
   @ObservationIgnored private var window: ContLazyWindow?
   @ObservationIgnored private var hasWindow = false
   @ObservationIgnored private var isReplanning = false
   @ObservationIgnored private var parent: ContLazyParent?
-  /// How far each item is from the screen, as of the last plan; the stacks inside an item read it.
-  @ObservationIgnored private var distances: [AnyHashable: CGFloat] = [:]
-  @ObservationIgnored private var children: [AnyHashable: [ContLazyWeak]] = [:]
-  /// The items waiting in the scheduler, so planning touches it only for changes.
-  @ObservationIgnored private var queued: Set<AnyHashable> = []
+  /// The sum and count of the measured heights, for the estimate.
+  @ObservationIgnored private var measuredSum: CGFloat = 0
+  @ObservationIgnored private var measuredCount = 0
 
   /// How far ahead views are built while scrolling, and while the scroll rests, in screens; past `release` they go.
   static let ahead: CGFloat = 1
   static let restingAhead: CGFloat = 1.25
   static let release: CGFloat = 2
 
-  func flag(_ id: AnyHashable) -> ContLazyFlag {
-    if let flag = flags[id] { return flag }
-    let flag = ContLazyFlag(height: height(of: id))
-    flags[id] = flag
-    return flag
-  }
+  /// The item's slot, made with its flag the first time the stack draws it.
+  func flag(_ id: AnyHashable) -> ContLazyFlag { slot(id).flag }
 
-  func height(of id: AnyHashable) -> CGFloat { heights[id] ?? estimate }
+  private func slot(_ id: AnyHashable) -> ContLazySlot {
+    if let slot = byID[id] { return slot }
+    let slot = ContLazySlot(id: id, height: estimate)
+    byID[id] = slot
+    return slot
+  }
 
   /// The average of the heights measured so far; before any, a third of the screen, so the first frame builds a few
   /// views and the next ones follow once their sizes are known (a guess too small would build the whole stack).
   private var estimate: CGFloat {
-    guard !heights.isEmpty else { return max((window?.height ?? 0) / 3, 44) }
-    return heights.values.reduce(0, +) / CGFloat(heights.count)
+    if measuredCount > 0 { return measuredSum / CGFloat(measuredCount) }
+    return ContLazyScheduler.shared.averageHeight ?? max((window?.height ?? 0) / 3, 44)
   }
 
   func setItems(_ ids: [AnyHashable], spacing: CGFloat, parent: ContLazyParent?) {
-    items = ids
+    slots = ids.map(slot)
     self.spacing = spacing
     if self.parent != parent {
       self.parent = parent
       parent?.model?.adopt(self, in: parent!.item)
     }
-    let current = Set(ids)
-    if !built.isSubset(of: current) { built.formIntersection(current) }
-    if flags.count > current.count { flags = flags.filter { current.contains($0.key) } }
+    if byID.count > slots.count {
+      let current = Set(ids)
+      for (id, slot) in byID where !current.contains(id) {
+        if let height = slot.measured { measuredSum -= height; measuredCount -= 1 }
+        if slot.isQueued { ContLazyScheduler.shared.dequeue(self, id) }
+        byID[id] = nil
+      }
+    }
     ContLazyScheduler.shared.register(self)
     plan()
   }
 
   func measured(_ id: AnyHashable, _ height: CGFloat) {
-    let old = heights[id]
-    heights[id] = height
+    guard let slot = byID[id] else { return }
+    let old = slot.measured
+    if let old { measuredSum -= old } else { measuredCount += 1 }
+    measuredSum += height
+    slot.measured = height
+    ContLazyScheduler.shared.measured(height, replacing: old)
     // The views below moved: plan again once this frame's sizes are in.
     guard old.map({ abs($0 - height) >= 1 }) ?? true else { return }
     replanSoon()
@@ -226,17 +250,18 @@ final class ContLazyModel {
   }
 
   func cancel() {
-    queued.removeAll()
+    for slot in slots { slot.isQueued = false }
     ContLazyScheduler.shared.remove(self)
   }
 
   /// A stack inside `item`: it plans again whenever the item's distance to the screen changes.
   fileprivate func adopt(_ child: ContLazyModel, in item: AnyHashable) {
-    children[item, default: []].removeAll { $0.model == nil || $0.model === child }
-    children[item, default: []].append(ContLazyWeak(model: child))
+    let slot = slot(item)
+    slot.children.removeAll { $0.model == nil || $0.model === child }
+    slot.children.append(ContLazyWeak(model: child))
   }
 
-  private func distance(of item: AnyHashable) -> CGFloat { distances[item] ?? 0 }
+  private func distance(of item: AnyHashable) -> CGFloat { byID[item]?.distance ?? 0 }
 
   private func step(_ distance: CGFloat, _ screen: CGFloat) -> Int {
     distance == 0 ? 0 : 1 + Int(distance / (screen / 4))
@@ -260,14 +285,15 @@ final class ContLazyModel {
     let outer = parent.flatMap { parent in parent.model?.distance(of: parent.item) } ?? 0
     let screen = max(window?.height ?? 0, outer > 0 ? 400 : 100)
     let ahead = screen * (scheduler.isResting ? Self.restingAhead : Self.ahead)
-    var now: Set<AnyHashable> = []
-    var changed: [AnyHashable] = []
+    let farDistance = screen * Self.release
+    var now: [ContLazySlot] = []
+    var changed: [ContLazySlot] = []
     var y: CGFloat = 0
     let estimate = self.estimate
-    for id in items {
-      let height = heights[id] ?? estimate
+    for slot in slots {
+      let height = slot.measured ?? estimate
       // A placeholder still at an old guess takes the new one (the scroll height follows).
-      if let flag = flags[id], !flag.isBuilt, abs(flag.height - height) > height / 10 { flag.height = height }
+      if !slot.isBuilt, abs(slot.flag.height - height) > height / 10 { slot.flag.height = height }
       let top = y
       let bottom = y + height
       y = bottom + spacing
@@ -277,71 +303,72 @@ final class ContLazyModel {
         distance = max(own, outer)
       }
       // The stacks inside follow when the item comes on screen, leaves it, or moves a quarter screen nearer or
-      // farther; scroll views of their own don't see the outer scroll, and every 16pt would be too often.
-      if let old = distances[id], children[id] != nil, step(old, screen) != step(distance, screen) {
-        changed.append(id)
+      // farther; scroll views of their own don't see the outer scroll, and every 64pt would be too often.
+      if let old = slot.distance, !slot.children.isEmpty, step(old, screen) != step(distance, screen) {
+        changed.append(slot)
       }
-      distances[id] = distance
+      slot.distance = distance
       if distance == 0 {
-        if !built.contains(id) { now.insert(id) }
-        unqueue(id)
-      } else if distance <= ahead, !built.contains(id) {
-        queue(id, priority: distance, release: false)
-      } else if distance > screen * Self.release, built.contains(id) {
-        queue(id, priority: .greatestFiniteMagnitude, release: true)
+        if !slot.isBuilt { now.append(slot) }
+        unqueue(slot)
+      } else if distance <= ahead, !slot.isBuilt {
+        queue(slot, priority: distance, release: false)
+      } else if distance > farDistance, slot.isBuilt {
+        queue(slot, priority: .greatestFiniteMagnitude, release: true)
       } else {
-        unqueue(id)
+        unqueue(slot)
       }
     }
     if !now.isEmpty { build(now) }
     // The stacks inside items that moved nearer or farther (in scroll views of their own) follow.
-    for id in changed {
-      for child in children[id] ?? [] { child.model?.plan() }
+    for slot in changed {
+      for child in slot.children { child.model?.plan() }
     }
   }
 
-  private func queue(_ id: AnyHashable, priority: CGFloat, release: Bool) {
-    queued.insert(id)
-    ContLazyScheduler.shared.enqueue(self, id, priority: priority, release: release)
+  private func queue(_ slot: ContLazySlot, priority: CGFloat, release: Bool) {
+    slot.isQueued = true
+    ContLazyScheduler.shared.enqueue(self, slot.id, priority: priority, release: release)
   }
 
-  private func unqueue(_ id: AnyHashable) {
-    guard queued.remove(id) != nil else { return }
-    ContLazyScheduler.shared.dequeue(self, id)
+  private func unqueue(_ slot: ContLazySlot) {
+    guard slot.isQueued else { return }
+    slot.isQueued = false
+    ContLazyScheduler.shared.dequeue(self, slot.id)
   }
 
   /// The scheduler's turn for a queued item.
   func perform(_ id: AnyHashable, release: Bool) {
-    queued.remove(id)
-    if release { self.release(id) } else { build([id]) }
+    guard let slot = byID[id] else { return }
+    slot.isQueued = false
+    if release { self.release(slot) } else { build([slot]) }
   }
 
-  private func build(_ ids: Set<AnyHashable>) {
-    let missing = ids.subtracting(built)
+  private func build(_ slots: [ContLazySlot]) {
+    let missing = slots.filter { !$0.isBuilt }
     guard !missing.isEmpty else { return }
     var transaction = Transaction()
     transaction.disablesAnimations = true
-    built.formUnion(missing)
+    for slot in missing { slot.isBuilt = true }
     withTransaction(transaction) {
-      for id in missing { flags[id]?.isBuilt = true }
+      for slot in missing { slot.flag.isBuilt = true }
     }
     // Said again once this update is over: SwiftUI sometimes drops a change made while it builds the page's first
     // frame (in an `onAppear` or `onGeometryChange` action), and the item stays a blank placeholder.
-    Task { [weak self] in
-      guard let self else { return }
+    Task {
       withTransaction(transaction) {
-        for id in missing where self.built.contains(id) { self.flags[id]?.isBuilt = true }
+        for slot in missing where slot.isBuilt { slot.flag.isBuilt = true }
       }
     }
   }
 
-  private func release(_ id: AnyHashable) {
+  private func release(_ slot: ContLazySlot) {
     var transaction = Transaction()
     transaction.disablesAnimations = true
-    built.remove(id)
+    slot.isBuilt = false
     withTransaction(transaction) {
-      flags[id]?.height = height(of: id)
-      flags[id]?.isBuilt = false
+      slot.flag.height = slot.measured ?? estimate
+      slot.flag.isBuilt = false
     }
   }
 }
@@ -377,6 +404,17 @@ final class ContLazyScheduler {
   private var restTask: Task<Void, Never>?
   /// No scroll view has moved for a moment.
   private(set) var isResting = false
+  private var heightSum: CGFloat = 0
+  private var heightCount = 0
+
+  /// The average height of every view measured in any stack: a new stack's first guess, nearer than a fraction of the
+  /// screen (a guess far off changes heights on screen as the views come, which moves the scroll).
+  var averageHeight: CGFloat? { heightCount > 0 ? heightSum / CGFloat(heightCount) : nil }
+
+  func measured(_ height: CGFloat, replacing old: CGFloat?) {
+    if let old { heightSum -= old } else { heightCount += 1 }
+    heightSum += height
+  }
 
   func register(_ model: ContLazyModel) {
     models[ObjectIdentifier(model)] = ContLazyWeak(model: model)
