@@ -234,6 +234,7 @@ private struct ContSystemToolbarAway: ViewModifier {
         }
         .kitHidesSystemTitle()
         .modifier(ContToolbarBackgroundHidden())
+        .background { ContTitlebarClear().frame(width: 0, height: 0).accessibilityHidden(true) }
     #else
       content.toolbar(.hidden, for: .navigationBar)
     #endif
@@ -241,6 +242,27 @@ private struct ContSystemToolbarAway: ViewModifier {
 }
 
 #if os(macOS)
+  /// In a window an app hosts itself (an `NSHostingController`'s: a capture or debug window), SwiftUI's toolbar doesn't
+  /// reach the title bar, so hiding its background does nothing and the title bar's own background drew over the
+  /// kit's bar (a blank or faded bar). There, with the content under the title bar, the title bar goes transparent.
+  private struct ContTitlebarClear: NSViewRepresentable {
+    func makeNSView(context: Context) -> ContTitlebarClearView { ContTitlebarClearView() }
+    func updateNSView(_ view: ContTitlebarClearView, context: Context) {}
+  }
+
+  final class ContTitlebarClearView: NSView {
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      // After this update: a scene window gets its toolbar (the kit's invisible item) as the view lands.
+      DispatchQueue.main.async { [weak self] in
+        guard let window = self?.window, window.toolbar == nil, window.styleMask.contains(.fullSizeContentView),
+          window.styleMask.contains(.titled), !window.titlebarAppearsTransparent
+        else { return }
+        window.titlebarAppearsTransparent = true
+      }
+    }
+  }
+
   private struct ContToolbarBackgroundHidden: ViewModifier {
     func body(content: Content) -> some View {
       if #available(macOS 15.0, *) {
