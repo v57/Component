@@ -102,3 +102,30 @@ final class Box: @unchecked Sendable {
   binding.picks("pg").wrappedValue = false
   #expect(box.value == "my")
 }
+
+#if canImport(AppKit)
+  import AppKit
+
+  /// On the Mac a view's context menu catcher lies over its inner views' catchers: a secondary click goes to the
+  /// innermost under it (the smallest; on a tie, as when a modifier lands on each row of a view, the one drawn under).
+  @MainActor @Test func innermostContextMenuWins() {
+    let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 400, height: 400), styleMask: [], backing: .buffered, defer: true)
+    let root = NSView(frame: window.contentView!.bounds)
+    window.contentView = root
+    func catcher(_ frame: CGRect) -> KitContextClickView {
+      let view = KitContextClickView(frame: frame)
+      view.onEvent = { _, _ in }
+      root.addSubview(view)
+      return view
+    }
+    let row = catcher(CGRect(x: 20, y: 20, width: 200, height: 40))
+    let folder = catcher(CGRect(x: 0, y: 0, width: 400, height: 200))
+    let sameAsRow = catcher(CGRect(x: 20, y: 20, width: 200, height: 40))
+    let all = [row, folder, sameAsRow]
+    // Over the row: the row's own menu, not the folder's over it; of the two on the row, the one drawn under.
+    #expect(folder.innermost(at: CGPoint(x: 50, y: 30), among: all) === row)
+    #expect(sameAsRow.innermost(at: CGPoint(x: 50, y: 30), among: all) === row)
+    // Outside the row: the folder's.
+    #expect(folder.innermost(at: CGPoint(x: 300, y: 150), among: all) === folder)
+  }
+#endif

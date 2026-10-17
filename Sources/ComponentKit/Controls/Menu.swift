@@ -1326,11 +1326,14 @@ struct KitMenuOverlay<Content: View>: View {
         MainActor.assumeIsolated { self?.checkAway() }
       }
       let center = NotificationCenter.default
-      let names: [(Notification.Name, AnyObject?)] = [
-        (NSApplication.didResignActiveNotification, nil), (NSWindow.didResignKeyNotification, window),
+      var names: [(Notification.Name, AnyObject?)] = [
         (NSWindow.didMoveNotification, window), (NSWindow.didResizeNotification, window),
         (NSWindow.willCloseNotification, window),
       ]
+      // Focus leaving closes it, as a menu, when it had focus: a menu opened in an app or window in the background (a
+      // capture, an automation) stays until a click or a key closes it.
+      if NSApp.isActive { names.append((NSApplication.didResignActiveNotification, nil)) }
+      if window.isKeyWindow { names.append((NSWindow.didResignKeyNotification, window)) }
       for (name, object) in names {
         observers.append(
           center.addObserver(forName: name, object: object, queue: .main) { [weak self] _ in
@@ -1429,12 +1432,16 @@ struct KitMenuOverlay<Content: View>: View {
       guard let event = NSApp.currentEvent else { return nil }
       let secondary =
         event.type == .rightMouseDown || (event.type == .leftMouseDown && event.modifierFlags.contains(.control))
-      guard secondary, onEvent != nil, super.hitTest(point) != nil, let window else { return nil }
-      let location = event.locationInWindow
+      guard secondary, onEvent != nil, super.hitTest(point) != nil, window != nil else { return nil }
+      return innermost(at: event.locationInWindow, among: Self.all.allObjects)
+    }
+
+    /// The catcher a secondary click at `location` (in the window) goes to: the smallest under it, this one or one
+    /// of `catchers`, and on a tie the one drawn under.
+    func innermost(at location: CGPoint, among catchers: [KitContextClickView]) -> KitContextClickView {
       var best: KitContextClickView = self
-      for view in Self.all.allObjects where view !== self && view.window === window && !view.isHiddenOrHasHiddenAncestor {
-        let local = view.convert(location, from: nil)
-        guard view.bounds.contains(local) else { continue }
+      for view in catchers where view !== self && view.window === window && !view.isHiddenOrHasHiddenAncestor {
+        guard view.onEvent != nil, view.bounds.contains(view.convert(location, from: nil)) else { continue }
         let area = view.bounds.width * view.bounds.height
         let bestArea = best.bounds.width * best.bounds.height
         if area < bestArea - 0.5 || (abs(area - bestArea) <= 0.5 && view.isBelow(best)) { best = view }

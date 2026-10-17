@@ -506,7 +506,7 @@ struct MenusPage: View {
             "Split button", note: "The action, and a menu of the others",
             code: "KitSplitButton(\"Translate\", systemImage: \"character.bubble\") { translate() } menu: {\n  Button(\"Missing Only\") { … }\n}"
           ) {
-            HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 10) {
               KitSplitButton("Translate", systemImage: "character.bubble") { picked = "Translate" } menu: {
                 Button("Translate Missing Only", systemImage: "text.badge.plus") { picked = "Missing only" }
                 Divider()
