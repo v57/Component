@@ -109,9 +109,11 @@ struct CatalogPage<Content: View>: View {
   }
 
   private func scrollView(width: CGFloat) -> some View {
-    ScrollView {
+    let padding: CGFloat = idiom == .phone ? 16 : 28
+    return ScrollView {
       stack
-        .padding(idiom == .phone ? 16 : 28)
+        .environment(\.pageWidth, max(0, min(width, maxWidth) - 2 * padding))
+        .padding(padding)
         // `--offset <points>` (DEBUG) opens the page scrolled down, for iPhone captures.
         .padding(.top, -(model?.pageOffset ?? 0))
         .frame(maxWidth: maxWidth, alignment: .leading)
@@ -121,6 +123,13 @@ struct CatalogPage<Content: View>: View {
     // A capture opened at a section or an offset needs the whole page built to find it.
     .kitLazyLoading(model?.section == nil && (model?.pageOffset ?? 0) == 0)
   }
+}
+
+extension EnvironmentValues {
+  /// The width the views here are about to be laid out at, as far as the page knows: a view that picks its layout by
+  /// its width (a grid's columns, a window frame's side scroll, a scenario's panes) picks from it before it is
+  /// measured, rather than building one layout for the first frame and another for the next.
+  @Entry var pageWidth: CGFloat?
 }
 
 /// A titled group of specimens on a page.
@@ -184,6 +193,7 @@ struct Specimen<Content: View>: View {
   }
 
   @Environment(\.kitIdiom) private var idiom
+  @Environment(\.pageWidth) private var pageWidth
 
   var body: some View {
     // An iPhone's width has no room for a wide stage margin.
@@ -204,6 +214,7 @@ struct Specimen<Content: View>: View {
           content.frame(maxWidth: .infinity, alignment: .leading).padding(padding).background(ground.style, in: shape)
         }
       }
+      .environment(\.pageWidth, pageWidth.map { max(0, $0 - 2 * padding) })
       .overlay(shape.strokeBorder(.kitSeparator, lineWidth: 1))
       if let code { CodeSnippet(code) }
     }
@@ -237,17 +248,21 @@ struct SpecimenGrid<Content: View>: View {
   var minWidth: CGFloat = 300
   @ViewBuilder var content: Content
   @State private var width: CGFloat?
+  @Environment(\.pageWidth) private var pageWidth
 
   var body: some View {
     let layout = SpecimenGridLayout(minWidth: minWidth)
     if #available(macOS 15, iOS 18, *) {
       Group(subviews: content) { subviews in
-        let columns = layout.columns(width ?? minWidth)
+        // Until measured, the page's width: a guess of one column would build its rows again a frame later.
+        let width = width ?? pageWidth ?? minWidth
+        let columns = layout.columns(width)
         KitLazyStack(alignment: .leading, spacing: layout.rowSpacing) {
           ForEach(Array(stride(from: 0, to: subviews.count, by: columns)), id: \.self) { start in
             layout { ForEach(subviews[start..<min(start + columns, subviews.count)]) { $0 } }
           }
         }
+        .environment(\.pageWidth, layout.columnWidth(width))
       }
       .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     } else {
@@ -289,6 +304,11 @@ struct SpecimenGridLayout: Layout {
     max(1, Int((width + spacing) / (minWidth + spacing)))
   }
 
+  func columnWidth(_ width: CGFloat) -> CGFloat {
+    let count = columns(width)
+    return max(0, (width - spacing * CGFloat(count - 1)) / CGFloat(count))
+  }
+
   private func frames(_ width: CGFloat?, _ subviews: Subviews, cache: inout Cache) -> [CGRect] {
     let width = width ?? minWidth
     if cache.width == width { return cache.frames }
@@ -300,7 +320,7 @@ struct SpecimenGridLayout: Layout {
   /// Each specimen in its cell, top leading; a row as tall as its tallest.
   private func frames(_ width: CGFloat, _ subviews: Subviews) -> [CGRect] {
     let count = columns(width)
-    let column = max(0, (width - spacing * CGFloat(count - 1)) / CGFloat(count))
+    let column = columnWidth(width)
     var frames: [CGRect] = []
     var y: CGFloat = 0
     for start in stride(from: 0, to: subviews.count, by: count) {
@@ -486,11 +506,13 @@ struct WindowFrame<Content: View>: View {
   var minWidth: CGFloat = 0
   @ViewBuilder var content: Content
   @State private var width: CGFloat?
+  @Environment(\.pageWidth) private var pageWidth
 
   var body: some View {
     Group {
-      // Until measured it scrolls, which never widens the page.
-      if (width ?? 0) < minWidth {
+      // Until measured, the page's width decides (none: it scrolls, which never widens the page), so the content is
+      // built once and not again a frame later.
+      if (width ?? pageWidth ?? 0) < minWidth {
         SideScroll { window.frame(width: minWidth) }
       } else {
         window

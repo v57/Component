@@ -740,6 +740,9 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
               .fontWeight(isSelected ? .medium : .regular)
               .foregroundStyle(!isActive && !isSelected ? AnyShapeStyle(.kitSecondary) : AnyShapeStyle(.kitLabel))
               .lineLimit(1)
+              // As the selection glides, the old and new rows' titles cross-fade between weights: interpolated, they
+              // were drawn on the CPU every frame of the glide (a dropped frame or two after each selection).
+              .contentTransition(.opacity)
             if let accessoryView {
               accessoryView
                 .kitFont(.caption)
