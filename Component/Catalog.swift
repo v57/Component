@@ -348,15 +348,17 @@ enum CatalogToolbar {
       )
       .help("Appearance")
     } menu: {
-      Picker("Appearance", selection: $model.appearance) {
-        ForEach(Appearance.allCases, id: \.self) { Label($0.title, systemImage: $0.systemImage).tag($0) }
+      KitSubmenu("Appearance", systemImage: "circle.lefthalf.filled") {
+        KitMenuOptions(
+          selection: $model.appearance,
+          segments: Appearance.allCases.map { KitSegment($0.title, value: $0, systemImage: $0.systemImage) })
       }
     }
     ToolbarSlot(priority: 1) {
       AccentPicker(selection: $model.accent)
     } menu: {
-      Picker("Accent", selection: $model.accent) {
-        ForEach(Accent.allCases) { Text($0.title).tag($0) }
+      KitSubmenu("Accent", systemImage: "paintpalette") {
+        KitMenuOptions(selection: $model.accent, options: Accent.allCases.map { ($0.title, $0) })
       }
     }
     ToolbarSlot(priority: 2) {
@@ -370,11 +372,10 @@ enum CatalogToolbar {
       )
       .help("Idiom")
     } menu: {
-      Picker("Idiom", selection: $model.idiom) {
-        Text("Platform").tag(KitIdiom?.none)
-        Text("Mac").tag(KitIdiom?.some(.mac))
-        Text("iPad").tag(KitIdiom?.some(.pad))
-        Text("iPhone").tag(KitIdiom?.some(.phone))
+      KitSubmenu("Idiom", systemImage: "laptopcomputer.and.iphone") {
+        KitMenuOptions(
+          selection: $model.idiom,
+          options: [("Platform", KitIdiom?.none), ("Mac", .mac), ("iPad", .pad), ("iPhone", .phone)])
       }
     }
     ToolbarSlot(priority: 0) {

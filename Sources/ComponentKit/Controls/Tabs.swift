@@ -167,7 +167,7 @@ private struct CtlTabExtras<ID: Hashable>: ViewModifier {
   func body(content: Content) -> some View {
     Group {
       if let menu {
-        content.contextMenu { menu(id) }
+        content.kitContextMenu { menu(id) }
       } else {
         content
       }

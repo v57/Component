@@ -263,27 +263,27 @@ struct ContToolLabelStyle: LabelStyle {
   }
 }
 
-/// The trailing "…" of a compacted toolbar: a menu of what didn't fit, each item with its icon and label.
+/// The trailing "…" of a compacted toolbar: the kit's menu of what didn't fit, each item with its icon and label.
+/// Its rows are kit menu rows: `Button`, `Toggle`, `Divider`, `KitMenuOptions` (for a picker), `KitSubmenu`.
 ///
 /// ```swift
 /// ToolbarOverflow {
 ///   Button("Stash", systemImage: "tray.and.arrow.down") { … }
+///   KitSubmenu("Appearance", systemImage: "circle.lefthalf.filled") { KitMenuOptions(selection: $appearance, options: …) }
 /// }
 /// ```
 public struct ToolbarOverflow<Content: View>: View {
-  @ViewBuilder var content: Content
+  var content: Content
+  @State private var isOpen = false
 
   public init(@ViewBuilder content: () -> Content) { self.content = content() }
 
   public var body: some View {
     ToolGroup(iconOnly: true) {
-      Menu {
-        content
-          .labelStyle(.titleAndIcon)
-      } label: {
-        Label("More", systemImage: "ellipsis")
-      }
-      .accessibilityLabel("More")
+      Button("More", systemImage: "ellipsis") { isOpen.toggle() }
+        .kitToolOn(isOpen)
+        .kitMenu(isPresented: $isOpen) { content }
+        .accessibilityLabel("More")
     }
   }
 }

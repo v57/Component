@@ -8,13 +8,15 @@ import SwiftUI
 // MARK: - Slots
 
 /// One item of a `KitToolbar`: any view (a `ToolGroup`, a `KitSegmented`, a primary button), its priority (lower folds
-/// first) and its form inside the trailing "…" menu once it folds. A slot without a menu never folds.
+/// first) and its form inside the trailing "…" menu once it folds. A slot without a menu never folds. The "…" is the
+/// kit's menu, so a slot's menu is kit menu rows: `Button`, `Toggle`, `Divider`, `KitMenuOptions` where a picker was,
+/// `KitSubmenu`, `KitMenuSection`.
 ///
 /// ```swift
 /// ToolbarSlot(priority: 1) {
 ///   KitSegmented(selection: $mode, segments: modes)
 /// } menu: {
-///   Picker("Mode", selection: $mode) { … }
+///   KitSubmenu("Mode", systemImage: "rectangle.split.2x1") { KitMenuOptions(selection: $mode, segments: modes) }
 /// }
 /// ```
 public struct ToolbarSlot {

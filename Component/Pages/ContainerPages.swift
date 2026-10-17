@@ -552,7 +552,9 @@ struct ToolbarPage: View {
                 } menu: {
                   Button("Fetch", systemImage: "arrow.down.circle") { … }
                 }
-                ToolbarSlot(priority: 0) { KitSegmented(selection: $mode, segments: modes) } menu: { Picker("Mode", …) }
+                ToolbarSlot(priority: 0) { KitSegmented(selection: $mode, segments: modes) } menu: {
+                  KitSubmenu("Mode", systemImage: "rectangle.split.2x1") { KitMenuOptions(selection: $mode, segments: modes) }
+                }
                 Button("Commit", systemImage: "checkmark") { … }.buttonStyle(.kitPrimary)   // never folds
               }
               .kitSidebarToggle(columnVisibility: $columns)   // Show Sidebar leads the bar while the sidebar is hidden

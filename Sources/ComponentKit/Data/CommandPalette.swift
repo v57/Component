@@ -471,9 +471,6 @@ public struct PaletteMenu<Content: View>: View {
   }
 
   public var body: some View {
-    Menu {
-      content
-    } label: {
       HStack(spacing: 5) {
         if let systemImage { Image(systemName: systemImage).font(.system(size: 10, weight: .semibold)) }
         Text(title).font(.system(size: 12, weight: .medium)).lineLimit(1)
@@ -484,12 +481,9 @@ public struct PaletteMenu<Content: View>: View {
       .frame(height: 26)
       .background { SurfaceShape(surface: .raised, cornerRadius: KitMetrics.radiusSmall) }
       .contentShape(Rectangle())
-    }
-    .menuStyle(.button)
-    .buttonStyle(.plain)
-    .menuIndicator(.hidden)
-    .fixedSize()
-    .accessibilityLabel(title)
+      .fixedSize()
+      .kitMenu { content }
+      .accessibilityLabel(title)
   }
 }
 

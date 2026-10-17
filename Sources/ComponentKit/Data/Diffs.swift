@@ -338,7 +338,7 @@ public struct HunkCard: View {
       if inside { hovered = line.id } else if hovered == line.id { hovered = nil }
     }
     .onTapGesture { toggle(line) }
-    .contextMenu { copyMenu(line) }
+    .kitContextMenu { copyMenu(line) }
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(isSelected ? .isSelected : [])
   }
@@ -453,7 +453,7 @@ public struct HunkCard: View {
         if inside { hovered = line.id } else if hovered == line.id { hovered = nil }
       }
       .onTapGesture { toggle(line) }
-      .contextMenu { copyMenu(line) }
+      .kitContextMenu { copyMenu(line) }
     } else {
       EmptySideStripes().frame(maxWidth: .infinity, minHeight: 20)
     }

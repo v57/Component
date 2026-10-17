@@ -169,12 +169,21 @@ public struct InspectorRow<Value: View>: View {
     .contentShape(Rectangle())
     .onHover { isHovered = $0 }
     .animation(.kitFast, value: isHovered)
-    .contextMenu {
-      if let copyText {
-        Button("Copy", systemImage: "doc.on.doc") { ContPlatform.copy(copyText) }
-      }
-    }
+    .modifier(InspectorCopyMenu(text: copyText))
     .accessibilityElement(children: .combine)
+  }
+}
+
+/// A copyable row's context menu.
+private struct InspectorCopyMenu: ViewModifier {
+  let text: String?
+
+  func body(content: Content) -> some View {
+    if let text {
+      content.kitContextMenu { Button("Copy", systemImage: "doc.on.doc") { ContPlatform.copy(text) } }
+    } else {
+      content
+    }
   }
 }
 

@@ -128,26 +128,13 @@ extension Never: KitOption {
   public var title: String { switch self {} }
 }
 
-/// The scope at the start of a search: a raised pop-up that opens the system menu of scopes.
+/// The scope at the start of a search: a raised pop-up that opens the kit's menu of scopes.
 struct CtlScopeMenu<Scope: KitOption>: View {
   @Binding var selection: Scope
   let scopes: [Scope]
   let metrics: CtlSearchMetrics
 
   var body: some View {
-    Menu {
-      Picker("Scope", selection: $selection) {
-        ForEach(scopes, id: \.self) { scope in
-          if let systemImage = scope.systemImage {
-            Label(scope.title, systemImage: systemImage).tag(scope)
-          } else {
-            Text(scope.title).tag(scope)
-          }
-        }
-      }
-      .pickerStyle(.inline)
-      .labelsHidden()
-    } label: {
       HStack(spacing: 4) {
         Text(selection.title)
           .kitFont(.callout)
@@ -162,12 +149,10 @@ struct CtlScopeMenu<Scope: KitOption>: View {
       .padding(.trailing, metrics.scope * 0.27)
       .frame(height: metrics.scope)
       .background { CtlRaisedCard(cornerRadius: metrics.scope * 0.27) }
-    }
-    .menuStyle(.button)
-    .buttonStyle(.plain)
-    .menuIndicator(.hidden)
-    .fixedSize()
-    .accessibilityLabel("Scope")
+      .contentShape(Rectangle())
+      .fixedSize()
+      .kitMenu { KitMenuOptions(selection: $selection, options: scopes) }
+      .accessibilityLabel("Scope")
     .accessibilityValue(selection.title)
   }
 }

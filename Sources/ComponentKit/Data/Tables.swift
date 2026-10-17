@@ -641,7 +641,7 @@ private struct GridRowMenu<ID: Hashable>: ViewModifier {
 
   func body(content: Content) -> some View {
     if let menu {
-      content.contextMenu { menu(ids) }
+      content.kitContextMenu { menu(ids) }
     } else {
       content
     }
