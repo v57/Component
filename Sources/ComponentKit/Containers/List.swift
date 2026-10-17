@@ -74,9 +74,13 @@ public struct KitList<Content: View>: View {
   }
 
   public var body: some View {
+    ScrollViewReader { proxy in list(proxy) }
+  }
+
+  private func list(_ proxy: ScrollViewProxy) -> some View {
     let selection = getSelection()
     let inset = ContMetrics.sidebarInset(idiom)
-    List {
+    return List {
       Group { content }
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
@@ -90,7 +94,10 @@ public struct KitList<Content: View>: View {
     .focusable()
     .focusEffectDisabled()
     .focused($focused)
-    .modifier(ContRowKeyboard(current: selection, select: setSelection, onReturn: returnAction, onPrimary: primary))
+    .modifier(
+      ContRowKeyboard(
+        current: selection, select: setSelection, onReturn: returnAction, onPrimary: primary,
+        scroll: { value, anchor in proxy.scrollTo(ContRowScrollID(value: value), anchor: anchor) }))
     .simultaneousGesture(TapGesture().onEnded { focused = true })
     .environment(
       \.contSidebarSelection,

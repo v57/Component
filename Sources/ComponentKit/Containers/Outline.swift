@@ -198,12 +198,20 @@ enum ContRowNav {
   }
 }
 
-/// Arrow keys and Return over the rows of a `KitSidebar` or `KitList`.
+/// A row's scroll id, so the arrow keys can scroll the selection into view without touching the app's own ids.
+struct ContRowScrollID: Hashable {
+  var value: AnyHashable?
+}
+
+/// Arrow keys and Return over the rows of a `KitSidebar` or `KitList`. The selection scrolls into view as it moves;
+/// at the last row built so far (the rows past it are lazy), the list scrolls on to build them and the move goes on.
 struct ContRowKeyboard: ViewModifier {
   let current: AnyHashable?
   let select: @MainActor (AnyHashable) -> Void
   let onReturn: (@MainActor () -> Void)?
   var onPrimary: (@MainActor (AnyHashable) -> Void)? = nil
+  /// Scrolls the row with this value into view: to `anchor`, or as little as it takes (`nil`).
+  var scroll: (@MainActor (AnyHashable, UnitPoint?) -> Void)? = nil
   @State private var rows: [ContRowNavItem] = []
 
   func body(content: Content) -> some View {
@@ -216,12 +224,39 @@ struct ContRowKeyboard: ViewModifier {
       }
   }
 
+  private var plainRows: [(value: AnyHashable, indent: Int, isOpen: Bool?)] {
+    rows.map { (value: $0.value, indent: $0.indent, isOpen: $0.isOpen) }
+  }
+
+  /// ↑/↓ past the last row built: the list scrolls the selected row to its far edge, the rows past it build, and
+  /// the move goes on once they're in.
+  private func moveOn(by offset: Int) -> KeyPress.Result {
+    guard let current, let scroll else { return .ignored }
+    scroll(current, offset > 0 ? .top : .bottom)
+    let rows = $rows
+    let select = select
+    Task { @MainActor in
+      for _ in 0..<6 {
+        try? await Task.sleep(for: .milliseconds(34))
+        let plain = rows.wrappedValue.map { (value: $0.value, indent: $0.indent, isOpen: $0.isOpen) }
+        if case .select(let value) = ContRowNav.move(current, by: offset, in: plain) {
+          select(value)
+          scroll(value, nil)
+          return
+        }
+      }
+    }
+    return .handled
+  }
+
   private func handle(_ key: KeyEquivalent) -> KeyPress.Result {
-    let plain = rows.map { (value: $0.value, indent: $0.indent, isOpen: $0.isOpen) }
+    let plain = plainRows
     let step: ContRowNav.Step
     switch key {
-    case .upArrow: step = ContRowNav.move(current, by: -1, in: plain)
-    case .downArrow: step = ContRowNav.move(current, by: 1, in: plain)
+    case .upArrow, .downArrow:
+      let offset = key == .upArrow ? -1 : 1
+      step = ContRowNav.move(current, by: offset, in: plain)
+      if step == .none { return moveOn(by: offset) }
     case .leftArrow: step = ContRowNav.left(current, in: plain)
     case .rightArrow: step = ContRowNav.right(current, in: plain)
     case .return:
@@ -241,7 +276,9 @@ struct ContRowKeyboard: ViewModifier {
     default: return .ignored
     }
     switch step {
-    case .select(let value): select(value)
+    case .select(let value):
+      select(value)
+      scroll?(value, nil)
     case .expand(let value), .collapse(let value):
       guard let isExpanded = rows.first(where: { $0.value == value })?.disclosure?.isExpanded else { return .ignored }
       withKitAnimation { isExpanded.wrappedValue = step == .expand(value) }

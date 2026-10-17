@@ -148,12 +148,16 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   }
 
   public var body: some View {
+    ScrollViewReader { proxy in sidebar(proxy) }
+  }
+
+  private func sidebar(_ proxy: ScrollViewProxy) -> some View {
     let selection = getSelection()
     let inset = ContMetrics.sidebarInset(idiom)
     // The rows run on under the title bar and the bottom bar (both safe area), so the system's scroll edge
     // blurs them there; the bar's cards carry their own shadows over the rows, and a fade of the sidebar's ground
     // softens both edges.
-    ScrollView {
+    return ScrollView {
       // The sections' rows are lazy stacks of their own, so a card nearing the screen comes a few rows at a time.
       KitLazyStack(alignment: .leading, spacing: style == .plain ? 8 : ContMetrics.sectionSpacing(idiom)) {
         content
@@ -166,7 +170,10 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     .focusable()
     .focusEffectDisabled()
     .focused($focused)
-    .modifier(ContRowKeyboard(current: selection, select: setSelection, onReturn: returnAction, onPrimary: primary))
+    .modifier(
+      ContRowKeyboard(
+        current: selection, select: setSelection, onReturn: returnAction, onPrimary: primary,
+        scroll: { value, anchor in proxy.scrollTo(ContRowScrollID(value: value), anchor: anchor) }))
     // A click on a row focuses the sidebar, like a click into a `List`.
     .simultaneousGesture(TapGesture().onEnded { focused = true })
     // No system scroll edge under the title bar; the bottom bar as an inset.
@@ -811,6 +818,8 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
       }
     }
     .modifier(ContDisclosureAccessibility(disclosure: disclosure))
+    // What the arrow keys scroll to as they move the selection.
+    .id(ContRowScrollID(value: rowValue))
   }
 
   @ViewBuilder
