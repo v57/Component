@@ -87,15 +87,25 @@ extension ToolbarContent {
   /// ```swift
   /// ToolbarItemGroup(placement: .primaryAction) { … }.kitToolbarItem()
   /// ```
-  @ToolbarContentBuilder
   public func kitToolbarItem() -> some ToolbarContent {
+    SharedBackgroundHidden(content: self)
+  }
+}
+
+/// `kitToolbarItem()`'s content. Internal so an app's optimizer can't see through it to the `if #available`'s
+/// type: that type's descriptor is private to this module, and apps targeting below macOS 26 failed to link in
+/// Release.
+struct SharedBackgroundHidden<Content: ToolbarContent>: ToolbarContent {
+  var content: Content
+
+  var body: some ToolbarContent {
     #if os(visionOS)
-      self
+      content
     #else
       if #available(macOS 26.0, iOS 26.0, *) {
-        sharedBackgroundVisibility(.hidden)
+        content.sharedBackgroundVisibility(.hidden)
       } else {
-        self
+        content
       }
     #endif
   }
