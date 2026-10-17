@@ -322,6 +322,15 @@ struct SidebarPage: View {
                       withKitAnimation { notes.removeAll { $0 == index } }
                     }
                   }
+                  // A note drags out as its title, and has a context menu: on touch, hold for the menu, hold and
+                  // drag to drag.
+                  .draggable(sampleNotes[index % sampleNotes.count].0)
+                  .kitContextMenu {
+                    Button("Open", systemImage: "arrow.up.right.square") { opened = sampleNotes[index % sampleNotes.count].0 }
+                    Button("Delete", systemImage: "trash", role: .destructive) {
+                      withKitAnimation { notes.removeAll { $0 == index } }
+                    }
+                  }
               }
             }
             .primaryAction { (index: Int) in opened = sampleNotes[index % sampleNotes.count].0 }
@@ -333,6 +342,10 @@ struct SidebarPage: View {
               KitSection("Today", meta: ["\(todayNotes.count) notes"], systemImage: "sun.max", hue: .orange) {
                 ForEach(todayNotes, id: \.self) { index in
                   SidebarRow(value: index, sampleNotes[index % sampleNotes.count].0, systemImage: "doc.text")
+                    .draggable(sampleNotes[index % sampleNotes.count].0)
+                    .kitContextMenu {
+                      Button("Open", systemImage: "arrow.up.right.square") { opened = sampleNotes[index % sampleNotes.count].0 }
+                    }
                     .swipeActions {
                       Button("Delete", systemImage: "trash", role: .destructive) {
                         withKitAnimation { todayNotes.removeAll { $0 == index } }

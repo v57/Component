@@ -1576,7 +1576,9 @@ struct KitMenuOverlay<Content: View>: View {
       longPress = nil
       guard let wanted else { return }
       let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(pressed(_:)))
-      recognizer.minimumPressDuration = 0.5
+      // Ahead of a drag interaction's lift (about 0.45 s in a list), so this press decides that the two share the
+      // touch (`shouldRecognizeSimultaneouslyWith`) rather than the lift's own delegate.
+      recognizer.minimumPressDuration = 0.4
       recognizer.delegate = self
       wanted.addGestureRecognizer(recognizer)
       longPress = recognizer
@@ -1601,7 +1603,11 @@ struct KitMenuOverlay<Content: View>: View {
           onLongPress?(.changed, point)
         }
       case .ended: onLongPress?(.ended, point)
-      case .cancelled, .failed: onLongPress?(isLifted ? .dragged : .cancelled, point)
+      case .cancelled, .failed:
+        // Cancelled as a drag began (the finger moved off with a lifted view): the menu goes. A list's drag
+        // interaction also cancels the press as its lift settles, with the finger still: the menu stays.
+        let moved = hypot(point.x - start.x, point.y - start.y) > 8
+        onLongPress?(isLifted && moved ? .dragged : .cancelled, point)
       default: break
       }
       if recognizer.state == .ended || recognizer.state == .cancelled || recognizer.state == .failed {
