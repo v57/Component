@@ -1246,6 +1246,14 @@ struct FeedbackPage: View {
               .frame(height: 240)
               .environment(\.kitWindowIsActive, false)
           }
+          Specimen("Waiting on work", ground: .window, code: "EmptyState(systemImage: \"globe\", title: \"Connecting\", message: \"…\", status: .working)") {
+            EmptyState(systemImage: "globe", title: "Connecting", message: "Opening the tunnel to atlas-web-1…", status: .working)
+              .frame(height: 240)
+          }
+          Specimen("In a short pane", note: "It asks for no height: the message shortens, the window keeps its content.", ground: .window, code: "EmptyState(systemImage: \"tray\", title: \"No Stashes\", message: \"…\")") {
+            EmptyState(systemImage: "tray", title: "No Stashes", message: "Stash your changes to set them aside and come back to them later, on this branch or another.")
+              .frame(width: 220, height: 170)
+          }
         }
       }
       SpecimenSection("A toast with an action", note: "A follow-up beside Undo: Push after a commit, Publish after a release.") {

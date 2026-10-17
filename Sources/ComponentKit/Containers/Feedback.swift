@@ -250,39 +250,41 @@ public struct ToastView: View {
 
 // MARK: - Empty state
 
-/// What a pane will show and how to get there: a soft accent tile, the title, one line, and the action.
+/// What a pane will show and how to get there: a soft accent tile, the title, one line, and the action. A pane that
+/// waits on work (loading, connecting) passes `status`: the tile becomes a live icon carrying it, as everywhere in
+/// the kit (never a spinner).
 ///
 /// ```swift
 /// EmptyState(systemImage: "tray", title: "No Stashes", message: "Stash your changes to set them aside.") {
 ///   Button("Stash Changes") { … }.buttonStyle(.kitPrimary)
 /// }
+/// EmptyState(systemImage: "globe", title: "Connecting", message: "Opening the tunnel to atlas…", status: .working)
 /// ```
+///
+/// It takes whatever room its pane has and asks for none: in a pane shorter than it, the message shortens (a pane
+/// root's minimum height is the window's, so a message held at its full height would cut the window's content).
 public struct EmptyState<Actions: View>: View {
   var systemImage: String
   var title: String
   var message: String?
+  var status: WorkStatus
   @ViewBuilder var actions: Actions
   @Environment(\.kitWindowIsActive) private var isActive
 
   public init(
-    systemImage: String, title: String, message: String? = nil, @ViewBuilder actions: () -> Actions
+    systemImage: String, title: String, message: String? = nil, status: WorkStatus = .idle,
+    @ViewBuilder actions: () -> Actions
   ) {
     self.systemImage = systemImage
     self.title = title
     self.message = message
+    self.status = status
     self.actions = actions()
   }
 
   public var body: some View {
     VStack(spacing: 6) {
-      Image(systemName: systemImage)
-        .font(.system(size: 24, weight: .medium))
-        .foregroundStyle(isActive ? AnyShapeStyle(Hue.accent.fill) : AnyShapeStyle(.kitSecondary))
-        .frame(width: 52, height: 52)
-        .background {
-          RoundedRectangle(cornerRadius: KitMetrics.radiusXL, style: .continuous)
-            .fill(isActive ? AnyShapeStyle(Hue.accent.soft(0.14)) : AnyShapeStyle(.kitFill))
-        }
+      tile
         .padding(.bottom, 6)
         .accessibilityHidden(true)
       Text(title)
@@ -294,7 +296,6 @@ public struct EmptyState<Actions: View>: View {
           .foregroundStyle(.kitSecondary)
           .multilineTextAlignment(.center)
           .frame(maxWidth: 300)
-          .fixedSize(horizontal: false, vertical: true)
       }
       if Actions.self != EmptyView.self {
         HStack(spacing: 8) { actions }
@@ -303,13 +304,28 @@ public struct EmptyState<Actions: View>: View {
       }
     }
     .padding(24)
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+  }
+
+  @ViewBuilder private var tile: some View {
+    if status != .idle {
+      LiveIcon(systemImage: systemImage, status: status, size: 52)
+    } else {
+      Image(systemName: systemImage)
+        .font(.system(size: 24, weight: .medium))
+        .foregroundStyle(isActive ? AnyShapeStyle(Hue.accent.fill) : AnyShapeStyle(.kitSecondary))
+        .frame(width: 52, height: 52)
+        .background {
+          RoundedRectangle(cornerRadius: KitMetrics.radiusXL, style: .continuous)
+            .fill(isActive ? AnyShapeStyle(Hue.accent.soft(0.14)) : AnyShapeStyle(.kitFill))
+        }
+    }
   }
 }
 
 extension EmptyState where Actions == EmptyView {
-  public init(systemImage: String, title: String, message: String? = nil) {
-    self.init(systemImage: systemImage, title: title, message: message) { EmptyView() }
+  public init(systemImage: String, title: String, message: String? = nil, status: WorkStatus = .idle) {
+    self.init(systemImage: systemImage, title: title, message: message, status: status) { EmptyView() }
   }
 }
 
