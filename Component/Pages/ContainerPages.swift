@@ -343,6 +343,12 @@ struct SidebarPage: View {
               KitSection("Earlier", meta: ["2 notes"], systemImage: "clock", hue: .gray) {
                 SidebarRow(value: 20, "Reading", systemImage: "doc.text")
                 SidebarRow(value: 21, "Groceries", systemImage: "doc.text")
+                // A row narrower than the card: its slice still spans it.
+                Text("Older notes are on iCloud")
+                  .kitFont(.caption)
+                  .foregroundStyle(.kitSecondary)
+                  .padding(.horizontal, 10)
+                  .padding(.vertical, 6)
               }
             }
             .kitPane(.secondary)

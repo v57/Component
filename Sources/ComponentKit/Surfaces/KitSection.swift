@@ -111,6 +111,7 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
       // The list puts 1pt above and below each row: the slices run over it, and the cards keep the sidebar's gap.
       let gap = (ContMetrics.sectionSpacing(idiom) - 2) / 2
       header
+        .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .onTapGesture(perform: toggle)
         .modifier(SectionHeaderAccessibility(title: title, expanded: expanded, toggle: toggle))
@@ -123,6 +124,9 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
         ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
           row
             .environment(\.contInList, false)
+            // Each slice spans the card: a row narrower than the list (a fixed-width view, a short label) would
+            // draw a narrower slice, a notch in the card.
+            .frame(maxWidth: .infinity, alignment: .leading)
             .modifier(CardSliceModifier(slice: KitCardSlice(index + 1, of: count + 1), cornerRadius: radius, bleed: 1))
             .padding(.bottom, index == count - 1 ? gap : 0)
         }
