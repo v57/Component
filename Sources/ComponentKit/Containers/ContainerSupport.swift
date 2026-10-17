@@ -135,11 +135,16 @@ private struct ContEdgeEffectHidden: ViewModifier {
   let edge: VerticalEdge
 
   func body(content: Content) -> some View {
-    if #available(macOS 26.0, iOS 26.0, *) {
-      content.scrollEdgeEffectHidden(true, for: edge == .top ? .top : .bottom)
-    } else {
+    #if os(visionOS)
+      // No scroll edge effect there.
       content
-    }
+    #else
+      if #available(macOS 26.0, iOS 26.0, *) {
+        content.scrollEdgeEffectHidden(true, for: edge == .top ? .top : .bottom)
+      } else {
+        content
+      }
+    #endif
   }
 }
 

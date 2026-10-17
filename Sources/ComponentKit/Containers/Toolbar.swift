@@ -89,11 +89,15 @@ extension ToolbarContent {
   /// ```
   @ToolbarContentBuilder
   public func kitToolbarItem() -> some ToolbarContent {
-    if #available(macOS 26.0, iOS 26.0, *) {
-      sharedBackgroundVisibility(.hidden)
-    } else {
+    #if os(visionOS)
       self
-    }
+    #else
+      if #available(macOS 26.0, iOS 26.0, *) {
+        sharedBackgroundVisibility(.hidden)
+      } else {
+        self
+      }
+    #endif
   }
 }
 
