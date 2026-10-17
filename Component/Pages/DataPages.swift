@@ -439,6 +439,22 @@ struct RunBlocksPage: View {
           }
         }
       }
+      SpecimenSection(
+        "A long run list",
+        note: "A day of runs, each with its output: the blocks are built as they near the screen, a few a frame."
+      ) {
+        Specimen("RunBlocks { ForEach(runs) { … } }", ground: .window, code: "RunBlocks { ForEach(runs) { run in RunBlock(run.title, command: run.command, …) } }") {
+          RunBlocks {
+            ForEach(0..<60, id: \.self) { index in
+              RunBlock(
+                index % 3 == 0 ? "Test" : "Build", command: index % 3 == 0 ? "swift test" : "swift build",
+                id: "day-\(index)", systemImage: index % 3 == 0 ? "testtube.2" : "hammer",
+                status: index % 7 == 3 ? .failed("exit 1") : .done, duration: "\(4 + index % 20) s",
+                output: index % 7 == 3 ? sampleTestLog : sampleBuildLog)
+            }
+          }
+        }
+      }
     }
   }
 }

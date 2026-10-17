@@ -3,7 +3,8 @@ import SwiftUI
 /// Output nobody types into (Shell's actions, Code's build, test and run console) as a stack of run blocks on a
 /// field-filled track. Each `RunBlock` is headed by its live icon, the action and command, an exit chip and bare
 /// figures, with Stop while it runs; a run that passed folds to its header, a failed one keeps its output open, and
-/// the run you pick rises as the raised card. Interactive terminals stay a plain stream; this is only for runs.
+/// the run you pick rises as the raised card. Interactive terminals stay a plain stream; this is only for runs. In a
+/// scroll view the blocks are built as they near the screen (`KitLazyStack`).
 ///
 /// ```swift
 /// RunBlocks(selection: $selectedRun) {
@@ -24,7 +25,8 @@ public struct RunBlocks<Content: View>: View {
   }
 
   public var body: some View {
-    VStack(alignment: .leading, spacing: 2) { content }
+    // Lazy: a long run list (each block up to 200 output lines) builds the blocks near the screen, a few a frame.
+    KitLazyStack(alignment: .leading, spacing: 2) { content }
       .padding(4)
       .background(.kitField, in: RoundedRectangle(cornerRadius: KitMetrics.radiusCard, style: .continuous))
       .environment(\.dataRunSelection, selection)
