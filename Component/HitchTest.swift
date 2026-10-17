@@ -24,6 +24,9 @@ import SwiftUI
     /// Scroll with scroll-wheel events, as a trackpad does, instead of setting the offset (the Mac; `--hitch-direct`
     /// sets it). The scroll view and SwiftUI move the content themselves, so a jump is what a user would see.
     var events = true
+    /// Keeps a pointer over the page while scrolling, as a user's is (the Mac; `--hitch-hover`): a mouse-moved event
+    /// at the window's middle each frame, without moving the real cursor. Hover hit-tests every built view.
+    var hover = false
 
     init?(_ arguments: [String]) {
       func value(after flag: String) -> String? {
@@ -41,6 +44,7 @@ import SwiftUI
       if let speed = value(after: "--hitch-speed").flatMap(Double.init), speed > 0 { self.speed = speed }
       if let settle = value(after: "--hitch-settle").flatMap(Double.init), settle >= 0 { self.settle = settle }
       if arguments.contains("--hitch-direct") { events = false }
+      if arguments.contains("--hitch-hover") { hover = true }
     }
   }
 
@@ -129,11 +133,13 @@ import SwiftUI
     var startedAt: CFTimeInterval = 0
     var line = 0
     var notes: [String] = []
-    /// Times the offset moved between frames without the test moving it (content above changed height, or the
-    /// scroll view anchored it): what a user sees as the page jumping or bouncing back.
+    /// Times the offset moved back against the scroll between two frames (SwiftUI setting it again): what a user
+    /// sees as the page bouncing back.
     var jumps = 0
     var jumpTotal: CGFloat = 0
     var worstJump: CGFloat = 0
+    var lastActual: CGFloat = 0
+    var hasLast = false
 
     init(_ view: HitchScrollView, number: Int, vertical: Bool, isSidebar: Bool) {
       self.view = view
@@ -223,6 +229,7 @@ import SwiftUI
       let gap = last > 0 ? now - last : 0
       last = now
       if frame > 0, gap > frame * 1.5 { hitch(gap: gap, frame: frame, at: now) }
+      if options.hover, case .scrolling = stage, let window { HitchPlatform.hover(window) }
       advance(now: now, dt: gap)
     }
 
@@ -386,21 +393,24 @@ import SwiftUI
         return finishScroller(now)
       }
       scroller.stats.frames += 1
-      // Where the view is now against where the last frame put it: a jump is the page moving on its own. Scrolling
-      // goes on from there, as a user's scroll would.
+      // A bounce is the page moving against the scroll between two frames (SwiftUI setting the offset back), not
+      // a step that lands a frame late (that is a hitch). Scrolling goes on from where the view is, as a user's would.
       let actual = view.hitchOffset(vertical: scroller.vertical)
-      let jump = actual - scroller.position
-      if abs(jump) > 3 {
+      let forward: CGFloat = scroller.towardEnd == view.hitchEndsAtUpper(vertical: scroller.vertical) ? 1 : -1
+      let moved = actual - scroller.lastActual
+      if scroller.hasLast, moved * forward < -3 {
         scroller.jumps += 1
-        scroller.jumpTotal += abs(jump)
-        scroller.worstJump = max(scroller.worstJump, abs(jump))
+        scroller.jumpTotal += abs(moved)
+        scroller.worstJump = max(scroller.worstJump, abs(moved))
         if scroller.jumps <= 40, let block {
           block.lines.append(
-            "    jump \(scroller.label) \(ms(jump)) pt at offset \(ms(scroller.position)), content "
+            "    bounce \(scroller.label) \(ms(moved)) pt at offset \(ms(scroller.lastActual)), content "
               + "\(describe(view.hitchContentSize))")
         }
-        scroller.position = actual
       }
+      scroller.lastActual = actual
+      scroller.hasLast = true
+      if abs(actual - scroller.position) > 3 { scroller.position = actual }
       let limits = view.hitchLimits(vertical: scroller.vertical)
       let end = view.hitchEndsAtUpper(vertical: scroller.vertical) ? limits.upper : limits.lower
       let target = scroller.towardEnd ? end : scroller.start
@@ -432,7 +442,7 @@ import SwiftUI
           let line =
             "  scroller \(scroller.label) \(type(of: view)) at \(describe(view.hitchFrame)) content "
             + "\(describe(view.hitchContentSize)) depth \(view.hitchDepth): \(scroller.stats.scrollSummary), "
-            + "jumps \(scroller.jumps) (\(ms(scroller.jumpTotal)) pt, worst \(ms(scroller.worstJump)) pt), "
+            + "bounces \(scroller.jumps) (\(ms(scroller.jumpTotal)) pt, worst \(ms(scroller.worstJump)) pt), "
             + "\(seconds(now - scroller.startedAt)) s\(notes)"
           if scroller.line < block.lines.count { block.lines[scroller.line] = line } else { block.lines.append(line) }
         }
@@ -534,6 +544,8 @@ import SwiftUI
       }
 
       static func finish() {}
+
+      static func hover(_ window: UIWindow) {}
     }
 
     extension UIScrollView {
@@ -667,6 +679,18 @@ import SwiftUI
 
       static func finish() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { NSApp.terminate(nil) }
+      }
+
+      /// A mouse-moved event in the middle of the window's page side (right of the sidebar).
+      static func hover(_ window: NSWindow) {
+        guard let content = window.contentView else { return }
+        let point = content.convert(CGPoint(x: content.bounds.width * 0.6, y: content.bounds.height * 0.5), to: nil)
+        guard
+          let event = NSEvent.mouseEvent(
+            with: .mouseMoved, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 0, pressure: 0)
+        else { return }
+        window.sendEvent(event)
       }
     }
 
