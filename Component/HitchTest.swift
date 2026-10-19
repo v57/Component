@@ -1,6 +1,6 @@
 import SwiftUI
 
-#if DEBUG
+#if DEBUG && (os(macOS) || os(iOS))
   import QuartzCore
   #if os(iOS)
     import UIKit

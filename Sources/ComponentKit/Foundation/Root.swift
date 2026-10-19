@@ -28,7 +28,7 @@ public enum KitIdiom: Hashable, Sendable {
   case mac, pad, phone
 
   public static var current: KitIdiom {
-    #if os(macOS)
+    #if os(macOS) || os(Windows) || os(Linux)
       .mac
     #else
       .pad
@@ -92,7 +92,7 @@ private struct ContColorScheme: ViewModifier {
 struct ComponentKitRoot: ViewModifier {
   var accent: Color?
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  #if os(macOS)
+  #if os(macOS) || os(Windows) || os(Linux)
     @Environment(\.controlActiveState) private var activeState
     private var isActive: Bool { activeState != .inactive }
   #else
@@ -123,7 +123,7 @@ struct ComponentKitRoot: ViewModifier {
   }
 
   private var idiom: KitIdiom {
-    #if os(macOS)
+    #if os(macOS) || os(Windows) || os(Linux)
       .mac
     #else
       sizeClass == .compact ? .phone : .pad
