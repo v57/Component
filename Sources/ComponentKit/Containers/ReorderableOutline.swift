@@ -26,8 +26,10 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
   let row: (Element) -> RowContent
   @State private var ownExpanded: Set<Element.ID> = []
   @State private var list = UUID()
-  /// The folders the drag opened, which close again when it moves back above them.
+  /// The folders the drag opened, which close again when it moves back above them, and where the drag image's
+  /// middle was as the drag's place went above each.
   @State private var springOpened: [Element.ID] = []
+  @State private var passedAbove: [Element.ID: CGFloat] = [:]
   @Environment(\.contRowIndent) private var baseIndent
   @Environment(\.contReorderState) private var shared
   @Environment(\.kitIdiom) private var idiom
@@ -53,7 +55,8 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
     let state = shared ?? .app
     let levels = ContReorderLevels(
       range: { rows.levels(for: $0, at: $1) }, home: { $0.first.map { rows.entries[$0].depth } ?? 0 },
-      receiver: { rows.receiver(of: $0, at: $1, level: $2) }, step: ContMetrics.rowIndent(idiom))
+      receiver: { rows.receiver(of: $0, at: $1, level: $2) },
+      moved: { springClose(above: $0, in: open, state: state) }, step: ContMetrics.rowIndent(idiom))
     ForEach(rows.entries) { entry in
       let id = entry.id
       row(entry.element)
@@ -82,9 +85,13 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
           guard !Task.isCancelled, state.isInto(list, at: entry.index) else { return }
           springOpen(entry.id, in: open, state: state)
         }
-        // Once for the outline (a ForEach's modifiers go to each row): the first row watches the drag's place.
-        .onChange(of: entry.index == 0 ? state.target : nil) { springClose(in: open, state: state) }
-        .onChange(of: entry.index == 0 && state.list == nil) { _, ended in if ended { springOpened = [] } }
+        // Once for the outline (a ForEach's modifiers go to each row).
+        .onChange(of: entry.index == 0 && state.list == nil) { _, ended in
+          if ended {
+            springOpened = []
+            passedAbove = [:]
+          }
+        }
     }
   }
 
@@ -100,9 +107,11 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
     }
   }
 
-  /// Closes the folders the drag opened once its place is above them (the last opened first, as they nest).
-  private func springClose(in open: Binding<Set<Element.ID>>, state: ContReorderState) {
-    guard state.list == AnyHashable(list), let target = state.target else { return }
+  /// Closes the folders the drag opened once the drag's place is above them and the drag image has gone on up a slot's
+  /// length (the last opened first, as they nest), so a folder doesn't close as the drag only grazes it. `true` when
+  /// one closed.
+  private func springClose(above middle: CGFloat, in open: Binding<Set<Element.ID>>, state: ContReorderState) -> Bool {
+    var closed = false
     for id in springOpened.reversed() {
       let rows = ContOutlineRows.flatten(items, children: children, expanded: open.wrappedValue)
       guard let entry = rows.entries.first(where: { $0.id == id }) else {
@@ -110,13 +119,24 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
         continue
       }
       let place = (0..<entry.index).filter { !state.indices.contains($0) }.count
-      guard target <= place, !state.isInto(list, at: entry.index) else { continue }
+      guard let target = state.target, target <= place else {
+        if passedAbove[id] != nil { passedAbove[id] = nil }
+        continue
+      }
+      guard let passed = passedAbove[id] else {
+        passedAbove[id] = middle
+        continue
+      }
+      guard middle < passed - state.slotLength else { continue }
       withAnimation(.kit) {
         open.wrappedValue.remove(id)
         springOpened.removeAll { $0 == id }
+        passedAbove[id] = nil
         state.removeRows(list, (entry.index + 1)..<entry.end)
       }
+      closed = true
     }
+    return closed
   }
 }
 

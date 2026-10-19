@@ -200,6 +200,9 @@ final class ContReorderState {
     let length = collapsedLength ?? spans[index]?.length ?? 0
     if grab == nil, let span = spans[index] { grab = min(max(along - span.start, 0), length) }
     let middle = along - (grab ?? length / 2) + length / 2
+    rowCount = count
+    // A tree may close a folder it opened under the drag: the rows have changed, and the next update places the drag.
+    if let moved = levels?.moved, moved(middle) { return }
     let (target, into) = ContReorder.place(
       from: self.target ?? ContReorder.home(dragged: indices, anchor: index),
       pointer: middle, spans: spans, dragged: indices, count: count, draggedLength: collapsedLength, nests: nests)
@@ -265,17 +268,24 @@ final class ContReorderState {
   func retargetForTesting(target: Int?) { self.target = target }
 
   /// `count` rows were added to `list` at `position` during the drag (a folder opened under it): the drag's indices
-  /// move past them, and the dragged rows keep their place among the others unless it was after them.
+  /// move past them, and the dragged rows keep their place among the others unless it was after them. The rows slide
+  /// at once to where they go once the new rows are laid out (worked out from the rows on screen), so call it in the
+  /// animation that shows the rows.
   func insertRows(_ list: AnyHashable, at position: Int, count: Int) {
     guard self.list == list, count > 0 else { return }
+    let spans = ContReorder.inserting(count, at: position, into: spans(of: list, count: rowCount))
     let before = target.map { place in (0..<position).filter { !indices.contains($0) }.count < place } ?? false
     shift(from: position, by: count)
     if before, let target { self.target = target + count }
+    rowCount += count
+    reslide(spans)
   }
 
-  /// The rows `range` of `list` went during the drag (a folder closed under it).
+  /// The rows `range` of `list` went during the drag (a folder closed under it); like `insertRows`, the rows slide at
+  /// once to where they go.
   func removeRows(_ list: AnyHashable, _ range: Range<Int>) {
     guard self.list == list, !range.isEmpty, !indices.contains(where: range.contains) else { return }
+    let spans = ContReorder.removing(range, from: spans(of: list, count: rowCount))
     if let target {
       let othersBefore = (0..<range.upperBound).filter { !indices.contains($0) }.count
       if target >= othersBefore { self.target = target - range.count }
@@ -283,6 +293,24 @@ final class ContReorderState {
     }
     if let into, range.contains(into) { self.into = nil }
     shift(from: range.upperBound, by: -range.count)
+    rowCount -= range.count
+    reslide(spans)
+  }
+
+  /// How long the dragged rows' slot is, along the axis.
+  var slotLength: CGFloat {
+    if let collapsedLength { return collapsedLength }
+    guard let list, let index, let frame = rows[list]?[index]?.frame else { return 0 }
+    return axis == .vertical ? frame.height : frame.width
+  }
+
+  /// The list's row count, as the last update of the pointer gave it.
+  @ObservationIgnored private var rowCount = 0
+
+  private func reslide(_ spans: [Int: ContReorder.Span]) {
+    guard let target else { return }
+    offsets = ContReorder.offsets(
+      spans: spans, count: rowCount, dragged: indices, target: target, draggedLength: collapsedLength)
   }
 
   private func shift(from position: Int, by count: Int) {
@@ -358,6 +386,9 @@ struct ContReorderLevels {
   var home: (_ dragged: IndexSet) -> Int
   /// The row the drop goes into at `target` and `level` (`nil`: the top level).
   var receiver: (_ dragged: IndexSet, _ target: Int, _ level: Int) -> Int?
+  /// Called as the drag image's middle moves (along the axis), before the drag is placed; `true`: the rows changed
+  /// (a folder closed), so the update places nothing.
+  var moved: ((_ middle: CGFloat) -> Bool)? = nil
   /// How far apart levels are drawn.
   var step: CGFloat
 }
@@ -428,6 +459,46 @@ enum ContReorder {
       break
     }
     return (target, nil)
+  }
+
+  /// Where the rows will sit once `count` rows of the same size as the row before them come in at `position`.
+  static func inserting(_ count: Int, at position: Int, into spans: [Int: Span]) -> [Int: Span] {
+    let gap = gap(in: spans)
+    let length = spans[position - 1]?.length ?? spans.values.first?.length ?? 0
+    let start = spans[position - 1].map { $0.start + $0.length + gap } ?? spans[position]?.start ?? 0
+    let moved = CGFloat(count) * (length + gap)
+    var result: [Int: Span] = [:]
+    for (index, span) in spans {
+      result[index < position ? index : index + count] =
+        index < position ? span : Span(start: span.start + moved, length: span.length)
+    }
+    for row in 0..<count { result[position + row] = Span(start: start + CGFloat(row) * (length + gap), length: length) }
+    return result
+  }
+
+  /// Where the rows will sit once the rows `range` have gone.
+  static func removing(_ range: Range<Int>, from spans: [Int: Span]) -> [Int: Span] {
+    let gap = gap(in: spans)
+    let removed: CGFloat
+    if let first = spans[range.lowerBound], let next = spans[range.upperBound] {
+      removed = next.start - first.start
+    } else {
+      removed = range.map { (spans[$0]?.length ?? spans.values.first?.length ?? 0) + gap }.reduce(0, +)
+    }
+    var result: [Int: Span] = [:]
+    for (index, span) in spans where !range.contains(index) {
+      result[index < range.lowerBound ? index : index - range.count] =
+        index < range.lowerBound ? span : Span(start: span.start - removed, length: span.length)
+    }
+    return result
+  }
+
+  /// The gap between neighbouring rows (2pt when no two neighbours are known).
+  private static func gap(in spans: [Int: Span]) -> CGFloat {
+    for (index, span) in spans.sorted(by: { $0.key < $1.key }) {
+      if let next = spans[index + 1] { return next.start - span.start - span.length }
+    }
+    return 2
   }
 
   /// The rows' order with the dragged ones moved to `target` (their place among the others): old indices, new order.

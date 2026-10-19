@@ -525,3 +525,32 @@ private let tree = [
   #expect(rows.receiver(of: [3], at: 3, level: 1) == 0)
   #expect(rows.receiver(of: [3], at: 3, level: 0) == nil)
 }
+
+@Test func reorderPredictsRowsComingAndGoing() {
+  let rows = spans([20, 20, 20])  // 0…20, 22…42, 44…64
+  // Two rows open after row 0: they take its size, and rows 1 and 2 (now 3 and 4) move down by two rows.
+  let opened = ContReorder.inserting(2, at: 1, into: rows)
+  #expect(opened[1] == .init(start: 22, length: 20) && opened[2] == .init(start: 44, length: 20))
+  #expect(opened[3] == .init(start: 66, length: 20) && opened[4] == .init(start: 88, length: 20))
+  // And close again.
+  #expect(ContReorder.removing(1..<3, from: opened) == rows)
+}
+
+@MainActor @Test func reorderStateSlidesAtOnceAsAFolderOpens() {
+  let state = ContReorderState()
+  for (index, y) in [0.0, 22, 44].enumerated() {
+    let geometry = ContRowGeometry()
+    geometry.frame = CGRect(x: 0, y: y, width: 100, height: 20)
+    state.register(geometry, in: "tree", at: index)
+  }
+  // Row 2 dragged up to just after row 0 (a folder), which opens two rows.
+  state.start("tree", at: 2, axis: .vertical, collapsedLength: 20)
+  state.retarget("tree", count: 3, pointer: CGPoint(x: 10, y: 54))
+  state.retarget("tree", count: 3, pointer: CGPoint(x: 10, y: 31))
+  #expect(state.target == 1)
+  state.insertRows("tree", at: 1, count: 2)
+  // The slot stays under the folder: the two new rows and row 1 (now 3) slide down below it at once.
+  #expect(state.index == 4 && state.target == 1)
+  #expect(state.offsets[1] == 22 && state.offsets[2] == 22 && state.offsets[3] == 22 && state.offsets[4] == -66)
+  state.end()
+}
