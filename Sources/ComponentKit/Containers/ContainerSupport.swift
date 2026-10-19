@@ -119,6 +119,19 @@ extension EnvironmentValues {
 }
 
 extension View {
+  /// Marks this view as a bar that content scrolls on under (a path bar or tabs floating over an editor): its cards,
+  /// tracks and wells draw opaque over the window's ground, as the toolbar's tool groups do, so the content doesn't
+  /// show through them. The kit's toolbar, sidebar bars and status bar do this themselves.
+  ///
+  /// ```swift
+  /// PathBar().padding(4).kitSurface(.card).kitBar()
+  /// ```
+  public func kitBar() -> some View {
+    environment(\.contBarGround, KitColor.window)
+  }
+}
+
+extension View {
   /// A bar at `edge` the content scrolls under (the toolbar, the sidebar's bottom bar): a plain safe-area inset on
   /// every OS, with the system's scroll edge there off (macOS 26 and iOS 26), so newer systems look like the older
   /// ones. The bar brings its own `ContEdgeFade`.

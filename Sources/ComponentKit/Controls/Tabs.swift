@@ -41,9 +41,10 @@ public struct KitTab<ID: Hashable>: Identifiable {
   }
 }
 
-/// The kit's tab strip (editor tabs, query tabs): tabs on the panel colour, the selected one a raised card that
-/// glides to the new pick, a close button on the selected and the hovered tab, a dot on an edited one, and an
-/// optional + at the end. It scrolls sideways when the tabs don't fit.
+/// The kit's tab strip (editor tabs, query tabs): the tabs on a card as wide as they are, like a toolbar's tool
+/// group, opaque over content that runs on under it, 8pt in from the sides and above what follows; the selected tab a
+/// raised card that glides to the new pick, a close button on the selected and the hovered tab, a dot on an edited
+/// one, and an optional + at the end. It scrolls sideways inside the card when the tabs don't fit.
 /// Keyboard: Tab focuses a tab (a solid ring), ← → move, Space selects. VoiceOver: each tab is a selectable button
 /// with a Close action.
 ///
@@ -59,7 +60,6 @@ public struct KitTabStrip<ID: Hashable>: View {
   var onMove: ((IndexSet, Int) -> Void)?
   var menu: ((ID) -> AnyView)?
   var onDoubleClick: ((ID) -> Void)?
-  var showsBackground = true
   @Environment(\.kitIdiom) private var idiom
   @FocusState private var focus: ID?
   @Namespace private var namespace
@@ -110,31 +110,18 @@ public struct KitTabStrip<ID: Hashable>: View {
     return strip
   }
 
-  /// `.hidden` drops the panel band and its bottom hairline: the tabs sit on whatever is under the strip (an editor
-  /// that runs on under it), the selected one still a raised card.
-  ///
-  /// ```swift
-  /// KitTabStrip(tabs: tabs, selection: $current).tabStripBackground(.hidden)
-  /// ```
-  public func tabStripBackground(_ visibility: Visibility) -> Self {
-    var strip = self
-    strip.showsBackground = visibility != .hidden
-    return strip
-  }
-
   public var body: some View {
+    let radius = ContMetrics.toolGroupRadius(idiom)
     ViewThatFits(in: .horizontal) {
       row
       ScrollView(.horizontal, showsIndicators: false) { row }
     }
-    .frame(height: idiom.isTouch ? 48 : 40)
+    .frame(height: ContMetrics.toolGroupHeight(idiom))
+    .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+    .kitSurface(.card, cornerRadius: radius)
+    .kitBar()
     .frame(maxWidth: .infinity, alignment: .leading)
-    // Only behind the strip: by default a background runs on into the safe area, which put a panel band behind the
-    // kit's toolbar when the strip sits under it.
-    .background(showsBackground ? AnyShapeStyle(.kitPanel) : AnyShapeStyle(.clear), ignoresSafeAreaEdges: [])
-    .overlay(alignment: .bottom) {
-      if showsBackground { Rectangle().fill(.kitSeparator).frame(height: 1) }
-    }
+    .padding([.horizontal, .bottom], KitMetrics.gutter)
     .focusEffectDisabled()
     .onKeyPress(.leftArrow) { moveFocus(-1) }
     .onKeyPress(.rightArrow) { moveFocus(1) }
@@ -161,7 +148,7 @@ public struct KitTabStrip<ID: Hashable>: View {
           .help("New Tab")
       }
     }
-    .padding(.horizontal, idiom.isTouch ? 10 : 8)
+    .padding(.horizontal, idiom.isTouch ? 4 : 2)
     .fixedSize(horizontal: true, vertical: false)
     .frame(maxHeight: .infinity)
   }
