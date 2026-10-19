@@ -530,6 +530,9 @@ extension [SampleNode] {
     if !insertNode(node, into: parent, at: index) { insertNode(node, into: from, at: place) }
   }
 
+  /// Takes the node named `name` out of the tree (to move it into another).
+  mutating func takeNode(_ name: String) -> SampleNode? { removeNode(name)?.0 }
+
   private mutating func removeNode(_ name: String) -> (SampleNode, String?, Int)? {
     if let place = firstIndex(where: { $0.name == name }) { return (remove(at: place), nil, place) }
     for k in indices {
@@ -541,7 +544,7 @@ extension [SampleNode] {
   }
 
   @discardableResult
-  private mutating func insertNode(_ node: SampleNode, into parent: String?, at index: Int) -> Bool {
+  mutating func insertNode(_ node: SampleNode, into parent: String?, at index: Int) -> Bool {
     guard let parent else {
       insert(node, at: Swift.min(index, count))
       return true
@@ -560,6 +563,13 @@ extension [SampleNode] {
     return false
   }
 }
+
+/// A second tree for dragging between outlines.
+let sampleDocsTree = [
+  SampleNode(name: "Guides", children: [SampleNode(name: "Getting Started.md"), SampleNode(name: "Sync.md")]),
+  SampleNode(name: "Reference", children: [SampleNode(name: "API.md")]),
+  SampleNode(name: "README.md"),
+]
 
 let sampleTree = [
   SampleNode(name: "Package.swift"),
@@ -1392,6 +1402,8 @@ struct DragDropPage: View {
   @State private var handHosts = sampleHostGroups
   @State private var folders = sampleTree
   @State private var openFolders: Set<String> = ["Sources", "AtlasCore"]
+  @State private var docs = sampleDocsTree
+  @State private var openDocs: Set<String> = ["Guides"]
 
   var body: some View {
     CatalogPage(page: .dragDrop) {
@@ -1588,31 +1600,63 @@ struct DragDropPage: View {
       }
       SpecimenSection(
         "Folders",
-        note: "Drag a file or a folder: between two rows it joins their folder, over the middle of a folder row it goes inside (at the end); held there, a closed folder opens, and closes again when you move back above it. After a folder's last row, drag left or right to land inside it or beside it: the folder it goes into lights up, and its name shows above the drag once it's not the folder you started in. A folder carries its open rows, as one row."
+        note: "Drag a file or a folder: between two rows it joins their folder, over the middle of a folder row it goes inside (at the end); held there, a closed folder opens, and closes again when you move back above it. After a folder's last row, drag left or right to land inside it or beside it: the folder it goes into lights up, and its name shows above the drag once it's not the folder you started in. A folder carries its open rows, as one row. Drag between the two trees: the item moves across as it enters the other."
       ) {
-        Specimen(
-          "ReorderableOutline", ground: .sidebar,
-          code: """
-            ReorderableOutline(files, children: \\.children, expanded: $open, move: { id, parent, index in
-              files.moveNode(id, into: parent, at: index)
-            }) { file in
-              SidebarRow(file.name, systemImage: file.children == nil ? "swift" : "folder")
+        Columns(minWidth: 560, spacing: 16) {
+          Specimen(
+            "ReorderableOutline", ground: .sidebar,
+            code: """
+              ReorderableOutline(files, children: \\.children, expanded: $open, list: "atlas", move: { id, parent, index in
+                files.moveNode(id, into: parent, at: index)
+              }) { file in
+                SidebarRow(file.name, systemImage: file.children == nil ? "swift" : "folder")
+              }
+              .dropTitle(root: "Atlas") { $0.name }
+              """
+          ) {
+            VStack(alignment: .leading, spacing: 2) {
+              ReorderableOutline(
+                folders, children: \.children, expanded: $openFolders, list: "atlas",
+                move: { id, parent, index in folders.moveNode(id, into: parent, at: index) }
+              ) { node in
+                SidebarRow(
+                  node.name, systemImage: node.children == nil ? "swift" : "folder",
+                  hue: node.children == nil ? .orange : .blue)
+              }
+              .dropTitle(root: "Atlas") { $0.name }
+              .receivesItems { id, _, parent, index in
+                if let node = docs.takeNode(id) { folders.insertNode(node, into: parent, at: index) }
+              }
             }
-            .dropTitle(root: "Atlas") { $0.name }
-            """
-        ) {
-          VStack(alignment: .leading, spacing: 2) {
-            ReorderableOutline(
-              folders, children: \.children, expanded: $openFolders,
-              move: { id, parent, index in folders.moveNode(id, into: parent, at: index) }
-            ) { node in
-              SidebarRow(
-                node.name, systemImage: node.children == nil ? "swift" : "folder",
-                hue: node.children == nil ? .orange : .blue)
-            }
-            .dropTitle(root: "Atlas") { $0.name }
+            .frame(minHeight: 400, alignment: .top)
+            .frame(width: 260)
           }
-          .frame(width: 260)
+          Specimen(
+            "receivesItems", ground: .sidebar,
+            code: """
+              ReorderableOutline(docs, children: \\.children, list: "docs", move: …) { … }
+                .receivesItems { id, from, parent, index in
+                  docs.insertNode(files.takeNode(id), into: parent, at: index)
+                }
+              """
+          ) {
+            VStack(alignment: .leading, spacing: 2) {
+              ReorderableOutline(
+                docs, children: \.children, expanded: $openDocs, list: "docs",
+                move: { id, parent, index in docs.moveNode(id, into: parent, at: index) }
+              ) { node in
+                SidebarRow(
+                  node.name, systemImage: node.children == nil ? "doc.text" : "folder",
+                  hue: node.children == nil ? .gray : .blue)
+              }
+              .dropTitle(root: "Docs") { $0.name }
+              .receivesItems { id, _, parent, index in
+                if let node = folders.takeNode(id) { docs.insertNode(node, into: parent, at: index) }
+              }
+            }
+            .frame(minHeight: 400, alignment: .top)
+            .frame(width: 260)
+          }
         }
       }
     }

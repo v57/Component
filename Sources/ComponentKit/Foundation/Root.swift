@@ -103,6 +103,8 @@ struct ComponentKitRoot: ViewModifier {
 
   func body(content: Content) -> some View {
     content
+      // A row drag's destination, named above the drag image over the whole window.
+      .modifier(ContDropHintOverlay())
       .environment(\.kitWindowIsActive, isActive)
       .environment(\.kitIdiom, idiom)
       .modifier(OptionalAccent(accent: accent))

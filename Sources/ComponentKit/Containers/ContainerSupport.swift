@@ -496,6 +496,15 @@ enum ContPlatform {
     #endif
   }
 
+  /// Whether the platform has a pointer to read (`pointerInWindow`): the Mac.
+  static var hasPointer: Bool {
+    #if canImport(AppKit)
+      true
+    #else
+      false
+    #endif
+  }
+
   /// The pointer in the coordinates of the window under it (SwiftUI's global ones: from the window's top left); `nil`
   /// on touch, where only a drop target's updates place a drag.
   static var pointerInWindow: CGPoint? {
@@ -507,6 +516,15 @@ enum ContPlatform {
       return CGPoint(x: mouse.x - window.frame.minX, y: window.frame.maxY - mouse.y)
     #else
       nil
+    #endif
+  }
+
+  /// Whether no mouse button is down (a drag has ended); always false on touch, where a drag's end can't be read so.
+  static var isPointerUp: Bool {
+    #if canImport(AppKit)
+      NSEvent.pressedMouseButtons == 0
+    #else
+      false
     #endif
   }
 

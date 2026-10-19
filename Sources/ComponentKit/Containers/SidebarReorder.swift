@@ -27,6 +27,8 @@ final class ContReorderState {
 
   /// The list the dragged row is in, and its index there.
   private(set) var list: AnyHashable?
+  /// What the dragged row shows, when its list says (`ReorderableOutline`'s item id): a list it moves into reads it.
+  @ObservationIgnored private(set) var item: AnyHashable?
   private(set) var index: Int?
   /// Every dragged row's index: the row alone, or the rows dragged with it (a multi-row drag).
   private(set) var indices = IndexSet()
@@ -139,14 +141,37 @@ final class ContReorderState {
   /// Starts a drag from its source (see `begin`); `collapsedLength`: the dragged row is a group that counts as its
   /// first row, this long.
   func start(
-    _ list: AnyHashable, at index: Int, with group: IndexSet? = nil, axis: Axis, collapsedLength: CGFloat? = nil
+    _ list: AnyHashable, at index: Int, with group: IndexSet? = nil, axis: Axis, collapsedLength: CGFloat? = nil,
+    item: AnyHashable? = nil
   ) {
     drags += 1
     self.axis = axis
     self.collapsedLength = collapsedLength
+    self.item = item
     // At once: the drag image takes the row's place as the drag starts.
     isMoving = !KitIdiom.current.isTouch
     begin(list, at: index, with: group)
+  }
+
+  /// Names the drop's destination from now on (`ContReorderLevels.title`), though it's the folder the rows are in.
+  func armHint() { hintArmed = true }
+
+  /// Whether the dragged rows count as one (a group or a folder with its open rows), so they may move to another list.
+  var movesAsOne: Bool { collapsedLength != nil }
+
+  /// The dragged row moved into another list, so its drag source (and the session's end) is gone: on the Mac, once
+  /// the button is up and no drop has landed a moment later (dropped outside any list, or cancelled), the drag ends.
+  func sourceLeft() {
+    let drag = drags
+    Task { @MainActor [weak self] in
+      while let self, self.drags == drag, self.list != nil {
+        try? await Task.sleep(for: .milliseconds(200))
+        guard ContPlatform.isPointerUp else { continue }
+        try? await Task.sleep(for: .milliseconds(1500))
+        if self.drags == drag, self.list != nil, !self.hasLanded { withAnimation(.kit) { self.end() } }
+        return
+      }
+    }
   }
 
   /// After a drop: the row stays the slot while the drag image lands on it, and sits back in as the session ends
@@ -883,6 +908,8 @@ struct ContReorderRow: ViewModifier {
   var nest: ((IndexSet, Int) -> Void)? = nil
   /// The list is a tree drawn flat: the drop's level.
   var levels: ContReorderLevels? = nil
+  /// What the row shows, for a list the drag moves into (`ContReorderState.item`).
+  var item: AnyHashable? = nil
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.contOuterReorder) private var outer
   @State private var isTargeted = false
@@ -907,8 +934,7 @@ struct ContReorderRow: ViewModifier {
       .environment(\.contOuterReorder, ContOuterReorder(delegate))
       .kitDropTarget(isTargeted, cornerRadius: ContMetrics.rowRadius(idiom))
       .modifier(
-        ContDraggedRowSlot(
-          list: list, index: index, axis: axis, collapses: collapses, state: state, geometry: geometry))
+        ContDraggedRowSlot(list: list, index: index, axis: axis, collapses: collapses, state: state))
       .modifier(ContRowDragSource(begin: begin, exportURL: exportURL, generation: drags, preview: preview(content)))
       .modifier(ContDragSessionEnd(state: state, ended: { drags += 1 }))
       // Outside the slide: the target stays where the row is laid out, so the rows under the drag cover the list, and
@@ -923,15 +949,17 @@ struct ContReorderRow: ViewModifier {
       .onChange(of: index) { state.register(geometry, in: list, at: index) }
       .onChange(of: list) { state.register(geometry, in: list, at: index) }
       .onDisappear { state.unregister(geometry) }
-      // Above the rows after it: the slot draws where the drop goes on top of them.
-      .zIndex(state.isSlot(list, at: index, collapses: collapses) ? 1 : 0)
   }
 
   /// Called as the drag starts (on the main thread, though the drag source's closures aren't isolated).
   private func begin() {
-    let (state, list, index, group, axis, collapses, idiom) = (state, list, index, group, axis, collapses, idiom)
+    let (state, list, index, group, axis, collapses, idiom, item) = (
+      state, list, index, group, axis, collapses, idiom, item
+    )
     let length = collapses ? KitMetrics.row(idiom) : nil
-    MainActor.assumeIsolated { state.start(list, at: index, with: group, axis: axis, collapsedLength: length) }
+    MainActor.assumeIsolated {
+      state.start(list, at: index, with: group, axis: axis, collapsedLength: length, item: item)
+    }
   }
 
   private func preview(_ content: Content) -> some View {
@@ -1013,7 +1041,6 @@ private struct ContDraggedRowSlot: ViewModifier {
   let axis: Axis
   let collapses: Bool
   let state: ContReorderState
-  let geometry: ContRowGeometry
   @Environment(\.kitIdiom) private var idiom
 
   func body(content: Content) -> some View {
@@ -1021,21 +1048,13 @@ private struct ContDraggedRowSlot: ViewModifier {
     let isSlot = state.isSlot(list, at: index, collapses: collapses)
     slot(content)
       .offset(x: axis == .horizontal ? offset : 0, y: axis == .vertical ? offset : 0)
-      // Where the drop goes, above the drag image: the folder it names may be out of sight.
-      .overlay(alignment: .topLeading) {
-        if isSlot, let hint = state.hint {
-          // Every frame from the pointer itself where the platform gives it (the Mac): the drop's updates stop
-          // wherever no row is under the pointer.
-          TimelineView(.animation) { _ in
-            let pointer = ContPlatform.pointerInWindow ?? state.pointer
-            ContDropHint(title: hint)
-              .position(
-                x: pointer.x - geometry.frame.minX, y: pointer.y - state.hintLift - geometry.frame.minY - 20)
-          }
-          .allowsHitTesting(false)
-          .transition(.opacity)
-        }
-      }
+      // Where the drop goes, above the drag image, drawn by the window's root over everything
+      // (`ContDropHintOverlay`): the folder it names may be out of sight.
+      .preference(
+        key: ContDropHintKey.self,
+        value: isSlot
+          ? state.hint.map { ContDropHintValue(title: $0, lift: state.hintLift, pointer: ContPlatform.hasPointer ? nil : state.pointer) }
+          : nil)
   }
 
   @ViewBuilder
@@ -1068,6 +1087,42 @@ private struct ContDropHint: View {
   let title: String
 
   var body: some View { Keycap(title) }
+}
+
+/// The drop's name, from the dragged row's slot to the window's root (`ContDropHintOverlay`), with how far below the
+/// drag image's top the pointer holds it, and the pointer where the platform has none to read (touch).
+struct ContDropHintValue: Equatable {
+  var title: String
+  var lift: CGFloat
+  var pointer: CGPoint?
+}
+
+struct ContDropHintKey: PreferenceKey {
+  static let defaultValue: ContDropHintValue? = nil
+  static func reduce(value: inout ContDropHintValue?, nextValue: () -> ContDropHintValue?) {
+    value = value ?? nextValue()
+  }
+}
+
+/// Draws the drop's name above the drag image, over the whole window, following the pointer every frame where the
+/// platform gives it (the Mac): the drop's own updates stop wherever no row is under the pointer. On the kit's root.
+struct ContDropHintOverlay: ViewModifier {
+  func body(content: Content) -> some View {
+    content.overlayPreferenceValue(ContDropHintKey.self) { hint in
+      if let hint {
+        GeometryReader { proxy in
+          TimelineView(.animation) { _ in
+            let pointer = hint.pointer ?? ContPlatform.pointerInWindow ?? .zero
+            let origin = proxy.frame(in: .global).origin
+            ContDropHint(title: hint.title)
+              .position(x: pointer.x - origin.x, y: pointer.y - hint.lift - origin.y - 20)
+          }
+        }
+        .allowsHitTesting(false)
+        .transition(.opacity)
+      }
+    }
+  }
 }
 
 /// Ends the drag with its session: a drag can end away from any row (cancelled, or dropped outside the app), and then
@@ -1169,8 +1224,8 @@ struct ContReorderDropDelegate: DropDelegate {
   func validateDrop(info: DropInfo) -> Bool {
     if let outer = forwarded(info) { return outer.validateDrop(info: info) }
     if isOther(info) { return true }
-    // Rows dragged together stay in their list.
-    let single = state.count <= 1 || state.list == list
+    // Rows dragged together stay in their list, unless they count as one.
+    let single = state.count <= 1 || state.list == list || state.movesAsOne
     return isRow(info) && single && ContReorder.accepts(from: state.list, into: list, receives: receive != nil)
   }
 
@@ -1197,11 +1252,14 @@ struct ContReorderDropDelegate: DropDelegate {
     guard isRow(info), let from = state.index, let fromList = state.list else { return }
     if fromList != list {
       // A row from another list: the app moves it here, then it reorders here.
-      guard let receive, state.count <= 1 else { return }
+      guard let receive, state.count <= 1 || state.movesAsOne else { return }
       withAnimation(.kit) {
         receive(fromList, from, index)
         state.begin(list, at: index)
       }
+      state.sourceLeft()
+      // In another list it has left the folder it came from: its destination is named from here on.
+      state.armHint()
       return
     }
     state.retarget(list, count: rows, pointer: pointer, throughSubRow: throughSubRow, nests: nests, levels: levels)

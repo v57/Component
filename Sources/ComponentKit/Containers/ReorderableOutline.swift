@@ -26,8 +26,10 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
   let row: (Element) -> RowContent
   private var title: ((Element) -> String)?
   private var rootTitle: String?
+  private let listName: AnyHashable?
+  private var receive: ((Element.ID, AnyHashable, Element.ID?, Int) -> Void)?
   @State private var ownExpanded: Set<Element.ID> = []
-  @State private var list = UUID()
+  @State private var ownList = UUID()
   /// The folders the drag opened, which close again when it moves back above them, and where the drag image's
   /// middle was as the drag's place went above each.
   @State private var springOpened: [Element.ID] = []
@@ -37,16 +39,17 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
   @Environment(\.kitIdiom) private var idiom
 
   /// An outline of `items` (`children` is `nil` for a leaf); `expanded` keeps the ids of the open folders, else the
-  /// outline keeps them.
+  /// outline keeps them. `list` names the outline when another takes its items (`receivesItems`).
   public init(
     _ items: some RandomAccessCollection<Element>, children: KeyPath<Element, [Element]?>,
-    expanded: Binding<Set<Element.ID>>? = nil,
+    expanded: Binding<Set<Element.ID>>? = nil, list: AnyHashable? = nil,
     move: @escaping (_ item: Element.ID, _ parent: Element.ID?, _ index: Int) -> Void,
     @ViewBuilder row: @escaping (Element) -> RowContent
   ) {
     self.items = Array(items)
     self.children = children
     self.expanded = expanded
+    self.listName = list
     self.move = move
     self.row = row
   }
@@ -55,6 +58,7 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
     let open = expanded ?? $ownExpanded
     let rows = ContOutlineRows.flatten(items, children: children, expanded: open.wrappedValue)
     let state = shared ?? .app
+    let list = self.list
     let levels = ContReorderLevels(
       range: { rows.levels(for: $0, at: $1) }, home: { $0.first.map { rows.entries[$0].depth } ?? 0 },
       receiver: { rows.receiver(of: $0, at: $1, level: $2) },
@@ -83,11 +87,21 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
         .modifier(
           ContReorderRow(
             list: list, index: entry.index, move: { rows.move($0, to: $1, level: state.level, move) }, state: state,
+            // From another outline, the dragged item comes in before the row it entered, at that row's level.
+            receive: receive.map { receive in
+              { fromList, _, index in
+                guard let id = state.item?.base as? Element.ID else { return }
+                let (parent, place) = rows.destination(of: [], before: index)
+                // Closed: it moves on here as one row, its rows inside it.
+                open.wrappedValue.remove(id)
+                receive(id, fromList, parent, place)
+              }
+            },
             group: entry.end > entry.index + 1 ? IndexSet(integersIn: entry.index..<entry.end) : nil,
             count: rows.entries.count, collapses: true,
             // Into closed folders only: an open one's rows show where the drop goes, as its slot.
             nests: { rows.entries[$0].isFolder && !rows.entries[$0].isOpen },
-            nest: { rows.nest($0, into: $1, move) }, levels: levels))
+            nest: { rows.nest($0, into: $1, move) }, levels: levels, item: AnyHashable(entry.id)))
         // Held over, a closed folder opens.
         .task(id: entry.isFolder && !entry.isOpen && state.isInto(list, at: entry.index)) {
           guard entry.isFolder, !entry.isOpen, state.isInto(list, at: entry.index) else { return }
@@ -117,6 +131,26 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
     var outline = self
     outline.title = title
     outline.rootTitle = root
+    return outline
+  }
+
+  /// The outline's list: its name, or its own.
+  private var list: AnyHashable { listName ?? AnyHashable(ownList) }
+
+  /// Takes items dragged in from other outlines (given `list` names): as one passes over a row here,
+  /// `receive(item, fromList, parent, index)` asks you to move it (and its children) from the other outline into
+  /// `parent` here (`nil`: the top level) at `index`, counted among that parent's children before the move; it then
+  /// reorders here as usual.
+  ///
+  /// ```swift
+  /// ReorderableOutline(docs, children: \.children, list: "docs", move: move) { … }
+  ///   .receivesItems { id, from, parent, index in docs.insert(atlas.remove(id), into: parent, at: index) }
+  /// ```
+  public func receivesItems(
+    _ receive: @escaping (_ item: Element.ID, _ fromList: AnyHashable, _ parent: Element.ID?, _ index: Int) -> Void
+  ) -> Self {
+    var outline = self
+    outline.receive = receive
     return outline
   }
 
