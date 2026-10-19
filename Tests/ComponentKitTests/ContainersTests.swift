@@ -411,3 +411,53 @@ private func landed(_ rows: [String], dragging: IndexSet, anchor: Int, target: I
     #expect(!ContTitlebarClearView.clearsTitlebar(of: below))
   }
 #endif
+
+// MARK: - Reorderable outline
+
+private struct Node: Identifiable {
+  let id: String
+  var children: [Node]?
+}
+
+/// Sources/ (open: App.swift, Views/ (closed: List.swift)), README.md
+private let tree = [
+  Node(id: "Sources", children: [Node(id: "App.swift"), Node(id: "Views", children: [Node(id: "List.swift")])]),
+  Node(id: "README.md"),
+]
+
+@Test func outlineRowsListTheOpenRows() {
+  let rows = ContOutlineRows.flatten(tree, children: \.children, expanded: ["Sources"])
+  #expect(rows.entries.map(\.id) == ["Sources", "App.swift", "Views", "README.md"])
+  #expect(rows.entries.map(\.depth) == [0, 1, 1, 0])
+  #expect(rows.entries[0].end == 3 && rows.entries[2].end == 3)
+  #expect(rows.entries.map(\.isFolder) == [true, false, true, false])
+}
+
+@Test func outlineDropJoinsTheFolderOfTheRowAfterIt() {
+  let rows = ContOutlineRows.flatten(tree, children: \.children, expanded: ["Sources"])
+  // README dropped before Views: into Sources, at Views' place.
+  #expect(rows.destination(of: [3], before: 2) == ("Sources", 1))
+  // README dropped right after the open Sources: its first child.
+  #expect(rows.destination(of: [3], before: 1) == ("Sources", 0))
+  // App.swift dropped at the end: the top level's end.
+  #expect(rows.destination(of: [1], before: 4) == (nil, 2))
+  // Sources (with its open rows) dropped after README.
+  #expect(rows.destination(of: [0, 1, 2], before: 4) == (nil, 2))
+  #expect(rows.destination(of: [3], before: 0) == (nil, 0))
+}
+
+@Test func outlineDropIntoAFolderGoesToItsEnd() {
+  let rows = ContOutlineRows.flatten(tree, children: \.children, expanded: ["Sources"])
+  var moved: (String, String?, Int)?
+  rows.nest([3], into: 2) { moved = ($0, $1, $2) }
+  #expect(moved?.0 == "README.md" && moved?.1 == "Views" && moved?.2 == 1)
+}
+
+@Test func outlinePlaceGoesIntoTheMiddleOfAFolderRow() {
+  let rows = spans([20, 20, 20])  // 0…20, 22…42, 44…64
+  let folder: (Int) -> Bool = { $0 == 1 }
+  // Row 0 dragged down over the folder (row 1): into it between its quarters (27…37), past it beyond 37.
+  #expect(ContReorder.place(from: 0, pointer: 25, spans: rows, dragged: [0], count: 3, nests: folder) == (0, nil))
+  #expect(ContReorder.place(from: 0, pointer: 32, spans: rows, dragged: [0], count: 3, nests: folder) == (0, 1))
+  #expect(ContReorder.place(from: 0, pointer: 38, spans: rows, dragged: [0], count: 3, nests: folder) == (1, nil))
+}

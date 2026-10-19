@@ -521,6 +521,46 @@ struct SampleNode: Identifiable, Hashable {
   var children: [SampleNode]?
 }
 
+extension [SampleNode] {
+  /// Moves the node named `name` into the folder `parent` (`nil`: the top level) at `index`, counted among the
+  /// folder's children before the move (`.onMove`'s `toOffset`).
+  mutating func moveNode(_ name: String, into parent: String?, at index: Int) {
+    guard let (node, from, place) = removeNode(name) else { return }
+    let index = from == parent && place < index ? index - 1 : index
+    if !insertNode(node, into: parent, at: index) { insertNode(node, into: from, at: place) }
+  }
+
+  private mutating func removeNode(_ name: String) -> (SampleNode, String?, Int)? {
+    if let place = firstIndex(where: { $0.name == name }) { return (remove(at: place), nil, place) }
+    for k in indices {
+      guard var kids = self[k].children, let (node, from, place) = kids.removeNode(name) else { continue }
+      self[k].children = kids
+      return (node, from ?? self[k].name, place)
+    }
+    return nil
+  }
+
+  @discardableResult
+  private mutating func insertNode(_ node: SampleNode, into parent: String?, at index: Int) -> Bool {
+    guard let parent else {
+      insert(node, at: Swift.min(index, count))
+      return true
+    }
+    for k in indices {
+      if self[k].name == parent, var kids = self[k].children {
+        kids.insert(node, at: Swift.min(index, kids.count))
+        self[k].children = kids
+        return true
+      }
+      if var kids = self[k].children, kids.insertNode(node, into: parent, at: index) {
+        self[k].children = kids
+        return true
+      }
+    }
+    return false
+  }
+}
+
 let sampleTree = [
   SampleNode(name: "Package.swift"),
   SampleNode(name: "Sources", children: [
@@ -1350,6 +1390,8 @@ struct DragDropPage: View {
   @State private var picked: Set<String> = ["IMG_0413", "IMG_0420"]
   @State private var hostGroups = sampleHostGroups
   @State private var handHosts = sampleHostGroups
+  @State private var folders = sampleTree
+  @State private var openFolders: Set<String> = ["Sources", "AtlasCore"]
 
   var body: some View {
     CatalogPage(page: .dragDrop) {
@@ -1542,6 +1584,33 @@ struct DragDropPage: View {
             }
             .frame(width: 220)
           }
+        }
+      }
+      SpecimenSection(
+        "Folders",
+        note: "Drag a file or a folder: between two rows it joins their folder, over the middle of a folder row it goes inside (at the end). A folder carries its open rows, as one row."
+      ) {
+        Specimen(
+          "ReorderableOutline", ground: .sidebar,
+          code: """
+            ReorderableOutline(files, children: \\.children, expanded: $open, move: { id, parent, index in
+              files.moveNode(id, into: parent, at: index)
+            }) { file in
+              SidebarRow(file.name, systemImage: file.children == nil ? "swift" : "folder")
+            }
+            """
+        ) {
+          VStack(alignment: .leading, spacing: 2) {
+            ReorderableOutline(
+              folders, children: \.children, expanded: $openFolders,
+              move: { id, parent, index in folders.moveNode(id, into: parent, at: index) }
+            ) { node in
+              SidebarRow(
+                node.name, systemImage: node.children == nil ? "swift" : "folder",
+                hue: node.children == nil ? .orange : .blue)
+            }
+          }
+          .frame(width: 260)
         }
       }
     }

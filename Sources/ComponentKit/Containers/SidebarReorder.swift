@@ -34,6 +34,8 @@ final class ContReorderState {
   private(set) var target: Int?
   /// How far each row of the dragged list slides to show the drop (by index), along `axis`.
   private(set) var offsets: [Int: CGFloat] = [:]
+  /// The row the dragged rows would go into (a folder of a `ReorderableOutline`), rather than beside.
+  private(set) var into: Int?
   /// The direction the list runs (a tab strip's tabs run across).
   private(set) var axis: Axis = .vertical
 
@@ -44,6 +46,7 @@ final class ContReorderState {
     if let group, group.contains(index) { indices = group } else { indices = [index] }
     target = nil
     offsets = [:]
+    into = nil
     hasLanded = false
   }
 
@@ -55,6 +58,7 @@ final class ContReorderState {
     index = anchor
     target = nil
     self.offsets = offsets
+    into = nil
     hasLanded = true
   }
 
@@ -73,12 +77,16 @@ final class ContReorderState {
     self.list == list ? offsets[index] ?? 0 : 0
   }
 
+  /// Whether the dragged rows would go into the row at `index` of `list`.
+  func isInto(_ list: AnyHashable, at index: Int) -> Bool { into == index && self.list == list }
+
   func end() {
     list = nil
     index = nil
     indices = []
     target = nil
     offsets = [:]
+    into = nil
     isMoving = false
   }
 
@@ -158,16 +166,19 @@ final class ContReorderState {
   /// rows (a group's sub-row), which is skipped while the rows slide: `DropInfo` places the pointer where such a row
   /// is drawn, part way through its group's slide, and its frame is where the slide ends, so the pair puts the
   /// pointer up to a group's height away and the place would swing back and forth.
-  func retarget(_ list: AnyHashable, count: Int, pointer: CGPoint, throughSubRow: Bool = false) {
+  func retarget(
+    _ list: AnyHashable, count: Int, pointer: CGPoint, throughSubRow: Bool = false, nests: ((Int) -> Bool)? = nil
+  ) {
     guard self.list == list, !hasLanded else { return }
     hover += 1
     if throughSubRow, let slid, Date.now.timeIntervalSince(slid) < 0.3 { return }
     guard let index else { return }
     let spans = spans(of: list, count: count)
-    let target = ContReorder.target(
+    let (target, into) = ContReorder.place(
       from: self.target ?? ContReorder.home(dragged: indices, anchor: index),
       pointer: axis == .vertical ? pointer.y : pointer.x, spans: spans, dragged: indices, count: count,
-      draggedLength: collapsedLength)
+      draggedLength: collapsedLength, nests: nests)
+    if into != self.into { withAnimation(.kitFast) { self.into = into } }
     guard target != self.target else { return }
     let offsets = ContReorder.offsets(
       spans: spans, count: count, dragged: indices, target: target, draggedLength: collapsedLength)
@@ -190,6 +201,7 @@ final class ContReorderState {
       withAnimation(.kit) {
         self.target = nil
         self.offsets = [:]
+        self.into = nil
       }
     }
   }
@@ -203,8 +215,19 @@ final class ContReorderState {
 
   /// The drop onto `list` of `count` rows: `move` gets `.onMove`'s arguments when the rows change places, and the
   /// rows stay where they are drawn until the drag image has landed (`update`).
-  func land(in list: AnyHashable, count: Int, move: (IndexSet, Int) -> Void) {
+  func land(
+    in list: AnyHashable, count: Int, move: (IndexSet, Int) -> Void, nest: ((IndexSet, Int) -> Void)? = nil
+  ) {
     guard self.list == list, let index else { return }
+    if let into, let nest {
+      // Into a folder: the rows leave their places (or join the folder's, open), and slide shut.
+      let moving = indices
+      withAnimation(.kit) {
+        nest(moving, into)
+        update(indices: [], anchor: index)
+      }
+      return
+    }
     guard let target else {
       hasLanded = true
       return
@@ -267,20 +290,40 @@ enum ContReorder {
     from target: Int, pointer: CGFloat, spans: [Int: Span], dragged: IndexSet, count: Int,
     draggedLength: CGFloat? = nil
   ) -> Int {
+    place(from: target, pointer: pointer, spans: spans, dragged: dragged, count: count, draggedLength: draggedLength)
+      .target
+  }
+
+  /// `target`, where rows that `nests` (folders) take the dragged rows into them too: such a row is passed at three
+  /// quarters rather than half way, and the half between its quarters is `into` it.
+  static func place(
+    from target: Int, pointer: CGFloat, spans: [Int: Span], dragged: IndexSet, count: Int,
+    draggedLength: CGFloat? = nil, nests: ((Int) -> Bool)? = nil
+  ) -> (target: Int, into: Int?) {
     let others = (0..<count).filter { !dragged.contains($0) }
     var target = min(max(target, 0), others.count)
     for _ in 0...count {
       let drawn = layout(spans: spans, count: count, dragged: dragged, target: target, draggedLength: draggedLength)
-      func middle(_ row: Int) -> CGFloat? { drawn[row].flatMap { start in spans[row].map { start + $0.length / 2 } } }
-      if target < others.count, let next = middle(others[target]), pointer > next {
-        target += 1
-      } else if target > 0, let previous = middle(others[target - 1]), pointer < previous {
-        target -= 1
-      } else {
-        break
+      func span(_ row: Int) -> Span? { drawn[row].flatMap { start in spans[row].map { Span(start: start, length: $0.length) } } }
+      if target < others.count, let next = span(others[target]) {
+        let nestable = nests?(others[target]) ?? false
+        if pointer > next.start + next.length * (nestable ? 0.75 : 0.5) {
+          target += 1
+          continue
+        }
+        if nestable, pointer > next.start + next.length / 4 { return (target, others[target]) }
       }
+      if target > 0, let previous = span(others[target - 1]) {
+        let nestable = nests?(others[target - 1]) ?? false
+        if pointer < previous.start + previous.length * (nestable ? 0.25 : 0.5) {
+          target -= 1
+          continue
+        }
+        if nestable, pointer < previous.start + previous.length * 0.75 { return (target, others[target - 1]) }
+      }
+      break
     }
-    return target
+    return (target, nil)
   }
 
   /// The rows' order with the dragged ones moved to `target` (their place among the others): old indices, new order.
@@ -325,7 +368,16 @@ enum ContReorder {
     var start = known[first]!.start
     for place in stride(from: first - 1, through: 0, by: -1) { start -= length(place) + gap(place) }
     var starts: [Int: CGFloat] = [:]
+    // Collapsed, the dragged rows count as one (a folder with its open rows): the rest sit hidden at its start.
+    var block: CGFloat?
     for (place, row) in order(count: count, dragged: dragged, target: target).enumerated() {
+      if draggedLength != nil, dragged.contains(row) {
+        if let block {
+          if spans[row] != nil { starts[row] = block }
+          continue
+        }
+        block = start
+      }
       if spans[row] != nil { starts[row] = start }
       start += length(row) + gap(place)
     }
@@ -614,6 +666,9 @@ struct ContReorderRow: ViewModifier {
   /// The row is a group (`dragsAsGroup`): dragged, it collapses to its first row, slot and lifted card, so it moves
   /// past its neighbours as far as a row does; its sub-rows come back on the drop.
   var collapses = false
+  /// Which rows of the list take dragged rows into them (by index), and what does it (`ReorderableOutline`).
+  var nests: ((Int) -> Bool)? = nil
+  var nest: ((IndexSet, Int) -> Void)? = nil
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.contOuterReorder) private var outer
   @State private var isTargeted = false
@@ -630,7 +685,7 @@ struct ContReorderRow: ViewModifier {
   func body(content: Content) -> some View {
     let delegate = ContReorderDropDelegate(
       list: list, index: index, count: count, move: move, state: state, accepts: accepts, perform: perform,
-      receive: receive, isTargeted: $isTargeted, outer: outer, geometry: geometry)
+      receive: receive, isTargeted: $isTargeted, outer: outer, geometry: geometry, nests: nests, nest: nest)
     content
       // Reorderable rows inside this one (a group's sub-rows) share its drag and pass its rows' drags to it.
       .environment(\.contReorderState, state)
@@ -662,7 +717,7 @@ struct ContReorderRow: ViewModifier {
       .clipped()
       .kitLifted(true, cornerRadius: ContMetrics.rowRadius(idiom))
       .overlay(alignment: .topTrailing) {
-        if let group, group.count > 1 {
+        if !collapses, let group, group.count > 1 {
           Count(group.count, .attention).offset(x: 6, y: -6)
         }
       }
@@ -746,12 +801,15 @@ private struct ContDraggedRowSlot: ViewModifier {
   private func slot(_ content: Content) -> some View {
     if #available(macOS 26.0, iOS 27.0, visionOS 27.0, *) {
       let isDragging = state.isMoving && state.isDragging(list, at: index)
+      // Collapsed rows dragged together (a folder and its open rows) show one slot, the first's.
+      let isSlot = isDragging && (!collapses || state.indices.first == index)
       content
+        .kitDropTarget(state.isInto(list, at: index), cornerRadius: ContMetrics.rowRadius(idiom))
         .opacity(isDragging ? 0 : 1)
         // A group's slot is its first row: its rows count as that one while dragged (`ContReorderState.start`), and
         // the layout keeps their room (shrinking it would move a scrolled list under the pointer).
         .background(alignment: .top) {
-          if isDragging {
+          if isSlot {
             RoundedRectangle(cornerRadius: ContMetrics.rowRadius(idiom), style: .continuous).fill(.kitField)
               .frame(height: collapses ? KitMetrics.row(idiom) : nil)
           }
@@ -806,6 +864,9 @@ struct ContReorderDropDelegate: DropDelegate {
   var outer: ContOuterReorder? = nil
   /// Where the row is, in global coordinates.
   var geometry: ContRowGeometry? = nil
+  /// Which rows take dragged rows into them, and what does it (`ContReorderRow.nests`).
+  var nests: ((Int) -> Bool)? = nil
+  var nest: ((IndexSet, Int) -> Void)? = nil
 
   /// The row's frame in global coordinates (`.zero` before its first layout).
   var frame: CGRect { geometry?.frame ?? .zero }
@@ -863,7 +924,7 @@ struct ContReorderDropDelegate: DropDelegate {
     if let outer = forwarded(info) { return outer.updated(info, at: pointer, throughSubRow: true) }
     if isOther(info) { return DropProposal(operation: .copy) }
     let isValid = validateDrop(info: info)
-    if isValid { state.retarget(list, count: rows, pointer: pointer, throughSubRow: throughSubRow) }
+    if isValid { state.retarget(list, count: rows, pointer: pointer, throughSubRow: throughSubRow, nests: nests) }
     return DropProposal(operation: isValid ? .move : .forbidden)
   }
 
@@ -883,7 +944,7 @@ struct ContReorderDropDelegate: DropDelegate {
       }
       return
     }
-    state.retarget(list, count: rows, pointer: pointer, throughSubRow: throughSubRow)
+    state.retarget(list, count: rows, pointer: pointer, throughSubRow: throughSubRow, nests: nests)
   }
 
   func dropExited(info: DropInfo) {
@@ -901,7 +962,7 @@ struct ContReorderDropDelegate: DropDelegate {
       return perform(pasted.isEmpty ? info.itemProviders(for: accepts) : pasted)
     }
     guard isRow(info) else { return false }
-    state.land(in: list, count: rows, move: move)
+    state.land(in: list, count: rows, move: move, nest: nest)
     state.endAfterLanding()
     return true
   }
