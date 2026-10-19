@@ -96,7 +96,6 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   @FocusState private var focused: Bool
   @Namespace private var namespace
   @State private var reorder = ContReorderState()
-  @State private var topInset: CGFloat = 0
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.kitSectionStyle) private var style
   @Environment(\.contThreeColumns) private var threeColumns
@@ -187,26 +186,30 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
           .background { ContEdgeFade(edge: .bottom, ground: .kitSidebar) }
       }
     }
-    // Under the title bar (the traffic lights) or the status bar.
+    // Under the title bar (the traffic lights) or the status bar. The inset is read where it's drawn: an
+    // `onGeometryChange` into state missed the last of a quick 52 → 0 → 52 at launch in Shell's window and kept 0,
+    // which dropped the fade and put the hide button under the title bar.
     .overlay(alignment: .top) {
-      ContEdgeFade(edge: .top, ground: .kitSidebar).frame(height: topInset)
-    }
-    #if os(macOS)
-      // The Mac's hide button sits at the sidebar's top right, centered on the traffic lights, as the system's does.
-      .overlay(alignment: .topTrailing) {
-        if let toggle {
-          ToolGroup(iconOnly: true) {
-            Button("Hide Sidebar", systemImage: "sidebar.left") { toggle() }
+      GeometryReader { geometry in
+        let top = geometry.safeAreaInsets.top
+        ContEdgeFade(edge: .top, ground: .kitSidebar).frame(height: top)
+        #if os(macOS)
+          // The Mac's hide button sits at the sidebar's top right, centered on the traffic lights, as the system's
+          // does.
+          if let toggle {
+            ToolGroup(iconOnly: true) {
+              Button("Hide Sidebar", systemImage: "sidebar.left") { toggle() }
+            }
+            .help("Hide Sidebar")
+            .environment(\.contBarGround, KitColor.sidebar)
+            .frame(height: top)
+            .padding(.trailing, inset)
+            .frame(width: geometry.size.width, alignment: .trailing)
+            .offset(y: -top)
           }
-          .help("Hide Sidebar")
-          .environment(\.contBarGround, KitColor.sidebar)
-          .frame(height: topInset)
-          .padding(.trailing, inset)
-          .offset(y: -topInset)
-        }
+        #endif
       }
-    #endif
-    .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { topInset = $0 }
+    }
     .background { Rectangle().fill(.kitSidebar).ignoresSafeArea() }
     // Its own floor: a split view's column minimum gives way under a full toolbar. Not in an iPad three-column
     // split, whose sidebar column is narrower than the floor in portrait (about 200pt): held wider, the cards ran
