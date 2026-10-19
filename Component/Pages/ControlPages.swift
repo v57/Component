@@ -495,7 +495,7 @@ struct MenusPage: View {
               ])
           }
           Specimen(
-            "A long menu", note: "Taller than the window: it scrolls",
+            "A long menu", note: "Taller than the screen: beside its button, scrolling",
             code: "KitMenuButton(\"Branch\") { ForEach(branches) { Button($0.name) { … } } }"
           ) {
             KitMenuButton(branch, systemImage: "arrow.triangle.branch") {

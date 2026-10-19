@@ -915,7 +915,7 @@ struct KitMenuPresenter<MenuContent: View>: ViewModifier {
             if session.pressCloses {
               session.pressCloses = false
             } else if isEnabled {
-              session.release(value.location)
+              session.release(value.location, pressedAt: value.startLocation)
             }
           },
         including: isEnabled ? .all : .subviews
@@ -1044,8 +1044,10 @@ final class KitMenuSession {
   }
 
   /// The press ended: pick the row under the pointer, leave the menu open on the trigger, close it anywhere else.
-  func release(_ local: CGPoint) {
+  /// A trigger's click (released where it was pressed) only opens it, even when the menu lies over the trigger.
+  func release(_ local: CGPoint, pressedAt start: CGPoint? = nil) {
     guard let model, let point = point(local) else { return }
+    if let start, hypot(local.x - start.x, local.y - start.y) < 4, model.trigger.contains(point) { return }
     if let hit = model.row(at: point), let row = hit.menu.rows[hit.id], row.isEnabled {
       if !row.isSubmenu { row.trigger() }
     } else if model.isContext && Self.isTouch {
@@ -1156,12 +1158,31 @@ struct KitMenuOverlay<Content: View>: View {
       y = min(max(y, margin), max(margin, bounds.height - size.height - margin))
       return (CGPoint(x: x, y: y), y < anchor.minY)
     }
+    return Self.popUpPlacement(anchor: anchor, size: size, in: bounds, gap: gap, margin: margin)
+  }
+
+  /// A pop-up's place: under the anchor, above it when there's no room below, and beside it when there's room
+  /// for neither (a long list of providers), so the press that opened it isn't over a row its release would pick:
+  /// on the trailing side, or the leading one when the trailing has no room. Kept `margin` inside `bounds`.
+  static func popUpPlacement(
+    anchor: CGRect, size: CGSize, in bounds: CGSize, gap: CGFloat, margin: CGFloat
+  ) -> (origin: CGPoint, above: Bool) {
     let x = min(max(anchor.minX, margin), max(margin, bounds.width - size.width - margin))
     let below = anchor.maxY + gap
-    if below + size.height + margin <= bounds.height || anchor.minY - gap - size.height < margin {
-      return (CGPoint(x: x, y: min(below, max(margin, bounds.height - size.height - margin))), false)
+    if below + size.height + margin <= bounds.height {
+      return (CGPoint(x: x, y: below), false)
     }
-    return (CGPoint(x: x, y: anchor.minY - gap - size.height), true)
+    if anchor.minY - gap - size.height >= margin {
+      return (CGPoint(x: x, y: anchor.minY - gap - size.height), true)
+    }
+    let y = min(max(anchor.minY, margin), max(margin, bounds.height - size.height - margin))
+    if anchor.maxX + gap + size.width + margin <= bounds.width {
+      return (CGPoint(x: anchor.maxX + gap, y: y), false)
+    }
+    if anchor.minX - gap - size.width >= margin {
+      return (CGPoint(x: anchor.minX - gap - size.width, y: y), false)
+    }
+    return (CGPoint(x: x, y: min(below, max(margin, bounds.height - size.height - margin))), false)
   }
 }
 

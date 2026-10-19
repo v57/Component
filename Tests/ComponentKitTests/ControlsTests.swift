@@ -129,3 +129,24 @@ final class Box: @unchecked Sendable {
     #expect(folder.innermost(at: CGPoint(x: 300, y: 150), among: all) === folder)
   }
 #endif
+
+@Test func popUpMenuOpensUnderAboveOrBesideItsTrigger() {
+  typealias Overlay = KitMenuOverlay<EmptyView>
+  let screen = CGSize(width: 1000, height: 650)
+  let trigger = CGRect(x: 300, y: 300, width: 200, height: 30)
+  // Room below: under it, 4pt down.
+  #expect(Overlay.popUpPlacement(anchor: trigger, size: CGSize(width: 200, height: 100), in: screen, gap: 4, margin: 8)
+    == (CGPoint(x: 300, y: 334), false))
+  // Room above only: over it.
+  let low = CGRect(x: 300, y: 560, width: 200, height: 30)
+  #expect(Overlay.popUpPlacement(anchor: low, size: CGSize(width: 200, height: 300), in: screen, gap: 4, margin: 8)
+    == (CGPoint(x: 300, y: 256), true))
+  // Taller than either side (the providers): beside it on the trailing side, never over the trigger.
+  let tall = CGSize(width: 260, height: 634)
+  let beside = Overlay.popUpPlacement(anchor: trigger, size: tall, in: screen, gap: 4, margin: 8)
+  #expect(beside.origin == CGPoint(x: 504, y: 8))
+  #expect(!CGRect(origin: beside.origin, size: tall).intersects(trigger))
+  // No room trailing: on the leading side.
+  let right = CGRect(x: 700, y: 300, width: 200, height: 30)
+  #expect(Overlay.popUpPlacement(anchor: right, size: tall, in: screen, gap: 4, margin: 8).origin == CGPoint(x: 436, y: 8))
+}
