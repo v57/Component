@@ -897,6 +897,10 @@ struct WindowPage: View {
               Spacer()
               Text("UTF-8 · LF")
             }
+            StatusBar(alignment: .trailing) {
+              Text("Fits its content")
+              Text("Line: 12  Col: 4")
+            }
           }
           .padding(.top, KitMetrics.gutter)
         }
