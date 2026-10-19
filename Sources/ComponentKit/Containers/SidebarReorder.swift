@@ -1063,13 +1063,11 @@ private struct ContDraggedRowSlot: ViewModifier {
   }
 }
 
-/// The name of where a drop goes, floating above the drag image: a folder chip.
+/// The name of where a drop goes, floating above the drag image: a keycap, opaque over the rows under it.
 private struct ContDropHint: View {
   let title: String
 
-  var body: some View {
-    Chip(title, systemImage: "folder", hue: .accent).fixedSize()
-  }
+  var body: some View { Keycap(title) }
 }
 
 /// Ends the drag with its session: a drag can end away from any row (cancelled, or dropped outside the app), and then
