@@ -42,6 +42,9 @@ enum ContMetrics {
   static func toolbarHeight(_ idiom: KitIdiom) -> CGFloat { idiom == .phone ? 56 : idiom == .pad ? 60 : 52 }
   /// How far the Mac's traffic lights reach into the title bar from the window's leading edge.
   static let windowControlsWidth: CGFloat = 80
+  /// How far the system toolbar item that carries the kit bar's Show Sidebar button on the Mac
+  /// (`ContSystemToolbarAway`) reaches past the traffic lights: AppKit's padding, then the button.
+  static let showSidebarItemWidth: CGFloat = 50
   /// The 2pt ring around a focused or wrong field, at half strength (the secondary level of its colour).
   static let ringWidth: CGFloat = 2
 }
@@ -487,9 +490,15 @@ enum ContPlatform {
     #endif
   }
 
+  /// Shows or hides the sidebar of the clicked window's split view (the window needn't be key yet: a click that
+  /// activates the app), else the key window's.
   static func toggleSidebar() {
     #if canImport(AppKit)
-      NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
+      let selector = #selector(NSSplitViewController.toggleSidebar(_:))
+      if let window = NSApp.currentEvent?.window, (window.firstResponder ?? window).tryToPerform(selector, with: nil) {
+        return
+      }
+      NSApp.sendAction(selector, to: nil, from: nil)
     #endif
   }
 

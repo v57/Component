@@ -80,6 +80,7 @@ public struct KitToolbar<Title: View>: View {
   let slots: [ToolbarSlot]
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.contShowSidebar) private var showSidebar
+  @Environment(\.contFullScreen) private var isFullScreen
   #if os(iOS)
     @Environment(\.isPresented) private var isPresented
     @Environment(\.dismiss) private var dismiss
@@ -103,12 +104,11 @@ public struct KitToolbar<Title: View>: View {
             .transition(.opacity)
           }
         #endif
-        if let showSidebar {
-          ToolGroup(iconOnly: true) {
-            Button("Show Sidebar", systemImage: "sidebar.left") { showSidebar() }
-          }
-          .help("Show Sidebar")
-          .transition(.opacity)
+        // On the Mac the system toolbar's item carries the button (`ContSystemToolbarAway`): the item sits there
+        // and would take its clicks. In full screen the toolbar is hidden.
+        if let showSidebar, drawsShowSidebar {
+          ContShowSidebarButton(action: showSidebar)
+            .transition(.opacity)
         }
       }
       title
@@ -125,12 +125,20 @@ public struct KitToolbar<Title: View>: View {
     .animation(.kit, value: showSidebar != nil)
   }
 
-  /// 16pt in from the bar's edge, and on the Mac clear of the traffic lights while the sidebar is hidden (the bar
-  /// then starts at the window's edge; `kitSidebarToggle` says so). The bar's own position can't tell: the split view
-  /// moves its column without SwiftUI seeing a new frame.
+  private var drawsShowSidebar: Bool {
+    #if os(macOS)
+      isFullScreen
+    #else
+      true
+    #endif
+  }
+
+  /// 16pt in from the bar's edge, and on the Mac clear of the traffic lights and the system item's Show Sidebar
+  /// button while the sidebar is hidden (the bar then starts at the window's edge; `kitSidebarToggle` says so). The
+  /// bar's own position can't tell: the split view moves its column without SwiftUI seeing a new frame.
   private var leadingInset: CGFloat {
     #if os(macOS)
-      showSidebar != nil ? ContMetrics.windowControlsWidth + 8 : 16
+      showSidebar != nil && !isFullScreen ? ContMetrics.windowControlsWidth + ContMetrics.showSidebarItemWidth + 8 : 16
     #else
       16
     #endif
@@ -220,21 +228,35 @@ private struct ContGroundGlow: ViewModifier {
   }
 }
 
-/// Clears the system toolbar out of the kit's way. On the Mac one invisible item keeps the toolbar (so the title bar
-/// keeps its 52pt and the traffic lights sit centered on the kit's bar) while the title and the background go; clicks
-/// then reach the kit's bar. On iPhone and iPad the navigation bar hides.
+/// Clears the system toolbar out of the kit's way. On the Mac one item keeps the toolbar (so the title bar keeps its
+/// 52pt and the traffic lights sit centered on the kit's bar) while the title and the background go; clicks then reach
+/// the kit's bar. The item is invisible, except while the sidebar is hidden: it then sits just after the traffic
+/// lights, where it would take the clicks of a button the kit drew there, so it is the Show Sidebar button itself.
+/// In full screen the toolbar hides: AppKit moves it to a window of its own over the top of the screen, which hid the
+/// kit's bar. On iPhone and iPad the navigation bar hides.
 private struct ContSystemToolbarAway: ViewModifier {
+  @Environment(\.contShowSidebar) private var showSidebar
+  @State private var isFullScreen = false
+
   func body(content: Content) -> some View {
     #if os(macOS)
       content
+        .environment(\.contFullScreen, isFullScreen)
+        .toolbar(isFullScreen ? .hidden : .automatic, for: .windowToolbar)
         .toolbar {
           KitToolbarItem(placement: .navigation) {
-            Color.clear.frame(width: 1, height: 1).accessibilityHidden(true)
+            if let showSidebar, !isFullScreen {
+              ContShowSidebarButton(action: showSidebar)
+            } else {
+              Color.clear.frame(width: 1, height: 1).accessibilityHidden(true)
+            }
           }
         }
         .kitHidesSystemTitle()
         .modifier(ContToolbarBackgroundHidden())
-        .background { ContTitlebarClear().frame(width: 0, height: 0).accessibilityHidden(true) }
+        .background {
+          ContTitlebarClear(isFullScreen: $isFullScreen).frame(width: 0, height: 0).accessibilityHidden(true)
+        }
     #else
       content.toolbar(.hidden, for: .navigationBar)
     #endif
@@ -245,16 +267,46 @@ private struct ContSystemToolbarAway: ViewModifier {
   /// In a window an app hosts itself (an `NSHostingController`'s: a capture or debug window) hiding the toolbar's
   /// background doesn't reach the title bar, even when the controller bridges its toolbar (`sceneBridgingOptions`),
   /// and the title bar's own background drew over the kit's bar (a blank or faded bar). There, with the content under
-  /// the title bar, the title bar goes transparent.
+  /// the title bar, the title bar goes transparent. It also says whether the window is in full screen: from the
+  /// moment it starts going in to the moment it starts coming out, so the toolbar is back for the windowed title bar
+  /// (and again once either is done).
   private struct ContTitlebarClear: NSViewRepresentable {
-    func makeNSView(context: Context) -> ContTitlebarClearView { ContTitlebarClearView() }
-    func updateNSView(_ view: ContTitlebarClearView, context: Context) {}
+    @Binding var isFullScreen: Bool
+
+    func makeNSView(context: Context) -> ContTitlebarClearView {
+      let view = ContTitlebarClearView()
+      view.onFullScreen = { isFullScreen = $0 }
+      return view
+    }
+
+    func updateNSView(_ view: ContTitlebarClearView, context: Context) {
+      view.onFullScreen = { isFullScreen = $0 }
+    }
   }
 
   final class ContTitlebarClearView: NSView {
+    var onFullScreen: (Bool) -> Void = { _ in }
+    private var observers: [NSObjectProtocol] = []
+
     override func viewDidMoveToWindow() {
       super.viewDidMoveToWindow()
-      guard let window, Self.clearsTitlebar(of: window) else { return }
+      observers.forEach(NotificationCenter.default.removeObserver)
+      observers = []
+      guard let window else { return }
+      // A window restored in full screen; after the update that put the view there.
+      if window.styleMask.contains(.fullScreen) {
+        DispatchQueue.main.async { [weak self] in self?.onFullScreen(true) }
+      }
+      for (name, isFullScreen) in [
+        (NSWindow.willEnterFullScreenNotification, true), (NSWindow.willExitFullScreenNotification, false),
+        (NSWindow.didEnterFullScreenNotification, true), (NSWindow.didExitFullScreenNotification, false),
+      ] {
+        observers.append(
+          NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.onFullScreen(isFullScreen) }
+          })
+      }
+      guard Self.clearsTitlebar(of: window) else { return }
       window.titlebarAppearsTransparent = true
     }
 
@@ -278,6 +330,18 @@ private struct ContSystemToolbarAway: ViewModifier {
   }
 #endif
 
+/// The bar's Show Sidebar button.
+private struct ContShowSidebarButton: View {
+  let action: ContShowSidebarAction
+
+  var body: some View {
+    ToolGroup(iconOnly: true) {
+      Button("Show Sidebar", systemImage: "sidebar.left") { action() }
+    }
+    .help("Show Sidebar")
+  }
+}
+
 /// Set by `.kitToolbar`, so `kitSidebarToggle` puts its button in the kit's bar instead of the system toolbar.
 struct ContKitToolbarKey: PreferenceKey {
   static let defaultValue = false
@@ -296,6 +360,8 @@ struct ContShowSidebarAction: Equatable {
 
 extension EnvironmentValues {
   @Entry var contShowSidebar: ContShowSidebarAction? = nil
+  /// Whether the Mac window is in full screen, where the system toolbar is hidden and the traffic lights are away.
+  @Entry var contFullScreen = false
 }
 
 // MARK: - Layout
