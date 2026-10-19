@@ -44,7 +44,8 @@ public struct KitTab<ID: Hashable>: Identifiable {
 /// The kit's tab strip (editor tabs, query tabs): the tabs on a card as wide as they are, like a toolbar's tool
 /// group, opaque over content that runs on under it, 8pt in from the sides and above what follows; the selected tab a
 /// raised card that glides to the new pick, a close button on the selected and the hovered tab, a dot on an edited
-/// one, and an optional + at the end. It scrolls sideways inside the card when the tabs don't fit.
+/// one, and an optional + at the end. It scrolls sideways inside the card when the tabs don't fit. A single tab isn't
+/// shown (the content says what is open): the card then holds the + alone, and without one the strip takes no room.
 /// Keyboard: Tab focuses a tab (a solid ring), ← → move, Space selects. VoiceOver: each tab is a selectable button
 /// with a Close action.
 ///
@@ -110,9 +111,13 @@ public struct KitTabStrip<ID: Hashable>: View {
     return strip
   }
 
-  public var body: some View {
+  @ViewBuilder public var body: some View {
+    if tabs.count > 1 || onAdd != nil { strip }
+  }
+
+  private var strip: some View {
     let radius = ContMetrics.toolGroupRadius(idiom)
-    ViewThatFits(in: .horizontal) {
+    return ViewThatFits(in: .horizontal) {
       row
       ScrollView(.horizontal, showsIndicators: false) { row }
     }
@@ -130,7 +135,7 @@ public struct KitTabStrip<ID: Hashable>: View {
 
   private var row: some View {
     HStack(spacing: idiom.isTouch ? 6 : 4) {
-      ForEach(Array(tabs.enumerated()), id: \.element.id) { index, tab in
+      ForEach(Array((tabs.count > 1 ? tabs : []).enumerated()), id: \.element.id) { index, tab in
         CtlTabView(
           tab: tab, isSelected: tab.id == selection, isFocused: focus == tab.id, namespace: namespace,
           select: { withKitAnimation { selection = tab.id } },
