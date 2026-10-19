@@ -474,6 +474,9 @@ enum ContPlatform {
       NSPasteboard.general.setString(string, forType: .string)
     #elseif canImport(UIKit)
       UIPasteboard.general.string = string
+    #else
+      // v57/SwiftUI's pasteboard (Windows, Linux).
+      Pasteboard.general.setString(string)
     #endif
   }
 
@@ -483,7 +486,7 @@ enum ContPlatform {
     #elseif canImport(UIKit)
       UIPasteboard.general.hasStrings ? UIPasteboard.general.string : nil
     #else
-      nil
+      Pasteboard.general.string()
     #endif
   }
 
