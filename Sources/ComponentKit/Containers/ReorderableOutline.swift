@@ -69,6 +69,20 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
         return rows.entries[first].parent == receiver.map { rows.entries[$0].id }
       },
       step: ContMetrics.rowIndent(idiom))
+    // From another outline, the dragged item comes in before the row it entered, at that row's level.
+    let receiving = receive.map { receive in
+      { (fromList: AnyHashable, _: Int, index: Int) in
+        guard let id = state.item?.base as? Element.ID else { return }
+        let (parent, place) = rows.destination(of: [], before: index)
+        // Closed: it moves on here as one row, its rows inside it.
+        open.wrappedValue.remove(id)
+        receive(id, fromList, parent, place)
+      }
+    }
+    if rows.entries.isEmpty, let receiving {
+      // Empty, a row's room still takes items from other outlines.
+      ContOutlineEmptyDrop(list: list, state: state, receive: receiving)
+    }
     ForEach(rows.entries) { entry in
       let id = entry.id
       row(entry.element)
@@ -87,16 +101,7 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
         .modifier(
           ContReorderRow(
             list: list, index: entry.index, move: { rows.move($0, to: $1, level: state.level, move) }, state: state,
-            // From another outline, the dragged item comes in before the row it entered, at that row's level.
-            receive: receive.map { receive in
-              { fromList, _, index in
-                guard let id = state.item?.base as? Element.ID else { return }
-                let (parent, place) = rows.destination(of: [], before: index)
-                // Closed: it moves on here as one row, its rows inside it.
-                open.wrappedValue.remove(id)
-                receive(id, fromList, parent, place)
-              }
-            },
+            receive: receiving,
             group: entry.end > entry.index + 1 ? IndexSet(integersIn: entry.index..<entry.end) : nil,
             count: rows.entries.count, collapses: true,
             // Into closed folders only: an open one's rows show where the drop goes, as its slot.
@@ -196,6 +201,27 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
       closed = true
     }
     return closed
+  }
+}
+
+/// An empty outline's drop target: a row's room, which takes items dragged in from other outlines.
+private struct ContOutlineEmptyDrop: View {
+  let list: AnyHashable
+  let state: ContReorderState
+  let receive: (AnyHashable, Int, Int) -> Void
+  @State private var geometry = ContRowGeometry()
+  @Environment(\.kitIdiom) private var idiom
+
+  var body: some View {
+    Color.clear
+      .frame(maxWidth: .infinity, minHeight: KitMetrics.row(idiom))
+      .contentShape(Rectangle())
+      .onDrop(
+        of: [ContReorderState.contentType],
+        delegate: ContReorderDropDelegate(
+          list: list, index: 0, count: 0, move: { _, _ in }, state: state, receive: receive, geometry: geometry))
+      .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { [geometry] in geometry.frame = $0 }
+      .accessibilityHidden(true)
   }
 }
 

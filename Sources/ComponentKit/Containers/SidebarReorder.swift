@@ -63,9 +63,6 @@ final class ContReorderState {
     level = nil
     receiver = nil
     hint = nil
-    grab = nil
-    grabAcross = nil
-    hintArmed = false
     hasLanded = false
   }
 
@@ -148,6 +145,11 @@ final class ContReorderState {
     self.axis = axis
     self.collapsedLength = collapsedLength
     self.item = item
+    // Where the pointer holds the drag image, kept as the drag moves into another list (`begin`).
+    grab = nil
+    grabAcross = nil
+    cardLevel = nil
+    hintArmed = false
     // At once: the drag image takes the row's place as the drag starts.
     isMoving = !KitIdiom.current.isTouch
     begin(list, at: index, with: group)
@@ -250,12 +252,24 @@ final class ContReorderState {
     // A tree's level, from how far across the drag image has moved since it was picked up, within those the place
     // allows.
     if let levels {
+      // The level the drag image lines up with: it shows the row at its own level, so where its leading edge sits
+      // against the list's rows (the same in another list) says which level's rows its icon is beside.
       let across = axis == .vertical ? pointer.x : pointer.y
-      if grabAcross == nil { grabAcross = across }
+      let leads = (rows[list] ?? [:]).values.map(\.frame).filter { $0 != .zero }
+        .map { axis == .vertical ? $0.minX : $0.minY }
+      if grabAcross == nil, let row = rows[list]?[index]?.frame, row != .zero {
+        grabAcross = across - (axis == .vertical ? row.minX : row.minY)
+        cardLevel = levels.home(indices)
+      }
       let home = levels.home(indices)
-      let moved = Int(((across - (grabAcross ?? across)) / max(levels.step, 1)).rounded())
+      let aligned =
+        if let grabAcross, let cardLevel, let lead = leads.min() {
+          cardLevel + Int(((across - grabAcross - lead) / max(levels.step, 1)).rounded())
+        } else {
+          home
+        }
       let range = levels.range(indices, target)
-      let level = into == nil ? min(max(home + moved, range.lowerBound), range.upperBound) : nil
+      let level = into == nil ? min(max(aligned, range.lowerBound), range.upperBound) : nil
       levelHome = home
       levelStep = levels.step
       if level != self.level { withAnimation(.kitFast) { self.level = level } }
@@ -311,9 +325,11 @@ final class ContReorderState {
   @ObservationIgnored private var hover = 0
   /// When the rows last started to slide.
   @ObservationIgnored private var slid: Date?
-  /// How far into the dragged row the pointer holds it, along the axis (`retarget`), and where across it first was.
+  /// How far into the dragged row the pointer holds it, along the axis and across it (`retarget`).
   @ObservationIgnored private var grab: CGFloat?
   @ObservationIgnored private var grabAcross: CGFloat?
+  /// The level of the row the drag image shows (where the drag started).
+  @ObservationIgnored private var cardLevel: Int?
   /// The drop's place has left the folder the rows came from, so its name shows (`ContReorderLevels.title`).
   @ObservationIgnored private var hintArmed = false
   /// The dragged rows' own level (`ContReorderLevels.home`).
