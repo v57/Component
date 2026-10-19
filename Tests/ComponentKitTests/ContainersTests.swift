@@ -481,3 +481,47 @@ private let tree = [
   #expect(ContReorder.place(from: 0, pointer: 32, spans: rows, dragged: [0], count: 3, nests: folder) == (0, 1))
   #expect(ContReorder.place(from: 0, pointer: 38, spans: rows, dragged: [0], count: 3, nests: folder) == (1, nil))
 }
+
+@Test func outlineLevelsBetweenAFoldersLastRowAndWhatFollows() {
+  // Sources/ (open: App.swift, Views/ (closed)), README.md
+  let rows = ContOutlineRows.flatten(tree, children: \.children, expanded: ["Sources"])
+  // README dragged to its own place after Views: Sources' level or the top.
+  #expect(rows.levels(for: [3], at: 3) == 0...1)
+  // App.swift dragged to the end, after README: the top only.
+  #expect(rows.levels(for: [1], at: 3) == 0...0)
+  // Between the open Sources and its first row: inside only.
+  #expect(rows.levels(for: [3], at: 1) == 1...1)
+  // Views dragged out of Sources' end at the top level, in place: a move to after Sources.
+  #expect(rows.destination(of: [2], before: 3, level: 0) == (nil, 1))
+  // README taken into Sources at its end, in place.
+  #expect(rows.destination(of: [3], before: 4, level: 1) == ("Sources", 2))
+}
+
+@Test func outlineDropIntoAnOpenEmptyFolder() {
+  let tree = [Node(id: "Empty", children: []), Node(id: "a.txt")]
+  let rows = ContOutlineRows.flatten(tree, children: \.children, expanded: ["Empty"])
+  #expect(rows.levels(for: [1], at: 1) == 0...1)
+  #expect(rows.destination(of: [1], before: 2, level: 1) == ("Empty", 0))
+}
+
+@MainActor @Test func reorderStateFollowsRowsComingAndGoing() {
+  let state = ContReorderState()
+  state.start("tree", at: 5, axis: .vertical)
+  state.retargetForTesting(target: 4)
+  // A folder at 1 opens 2 rows above the dragged row and its place: both move down.
+  state.insertRows("tree", at: 2, count: 2)
+  #expect(state.index == 7 && state.target == 6)
+  state.removeRows("tree", 2..<4)
+  #expect(state.index == 5 && state.target == 4)
+  // Rows opening below the place leave it.
+  state.insertRows("tree", at: 6, count: 3)
+  #expect(state.index == 5 && state.target == 4)
+  state.end()
+}
+
+@Test func outlineReceiverIsTheFolderAtTheLevel() {
+  let rows = ContOutlineRows.flatten(tree, children: \.children, expanded: ["Sources"])
+  // README in place after Views: Sources at level 1, the top at 0.
+  #expect(rows.receiver(of: [3], at: 3, level: 1) == 0)
+  #expect(rows.receiver(of: [3], at: 3, level: 0) == nil)
+}

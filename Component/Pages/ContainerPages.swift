@@ -1588,7 +1588,7 @@ struct DragDropPage: View {
       }
       SpecimenSection(
         "Folders",
-        note: "Drag a file or a folder: between two rows it joins their folder, over the middle of a folder row it goes inside (at the end). A folder carries its open rows, as one row."
+        note: "Drag a file or a folder: between two rows it joins their folder, over the middle of a folder row it goes inside (at the end); held there, a closed folder opens, and closes again when you move back above it. After a folder's last row, drag left or right to land inside it or beside it: the folder it goes into lights up. A folder carries its open rows, as one row."
       ) {
         Specimen(
           "ReorderableOutline", ground: .sidebar,

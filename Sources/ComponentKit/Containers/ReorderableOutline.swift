@@ -3,11 +3,14 @@ import SwiftUI
 // A tree whose rows drag: `KitOutline`'s rows on `ReorderableSection`'s reordering. The tree is drawn as one flat list
 // of the rows on screen (an open folder's rows follow it), so a drag slides the rows as in any list. A dragged folder
 // takes its open rows along, counted as one row; dropped beside a row it joins that row's folder, and over the middle
-// of a folder row it goes into it.
+// of a folder row it goes into it. Held over a closed folder, the folder opens, and closes again if the drag moves
+// back above it. Where a place sits between levels (after a folder's last row), moving the drag across picks one,
+// and the slot moves in to show it.
 
 /// A tree of rows, like `KitOutline`, that reorders by dragging: a row dropped between two others joins their folder,
 /// one dropped onto the middle of a folder row goes into that folder (at its end), and a folder carries its rows
-/// along. `move` gets the dragged item, its new parent (`nil`: the top level) and its place among that parent's
+/// along. A closed folder held under the drag opens (and closes again when the drag moves back above it); after a
+/// folder's last row, dragging left or right picks whether the row lands inside the folder or beside it. `move` gets the dragged item, its new parent (`nil`: the top level) and its place among that parent's
 /// children as they are before the move (`.onMove`'s `toOffset`).
 ///
 /// ```swift
@@ -23,8 +26,11 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
   let row: (Element) -> RowContent
   @State private var ownExpanded: Set<Element.ID> = []
   @State private var list = UUID()
+  /// The folders the drag opened, which close again when it moves back above them.
+  @State private var springOpened: [Element.ID] = []
   @Environment(\.contRowIndent) private var baseIndent
   @Environment(\.contReorderState) private var shared
+  @Environment(\.kitIdiom) private var idiom
 
   /// An outline of `items` (`children` is `nil` for a leaf); `expanded` keeps the ids of the open folders, else the
   /// outline keeps them.
@@ -45,6 +51,9 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
     let open = expanded ?? $ownExpanded
     let rows = ContOutlineRows.flatten(items, children: children, expanded: open.wrappedValue)
     let state = shared ?? .app
+    let levels = ContReorderLevels(
+      range: { rows.levels(for: $0, at: $1) }, home: { $0.first.map { rows.entries[$0].depth } ?? 0 },
+      receiver: { rows.receiver(of: $0, at: $1, level: $2) }, step: ContMetrics.rowIndent(idiom))
     ForEach(rows.entries) { entry in
       let id = entry.id
       row(entry.element)
@@ -62,10 +71,51 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
         )
         .modifier(
           ContReorderRow(
-            list: list, index: entry.index, move: { rows.move($0, to: $1, move) }, state: state,
+            list: list, index: entry.index, move: { rows.move($0, to: $1, level: state.level, move) }, state: state,
             group: entry.end > entry.index + 1 ? IndexSet(integersIn: entry.index..<entry.end) : nil,
             count: rows.entries.count, collapses: true, nests: { rows.entries[$0].isFolder },
-            nest: { rows.nest($0, into: $1, move) }))
+            nest: { rows.nest($0, into: $1, move) }, levels: levels))
+        // Held over, a closed folder opens.
+        .task(id: entry.isFolder && !entry.isOpen && state.isInto(list, at: entry.index)) {
+          guard entry.isFolder, !entry.isOpen, state.isInto(list, at: entry.index) else { return }
+          try? await Task.sleep(for: .milliseconds(600))
+          guard !Task.isCancelled, state.isInto(list, at: entry.index) else { return }
+          springOpen(entry.id, in: open, state: state)
+        }
+        // Once for the outline (a ForEach's modifiers go to each row): the first row watches the drag's place.
+        .onChange(of: entry.index == 0 ? state.target : nil) { springClose(in: open, state: state) }
+        .onChange(of: entry.index == 0 && state.list == nil) { _, ended in if ended { springOpened = [] } }
+    }
+  }
+
+  /// Opens a folder under the drag; the rows it shows move the drag's rows down.
+  private func springOpen(_ id: Element.ID, in open: Binding<Set<Element.ID>>, state: ContReorderState) {
+    let rows = ContOutlineRows.flatten(items, children: children, expanded: open.wrappedValue)
+    guard let entry = rows.entries.first(where: { $0.id == id }) else { return }
+    let after = ContOutlineRows.flatten(items, children: children, expanded: open.wrappedValue.union([id]))
+    withAnimation(.kit) {
+      open.wrappedValue.insert(id)
+      springOpened.append(id)
+      state.insertRows(list, at: entry.index + 1, count: after.entries.count - rows.entries.count)
+    }
+  }
+
+  /// Closes the folders the drag opened once its place is above them (the last opened first, as they nest).
+  private func springClose(in open: Binding<Set<Element.ID>>, state: ContReorderState) {
+    guard state.list == AnyHashable(list), let target = state.target else { return }
+    for id in springOpened.reversed() {
+      let rows = ContOutlineRows.flatten(items, children: children, expanded: open.wrappedValue)
+      guard let entry = rows.entries.first(where: { $0.id == id }) else {
+        springOpened.removeAll { $0 == id }
+        continue
+      }
+      let place = (0..<entry.index).filter { !state.indices.contains($0) }.count
+      guard target <= place, !state.isInto(list, at: entry.index) else { continue }
+      withAnimation(.kit) {
+        open.wrappedValue.remove(id)
+        springOpened.removeAll { $0 == id }
+        state.removeRows(list, (entry.index + 1)..<entry.end)
+      }
     }
   }
 }
@@ -83,6 +133,8 @@ struct ContOutlineRows<Element: Identifiable> {
     let place: Int
     /// How many children it has (`nil`: a leaf).
     let childCount: Int?
+    /// It's an open folder.
+    let isOpen: Bool
     var id: Element.ID { element.id }
     var isFolder: Bool { childCount != nil }
   }
@@ -97,9 +149,12 @@ struct ContOutlineRows<Element: Identifiable> {
       for (place, item) in items.enumerated() {
         let kids = item[keyPath: children]
         let index = rows.entries.count
+        let isOpen = kids != nil && expanded.contains(item.id)
         rows.entries.append(
-          Entry(element: item, index: index, end: index + 1, depth: depth, parent: parent, place: place, childCount: kids?.count))
-        if let kids, expanded.contains(item.id) {
+          Entry(
+            element: item, index: index, end: index + 1, depth: depth, parent: parent, place: place,
+            childCount: kids?.count, isOpen: isOpen))
+        if let kids, isOpen {
           add(kids, depth: depth + 1, parent: item.id)
           rows.entries[index].end = rows.entries.count
         }
@@ -109,20 +164,52 @@ struct ContOutlineRows<Element: Identifiable> {
     return rows
   }
 
-  /// The drop of the rows `dragged` (a row and its open rows) before the row at `destination` (`.onMove`'s
-  /// arguments for the flat list): it joins the folder of the row after it, or becomes the first child of the open
-  /// folder just before it; at the end it goes to the top level's end.
-  func destination(of dragged: IndexSet, before destination: Int) -> (parent: Element.ID?, index: Int) {
-    let before = (0..<destination).last { !dragged.contains($0) }.map { entries[$0] }
-    guard destination < entries.count else { return (nil, rootCount) }
-    let after = entries[destination]
-    if let before, after.parent == before.id { return (before.id, 0) }
-    return (after.parent, after.place)
+  /// The rows beside the place `target` among the rows not `dragged`.
+  private func neighbours(of dragged: IndexSet, at target: Int) -> (before: Entry?, after: Entry?) {
+    let others = entries.indices.filter { !dragged.contains($0) }
+    return (target > 0 ? entries[others[target - 1]] : nil, target < others.count ? entries[others[target]] : nil)
   }
 
-  func move(_ dragged: IndexSet, to destination: Int, _ move: (Element.ID, Element.ID?, Int) -> Void) {
+  /// The levels the `dragged` rows may land at in the place `target`: the level of the row after it at least (they
+  /// can't come between a row and its folder), and at most the row before's, or one in when that row is an open
+  /// folder (its first row, or the only one of an empty folder).
+  func levels(for dragged: IndexSet, at target: Int) -> ClosedRange<Int> {
+    let (before, after) = neighbours(of: dragged, at: target)
+    let lowest = after?.depth ?? 0
+    let highest = before.map { $0.isOpen ? $0.depth + 1 : $0.depth } ?? 0
+    return lowest...max(lowest, highest)
+  }
+
+  /// The folder row (its index) the `dragged` rows go into at the place `target` and `level`; `nil` for the top level.
+  func receiver(of dragged: IndexSet, at target: Int, level: Int) -> Int? {
+    let others = entries.indices.filter { !dragged.contains($0) }
+    let destination = target < others.count ? others[target] : entries.count
+    guard let parent = self.destination(of: dragged, before: destination, level: level).parent else { return nil }
+    return entries.firstIndex { $0.id == parent }
+  }
+
+  /// The drop of the rows `dragged` (a row and its open rows) before the row at `destination` (`.onMove`'s
+  /// arguments for the flat list), at `level`: beside the row after it when that row is at the level, else at the end
+  /// of the folder before it that holds the level. Without a level, the row after it decides.
+  func destination(of dragged: IndexSet, before destination: Int, level: Int? = nil) -> (parent: Element.ID?, index: Int) {
+    let before = (0..<destination).last { !dragged.contains($0) }.map { entries[$0] }
+    let after = destination < entries.count ? entries[destination] : nil
+    let level = level ?? after?.depth ?? 0
+    if let after, after.depth == level { return (after.parent, after.place) }
+    guard let before else { return (nil, 0) }
+    if level > before.depth { return (before.id, before.childCount ?? 0) }
+    // The row before's folder at that level (or the row itself): the drop follows it.
+    var holder = before.index
+    while entries[holder].depth > level, holder > 0 { holder -= 1 }
+    let sibling = entries[holder]
+    return (sibling.parent, sibling.place + 1)
+  }
+
+  func move(_ dragged: IndexSet, to destination: Int, level: Int? = nil, _ move: (Element.ID, Element.ID?, Int) -> Void) {
     guard let first = dragged.first else { return }
-    let (parent, index) = self.destination(of: dragged, before: destination)
+    let (parent, index) = self.destination(of: dragged, before: destination, level: level)
+    // In place at its own level: nothing moves.
+    if parent == entries[first].parent, index == entries[first].place || index == entries[first].place + 1 { return }
     move(entries[first].id, parent, index)
   }
 

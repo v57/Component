@@ -21,6 +21,8 @@ enum ContMetrics {
   static func rowRadius(_ idiom: KitIdiom, compact: Bool = false) -> CGFloat {
     compact && !idiom.isTouch ? 6 : idiom == .phone ? 14 : idiom == .pad ? KitMetrics.radiusLarge : KitMetrics.radius
   }
+  /// How far a tree row moves in per level.
+  static func rowIndent(_ idiom: KitIdiom) -> CGFloat { idiom.isTouch ? 20 : 14 }
   /// A row's icon tile and the glyph inside it.
   static func rowTile(_ idiom: KitIdiom) -> CGFloat { KitMetrics.rowTile(idiom) }
   static func rowGlyph(_ idiom: KitIdiom) -> CGFloat { idiom == .phone ? 18 : idiom == .pad ? 17 : 12 }

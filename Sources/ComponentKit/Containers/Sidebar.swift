@@ -787,7 +787,7 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
     }
     .environment(\.contRowState, ContRowState(isSelected: isSelected, isEmphasized: isEmphasized))
     .padding(.vertical, compact ? 1 : idiom == .phone ? 6 : 4)
-    .padding(.leading, (idiom.isTouch ? 10 : 6) + CGFloat(indent) * (idiom.isTouch ? 20 : 14) - (disclosure != nil ? 4 : 0))
+    .padding(.leading, (idiom.isTouch ? 10 : 6) + CGFloat(indent) * ContMetrics.rowIndent(idiom) - (disclosure != nil ? 4 : 0))
     .padding(.trailing, idiom.isTouch ? 10 : 6)
     .frame(minHeight: compact ? 24 : KitMetrics.row(idiom))
     .background { background(isSelected: isSelected, isEmphasized: isEmphasized, isRenaming: isRenaming) }
