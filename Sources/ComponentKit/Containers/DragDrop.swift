@@ -13,6 +13,11 @@ extension View {
     modifier(ContLifted(isLifted: isLifted, cornerRadius: cornerRadius))
   }
 
+  /// `kitLifted`, its floating shadow left out (`hasShadow` false) where another card's shadow is drawn over it.
+  func kitLifted(_ isLifted: Bool, cornerRadius: CGFloat, hasShadow: Bool) -> some View {
+    modifier(ContLifted(isLifted: isLifted, cornerRadius: cornerRadius, hasShadow: hasShadow))
+  }
+
   /// Draws a drop target: it rises to the raised card and wears the field ring (2pt, the accent at half strength). On a
   /// card section pass its corners (`KitMetrics.radiusCard`).
   ///
@@ -29,6 +34,7 @@ extension View {
 private struct ContLifted: ViewModifier {
   let isLifted: Bool
   let cornerRadius: CGFloat
+  var hasShadow = true
   @Environment(\.colorScheme) private var scheme
 
   func body(content: Content) -> some View {
@@ -36,7 +42,7 @@ private struct ContLifted: ViewModifier {
       .background {
         if isLifted {
           SurfaceShape(surface: .raised, cornerRadius: cornerRadius)
-            .shadow(color: .black.opacity(scheme == .dark ? 0.5 : 0.16), radius: 12, y: 8)
+            .shadow(color: .black.opacity(hasShadow ? (scheme == .dark ? 0.5 : 0.16) : 0), radius: 12, y: 8)
             .transition(.opacity)
         }
       }

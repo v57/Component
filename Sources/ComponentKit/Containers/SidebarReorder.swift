@@ -374,13 +374,15 @@ final class ContReorderState {
   @ObservationIgnored private var lastPointer: CGPoint?
   @ObservationIgnored private var isGroupDrag = false
 
-  /// Draws the landed row at `index` lifted where the drag image is, `delta` from its place, under the image (which
-  /// looks the same) until the drag ends and it settles in (`end`).
+  /// Draws the landed row at `index` lifted where the drag image is, `delta` from its place, its content where the
+  /// image shows it (from the level it had to the one it lands at), under the image, which looks the same, until the
+  /// drag ends and it settles in (`end`).
   private func lift(_ list: AnyHashable, at index: Int, by delta: CGSize?) {
     guard let delta else { return }
+    let shift = cardLevel.map { from in CGFloat(from - (level ?? levelHome ?? from)) * levelStep } ?? 0
     var instant = Transaction()
     instant.disablesAnimations = true
-    withTransaction(instant) { settle = ContSettle(list: list, index: index, delta: delta) }
+    withTransaction(instant) { settle = ContSettle(list: list, index: index, delta: delta, shift: shift) }
   }
 
   /// How far the drag image's top leading corner is from where the row at `index` of `list` is drawn.
@@ -523,12 +525,13 @@ extension EnvironmentValues {
   @Entry var contReorderState: ContReorderState? = nil
 }
 
-/// A landed row settling in: where it is drawn from (the drag image's place), and whether it shows yet (the image is
-/// gone).
+/// A landed row settling in: where it is drawn from (the drag image's place), how far across its content is from its
+/// place (the image shows the row at the level it had), and whether the image is gone, so it's on its own.
 struct ContSettle {
   var list: AnyHashable
   var index: Int
   var delta: CGSize
+  var shift: CGFloat = 0
   var isShown = false
 }
 
@@ -1167,19 +1170,23 @@ private struct ContDraggedRowSlot: ViewModifier {
       let isDragging = state.isMoving && state.isDragging(list, at: index)
       // Collapsed rows dragged together (a folder and its open rows) show one slot, the first's.
       let isFirst = !collapses || state.indices.first == index
-      // Landed, the row shows once the drag image is gone (`ContReorderState.end`), and its slot stays under it.
-      let isHidden = settle.map { !$0.isShown } ?? isDragging
+      // Landed, the row is drawn under the drag image, then on its own as the image goes (`ContReorderState.end`),
+      // and its slot stays under it.
+      let isHidden = settle == nil && isDragging
       let showsSlot = (isDragging && isFirst) || settle != nil
       content
         .kitDropTarget(state.receives(list, at: index), cornerRadius: ContMetrics.rowRadius(idiom))
         // The folder a drop went into bounces as it takes it.
         .scaleEffect(state.isBouncing(list, at: index) ? 1.04 : 1)
-        .opacity(isHidden ? 0 : 1)
+        .offset(x: axis == .vertical ? settle?.shift ?? 0 : 0, y: axis == .horizontal ? settle?.shift ?? 0 : 0)
+        // Landed, it starts as see-through as the drag image it replaces (the system draws it at about 88%).
+        .opacity(isHidden ? 0 : settle != nil ? 0.88 : 1)
         // Picked up, the row fades into its slot under the drag image; a group, and a folder's open rows, leave at
         // once, as the rows under them slide up.
         .animation(isDragging ? (!isGroup && isFirst ? .kitFast : nil) : .kit, value: isDragging)
         // Landed: lifted like the drag image, from where it was, as it sits back in.
-        .kitLifted(settle != nil, cornerRadius: ContMetrics.rowRadius(idiom))
+        // Under the image, the image's shadow is its own.
+        .kitLifted(settle != nil, cornerRadius: ContMetrics.rowRadius(idiom), hasShadow: settle?.isShown == true)
         .offset(settle?.delta ?? .zero)
         // A group's slot is its first row: its rows count as that one while dragged (`ContReorderState.start`), and
         // the layout keeps their room (shrinking it would move a scrolled list under the pointer).
