@@ -1030,7 +1030,7 @@ private struct ContDraggedRowSlot: ViewModifier {
             let pointer = ContPlatform.pointerInWindow ?? state.pointer
             ContDropHint(title: hint)
               .position(
-                x: pointer.x - geometry.frame.minX, y: pointer.y - state.hintLift - geometry.frame.minY - 24)
+                x: pointer.x - geometry.frame.minX, y: pointer.y - state.hintLift - geometry.frame.minY - 20)
           }
           .allowsHitTesting(false)
           .transition(.opacity)
