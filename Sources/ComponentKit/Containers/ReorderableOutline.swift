@@ -8,8 +8,8 @@ import SwiftUI
 // and the slot moves in to show it.
 
 /// A tree of rows, like `KitOutline`, that reorders by dragging: a row dropped between two others joins their folder,
-/// one dropped onto the middle of a folder row goes into that folder (at its end), and a folder carries its rows
-/// along. A closed folder held under the drag opens (and closes again when the drag moves back above it); after a
+/// one dropped onto the middle of a closed folder row goes into that folder (at its end), and a folder carries its
+/// rows along. A closed folder held under the drag opens (and closes again when the drag moves back above it); after a
 /// folder's last row, dragging left or right picks whether the row lands inside the folder or beside it. `move` gets the dragged item, its new parent (`nil`: the top level) and its place among that parent's
 /// children as they are before the move (`.onMove`'s `toOffset`).
 ///
@@ -80,7 +80,9 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
           ContReorderRow(
             list: list, index: entry.index, move: { rows.move($0, to: $1, level: state.level, move) }, state: state,
             group: entry.end > entry.index + 1 ? IndexSet(integersIn: entry.index..<entry.end) : nil,
-            count: rows.entries.count, collapses: true, nests: { rows.entries[$0].isFolder },
+            count: rows.entries.count, collapses: true,
+            // Into closed folders only: an open one's rows show where the drop goes, as its slot.
+            nests: { rows.entries[$0].isFolder && !rows.entries[$0].isOpen },
             nest: { rows.nest($0, into: $1, move) }, levels: levels))
         // Held over, a closed folder opens.
         .task(id: entry.isFolder && !entry.isOpen && state.isInto(list, at: entry.index)) {

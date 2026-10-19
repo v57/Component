@@ -496,6 +496,20 @@ enum ContPlatform {
     #endif
   }
 
+  /// The pointer in the coordinates of the window under it (SwiftUI's global ones: from the window's top left); `nil`
+  /// on touch, where only a drop target's updates place a drag.
+  static var pointerInWindow: CGPoint? {
+    #if canImport(AppKit)
+      let mouse = NSEvent.mouseLocation
+      guard let window = NSApp.orderedWindows.first(where: { $0.isVisible && $0.frame.contains(mouse) }) else {
+        return nil
+      }
+      return CGPoint(x: mouse.x - window.frame.minX, y: window.frame.maxY - mouse.y)
+    #else
+      nil
+    #endif
+  }
+
   /// Whether Shift is held (a ⇧-click extends a selection); always false on touch.
   static var isShiftDown: Bool {
     #if canImport(AppKit)

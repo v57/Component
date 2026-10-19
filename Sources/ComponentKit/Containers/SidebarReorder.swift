@@ -96,6 +96,12 @@ final class ContReorderState {
     self.list == list ? offsets[index] ?? 0 : 0
   }
 
+  /// Whether the row at `index` of `list` draws the drag's slot (collapsed rows dragged together draw one, the
+  /// first's).
+  func isSlot(_ list: AnyHashable, at index: Int, collapses: Bool) -> Bool {
+    isMoving && isDragging(list, at: index) && (!collapses || indices.first == index)
+  }
+
   /// Whether the dragged rows would go into the row at `index` of `list`.
   func isInto(_ list: AnyHashable, at index: Int) -> Bool { into == index && self.list == list }
 
@@ -905,6 +911,8 @@ struct ContReorderRow: ViewModifier {
       .onChange(of: index) { state.register(geometry, in: list, at: index) }
       .onChange(of: list) { state.register(geometry, in: list, at: index) }
       .onDisappear { state.unregister(geometry) }
+      // Above the rows after it: the slot draws where the drop goes on top of them.
+      .zIndex(state.isSlot(list, at: index, collapses: collapses) ? 1 : 0)
   }
 
   /// Called as the drag starts (on the main thread, though the drag source's closures aren't isolated).
@@ -998,21 +1006,24 @@ private struct ContDraggedRowSlot: ViewModifier {
 
   func body(content: Content) -> some View {
     let offset = state.offset(list, at: index)
-    let isSlot = state.isMoving && state.isDragging(list, at: index) && (!collapses || state.indices.first == index)
+    let isSlot = state.isSlot(list, at: index, collapses: collapses)
     slot(content)
       .offset(x: axis == .horizontal ? offset : 0, y: axis == .vertical ? offset : 0)
       // Where the drop goes, above the drag image: the folder it names may be out of sight.
       .overlay(alignment: .topLeading) {
         if isSlot, let hint = state.hint {
-          ContDropHint(title: hint)
-            .position(
-              x: state.pointer.x - geometry.frame.minX,
-              y: state.pointer.y - state.hintLift - geometry.frame.minY - 24)
-            .allowsHitTesting(false)
-            .transition(.opacity)
+          // Every frame from the pointer itself where the platform gives it (the Mac): the drop's updates stop
+          // wherever no row is under the pointer.
+          TimelineView(.animation) { _ in
+            let pointer = ContPlatform.pointerInWindow ?? state.pointer
+            ContDropHint(title: hint)
+              .position(
+                x: pointer.x - geometry.frame.minX, y: pointer.y - state.hintLift - geometry.frame.minY - 24)
+          }
+          .allowsHitTesting(false)
+          .transition(.opacity)
         }
       }
-      .zIndex(isSlot ? 1 : 0)
   }
 
   @ViewBuilder
