@@ -51,13 +51,20 @@ final class ContReorderState {
   private(set) var levelStep: CGFloat = 0
   /// The direction the list runs (a tab strip's tabs run across).
   private(set) var axis: Axis = .vertical
-  /// The row that just landed, drawn lifted where the drag image was (`delta` from its place) as it settles in.
-  private(set) var settle: (list: AnyHashable, index: Int, delta: CGSize)?
+  /// The row that just landed: hidden while the drag image is up, then drawn lifted where the image was (`delta`
+  /// from its place) as it settles in.
+  private(set) var settle: ContSettle?
+  /// The folder row the drop went into, bouncing as it takes it.
+  private(set) var bounce: (list: AnyHashable, index: Int)?
 
-  /// How far from its place the row at `index` of `list` is drawn as it settles in from the drag image.
-  func settling(_ list: AnyHashable, at index: Int) -> CGSize? {
+  /// The landed row at `index` of `list`, while it settles in.
+  func settling(_ list: AnyHashable, at index: Int) -> ContSettle? {
     guard let settle, settle.list == list, settle.index == index else { return nil }
-    return settle.delta
+    return settle
+  }
+
+  func isBouncing(_ list: AnyHashable, at index: Int) -> Bool {
+    bounce?.list == list && bounce?.index == index
   }
 
   /// Starts a drag of the row at `index`; `group` holds the indices of the rows dragged with it (itself included).
@@ -77,14 +84,13 @@ final class ContReorderState {
   /// After the drop: where the dragged rows are now, which of them is the one under the pointer, and how far the rows
   /// still slide (by their new indices) to stay where they are drawn until the drag image has landed: a collapsed
   /// group's rows open its room as it sits back in.
+  /// The slot (at its level) and the folder it went into stay until the drag ends (`end`), as the row lands.
   func update(indices: IndexSet, anchor: Int, offsets: [Int: CGFloat] = [:]) {
     self.indices = indices
     index = anchor
     target = nil
     self.offsets = offsets
     into = nil
-    level = nil
-    receiver = nil
     hint = nil
     hasLanded = true
   }
@@ -117,9 +123,26 @@ final class ContReorderState {
   func receives(_ list: AnyHashable, at index: Int) -> Bool { (receiver ?? into) == index && self.list == list }
 
   func end() {
-    // The landed row, drawn lifted under the drag image since the drop (`land`), settles into its place as the image
-    // goes (in the caller's animation).
-    settle = nil
+    // The drag image is gone: the landed row takes its place, lifted as it was, and settles into its own; the folder
+    // it went into bounces.
+    if var shown = settle, !shown.isShown {
+      shown.isShown = true
+      var instant = Transaction()
+      instant.disablesAnimations = true
+      withTransaction(instant) { settle = shown }
+      Task { @MainActor [weak self] in
+        try? await Task.sleep(for: .milliseconds(20))
+        guard let self, self.settle?.index == shown.index, self.settle?.list == shown.list else { return }
+        withAnimation(.kit) { self.settle = nil }
+      }
+    }
+    if hasLanded, let list, let receiver {
+      withAnimation(.kitSpring) { bounce = (list, receiver) }
+      Task { @MainActor [weak self] in
+        try? await Task.sleep(for: .milliseconds(150))
+        withAnimation(.kitSpring) { self?.bounce = nil }
+      }
+    }
     list = nil
     index = nil
     indices = []
@@ -357,7 +380,7 @@ final class ContReorderState {
     guard let delta else { return }
     var instant = Transaction()
     instant.disablesAnimations = true
-    withTransaction(instant) { settle = (list, index, delta) }
+    withTransaction(instant) { settle = ContSettle(list: list, index: index, delta: delta) }
   }
 
   /// How far the drag image's top leading corner is from where the row at `index` of `list` is drawn.
@@ -452,6 +475,8 @@ final class ContReorderState {
       withAnimation(.kit) {
         nest(moving, into)
         update(indices: [], anchor: index)
+        // The folder, past the rows that left above it.
+        receiver = into - moving.count(in: 0..<into)
       }
       return
     }
@@ -483,9 +508,12 @@ final class ContReorderState {
     // The rows move and take their new slides in one transaction, so they stay where they are drawn.
     var transaction = Transaction()
     transaction.disablesAnimations = true
+    let order = ContReorder.order(count: count, dragged: indices, target: target)
     withTransaction(transaction) {
       move(indices, step.destination)
       update(indices: step.indices, anchor: step.anchor, offsets: held)
+      // The folder it went into, where the move put it.
+      receiver = receiver.flatMap { order.firstIndex(of: $0) }
     }
     lift(list, at: step.anchor, by: landing)
   }
@@ -493,6 +521,15 @@ final class ContReorderState {
 
 extension EnvironmentValues {
   @Entry var contReorderState: ContReorderState? = nil
+}
+
+/// A landed row settling in: where it is drawn from (the drag image's place), and whether it shows yet (the image is
+/// gone).
+struct ContSettle {
+  var list: AnyHashable
+  var index: Int
+  var delta: CGSize
+  var isShown = false
 }
 
 /// A tree's levels, for a list that is a tree drawn flat (`ReorderableOutline`): the drop's level is picked by moving
@@ -1112,13 +1149,8 @@ private struct ContDraggedRowSlot: ViewModifier {
   func body(content: Content) -> some View {
     let offset = state.offset(list, at: index)
     let isSlot = state.isSlot(list, at: index, collapses: collapses)
-    let settle = state.settling(list, at: index)
-    slot(content, isSettling: settle != nil)
-      // Landed: lifted like the drag image, from where it was, as it sits back in.
-      .kitLifted(settle != nil, cornerRadius: ContMetrics.rowRadius(idiom))
-      .offset(
-        x: (axis == .horizontal ? offset : 0) + (settle?.width ?? 0),
-        y: (axis == .vertical ? offset : 0) + (settle?.height ?? 0))
+    slot(content)
+      .offset(x: axis == .horizontal ? offset : 0, y: axis == .vertical ? offset : 0)
       // Where the drop goes, above the drag image, drawn by the window's root over everything
       // (`ContDropHintOverlay`): the folder it names may be out of sight.
       .preference(
@@ -1129,28 +1161,37 @@ private struct ContDraggedRowSlot: ViewModifier {
   }
 
   @ViewBuilder
-  private func slot(_ content: Content, isSettling: Bool) -> some View {
+  private func slot(_ content: Content) -> some View {
     if #available(macOS 26.0, iOS 27.0, visionOS 27.0, *) {
-      let isDragging = state.isMoving && state.isDragging(list, at: index) && !isSettling
+      let settle = state.settling(list, at: index)
+      let isDragging = state.isMoving && state.isDragging(list, at: index)
       // Collapsed rows dragged together (a folder and its open rows) show one slot, the first's.
       let isFirst = !collapses || state.indices.first == index
-      let isSlot = isDragging && isFirst
+      // Landed, the row shows once the drag image is gone (`ContReorderState.end`), and its slot stays under it.
+      let isHidden = settle.map { !$0.isShown } ?? isDragging
+      let showsSlot = (isDragging && isFirst) || settle != nil
       content
         .kitDropTarget(state.receives(list, at: index), cornerRadius: ContMetrics.rowRadius(idiom))
-        .opacity(isDragging ? 0 : 1)
+        // The folder a drop went into bounces as it takes it.
+        .scaleEffect(state.isBouncing(list, at: index) ? 1.04 : 1)
+        .opacity(isHidden ? 0 : 1)
+        // Picked up, the row fades into its slot under the drag image; a group, and a folder's open rows, leave at
+        // once, as the rows under them slide up.
+        .animation(isDragging ? (!isGroup && isFirst ? .kitFast : nil) : .kit, value: isDragging)
+        // Landed: lifted like the drag image, from where it was, as it sits back in.
+        .kitLifted(settle != nil, cornerRadius: ContMetrics.rowRadius(idiom))
+        .offset(settle?.delta ?? .zero)
         // A group's slot is its first row: its rows count as that one while dragged (`ContReorderState.start`), and
         // the layout keeps their room (shrinking it would move a scrolled list under the pointer).
         .background(alignment: .top) {
-          if isSlot {
+          if showsSlot {
             RoundedRectangle(cornerRadius: ContMetrics.rowRadius(idiom), style: .continuous).fill(.kitField)
               .frame(height: collapses ? KitMetrics.row(idiom) : nil)
               // In a tree, the slot moves in to the level the rows would land at.
               .padding(.leading, CGFloat(state.level ?? 0) * state.levelStep)
+              .transition(.opacity)
           }
         }
-        // Picked up, the row fades into its slot under the drag image; a group, and a folder's open rows, leave at
-        // once, as the rows under them slide up.
-        .animation(!isGroup && isFirst ? .kitFast : nil, value: isDragging)
     } else {
       content
     }
