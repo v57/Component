@@ -576,3 +576,30 @@ private let tree = [
   #expect(state.target == nil)
   state.end()
 }
+
+@MainActor @Test func reorderNamesTheDropOnlyAtALastPlaceOnceItLeavesHome() {
+  let state = ContReorderState()
+  for (index, y) in [0.0, 22, 44, 66].enumerated() {
+    let geometry = ContRowGeometry()
+    geometry.frame = CGRect(x: 0, y: y, width: 100, height: 20)
+    state.register(geometry, in: "tree", at: index)
+  }
+  // Row 0 is a folder holding rows 1…3; row 3, its last, is dragged. Its own place is a last place (inside or out).
+  let levels = ContReorderLevels(
+    range: { _, target in target == 3 ? 0...1 : 1...1 }, home: { _ in 1 },
+    receiver: { _, _, level in level == 1 ? 0 : nil },
+    title: { $0 == nil ? "Top" : "Folder" }, isOrigin: { _, receiver in receiver == 0 }, step: 14)
+  state.start("tree", at: 3, axis: .vertical)
+  state.retarget("tree", count: 4, pointer: CGPoint(x: 50, y: 76), levels: levels)
+  #expect(state.level == 1 && state.hint == nil)
+  // Out to the top level: a new destination, named.
+  state.retarget("tree", count: 4, pointer: CGPoint(x: 30, y: 76), levels: levels)
+  #expect(state.level == 0 && state.hint == "Top")
+  // Back in: named now too.
+  state.retarget("tree", count: 4, pointer: CGPoint(x: 50, y: 76), levels: levels)
+  #expect(state.hint == "Folder")
+  // Up between rows 1 and 2: one level only, nothing to name.
+  state.retarget("tree", count: 4, pointer: CGPoint(x: 50, y: 40), levels: levels)
+  #expect(state.target == 2 && state.hint == nil)
+  state.end()
+}

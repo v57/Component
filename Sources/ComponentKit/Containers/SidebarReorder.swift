@@ -63,6 +63,7 @@ final class ContReorderState {
     hint = nil
     grab = nil
     grabAcross = nil
+    hintArmed = false
     hasLanded = false
   }
 
@@ -235,8 +236,11 @@ final class ContReorderState {
       if level != self.level { withAnimation(.kitFast) { self.level = level } }
       let receiver = into ?? level.flatMap { levels.receiver(indices, target, $0) }
       if receiver != self.receiver { withAnimation(.kitFast) { self.receiver = receiver } }
+      // Named at a list's last place only (after a folder's last row), where moving across picks between levels:
+      // elsewhere the slot shows where the drop goes. Not at first while that's still the folder the rows came from.
+      if levels.isOrigin(indices, receiver) == false { hintArmed = true }
       if let title = levels.title {
-        let hint = title(receiver)
+        let hint = hintArmed && into == nil && range.count > 1 ? title(receiver) : nil
         if hint != self.hint { withAnimation(.kitFast) { self.hint = hint } }
         if self.pointer != pointer { self.pointer = pointer }
         hintLift = grab ?? 0
@@ -285,6 +289,8 @@ final class ContReorderState {
   /// How far into the dragged row the pointer holds it, along the axis (`retarget`), and where across it first was.
   @ObservationIgnored private var grab: CGFloat?
   @ObservationIgnored private var grabAcross: CGFloat?
+  /// The drop's place has left the folder the rows came from, so its name shows (`ContReorderLevels.title`).
+  @ObservationIgnored private var hintArmed = false
   /// The dragged rows' own level (`ContReorderLevels.home`).
   @ObservationIgnored private var levelHome: Int?
   /// Rows came or went under the drag: the slides are worked out again as the rows settle (`insertRows`).
@@ -418,6 +424,8 @@ struct ContReorderLevels {
   var moved: ((_ middle: CGFloat) -> Bool)? = nil
   /// The name of the folder row the drop goes into (`nil`: the top level), shown above the drag image; `nil` for none.
   var title: ((_ receiver: Int?) -> String?)? = nil
+  /// Whether the folder row `receiver` (`nil`: the top level) is the one the `dragged` rows came from.
+  var isOrigin: (_ dragged: IndexSet, _ receiver: Int?) -> Bool = { _, _ in false }
   /// How far apart levels are drawn.
   var step: CGFloat
 }
@@ -892,7 +900,7 @@ struct ContReorderRow: ViewModifier {
     let delegate = ContReorderDropDelegate(
       list: list, index: index, count: count, move: move, state: state, accepts: accepts, perform: perform,
       receive: receive, isTargeted: $isTargeted, outer: outer, geometry: geometry, nests: nests, nest: nest,
-      levels: levels)
+      levels: levels, axis: axis)
     content
       // Reorderable rows inside this one (a group's sub-rows) share its drag and pass its rows' drags to it.
       .environment(\.contReorderState, state)
@@ -903,8 +911,12 @@ struct ContReorderRow: ViewModifier {
           list: list, index: index, axis: axis, collapses: collapses, state: state, geometry: geometry))
       .modifier(ContRowDragSource(begin: begin, exportURL: exportURL, generation: drags, preview: preview(content)))
       .modifier(ContDragSessionEnd(state: state, ended: { drags += 1 }))
-      // Outside the slide: the target stays where the row is laid out, so the rows under the drag cover the list.
+      // Outside the slide: the target stays where the row is laid out, so the rows under the drag cover the list, and
+      // reaches over the gaps between rows (a drag resting in one got no updates: moving across there changed
+      // nothing); the layout is padded back.
+      .padding(axis == .vertical ? .vertical : .horizontal, ContReorderDropDelegate.reach)
       .onDrop(of: [ContReorderState.contentType] + accepts, delegate: delegate)
+      .padding(axis == .vertical ? .vertical : .horizontal, -ContReorderDropDelegate.reach)
       .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { [geometry] in geometry.frame = $0 }
       .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
       .onAppear { state.register(geometry, in: list, at: index) }
@@ -1051,15 +1063,12 @@ private struct ContDraggedRowSlot: ViewModifier {
   }
 }
 
-/// The name of where a drop goes, floating above the drag image: a folder chip on a raised card.
+/// The name of where a drop goes, floating above the drag image: a folder chip.
 private struct ContDropHint: View {
   let title: String
 
   var body: some View {
-    Chip(title, systemImage: "folder", hue: .accent)
-      .padding(3)
-      .background(Capsule().fill(.kitRaised).shadow(color: .black.opacity(0.25), radius: 6, y: 3))
-      .fixedSize()
+    Chip(title, systemImage: "folder", hue: .accent).fixedSize()
   }
 }
 
@@ -1111,6 +1120,11 @@ struct ContReorderDropDelegate: DropDelegate {
   var nests: ((Int) -> Bool)? = nil
   var nest: ((IndexSet, Int) -> Void)? = nil
   var levels: ContReorderLevels? = nil
+  /// The direction the list runs: the target reaches `reach` past the row's ends that way.
+  var axis: Axis = .vertical
+
+  /// How far a row's drop target reaches past it along the list, over half the gap to its neighbour and a little more.
+  static let reach: CGFloat = 1.5
 
   /// The row's frame in global coordinates (`.zero` before its first layout).
   var frame: CGRect { geometry?.frame ?? .zero }
@@ -1118,7 +1132,9 @@ struct ContReorderDropDelegate: DropDelegate {
   /// The pointer in global coordinates: `DropInfo` gives it in this row's, and a forwarded drag needs it in the outer
   /// row's.
   private func pointer(_ info: DropInfo) -> CGPoint {
-    CGPoint(x: frame.minX + info.location.x, y: frame.minY + info.location.y)
+    CGPoint(
+      x: frame.minX + info.location.x - (axis == .horizontal ? Self.reach : 0),
+      y: frame.minY + info.location.y - (axis == .vertical ? Self.reach : 0))
   }
 
   /// The list's row count: given, or past the furthest row seen.

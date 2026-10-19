@@ -60,6 +60,10 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
       receiver: { rows.receiver(of: $0, at: $1, level: $2) },
       moved: { springClose(above: $0, in: open, state: state) },
       title: title.map { title in { receiver in receiver.map { title(rows.entries[$0].element) } ?? rootTitle } },
+      isOrigin: { dragged, receiver in
+        guard let first = dragged.first else { return false }
+        return rows.entries[first].parent == receiver.map { rows.entries[$0].id }
+      },
       step: ContMetrics.rowIndent(idiom))
     ForEach(rows.entries) { entry in
       let id = entry.id
@@ -102,7 +106,8 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
   }
 
   /// Names where a drag will drop above the drag image, so the folder shows even when it's out of sight: `title` gives
-  /// a folder's name, `root` the top level's (`nil`: nothing over the top level).
+  /// a folder's name, `root` the top level's (`nil`: nothing over the top level). It shows at a folder's last place,
+  /// where dragging across picks the level, once the drop has left the folder the row came from.
   ///
   /// ```swift
   /// ReorderableOutline(files, children: \.children, move: move) { … }
