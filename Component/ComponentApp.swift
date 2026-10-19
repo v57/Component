@@ -12,7 +12,7 @@ struct ComponentApp: App {
         .environment(model)
         .kitToasts()
         .environment(\.kitIncreaseContrast, model.increaseContrast)
-        .preferredColorScheme(model.appearance.colorScheme)
+        .kitColorScheme(model.appearance.colorScheme)
         .componentKit(accent: model.accent.color)
         .frame(width: model.windowWidth, height: model.windowWidth.map { _ in 700 })
         // `--hitch-test <report>` (DEBUG): walks and scrolls every page, writing its hitches (`HitchTest.swift`).

@@ -1,5 +1,9 @@
 import SwiftUI
 
+#if os(macOS)
+  import AppKit
+#endif
+
 extension EnvironmentValues {
   /// The app's accent: the only colour an app picks. Set it once with `.componentKit(accent:)`.
   @Entry public var kitAccent: Color = Color(.sRGB, red: 0, green: 0.478, blue: 1)
@@ -46,6 +50,43 @@ extension View {
   public func componentKit(accent: Color? = nil) -> some View {
     modifier(ComponentKitRoot(accent: accent))
   }
+}
+
+extension View {
+  /// The window's appearance: `.light`, `.dark`, or `nil` to follow the system's. Use it in place of
+  /// `preferredColorScheme` for an app's appearance setting: on the Mac, going back to `nil` from a fixed scheme left
+  /// the window in that scheme until something else redrew it, so the kit follows the system's appearance itself.
+  ///
+  /// ```swift
+  /// ContentView().kitColorScheme(settings.appearance.colorScheme)
+  /// ```
+  public func kitColorScheme(_ scheme: ColorScheme?) -> some View {
+    modifier(ContColorScheme(scheme: scheme))
+  }
+}
+
+private struct ContColorScheme: ViewModifier {
+  var scheme: ColorScheme?
+  #if os(macOS)
+    @State private var system = ContColorScheme.systemScheme(NSApp.effectiveAppearance)
+  #endif
+
+  func body(content: Content) -> some View {
+    #if os(macOS)
+      // The app's appearance follows the system's (the scheme is set on the window, not the app).
+      content
+        .preferredColorScheme(scheme ?? system)
+        .onReceive(NSApp.publisher(for: \.effectiveAppearance)) { system = Self.systemScheme($0) }
+    #else
+      content.preferredColorScheme(scheme)
+    #endif
+  }
+
+  #if os(macOS)
+    static func systemScheme(_ appearance: NSAppearance) -> ColorScheme {
+      appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .dark : .light
+    }
+  #endif
 }
 
 struct ComponentKitRoot: ViewModifier {
