@@ -41,6 +41,11 @@ final class ContReorderState {
   /// The tree's folder row the drop goes into, worn as a drop target so the level shows while the drag image covers
   /// its slot (`nil`: the top level, or a list).
   private(set) var receiver: Int?
+  /// The name of where the drop goes (`ContReorderLevels.title`), shown above the drag image, and the pointer (global
+  /// coordinates) with how far below the image's top it holds it.
+  private(set) var hint: String?
+  private(set) var pointer: CGPoint = .zero
+  private(set) var hintLift: CGFloat = 0
   private(set) var levelStep: CGFloat = 0
   /// The direction the list runs (a tab strip's tabs run across).
   private(set) var axis: Axis = .vertical
@@ -55,6 +60,7 @@ final class ContReorderState {
     into = nil
     level = nil
     receiver = nil
+    hint = nil
     grab = nil
     grabAcross = nil
     hasLanded = false
@@ -71,6 +77,7 @@ final class ContReorderState {
     into = nil
     level = nil
     receiver = nil
+    hint = nil
     hasLanded = true
   }
 
@@ -104,6 +111,7 @@ final class ContReorderState {
     into = nil
     level = nil
     receiver = nil
+    hint = nil
     isMoving = false
   }
 
@@ -221,6 +229,12 @@ final class ContReorderState {
       if level != self.level { withAnimation(.kitFast) { self.level = level } }
       let receiver = into ?? level.flatMap { levels.receiver(indices, target, $0) }
       if receiver != self.receiver { withAnimation(.kitFast) { self.receiver = receiver } }
+      if let title = levels.title {
+        let hint = title(receiver)
+        if hint != self.hint { withAnimation(.kitFast) { self.hint = hint } }
+        if self.pointer != pointer { self.pointer = pointer }
+        hintLift = grab ?? 0
+      }
     }
     let stale = isStale
     if isStale, spans.count >= count { isStale = false }
@@ -236,7 +250,13 @@ final class ContReorderState {
 
   /// The pointer left `list`'s rows: unless it comes back to one of them right away (it crossed the gap between two),
   /// the rows slide back.
-  func leave(_ list: AnyHashable) {
+  func leave(_ list: AnyHashable, at pointer: CGPoint? = nil) {
+    // Between two rows (the gap no row covers) the pointer is still over the list.
+    if let pointer, let bounds = rows[list]?.values.map(\.frame).filter({ $0 != .zero }).reduce(nil, { (union: CGRect?, frame) in
+      union?.union(frame) ?? frame
+    }), bounds.insetBy(dx: -1, dy: -4).contains(pointer) {
+      return
+    }
     hover += 1
     let hover = hover
     Task { @MainActor [weak self] in
@@ -247,6 +267,7 @@ final class ContReorderState {
         self.target = nil
         self.offsets = [:]
         self.into = nil
+        self.hint = nil
       }
     }
   }
@@ -389,6 +410,8 @@ struct ContReorderLevels {
   /// Called as the drag image's middle moves (along the axis), before the drag is placed; `true`: the rows changed
   /// (a folder closed), so the update places nothing.
   var moved: ((_ middle: CGFloat) -> Bool)? = nil
+  /// The name of the folder row the drop goes into (`nil`: the top level), shown above the drag image; `nil` for none.
+  var title: ((_ receiver: Int?) -> String?)? = nil
   /// How far apart levels are drawn.
   var step: CGFloat
 }
@@ -869,7 +892,9 @@ struct ContReorderRow: ViewModifier {
       .environment(\.contReorderState, state)
       .environment(\.contOuterReorder, ContOuterReorder(delegate))
       .kitDropTarget(isTargeted, cornerRadius: ContMetrics.rowRadius(idiom))
-      .modifier(ContDraggedRowSlot(list: list, index: index, axis: axis, collapses: collapses, state: state))
+      .modifier(
+        ContDraggedRowSlot(
+          list: list, index: index, axis: axis, collapses: collapses, state: state, geometry: geometry))
       .modifier(ContRowDragSource(begin: begin, exportURL: exportURL, generation: drags, preview: preview(content)))
       .modifier(ContDragSessionEnd(state: state, ended: { drags += 1 }))
       // Outside the slide: the target stays where the row is laid out, so the rows under the drag cover the list.
@@ -968,11 +993,26 @@ private struct ContDraggedRowSlot: ViewModifier {
   let axis: Axis
   let collapses: Bool
   let state: ContReorderState
+  let geometry: ContRowGeometry
   @Environment(\.kitIdiom) private var idiom
 
   func body(content: Content) -> some View {
     let offset = state.offset(list, at: index)
-    slot(content).offset(x: axis == .horizontal ? offset : 0, y: axis == .vertical ? offset : 0)
+    let isSlot = state.isMoving && state.isDragging(list, at: index) && (!collapses || state.indices.first == index)
+    slot(content)
+      .offset(x: axis == .horizontal ? offset : 0, y: axis == .vertical ? offset : 0)
+      // Where the drop goes, above the drag image: the folder it names may be out of sight.
+      .overlay(alignment: .topLeading) {
+        if isSlot, let hint = state.hint {
+          ContDropHint(title: hint)
+            .position(
+              x: state.pointer.x - geometry.frame.minX,
+              y: state.pointer.y - state.hintLift - geometry.frame.minY - 24)
+            .allowsHitTesting(false)
+            .transition(.opacity)
+        }
+      }
+      .zIndex(isSlot ? 1 : 0)
   }
 
   @ViewBuilder
@@ -997,6 +1037,18 @@ private struct ContDraggedRowSlot: ViewModifier {
     } else {
       content
     }
+  }
+}
+
+/// The name of where a drop goes, floating above the drag image: a folder chip on a raised card.
+private struct ContDropHint: View {
+  let title: String
+
+  var body: some View {
+    Chip(title, systemImage: "folder", hue: .accent)
+      .padding(3)
+      .background(Capsule().fill(.kitRaised).shadow(color: .black.opacity(0.25), radius: 6, y: 3))
+      .fixedSize()
   }
 }
 
@@ -1133,7 +1185,7 @@ struct ContReorderDropDelegate: DropDelegate {
   func dropExited(info: DropInfo) {
     if let outer = forwarded(info) { return outer.dropExited(info: info) }
     if isTargeted?.wrappedValue == true { withAnimation(.kitFast) { isTargeted?.wrappedValue = false } }
-    if state.list == list { state.leave(list) }
+    if state.list == list { state.leave(list, at: pointer(info)) }
   }
 
   func performDrop(info: DropInfo) -> Bool {

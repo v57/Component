@@ -554,3 +554,25 @@ private let tree = [
   #expect(state.offsets[1] == 22 && state.offsets[2] == 22 && state.offsets[3] == 22 && state.offsets[4] == -66)
   state.end()
 }
+
+@MainActor @Test func reorderPointerBetweenRowsStaysOnTheList() async {
+  let state = ContReorderState()
+  for (index, y) in [0.0, 22, 44].enumerated() {
+    let geometry = ContRowGeometry()
+    geometry.frame = CGRect(x: 0, y: y, width: 100, height: 20)
+    state.register(geometry, in: "rows", at: index)
+  }
+  state.start("rows", at: 0, axis: .vertical)
+  state.retarget("rows", count: 3, pointer: CGPoint(x: 10, y: 10))
+  state.retarget("rows", count: 3, pointer: CGPoint(x: 10, y: 33))
+  #expect(state.target == 1)
+  // The pointer rests in the gap between rows 1 and 2: still the list's.
+  state.leave("rows", at: CGPoint(x: 10, y: 43))
+  try? await Task.sleep(for: .milliseconds(200))
+  #expect(state.target == 1)
+  // Off the list: the rows slide back.
+  state.leave("rows", at: CGPoint(x: 10, y: 120))
+  try? await Task.sleep(for: .milliseconds(200))
+  #expect(state.target == nil)
+  state.end()
+}

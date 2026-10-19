@@ -24,6 +24,8 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
   let expanded: Binding<Set<Element.ID>>?
   let move: (Element.ID, Element.ID?, Int) -> Void
   let row: (Element) -> RowContent
+  private var title: ((Element) -> String)?
+  private var rootTitle: String?
   @State private var ownExpanded: Set<Element.ID> = []
   @State private var list = UUID()
   /// The folders the drag opened, which close again when it moves back above them, and where the drag image's
@@ -56,7 +58,9 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
     let levels = ContReorderLevels(
       range: { rows.levels(for: $0, at: $1) }, home: { $0.first.map { rows.entries[$0].depth } ?? 0 },
       receiver: { rows.receiver(of: $0, at: $1, level: $2) },
-      moved: { springClose(above: $0, in: open, state: state) }, step: ContMetrics.rowIndent(idiom))
+      moved: { springClose(above: $0, in: open, state: state) },
+      title: title.map { title in { receiver in receiver.map { title(rows.entries[$0].element) } ?? rootTitle } },
+      step: ContMetrics.rowIndent(idiom))
     ForEach(rows.entries) { entry in
       let id = entry.id
       row(entry.element)
@@ -93,6 +97,20 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
           }
         }
     }
+  }
+
+  /// Names where a drag will drop above the drag image, so the folder shows even when it's out of sight: `title` gives
+  /// a folder's name, `root` the top level's (`nil`: nothing over the top level).
+  ///
+  /// ```swift
+  /// ReorderableOutline(files, children: \.children, move: move) { … }
+  ///   .dropTitle(root: "Atlas") { $0.name }
+  /// ```
+  public func dropTitle(root: String? = nil, _ title: @escaping (Element) -> String) -> Self {
+    var outline = self
+    outline.title = title
+    outline.rootTitle = root
+    return outline
   }
 
   /// Opens a folder under the drag; the rows it shows move the drag's rows down.
