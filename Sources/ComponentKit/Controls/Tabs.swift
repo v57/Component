@@ -116,7 +116,9 @@ public struct KitTabStrip<ID: Hashable>: View {
     }
     .frame(height: idiom.isTouch ? 48 : 40)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(.kitPanel)
+    // Only behind the strip: by default a background runs on into the safe area, which put a panel band behind the
+    // kit's toolbar when the strip sits under it.
+    .background(.kitPanel, ignoresSafeAreaEdges: [])
     .overlay(alignment: .bottom) { Rectangle().fill(.kitSeparator).frame(height: 1) }
     .focusEffectDisabled()
     .onKeyPress(.leftArrow) { moveFocus(-1) }
