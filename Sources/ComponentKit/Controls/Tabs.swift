@@ -59,6 +59,7 @@ public struct KitTabStrip<ID: Hashable>: View {
   var onMove: ((IndexSet, Int) -> Void)?
   var menu: ((ID) -> AnyView)?
   var onDoubleClick: ((ID) -> Void)?
+  var showsBackground = true
   @Environment(\.kitIdiom) private var idiom
   @FocusState private var focus: ID?
   @Namespace private var namespace
@@ -109,6 +110,18 @@ public struct KitTabStrip<ID: Hashable>: View {
     return strip
   }
 
+  /// `.hidden` drops the panel band and its bottom hairline: the tabs sit on whatever is under the strip (an editor
+  /// that runs on under it), the selected one still a raised card.
+  ///
+  /// ```swift
+  /// KitTabStrip(tabs: tabs, selection: $current).tabStripBackground(.hidden)
+  /// ```
+  public func tabStripBackground(_ visibility: Visibility) -> Self {
+    var strip = self
+    strip.showsBackground = visibility != .hidden
+    return strip
+  }
+
   public var body: some View {
     ViewThatFits(in: .horizontal) {
       row
@@ -118,8 +131,10 @@ public struct KitTabStrip<ID: Hashable>: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     // Only behind the strip: by default a background runs on into the safe area, which put a panel band behind the
     // kit's toolbar when the strip sits under it.
-    .background(.kitPanel, ignoresSafeAreaEdges: [])
-    .overlay(alignment: .bottom) { Rectangle().fill(.kitSeparator).frame(height: 1) }
+    .background(showsBackground ? AnyShapeStyle(.kitPanel) : AnyShapeStyle(.clear), ignoresSafeAreaEdges: [])
+    .overlay(alignment: .bottom) {
+      if showsBackground { Rectangle().fill(.kitSeparator).frame(height: 1) }
+    }
     .focusEffectDisabled()
     .onKeyPress(.leftArrow) { moveFocus(-1) }
     .onKeyPress(.rightArrow) { moveFocus(1) }

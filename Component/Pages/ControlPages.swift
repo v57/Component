@@ -688,6 +688,12 @@ struct TabsPage: View {
             tabs: [KitTab(id: "a", title: "Results"), KitTab(id: "b", title: "Messages"), KitTab(id: "c", title: "A very long tab title that gets cut at its end")],
             selection: .constant("a"))
         }
+        Specimen("Without its band", ground: .window, padding: 0, code: "KitTabStrip(tabs: tabs, selection: $tab).tabStripBackground(.hidden)") {
+          KitTabStrip(
+            tabs: [KitTab(id: "a", title: "TripStore.swift", systemImage: "swift", hue: .orange), KitTab(id: "b", title: "Atlas.swift", systemImage: "swift", hue: .orange)],
+            selection: .constant("a"), onClose: { _ in })
+            .tabStripBackground(.hidden)
+        }
       }
       SpecimenSection("Path bar", note: "The last crumb is current; others are quiet and take the field fill on hover.") {
         Specimen(
