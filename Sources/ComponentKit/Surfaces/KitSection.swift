@@ -117,7 +117,7 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
         .modifier(SectionHeaderAccessibility(title: title, expanded: expanded, toggle: toggle))
         .padding(.bottom, count > 0 ? 4 : 0)
         .modifier(CardSliceModifier(slice: KitCardSlice(0, of: count + 1), cornerRadius: radius, bleed: 1))
-        .onHover { isHovered = $0 }
+        .kitHover { isHovered = $0 }
         .padding(.top, gap)
         .padding(.bottom, count > 0 ? 0 : gap)
       if expanded {
@@ -157,7 +157,7 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
       .clipped()
     }
     .kitSurface(.card, cornerRadius: radius)
-    .onHover { isHovered = $0 }
+    .kitHover { isHovered = $0 }
   }
 
   private var header: RichHeader<Icon, Meta, some View> {
@@ -213,7 +213,7 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
       .frame(minHeight: idiom.isTouch ? 34 : 22)
       .contentShape(Rectangle())
       .onTapGesture(perform: toggle)
-      .onHover { isHovered = $0 }
+      .kitHover { isHovered = $0 }
       .modifier(SectionHeaderAccessibility(title: title, expanded: expanded, toggle: toggle))
       ContRevealLayout(progress: expanded ? 1 : 0) {
         if expanded {

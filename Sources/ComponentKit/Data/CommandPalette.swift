@@ -365,7 +365,7 @@ public struct PaletteItem: View {
       }
     }
     .contentShape(Rectangle())
-    .onHover { isHovered = $0 }
+    .kitHover { isHovered = $0 }
     .onTapGesture { if isEnabled { nav?.activate(id) ?? action() } }
     .dataNavItem(id, model: nav, action: isEnabled ? action : nil)
     .id(id)

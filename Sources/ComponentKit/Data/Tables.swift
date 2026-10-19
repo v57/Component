@@ -412,7 +412,7 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
         selected: selected, striped: index % 2 == 1, hovered: hovered == row.id, state: state,
         mergeTop: selected && previousSelected, mergeBottom: selected && nextSelected, active: isActive)
     }
-    .onHover { hovered = $0 ? row.id : (hovered == row.id ? nil : hovered) }
+    .kitHover { hovered = $0 ? row.id : (hovered == row.id ? nil : hovered) }
     .modifier(GridRowMenu(ids: selected ? selection : [row.id], menu: menu))
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(selected ? .isSelected : [])
@@ -698,7 +698,7 @@ private struct ResizeHandle: View {
       }
       .contentShape(Rectangle())
       .offset(x: 4.5)
-      .onHover { isHovered = $0 }
+      .kitHover { isHovered = $0 }
       .gesture(
         DragGesture(minimumDistance: 1)
           .onChanged { value in

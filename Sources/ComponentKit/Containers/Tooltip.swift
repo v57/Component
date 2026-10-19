@@ -47,7 +47,7 @@ private struct ContHelpModifier: ViewModifier {
       content.help(title)
     } else {
       content
-        .onHover(perform: hover)
+        .kitHover(perform: hover)
         .simultaneousGesture(TapGesture().onEnded { hide() })
         .overlay(alignment: .bottom) {
           if isShown {

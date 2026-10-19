@@ -119,6 +119,7 @@ final class ContReorderState {
     receiver = nil
     hint = nil
     isMoving = false
+    if ContDragActivity.shared.isDragging { ContDragActivity.shared.isDragging = false }
   }
 
   /// The drag's session is under way, so the dragged row is drawn as its slot. On touch a long press calls the drag
@@ -152,6 +153,7 @@ final class ContReorderState {
     hintArmed = false
     // At once: the drag image takes the row's place as the drag starts.
     isMoving = !KitIdiom.current.isTouch
+    ContDragActivity.shared.isDragging = true
     begin(list, at: index, with: group)
   }
 

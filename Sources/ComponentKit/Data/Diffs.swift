@@ -334,7 +334,7 @@ public struct HunkCard: View {
       }
     }
     .contentShape(Rectangle())
-    .onHover { inside in
+    .kitHover { inside in
       if inside { hovered = line.id } else if hovered == line.id { hovered = nil }
     }
     .onTapGesture { toggle(line) }
@@ -449,7 +449,7 @@ public struct HunkCard: View {
       .frame(maxWidth: .infinity, minHeight: 20)
       .background { LineGround(line: line, selected: isSelected, hovered: hovered == line.id) }
       .contentShape(Rectangle())
-      .onHover { inside in
+      .kitHover { inside in
         if inside { hovered = line.id } else if hovered == line.id { hovered = nil }
       }
       .onTapGesture { toggle(line) }

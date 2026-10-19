@@ -114,7 +114,7 @@ struct CtlChoiceCardBody<Content: View>: View {
       }
       .ctlFieldRing(isOn, cornerRadius: radius)
       .scaleEffect(isPressed && isEnabled ? 0.98 : 1)
-      .onHover { isHovered = $0 }
+      .kitHover { isHovered = $0 }
       .animation(.kitFast, value: isHovered)
       .animation(.kitFast, value: isPressed)
   }

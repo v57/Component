@@ -418,7 +418,7 @@ struct KitMenuRow<Label: View>: View {
         .fill(isHighlighted ? AnyShapeStyle(role == .destructive ? Hue.red.fill : Hue.accent.fill) : AnyShapeStyle(.clear))
     }
     .contentShape(Rectangle())
-    .onHover { inside in hover(inside) }
+    .kitHover { inside in hover(inside) }
     .onTapGesture { if isEnabled { trigger() } }
     .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(KitMenuModel.space)) } action: { frame in
       model?.setFrame(id, frame)

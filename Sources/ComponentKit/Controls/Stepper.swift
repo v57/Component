@@ -160,7 +160,7 @@ struct CtlStepperButtonLabel: View {
           shape.fill(.kitHover)
         }
       }
-      .onHover { isHovered = $0 }
+      .kitHover { isHovered = $0 }
       .animation(.kitFast, value: isHovered)
   }
 }

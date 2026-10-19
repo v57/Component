@@ -792,7 +792,7 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
     .frame(minHeight: compact ? 24 : KitMetrics.row(idiom))
     .background { background(isSelected: isSelected, isEmphasized: isEmphasized, isRenaming: isRenaming) }
     .contentShape(Rectangle())
-    .onHover { isHovered = $0 }
+    .kitHover { isHovered = $0 }
     .animation(.kitFast, value: isHovered)
     .animation(.kit, value: progress == nil)
     .onTapGesture {

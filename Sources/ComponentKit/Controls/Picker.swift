@@ -98,7 +98,7 @@ public struct KitPicker<Value: Hashable>: View {
     .focused($isFocused)
     .focusEffectDisabled()
     .ctlFieldRing(isFocused, cornerRadius: metrics.radius)
-    .onHover { isHovered = $0 }
+    .kitHover { isHovered = $0 }
     .animation(.kitFast, value: isHovered)
     .accessibilityLabel(title)
     .accessibilityValue(current?.title ?? "")
@@ -235,7 +235,7 @@ public struct KitMenuButton<Content: View>: View {
     .focusEffectDisabled()
     .kitMenuTrigger(isPresented: $isOpen) { content }
     .opacity(isEnabled ? 1 : 0.45)
-    .onHover { isHovered = $0 }
+    .kitHover { isHovered = $0 }
     .animation(.kitFast, value: isHovered)
     .accessibilityLabel(title)
   }

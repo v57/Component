@@ -277,7 +277,7 @@ public struct LaneItem<Leading: View>: View {
         RoundedRectangle(cornerRadius: KitMetrics.radius, style: .continuous).fill(.kitHover)
       }
     }
-    .onHover { isHovered = $0 }
+    .kitHover { isHovered = $0 }
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(isSelected ? .isSelected : [])
   }

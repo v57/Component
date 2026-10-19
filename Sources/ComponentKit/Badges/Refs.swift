@@ -214,13 +214,13 @@ public struct RefChips: View {
           row(shown: shown)
         }
       }
-      .onHover { hovering in
+      .kitHover { hovering in
         hoverChips = hovering
         hoverChanged()
       }
       .popover(isPresented: $isOpen, arrowEdge: .bottom) {
         RefsCard(refs: refs, meta: meta, onSelect: select)
-          .onHover { hovering in
+          .kitHover { hovering in
             hoverCard = hovering
             hoverChanged()
           }
@@ -321,7 +321,7 @@ struct MoreRefsStyle: ButtonStyle {
         }
         .contentShape(shape)
         .fixedSize()
-        .onHover { isHovered = $0 }
+        .kitHover { isHovered = $0 }
         .animation(.kitFast, value: isHovered)
         .animation(.kitFast, value: isOpen)
     }
@@ -382,7 +382,7 @@ struct RefsCardRow: View {
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
-    .onHover { isHovered = $0 }
+    .kitHover { isHovered = $0 }
     .animation(.kitFast, value: isHovered)
     .accessibilityLabel([ref.accessibilityText, ref.detail].compactMap { $0 }.joined(separator: ", "))
   }

@@ -287,7 +287,7 @@ public struct ResizableSplit<Main: View, Pane: View>: View {
             .frame(width: vertical ? nil : 9, height: vertical ? 9 : nil)
             .contentShape(Rectangle())
             .contResizeCursor(vertical: vertical)
-            .onHover { isHovered = $0 }
+            .kitHover { isHovered = $0 }
             .gesture(
               DragGesture(minimumDistance: 1, coordinateSpace: .global)
                 .onChanged { drag in

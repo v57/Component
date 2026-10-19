@@ -63,7 +63,7 @@ private struct DataSoftButton: View {
       .overlay { shape.fill(Color.primary.opacity(configuration.isPressed ? 0.1 : isHovered ? 0.04 : 0)) }
       .opacity(isEnabled ? 1 : 0.45)
       .contentShape(shape)
-      .onHover { isHovered = $0 }
+      .kitHover { isHovered = $0 }
       .animation(.kitFast, value: isHovered)
   }
 }

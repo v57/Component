@@ -215,7 +215,7 @@ struct CtlChip<Label: View>: View {
     // A chip on its own is a field, so it keeps the field ring; on a track the track wears it.
     .ctlFieldRing(isFocused && !inTrack, cornerRadius: radius)
     .scaleEffect(isPressed && isEnabled ? 0.98 : 1)
-    .onHover { isHovered = $0 }
+    .kitHover { isHovered = $0 }
     .animation(.kitFast, value: isLit)
   }
 

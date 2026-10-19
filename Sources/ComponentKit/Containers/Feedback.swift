@@ -163,7 +163,7 @@ private struct ContToastHost: ViewModifier {
       .overlay(alignment: .bottom) {
         if let current {
           ToastView(toast: current, dismiss: { dismiss(current.id) })
-            .onHover { isHovered = $0 }
+            .kitHover { isHovered = $0 }
             .padding(.bottom, 16)
             .padding(.horizontal, 16)
             .id(current.id)

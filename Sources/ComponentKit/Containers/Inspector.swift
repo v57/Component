@@ -167,7 +167,7 @@ public struct InspectorRow<Value: View>: View {
       }
     }
     .contentShape(Rectangle())
-    .onHover { isHovered = $0 }
+    .kitHover { isHovered = $0 }
     .animation(.kitFast, value: isHovered)
     .modifier(InspectorCopyMenu(text: copyText))
     .accessibilityElement(children: .combine)

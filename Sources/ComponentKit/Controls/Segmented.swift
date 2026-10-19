@@ -245,7 +245,7 @@ struct CtlSegmentLabel<Value: Hashable>: View {
     .contentShape(Rectangle())
     .help(iconOnly ? segment.title : "")
     .accessibilityLabel(segment.title)
-    .onHover { isHovered = $0 }
+    .kitHover { isHovered = $0 }
     .animation(.kitFast, value: isLit)
     .animation(.kitFast, value: isPressed)
   }

@@ -261,7 +261,7 @@ struct CtlTabView<ID: Hashable>: View {
     }
     .ctlStandaloneRing(isFocused, cornerRadius: radius)
     .contentShape(Rectangle())
-    .onHover { isHovered = $0 }
+    .kitHover { isHovered = $0 }
     .animation(.kitFast, value: isHovered)
   }
 
@@ -298,7 +298,7 @@ struct CtlTabCloseButton: View {
         }
     }
     .buttonStyle(CtlPressStyle())
-    .onHover { isHovered = $0 }
+    .kitHover { isHovered = $0 }
     .accessibilityLabel("Close \(title)")
     .help("Close")
   }
@@ -420,7 +420,7 @@ struct CtlCrumb: View {
     .disabled(item.action == nil && !isCurrent)
     .focused($isFocused)
     .ctlStandaloneRing(isFocused, cornerRadius: radius)
-    .onHover { isHovered = $0 }
+    .kitHover { isHovered = $0 }
     .animation(.kitFast, value: isHovered)
     .accessibilityAddTraits(isCurrent ? .isSelected : [])
   }

@@ -64,7 +64,7 @@ struct KitButton: View {
       }
       .opacity(isEnabled || kind == .primary ? 1 : 0.45)
       .contentShape(shape)
-      .onHover { isHovered = $0 }
+      .kitHover { isHovered = $0 }
       .animation(.kitFast, value: isHovered)
       .animation(.kitFast, value: configuration.isPressed)
   }
@@ -179,7 +179,7 @@ struct KitRoundButton: View {
       }
       .contentShape(Circle())
       .scaleEffect(configuration.isPressed ? 0.97 : 1)
-      .onHover { isHovered = $0 }
+      .kitHover { isHovered = $0 }
       .animation(.kitFast, value: isHovered)
       .animation(.kitFast, value: configuration.isPressed)
   }

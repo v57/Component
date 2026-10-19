@@ -226,7 +226,7 @@ private struct SettingsSidebarRow: View {
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
-    .onHover { isHovered = $0 }
+    .kitHover { isHovered = $0 }
     .accessibilityAddTraits(isSelected ? .isSelected : [])
   }
 }

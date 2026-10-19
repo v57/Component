@@ -37,7 +37,7 @@ struct ContDisclosureButton: View {
           .contentShape(Rectangle().inset(by: -4))
       }
       .buttonStyle(.plain)
-      .onHover { isHovered = $0 }
+      .kitHover { isHovered = $0 }
       .accessibilityLabel(isExpanded.wrappedValue ? "Collapse \(title)" : "Expand \(title)")
     } else {
       Color.clear.frame(width: size - 2, height: size).accessibilityHidden(true)

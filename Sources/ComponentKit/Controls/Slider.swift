@@ -124,7 +124,7 @@ public struct KitSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloa
     .frame(height: metrics.height)
     .frame(minWidth: 96)
     .opacity(isEnabled ? 1 : 0.45)
-    .onHover { isHovered = $0 }
+    .kitHover { isHovered = $0 }
     .focusable(isEnabled, interactions: .activate)
     .focused($isFocused)
     .focusEffectDisabled()

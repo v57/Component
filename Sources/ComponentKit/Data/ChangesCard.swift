@@ -137,7 +137,7 @@ public struct ChangeRow<Change: View>: View {
       RoundedRectangle(cornerRadius: KitMetrics.radius, style: .continuous)
         .fill(isHovered ? AnyShapeStyle(.kitHover) : AnyShapeStyle(Color.clear))
     }
-    .onHover { isHovered = $0 }
+    .kitHover { isHovered = $0 }
     .animation(.kitFast, value: isHovered)
     .accessibilityElement(children: .combine)
   }

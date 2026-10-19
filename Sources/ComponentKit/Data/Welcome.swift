@@ -360,7 +360,7 @@ public struct WelcomeAction: View {
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
-    .onHover { isHovered = $0 }
+    .kitHover { isHovered = $0 }
     .animation(.kitFast, value: isHovered)
   }
 }
@@ -440,7 +440,7 @@ public struct RecentItem: View {
       }
     }
     .contentShape(Rectangle())
-    .onHover { isHovered = $0 }
+    .kitHover { isHovered = $0 }
     .onTapGesture(count: 2) { nav?.activate(id) ?? action() }
     .simultaneousGesture(TapGesture().onEnded { withKitAnimation(.kitFast) { nav?.selected = id } })
     .dataNavItem(id, model: nav, action: action)

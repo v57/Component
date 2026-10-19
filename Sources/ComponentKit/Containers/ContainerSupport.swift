@@ -286,7 +286,7 @@ private struct ContBarButton: View {
       }
       .contentShape(shape)
       .opacity(isEnabled ? 1 : 0.4)
-      .onHover { isHovered = $0 }
+      .kitHover { isHovered = $0 }
       .animation(.kitFast, value: isHovered)
   }
 
@@ -370,7 +370,7 @@ private struct ContToolButton: View {
         }
       }
       .contentShape(shape)
-      .onHover { isHovered = $0 }
+      .kitHover { isHovered = $0 }
       .animation(.kitFast, value: isHovered)
   }
 }

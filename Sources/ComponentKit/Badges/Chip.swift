@@ -243,7 +243,7 @@ public struct FilterToken: View {
           .contentShape(Rectangle())
       }
       .buttonStyle(.plain)
-      .onHover { isHovered = $0 }
+      .kitHover { isHovered = $0 }
       .accessibilityLabel("Remove")
     }
     .foregroundStyle(BadgeInk(hue: hue))

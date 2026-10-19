@@ -251,7 +251,7 @@ public struct SidebarSearchButton: View {
         .focused($buttonFocused)
         .focusEffectDisabled()
         .ctlStandaloneRing(buttonFocused, cornerRadius: KitMetrics.radiusCard)
-        .onHover { isHovered = $0 }
+        .kitHover { isHovered = $0 }
         .accessibilityLabel(prompt)
         .help(prompt)
       }
@@ -283,7 +283,7 @@ struct CtlSearchCloseButton: View {
         }
     }
     .buttonStyle(CtlPressStyle())
-    .onHover { isHovered = $0 }
+    .kitHover { isHovered = $0 }
     .accessibilityLabel("Close Search")
   }
 }

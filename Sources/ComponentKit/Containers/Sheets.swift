@@ -206,7 +206,7 @@ private struct ContSheetButton: View {
       }
       .opacity(isEnabled ? 1 : 0.45)
       .contentShape(shape)
-      .onHover { isHovered = $0 }
+      .kitHover { isHovered = $0 }
       .animation(.kitFast, value: isHovered)
   }
 }
