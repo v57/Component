@@ -6,9 +6,10 @@ import UniformTypeIdentifiers
 #endif
 
 // Drag to reorder, from Shell's SidebarReorder: a `LazyVStack` has no reordering of its own, so the rows do it. A
-// reorderable row is a drag source (publishing which list it is in and where) and a drop target, and the target moves
-// the dragged row to its own index as the drag passes over it: the live reordering a `List` shows. Which list a row
-// belongs to is what refuses a drop between lists.
+// reorderable row is a drag source (publishing which list it is in and where) and a drop target. While a drag passes
+// over its list, the rows only slide (offsets) to show where it would land, worked out from where the rows sit, which
+// the sliding never changes: rows of different heights can't push the pointer onto another row and back. The list's
+// data moves once, on the drop. Which list a row belongs to is what refuses a drop between lists.
 
 /// The row drag in progress, shared by every reorderable row (a `KitSidebar` publishes one; rows outside one share
 /// the app's, `app`: a section or row of its own would never hear of a drag from its neighbours).
@@ -24,30 +25,41 @@ final class ContReorderState {
   /// (a row dropped on Finder would make a file).
   nonisolated static let contentType = UTType(mimeType: "application/x-dev.v57.componentkit.row", conformingTo: .item)!
 
-  /// The list the dragged row is in, and its index there (kept up to date as it moves under the pointer).
+  /// The list the dragged row is in, and its index there.
   private(set) var list: AnyHashable?
   private(set) var index: Int?
-  /// Every dragged row's index: the row alone, or the rows dragged with it (a multi-row drag, together after the
-  /// first move).
+  /// Every dragged row's index: the row alone, or the rows dragged with it (a multi-row drag).
   private(set) var indices = IndexSet()
+  /// Where the dragged rows would land: their place among the list's other rows (`nil` while the pointer is away).
+  private(set) var target: Int?
+  /// How far each row of the dragged list slides to show the drop (by index), along `axis`.
+  private(set) var offsets: [Int: CGFloat] = [:]
+  /// The direction the list runs (a tab strip's tabs run across).
+  private(set) var axis: Axis = .vertical
 
   /// Starts a drag of the row at `index`; `group` holds the indices of the rows dragged with it (itself included).
   func begin(_ list: AnyHashable, at index: Int, with group: IndexSet? = nil) {
     self.list = list
     self.index = index
     if let group, group.contains(index) { indices = group } else { indices = [index] }
+    target = nil
+    offsets = [:]
+    hasLanded = false
   }
 
-  func update(index: Int) {
-    self.index = index
-    indices = [index]
-  }
-
-  /// After a multi-row move: where the rows are now, and which of them is the one under the pointer.
-  func update(indices: IndexSet, anchor: Int) {
+  /// After the drop: where the dragged rows are now, which of them is the one under the pointer, and how far the rows
+  /// still slide (by their new indices) to stay where they are drawn until the drag image has landed: a collapsed
+  /// group's rows open its room as it sits back in.
+  func update(indices: IndexSet, anchor: Int, offsets: [Int: CGFloat] = [:]) {
     self.indices = indices
     index = anchor
+    target = nil
+    self.offsets = offsets
+    hasLanded = true
   }
+
+  /// The drop happened: a late update of the pointer (one arrives as the drag image lands) places nothing.
+  @ObservationIgnored private var hasLanded = false
 
   /// How many rows the drag carries.
   var count: Int { indices.count }
@@ -56,10 +68,17 @@ final class ContReorderState {
     self.list == list && indices.contains(index)
   }
 
+  /// How far the row at `index` of `list` slides while the drag shows where it lands.
+  func offset(_ list: AnyHashable, at index: Int) -> CGFloat {
+    self.list == list ? offsets[index] ?? 0 : 0
+  }
+
   func end() {
     list = nil
     index = nil
     indices = []
+    target = nil
+    offsets = [:]
     isMoving = false
   }
 
@@ -77,13 +96,15 @@ final class ContReorderState {
   /// Counts the drags, so a late `endAfterLanding` leaves a newer drag alone.
   private var drags = 0
 
-  /// How tall the dragged row is (a group: all its rows), for `ContReorderDropDelegate.settles`.
-  private(set) var height: CGFloat = 0
-
-  /// Starts a drag from its source (see `begin`); `height` is the dragged row's.
-  func start(_ list: AnyHashable, at index: Int, with group: IndexSet? = nil, height: CGFloat) {
+  /// Starts a drag from its source (see `begin`); `collapsedLength`: the dragged row is a group that counts as its
+  /// first row, this long.
+  func start(
+    _ list: AnyHashable, at index: Int, with group: IndexSet? = nil, axis: Axis, collapsedLength: CGFloat? = nil
+  ) {
     drags += 1
-    self.height = height
+    self.axis = axis
+    self.collapsedLength = collapsedLength
+    // At once: the drag image takes the row's place as the drag starts.
     isMoving = !KitIdiom.current.isTouch
     begin(list, at: index, with: group)
   }
@@ -96,7 +117,116 @@ final class ContReorderState {
     Task { @MainActor [weak self] in
       if #available(macOS 26.0, iOS 27.0, visionOS 27.0, *) { try? await Task.sleep(for: .milliseconds(600)) }
       guard let self, self.drags == drag, self.list != nil else { return }
-      withAnimation(.kitFast) { self.end() }
+      withAnimation(.kit) { self.end() }
+    }
+  }
+
+  // MARK: Where the rows sit
+
+  /// Every reorderable row's geometry, by list and index: a drop target reads its whole list's to place the drag.
+  /// Not observed: it changes as rows lay out, and only a drag reads it.
+  @ObservationIgnored private var rows: [AnyHashable: [Int: ContRowGeometry]] = [:]
+
+  func register(_ geometry: ContRowGeometry, in list: AnyHashable, at index: Int) {
+    if let old = geometry.place, old != (list, index), rows[old.list]?[old.index] === geometry {
+      rows[old.list]?[old.index] = nil
+    }
+    geometry.place = (list, index)
+    rows[list, default: [:]][index] = geometry
+  }
+
+  /// A row left the screen (a lazy stack dropped it) or the list.
+  func unregister(_ geometry: ContRowGeometry) {
+    guard let place = geometry.place, rows[place.list]?[place.index] === geometry else { return }
+    rows[place.list]?[place.index] = nil
+    if rows[place.list]?.isEmpty == true { rows[place.list] = nil }
+  }
+
+  /// Where the rows of `list` sit along the drag's axis (rows off screen are missing).
+  private func spans(of list: AnyHashable, count: Int) -> [Int: ContReorder.Span] {
+    var spans: [Int: ContReorder.Span] = [:]
+    for (index, geometry) in rows[list] ?? [:] where index < count && geometry.frame != .zero {
+      let frame = geometry.frame
+      spans[index] = axis == .vertical
+        ? .init(start: frame.minY, length: frame.height) : .init(start: frame.minX, length: frame.width)
+    }
+    return spans
+  }
+
+  /// The pointer is at `pointer` (global coordinates) over `list`, which has `count` rows: the dragged rows' place
+  /// follows it, and the other rows slide out of their way. `throughSubRow`: read by a row inside one of the list's
+  /// rows (a group's sub-row), which is skipped while the rows slide: `DropInfo` places the pointer where such a row
+  /// is drawn, part way through its group's slide, and its frame is where the slide ends, so the pair puts the
+  /// pointer up to a group's height away and the place would swing back and forth.
+  func retarget(_ list: AnyHashable, count: Int, pointer: CGPoint, throughSubRow: Bool = false) {
+    guard self.list == list, !hasLanded else { return }
+    hover += 1
+    if throughSubRow, let slid, Date.now.timeIntervalSince(slid) < 0.3 { return }
+    guard let index else { return }
+    let spans = spans(of: list, count: count)
+    let target = ContReorder.target(
+      from: self.target ?? ContReorder.home(dragged: indices, anchor: index),
+      pointer: axis == .vertical ? pointer.y : pointer.x, spans: spans, dragged: indices, count: count,
+      draggedLength: collapsedLength)
+    guard target != self.target else { return }
+    let offsets = ContReorder.offsets(
+      spans: spans, count: count, dragged: indices, target: target, draggedLength: collapsedLength)
+    slid = .now
+    withAnimation(.kit) {
+      self.target = target
+      self.offsets = offsets
+    }
+  }
+
+  /// The pointer left `list`'s rows: unless it comes back to one of them right away (it crossed the gap between two),
+  /// the rows slide back.
+  func leave(_ list: AnyHashable) {
+    hover += 1
+    let hover = hover
+    Task { @MainActor [weak self] in
+      try? await Task.sleep(for: .milliseconds(120))
+      guard let self, self.hover == hover, self.list == list, self.target != nil else { return }
+      self.slid = .now
+      withAnimation(.kit) {
+        self.target = nil
+        self.offsets = [:]
+      }
+    }
+  }
+
+  /// Counts the pointer's moves over rows, so a late `leave` doesn't undo a newer place.
+  @ObservationIgnored private var hover = 0
+  /// When the rows last started to slide.
+  @ObservationIgnored private var slid: Date?
+  /// How long the dragged rows count as, when a group collapses to its first row (`ContReorderRow.collapses`).
+  @ObservationIgnored private var collapsedLength: CGFloat?
+
+  /// The drop onto `list` of `count` rows: `move` gets `.onMove`'s arguments when the rows change places, and the
+  /// rows stay where they are drawn until the drag image has landed (`update`).
+  func land(in list: AnyHashable, count: Int, move: (IndexSet, Int) -> Void) {
+    guard self.list == list, let index else { return }
+    guard let target else {
+      hasLanded = true
+      return
+    }
+    let spans = spans(of: list, count: count)
+    let drawn = ContReorder.layout(
+      spans: spans, count: count, dragged: indices, target: target, draggedLength: collapsedLength)
+    let laidOut = ContReorder.layout(spans: spans, count: count, dragged: indices, target: target)
+    var held: [Int: CGFloat] = [:]
+    for (place, row) in ContReorder.order(count: count, dragged: indices, target: target).enumerated() {
+      if let drawn = drawn[row], let laidOut = laidOut[row], abs(drawn - laidOut) > 0.5 { held[place] = drawn - laidOut }
+    }
+    guard let step = ContReorder.landing(count: count, dragged: indices, anchor: index, target: target) else {
+      update(indices: indices, anchor: index, offsets: held)
+      return
+    }
+    // The rows move and take their new slides in one transaction, so they stay where they are drawn.
+    var transaction = Transaction()
+    transaction.disablesAnimations = true
+    withTransaction(transaction) {
+      move(indices, step.destination)
+      update(indices: step.indices, anchor: step.anchor, offsets: held)
     }
   }
 }
@@ -118,16 +248,104 @@ enum ContReorder {
     return source == list || receives
   }
 
-  /// A multi-row drag passing over the row at `to`: the `.onMove` destination that brings the dragged rows
-  /// (`indices`, the pointer's row `anchor` among them) together there, where they sit afterwards and where the
-  /// anchor is. Like one row, they land after `to` when dragged down and before it when dragged up. `nil` over a
-  /// dragged row.
-  static func groupMove(indices: IndexSet, anchor: Int, to: Int) -> (destination: Int, indices: IndexSet, anchor: Int)? {
-    guard !indices.contains(to), !indices.isEmpty else { return nil }
-    let destination = to > anchor ? to + 1 : to
-    let start = destination - indices.count(in: 0..<destination)
-    let moved = IndexSet(integersIn: start..<(start + indices.count))
-    return (destination, moved, start + indices.count(in: 0..<anchor))
+  /// Where a row sits along its list: its top (or leading edge) and its height (or width).
+  struct Span: Equatable {
+    var start: CGFloat
+    var length: CGFloat
+    var middle: CGFloat { start + length / 2 }
+  }
+
+  /// The dragged rows' own place among the other rows: where a drag starts (`anchor` is the pointer's row).
+  static func home(dragged: IndexSet, anchor: Int) -> Int { anchor - dragged.count(in: 0..<anchor) }
+
+  /// Where the `dragged` rows land with the pointer at `pointer`, from their place `target`: one place on for each
+  /// row drawn after them whose middle the pointer passes, one place back for each row drawn before them. Rows are
+  /// taken where they are drawn (slid to show `target`), so the dragged rows' own size is the margin before the
+  /// place turns back: a move puts the row it passed on the pointer's other side, and the place can't swing back and
+  /// forth. A row off screen (no span) stops it.
+  static func target(
+    from target: Int, pointer: CGFloat, spans: [Int: Span], dragged: IndexSet, count: Int,
+    draggedLength: CGFloat? = nil
+  ) -> Int {
+    let others = (0..<count).filter { !dragged.contains($0) }
+    var target = min(max(target, 0), others.count)
+    for _ in 0...count {
+      let drawn = layout(spans: spans, count: count, dragged: dragged, target: target, draggedLength: draggedLength)
+      func middle(_ row: Int) -> CGFloat? { drawn[row].flatMap { start in spans[row].map { start + $0.length / 2 } } }
+      if target < others.count, let next = middle(others[target]), pointer > next {
+        target += 1
+      } else if target > 0, let previous = middle(others[target - 1]), pointer < previous {
+        target -= 1
+      } else {
+        break
+      }
+    }
+    return target
+  }
+
+  /// The rows' order with the dragged ones moved to `target` (their place among the others): old indices, new order.
+  static func order(count: Int, dragged: IndexSet, target: Int) -> [Int] {
+    var others = (0..<count).filter { !dragged.contains($0) }
+    others.insert(contentsOf: dragged.filter { $0 < count }, at: min(target, others.count))
+    return others
+  }
+
+  /// How far each row slides (by index) to show the dragged rows at `target`: the rows keep their sizes and the gaps
+  /// between places stay. A row off screen is taken as tall as the rows around it.
+  static func offsets(
+    spans: [Int: Span], count: Int, dragged: IndexSet, target: Int, draggedLength: CGFloat? = nil
+  ) -> [Int: CGFloat] {
+    var offsets: [Int: CGFloat] = [:]
+    for (row, start) in layout(
+      spans: spans, count: count, dragged: dragged, target: target, draggedLength: draggedLength)
+    {
+      if let span = spans[row], abs(start - span.start) > 0.5 { offsets[row] = start - span.start }
+    }
+    return offsets
+  }
+
+  /// Where each row on screen starts (by index) with the dragged rows at `target`; `draggedLength`: how long the
+  /// dragged rows count as (a group collapsed to its first row), when not their own length.
+  static func layout(
+    spans: [Int: Span], count: Int, dragged: IndexSet, target: Int, draggedLength: CGFloat? = nil
+  ) -> [Int: CGFloat] {
+    let known = spans.filter { $0.key < count }
+    guard let first = known.keys.min() else { return [:] }
+    let typical = known.values.map(\.length).reduce(0, +) / CGFloat(known.count)
+    func length(_ row: Int) -> CGFloat {
+      if let draggedLength, dragged.contains(row) { return draggedLength }
+      return spans[row]?.length ?? typical
+    }
+    // The gap after each place, from the rows on screen (2pt where two neighbours aren't both known).
+    func gap(_ place: Int) -> CGFloat {
+      guard let a = spans[place], let b = spans[place + 1] else { return 2 }
+      return b.start - a.start - a.length
+    }
+    // Where place 0 starts: the first known row's start, less the rows above it.
+    var start = known[first]!.start
+    for place in stride(from: first - 1, through: 0, by: -1) { start -= length(place) + gap(place) }
+    var starts: [Int: CGFloat] = [:]
+    for (place, row) in order(count: count, dragged: dragged, target: target).enumerated() {
+      if spans[row] != nil { starts[row] = start }
+      start += length(row) + gap(place)
+    }
+    return starts
+  }
+
+  /// The drop of the `dragged` rows (the pointer's row `anchor` among them) at `target`: `.onMove`'s destination,
+  /// where the rows sit afterwards, and where the anchor is. `nil` when they are already there.
+  static func landing(count: Int, dragged: IndexSet, anchor: Int, target: Int)
+    -> (destination: Int, indices: IndexSet, anchor: Int)?
+  {
+    let dragged = dragged.filteredIndexSet { $0 < count }
+    guard !dragged.isEmpty, order(count: count, dragged: dragged, target: target) != Array(0..<count) else {
+      return nil
+    }
+    let others = (0..<count).filter { !dragged.contains($0) }
+    let target = min(target, others.count)
+    let destination = target < others.count ? others[target] : count
+    let moved = IndexSet(integersIn: target..<(target + dragged.count))
+    return (destination, moved, target + dragged.count(in: 0..<anchor))
   }
 }
 
@@ -199,7 +417,7 @@ public struct ReorderableSection<Data: RandomAccessCollection, ID: Hashable, Row
             perform: perform.map { perform in { providers in perform(item.element, providers) } },
             receive: receive,
             group: selected.count > 1 && selected.contains(item.index) ? selected : nil,
-            exportURL: exportURL.map { url in { url(item.element) } }))
+            exportURL: exportURL.map { url in { url(item.element) } }, count: items.count, collapses: groups))
     }
   }
 
@@ -332,7 +550,7 @@ extension View {
   ) -> some View {
     modifier(
       ContReorderableModifier(
-        list: AnyHashable(list), index: items.firstIndex { $0.id == item.id } ?? 0, move: move))
+        list: AnyHashable(list), index: items.firstIndex { $0.id == item.id } ?? 0, count: items.count, move: move))
   }
 
   /// Makes one row of a hand-built list reorderable by dragging, and lets it take other drops too (files, URLs,
@@ -355,14 +573,15 @@ extension View {
   ) -> some View {
     modifier(
       ContReorderableModifier(
-        list: AnyHashable(list), index: items.firstIndex { $0.id == item.id } ?? 0, move: move, accepts: types,
-        perform: perform))
+        list: AnyHashable(list), index: items.firstIndex { $0.id == item.id } ?? 0, count: items.count, move: move,
+        accepts: types, perform: perform))
   }
 }
 
 private struct ContReorderableModifier: ViewModifier {
   let list: AnyHashable
   let index: Int
+  let count: Int
   let move: (IndexSet, Int) -> Void
   var accepts: [UTType] = []
   var perform: (([NSItemProvider]) -> Bool)? = nil
@@ -370,7 +589,8 @@ private struct ContReorderableModifier: ViewModifier {
 
   func body(content: Content) -> some View {
     content.modifier(
-      ContReorderRow(list: list, index: index, move: move, state: shared ?? .app, accepts: accepts, perform: perform))
+      ContReorderRow(
+        list: list, index: index, move: move, state: shared ?? .app, accepts: accepts, perform: perform, count: count))
   }
 }
 
@@ -387,41 +607,59 @@ struct ContReorderRow: ViewModifier {
   var group: IndexSet? = nil
   /// The URL the drag carries out of the app.
   var exportURL: (() -> URL?)? = nil
+  /// How many rows the list has (`nil`: as many as have been seen).
+  var count: Int? = nil
+  /// The direction the list runs.
+  var axis: Axis = .vertical
+  /// The row is a group (`dragsAsGroup`): dragged, it collapses to its first row, slot and lifted card, so it moves
+  /// past its neighbours as far as a row does; its sub-rows come back on the drop.
+  var collapses = false
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.contOuterReorder) private var outer
   @State private var isTargeted = false
-  /// The row's frame in global coordinates: its height and place tell the drop target where the pointer is
-  /// (`ContReorderDropDelegate.settles`). In a box rather than in state: it changes on every frame of a scroll and
-  /// only a drag reads it, while in state every row would draw again (and hand its rows a new environment) each frame.
+  /// The row's frame in global coordinates, where it is laid out (its slide while a drag passes doesn't move it): the
+  /// drop targets place a drag from their list's frames. In a box rather than in state: it changes on every frame of
+  /// a scroll and only a drag reads it, while in state every row would draw again (and hand its rows a new
+  /// environment) each frame.
   @State private var geometry = ContRowGeometry()
   /// The row's width, which makes the drag image the row, so it lands on its slot.
   @State private var width: CGFloat?
+  /// Counts the row's drags (`ContRowDragSource.generation`).
+  @State private var drags = 0
 
   func body(content: Content) -> some View {
     let delegate = ContReorderDropDelegate(
-      list: list, index: index, move: move, state: state, accepts: accepts, perform: perform, receive: receive,
-      isTargeted: $isTargeted, outer: outer, geometry: geometry)
+      list: list, index: index, count: count, move: move, state: state, accepts: accepts, perform: perform,
+      receive: receive, isTargeted: $isTargeted, outer: outer, geometry: geometry)
     content
       // Reorderable rows inside this one (a group's sub-rows) share its drag and pass its rows' drags to it.
       .environment(\.contReorderState, state)
       .environment(\.contOuterReorder, ContOuterReorder(delegate))
       .kitDropTarget(isTargeted, cornerRadius: ContMetrics.rowRadius(idiom))
-      .modifier(ContDraggedRowSlot(list: list, index: index, state: state))
-      .modifier(ContRowDragSource(begin: begin, exportURL: exportURL, preview: preview(content)))
-      .modifier(ContDragSessionEnd(state: state))
+      .modifier(ContDraggedRowSlot(list: list, index: index, axis: axis, collapses: collapses, state: state))
+      .modifier(ContRowDragSource(begin: begin, exportURL: exportURL, generation: drags, preview: preview(content)))
+      .modifier(ContDragSessionEnd(state: state, ended: { drags += 1 }))
+      // Outside the slide: the target stays where the row is laid out, so the rows under the drag cover the list.
       .onDrop(of: [ContReorderState.contentType] + accepts, delegate: delegate)
       .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { [geometry] in geometry.frame = $0 }
       .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+      .onAppear { state.register(geometry, in: list, at: index) }
+      .onChange(of: index) { state.register(geometry, in: list, at: index) }
+      .onChange(of: list) { state.register(geometry, in: list, at: index) }
+      .onDisappear { state.unregister(geometry) }
   }
 
   /// Called as the drag starts (on the main thread, though the drag source's closures aren't isolated).
   private func begin() {
-    let (state, list, index, group, geometry) = (state, list, index, group, geometry)
-    MainActor.assumeIsolated { state.start(list, at: index, with: group, height: geometry.frame.height) }
+    let (state, list, index, group, axis, collapses, idiom) = (state, list, index, group, axis, collapses, idiom)
+    let length = collapses ? KitMetrics.row(idiom) : nil
+    MainActor.assumeIsolated { state.start(list, at: index, with: group, axis: axis, collapsedLength: length) }
   }
 
   private func preview(_ content: Content) -> some View {
     content
+      .frame(height: collapses ? KitMetrics.row(idiom) : nil, alignment: .top)
+      .clipped()
       .kitLifted(true, cornerRadius: ContMetrics.rowRadius(idiom))
       .overlay(alignment: .topTrailing) {
         if let group, group.count > 1 {
@@ -437,6 +675,10 @@ struct ContReorderRow: ViewModifier {
 private struct ContRowDragSource<Preview: View>: ViewModifier {
   let begin: () -> Void
   let exportURL: (() -> URL?)?
+  /// Counts the row's drags: SwiftUI on macOS keeps the item a drag source gave until the source changes, so a
+  /// drag that left the rows as they were (dropped back on its slot) made the next one start without calling it, and
+  /// without the kit hearing of it. A new count makes the next drag ask again.
+  let generation: Int
   let preview: Preview
 
   func body(content: Content) -> some View {
@@ -466,9 +708,11 @@ private struct ContRowDragSource<Preview: View>: ViewModifier {
   }
 }
 
-/// A reorderable row's frame in global coordinates, which its drop target reads as a drag passes.
+/// A reorderable row's frame in global coordinates, which the drop targets read as a drag passes, and where it is
+/// registered (`ContReorderState.register`).
 @MainActor final class ContRowGeometry {
   var frame: CGRect = .zero
+  var place: (list: AnyHashable, index: Int)?
 }
 
 /// The reorder target of the row around this one (a group around its sub-rows), boxed: a target holds its outer one.
@@ -481,23 +725,35 @@ extension EnvironmentValues {
   @Entry var contOuterReorder: ContOuterReorder? = nil
 }
 
-/// While its row is dragged (the drag image is the lifted card), the row keeps its place as the field slot it will
-/// sit back into (`ContDragSessionEnd` clears it as the session ends). Before macOS 26 and iOS 27 nothing reports a
-/// drag that ends away from any row, so there the row stays drawn.
+/// While a drag passes over its list, the row slides to show where the drag would land. While its row is dragged (the
+/// drag image is the lifted card), the row is the field slot it will sit back into, at the place it would land
+/// (`ContDragSessionEnd` clears it as the session ends). Before macOS 26 and iOS 27 nothing reports a drag that ends
+/// away from any row, so there the row stays drawn.
 private struct ContDraggedRowSlot: ViewModifier {
   let list: AnyHashable
   let index: Int
+  let axis: Axis
+  let collapses: Bool
   let state: ContReorderState
   @Environment(\.kitIdiom) private var idiom
 
   func body(content: Content) -> some View {
+    let offset = state.offset(list, at: index)
+    slot(content).offset(x: axis == .horizontal ? offset : 0, y: axis == .vertical ? offset : 0)
+  }
+
+  @ViewBuilder
+  private func slot(_ content: Content) -> some View {
     if #available(macOS 26.0, iOS 27.0, visionOS 27.0, *) {
       let isDragging = state.isMoving && state.isDragging(list, at: index)
       content
         .opacity(isDragging ? 0 : 1)
-        .background {
+        // A group's slot is its first row: its rows count as that one while dragged (`ContReorderState.start`), and
+        // the layout keeps their room (shrinking it would move a scrolled list under the pointer).
+        .background(alignment: .top) {
           if isDragging {
             RoundedRectangle(cornerRadius: ContMetrics.rowRadius(idiom), style: .continuous).fill(.kitField)
+              .frame(height: collapses ? KitMetrics.row(idiom) : nil)
           }
         }
     } else {
@@ -506,10 +762,12 @@ private struct ContDraggedRowSlot: ViewModifier {
   }
 }
 
-/// Ends the drag with its session: a drag can end away from any row (cancelled, or dropped outside the app). Outside the
-/// drag source, where the session's updates arrive.
+/// Ends the drag with its session: a drag can end away from any row (cancelled, or dropped outside the app), and then
+/// the rows slide back. Outside the drag source, where the session's updates arrive.
 private struct ContDragSessionEnd: ViewModifier {
   let state: ContReorderState
+  /// The session ended (see `ContRowDragSource.generation`).
+  var ended: () -> Void = {}
 
   func body(content: Content) -> some View {
     if #available(macOS 26.0, iOS 27.0, visionOS 27.0, *) {
@@ -517,7 +775,9 @@ private struct ContDragSessionEnd: ViewModifier {
         .dragConfiguration(DragConfiguration(allowMove: true))
         .onDragSessionUpdated { session in
           switch session.phase {
-          case .ended: if state.list != nil { withAnimation(.kitFast) { state.end() } }
+          case .ended:
+            ended()
+            if state.list != nil { withAnimation(.kit) { state.end() } }
           case .active: state.sessionMoved()
           default: break
           }
@@ -528,12 +788,14 @@ private struct ContDragSessionEnd: ViewModifier {
   }
 }
 
-/// The drop half: while the drag passes over a sibling, the sibling moves the dragged row to its own index. Only a row
-/// of the same list is a target, so a drag across lists is refused rather than mis-moving a row; a drag of the list
-/// around this row (a group dragged over a group's sub-rows) goes to that list's target.
+/// The drop half: while the drag passes over a row of its list, the rows show where it would land, and the drop moves
+/// it there. Only a row of the same list is a target, so a drag across lists is refused rather than mis-moving a row;
+/// a drag of the list around this row (a group dragged over a group's sub-rows) goes to that list's target.
 struct ContReorderDropDelegate: DropDelegate {
   let list: AnyHashable
   let index: Int
+  /// How many rows the list has (`nil`: as many as have been seen).
+  var count: Int? = nil
   let move: (IndexSet, Int) -> Void
   let state: ContReorderState
   var accepts: [UTType] = []
@@ -554,14 +816,8 @@ struct ContReorderDropDelegate: DropDelegate {
     CGPoint(x: frame.minX + info.location.x, y: frame.minY + info.location.y)
   }
 
-  /// Whether the pointer sits where the dragged rows will be once they move to this row, so the move is the last one:
-  /// a tall row moved past a shorter one would otherwise land under the pointer again and move back, and back.
-  private func settles(at pointer: CGPoint, from: Int) -> Bool {
-    let dragged = state.height * CGFloat(max(state.count, 1))
-    guard dragged > 0, frame.height > 0 else { return true }
-    // Moving down, this row slides up by the dragged rows' height and they take its bottom; moving up, its top.
-    return from < index ? pointer.y >= frame.maxY - dragged : pointer.y <= frame.minY + dragged
-  }
+  /// The list's row count: given, or past the furthest row seen.
+  @MainActor private var rows: Int { count ?? max(index + 1, (state.indices.max() ?? 0) + 1) }
 
   /// Whether the drag is a kit row. Read from the drag pasteboard on macOS: `DropInfo` describes a drag SwiftUI started
   /// in this process with no types.
@@ -603,17 +859,16 @@ struct ContReorderDropDelegate: DropDelegate {
 
   func dropEntered(info: DropInfo) { entered(info, at: pointer(info)) }
 
-  private func updated(_ info: DropInfo, at pointer: CGPoint) -> DropProposal? {
-    if let outer = forwarded(info) { return outer.updated(info, at: pointer) }
+  private func updated(_ info: DropInfo, at pointer: CGPoint, throughSubRow: Bool = false) -> DropProposal? {
+    if let outer = forwarded(info) { return outer.updated(info, at: pointer, throughSubRow: true) }
     if isOther(info) { return DropProposal(operation: .copy) }
     let isValid = validateDrop(info: info)
-    // A row that entered too far from where the dragged rows would settle moves them once the pointer gets there.
-    if isValid, state.list == list { reorder(at: pointer) }
+    if isValid { state.retarget(list, count: rows, pointer: pointer, throughSubRow: throughSubRow) }
     return DropProposal(operation: isValid ? .move : .forbidden)
   }
 
-  private func entered(_ info: DropInfo, at pointer: CGPoint) {
-    if let outer = forwarded(info) { return outer.entered(info, at: pointer) }
+  private func entered(_ info: DropInfo, at pointer: CGPoint, throughSubRow: Bool = false) {
+    if let outer = forwarded(info) { return outer.entered(info, at: pointer, throughSubRow: true) }
     if isOther(info) {
       withAnimation(.kitFast) { isTargeted?.wrappedValue = true }
       return
@@ -622,38 +877,19 @@ struct ContReorderDropDelegate: DropDelegate {
     if fromList != list {
       // A row from another list: the app moves it here, then it reorders here.
       guard let receive, state.count <= 1 else { return }
-      withAnimation(.kitSpring) {
+      withAnimation(.kit) {
         receive(fromList, from, index)
         state.begin(list, at: index)
       }
       return
     }
-    reorder(at: pointer)
-  }
-
-  /// Moves the dragged rows of this list to this row, once the pointer is where they settle.
-  private func reorder(at pointer: CGPoint) {
-    guard let from = state.index, state.list == list, from != index, settles(at: pointer, from: from) else { return }
-    if state.count > 1 {
-      guard let step = ContReorder.groupMove(indices: state.indices, anchor: from, to: index) else { return }
-      let moving = state.indices
-      withAnimation(.kitSpring) {
-        move(moving, step.destination)
-        state.update(indices: step.indices, anchor: step.anchor)
-      }
-      return
-    }
-    // The drag's index moves with the rows, in one transaction: updated apart, the row sliding into the old place
-    // would count as dragged for a frame and blink into the slot.
-    withAnimation(.kitSpring) {
-      move(IndexSet(integer: from), ContReorder.destination(from: from, to: index))
-      state.update(index: index)
-    }
+    state.retarget(list, count: rows, pointer: pointer, throughSubRow: throughSubRow)
   }
 
   func dropExited(info: DropInfo) {
     if let outer = forwarded(info) { return outer.dropExited(info: info) }
     if isTargeted?.wrappedValue == true { withAnimation(.kitFast) { isTargeted?.wrappedValue = false } }
+    if state.list == list { state.leave(list) }
   }
 
   func performDrop(info: DropInfo) -> Bool {
@@ -665,6 +901,7 @@ struct ContReorderDropDelegate: DropDelegate {
       return perform(pasted.isEmpty ? info.itemProviders(for: accepts) : pasted)
     }
     guard isRow(info) else { return false }
+    state.land(in: list, count: rows, move: move)
     state.endAfterLanding()
     return true
   }

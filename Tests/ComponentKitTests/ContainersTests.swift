@@ -41,7 +41,7 @@ import Testing
   state.begin("hosts", at: 2)
   #expect(state.isDragging("hosts", at: 2))
   #expect(!state.isDragging("sessions", at: 2))
-  state.update(index: 0)
+  state.update(indices: [0], anchor: 0)
   #expect(state.isDragging("hosts", at: 0))
   state.end()
   #expect(!state.isDragging("hosts", at: 0))
@@ -197,40 +197,102 @@ private var navRows: [(value: AnyHashable, indent: Int, isOpen: Bool?)] { [
 
 // MARK: - Multi-row reorder
 
-/// Applies a group move to `rows` and checks the dragged rows end up where `groupMove` says.
-private func groupMoved(_ rows: [String], dragging: IndexSet, anchor: Int, to: Int) -> [String]? {
-  guard let step = ContReorder.groupMove(indices: dragging, anchor: anchor, to: to) else { return nil }
+/// Rows of the given heights, 2pt apart, from y 0.
+private func spans(_ heights: [CGFloat]) -> [Int: ContReorder.Span] {
+  var spans: [Int: ContReorder.Span] = [:]
+  var y: CGFloat = 0
+  for (index, height) in heights.enumerated() {
+    spans[index] = .init(start: y, length: height)
+    y += height + 2
+  }
+  return spans
+}
+
+/// Applies a drop to `rows` and checks the dragged rows end up where `landing` says.
+private func landed(_ rows: [String], dragging: IndexSet, anchor: Int, target: Int) -> [String]? {
+  guard let step = ContReorder.landing(count: rows.count, dragged: dragging, anchor: anchor, target: target) else {
+    return nil
+  }
   let dragged = dragging.map { rows[$0] }
   var rows = rows
   rows.move(fromOffsets: dragging, toOffset: step.destination)
   #expect(step.indices.map { rows[$0] } == dragged)
   #expect(rows[step.anchor] == dragged[dragging.count(in: 0..<anchor)])
+  #expect(rows == ContReorder.order(count: rows.count, dragged: dragging, target: target).map { ["a", "b", "c", "d", "e", "f"][$0] })
   return rows
 }
 
-@Test func groupMoveGathersRowsAfterTheTargetGoingDown() {
+@Test func reorderTargetMovesPastTheMiddlesOfTheRowsDrawnBesideIt() {
+  let rows = spans([20, 60, 20, 20])  // 0…20, 22…82, 84…104, 106…126
+  // Row 0 dragged down: the tall row after it moves it on once the pointer passes that row's middle (52).
+  #expect(ContReorder.target(from: 0, pointer: 30, spans: rows, dragged: [0], count: 4) == 0)
+  #expect(ContReorder.target(from: 0, pointer: 53, spans: rows, dragged: [0], count: 4) == 1)
+  // Past that, row 2 is drawn at 84…104: its middle (94) is next.
+  #expect(ContReorder.target(from: 1, pointer: 90, spans: rows, dragged: [0], count: 4) == 1)
+  #expect(ContReorder.target(from: 1, pointer: 120, spans: rows, dragged: [0], count: 4) == 3)
+  // A jump across several rows at once lands in one go.
+  #expect(ContReorder.target(from: 0, pointer: 120, spans: rows, dragged: [0], count: 4) == 3)
+}
+
+@Test func reorderTargetTurnsBackOnlyPastTheRowAsDrawn() {
+  let rows = spans([20, 60, 20, 20])
+  // The tall row 1 dragged up past row 0 (its middle at 10).
+  #expect(ContReorder.target(from: 1, pointer: 15, spans: rows, dragged: [1], count: 4) == 1)
+  #expect(ContReorder.target(from: 1, pointer: 9, spans: rows, dragged: [1], count: 4) == 0)
+  // Row 0 is drawn below it now (62…82): back down only past 72, not past where row 0 was.
+  #expect(ContReorder.target(from: 0, pointer: 15, spans: rows, dragged: [1], count: 4) == 0)
+  #expect(ContReorder.target(from: 0, pointer: 71, spans: rows, dragged: [1], count: 4) == 0)
+  #expect(ContReorder.target(from: 0, pointer: 73, spans: rows, dragged: [1], count: 4) == 1)
+}
+
+@Test func reorderCollapsedGroupCountsAsOneRow() {
+  let rows = spans([20, 60, 20])  // 0…20, 22…82, 84…104
+  // The tall group 1 dragged, counted as 20 tall: the row after it slides up into its room at once.
+  #expect(ContReorder.offsets(spans: rows, count: 3, dragged: [1], target: 1, draggedLength: 20) == [2: -40])
+  // And it passes that row (drawn at 44…64) at its middle, 54, not 94.
+  #expect(ContReorder.target(from: 1, pointer: 55, spans: rows, dragged: [1], count: 3, draggedLength: 20) == 2)
+  #expect(ContReorder.target(from: 1, pointer: 55, spans: rows, dragged: [1], count: 3) == 1)
+}
+
+@Test func reorderTargetStopsAtRowsOffScreen() {
+  var rows = spans([20, 20, 20, 20, 20])
+  rows[2] = nil
+  #expect(ContReorder.target(from: 0, pointer: 100, spans: rows, dragged: [0], count: 5) == 1)
+  #expect(ContReorder.home(dragged: [1, 3], anchor: 3) == 2)
+}
+
+@Test func reorderOffsetsSlideRowsOutOfTheWay() {
+  let rows = spans([20, 60, 20])  // 0…20, 22…82, 84…104
+  // The short row 0 dragged below the tall one: the tall one slides up by the short row and its gap, and row 0 takes
+  // its place below it.
+  let down = ContReorder.offsets(spans: rows, count: 3, dragged: [0], target: 1)
+  #expect(down == [1: -22, 0: 62])
+  // Where they started: nothing slides.
+  #expect(ContReorder.offsets(spans: rows, count: 3, dragged: [0], target: 0).isEmpty)
+  // The tall row dragged to the top.
+  #expect(ContReorder.offsets(spans: rows, count: 3, dragged: [1], target: 0) == [1: -22, 0: 62])
+}
+
+@Test func reorderLandingGathersRowsDraggedTogether() {
   let rows = ["a", "b", "c", "d", "e", "f"]
-  #expect(groupMoved(rows, dragging: [1, 3], anchor: 3, to: 5) == ["a", "c", "e", "f", "b", "d"])
-  #expect(groupMoved(rows, dragging: [1, 3], anchor: 1, to: 2) == ["a", "c", "b", "d", "e", "f"])
+  #expect(landed(rows, dragging: [1, 3], anchor: 3, target: 4) == ["a", "c", "e", "f", "b", "d"])
+  #expect(landed(rows, dragging: [1, 3], anchor: 1, target: 2) == ["a", "c", "b", "d", "e", "f"])
+  #expect(landed(rows, dragging: [2, 4], anchor: 2, target: 0) == ["c", "e", "a", "b", "d", "f"])
+  #expect(landed(rows, dragging: [1, 3], anchor: 1, target: 1) == ["a", "b", "d", "c", "e", "f"])
 }
 
-@Test func groupMoveGathersRowsBeforeTheTargetGoingUp() {
-  let rows = ["a", "b", "c", "d", "e", "f"]
-  #expect(groupMoved(rows, dragging: [2, 4], anchor: 2, to: 0) == ["c", "e", "a", "b", "d", "f"])
-  #expect(groupMoved(rows, dragging: [1, 3], anchor: 3, to: 2) == ["a", "b", "d", "c", "e", "f"])
+@Test func reorderLandingOfOneRowMatchesTheSingleRowMove() {
+  // Row 1 dropped after row 3 (its place among the others: 3).
+  let step = ContReorder.landing(count: 5, dragged: [1], anchor: 1, target: 3)
+  #expect(step?.destination == ContReorder.destination(from: 1, to: 3))
+  #expect(step?.anchor == 3)
+  #expect(ContReorder.landing(count: 5, dragged: [3], anchor: 3, target: 0)?.destination == 0)
 }
 
-@Test func groupMoveIgnoresTheDraggedRows() {
-  #expect(ContReorder.groupMove(indices: [1, 3], anchor: 1, to: 3) == nil)
-  #expect(ContReorder.groupMove(indices: [], anchor: 0, to: 1) == nil)
-}
-
-@Test func groupMoveOfOneRowMatchesTheSingleRowMove() {
-  for (from, to) in [(1, 3), (3, 0), (0, 4)] {
-    let step = ContReorder.groupMove(indices: [from], anchor: from, to: to)
-    #expect(step?.destination == ContReorder.destination(from: from, to: to))
-    #expect(step?.anchor == to)
-  }
+@Test func reorderLandingWhereTheRowsAreIsNone() {
+  #expect(ContReorder.landing(count: 4, dragged: [2], anchor: 2, target: 2) == nil)
+  #expect(ContReorder.landing(count: 4, dragged: [1, 2], anchor: 2, target: 1) == nil)
+  #expect(ContReorder.landing(count: 4, dragged: [], anchor: 0, target: 1) == nil)
 }
 
 @MainActor @Test func reorderStateTracksRowsDraggedTogether() {
@@ -245,6 +307,47 @@ private func groupMoved(_ rows: [String], dragging: IndexSet, anchor: Int, to: I
   #expect(state.count == 1 && state.isDragging("files", at: 2))
   state.end()
   #expect(state.count == 0)
+}
+
+@MainActor @Test func reorderStateSlidesRowsFromTheirFrames() {
+  let state = ContReorderState()
+  let frames = [CGRect(x: 0, y: 0, width: 100, height: 20), CGRect(x: 0, y: 22, width: 100, height: 60)]
+  let rows = frames.map { frame in
+    let geometry = ContRowGeometry()
+    geometry.frame = frame
+    return geometry
+  }
+  for (index, row) in rows.enumerated() { state.register(row, in: "hosts", at: index) }
+  state.start("hosts", at: 0, axis: .vertical)
+  state.retarget("hosts", count: 2, pointer: CGPoint(x: 10, y: 53))
+  #expect(state.target == 1)
+  #expect(state.offset("hosts", at: 1) == -22 && state.offset("hosts", at: 0) == 62)
+  #expect(state.offset("other", at: 1) == 0)
+  var moved: (IndexSet, Int)?
+  state.land(in: "hosts", count: 2) { moved = ($0, $1) }
+  #expect(moved?.0 == [0] && moved?.1 == 2)
+  // Moved, row 0 is row 1 now, and nothing slides: the rows sit where they were drawn.
+  #expect(state.isDragging("hosts", at: 1) && state.offsets.isEmpty)
+  state.end()
+  #expect(state.offset("hosts", at: 1) == 0)
+}
+
+@MainActor @Test func reorderStateHoldsACollapsedGroupsRowsUntilTheDragEnds() {
+  let state = ContReorderState()
+  for (index, height) in [20.0, 60, 20].enumerated() {
+    let geometry = ContRowGeometry()
+    geometry.frame = CGRect(x: 0, y: [0.0, 22, 84][index], width: 100, height: height)
+    state.register(geometry, in: "hosts", at: index)
+  }
+  // The tall group 1, collapsed to 20, dragged above row 0.
+  state.start("hosts", at: 1, axis: .vertical, collapsedLength: 20)
+  state.retarget("hosts", count: 3, pointer: CGPoint(x: 10, y: 5))
+  #expect(state.target == 0)
+  state.land(in: "hosts", count: 3) { _, _ in }
+  // Rows 0 and 2 (now 1 and 2) stay up under the collapsed group until it sits back in.
+  #expect(state.offsets == [1: -40, 2: -40])
+  state.end()
+  #expect(state.offsets.isEmpty)
 }
 
 // MARK: - Drag pasteboard

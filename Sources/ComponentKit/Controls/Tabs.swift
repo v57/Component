@@ -144,7 +144,7 @@ public struct KitTabStrip<ID: Hashable>: View {
         .focused($focus, equals: tab.id)
         .modifier(CtlTabExtras(id: tab.id, menu: menu, onDoubleClick: onDoubleClick))
         .modifier(
-          CtlTabReorder(list: AnyHashable(list), index: index, move: onMove, state: reorder))
+          CtlTabReorder(list: AnyHashable(list), index: index, count: tabs.count, move: onMove, state: reorder))
       }
       if let onAdd {
         Button("New Tab", systemImage: "plus", action: onAdd)
@@ -190,12 +190,13 @@ private struct CtlTabExtras<ID: Hashable>: ViewModifier {
 private struct CtlTabReorder: ViewModifier {
   let list: AnyHashable
   let index: Int
+  let count: Int
   let move: ((IndexSet, Int) -> Void)?
   let state: ContReorderState
 
   func body(content: Content) -> some View {
     if let move {
-      content.modifier(ContReorderRow(list: list, index: index, move: move, state: state))
+      content.modifier(ContReorderRow(list: list, index: index, move: move, state: state, count: count, axis: .horizontal))
     } else {
       content
     }
