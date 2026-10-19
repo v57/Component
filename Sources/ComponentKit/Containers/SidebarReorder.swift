@@ -47,6 +47,7 @@ final class ContReorderState {
     target = nil
     offsets = [:]
     into = nil
+    grab = nil
     hasLanded = false
   }
 
@@ -174,10 +175,15 @@ final class ContReorderState {
     if throughSubRow, let slid, Date.now.timeIntervalSince(slid) < 0.3 { return }
     guard let index else { return }
     let spans = spans(of: list, count: count)
+    // The drag image's middle places the drop, not the pointer: a row held by its bottom edge and moved up shows
+    // above a row before the pointer gets there. Where the pointer holds the row is read from its first move.
+    let along = axis == .vertical ? pointer.y : pointer.x
+    let length = collapsedLength ?? spans[index]?.length ?? 0
+    if grab == nil, let span = spans[index] { grab = min(max(along - span.start, 0), length) }
+    let middle = along - (grab ?? length / 2) + length / 2
     let (target, into) = ContReorder.place(
       from: self.target ?? ContReorder.home(dragged: indices, anchor: index),
-      pointer: axis == .vertical ? pointer.y : pointer.x, spans: spans, dragged: indices, count: count,
-      draggedLength: collapsedLength, nests: nests)
+      pointer: middle, spans: spans, dragged: indices, count: count, draggedLength: collapsedLength, nests: nests)
     if into != self.into { withAnimation(.kitFast) { self.into = into } }
     guard target != self.target else { return }
     let offsets = ContReorder.offsets(
@@ -210,6 +216,8 @@ final class ContReorderState {
   @ObservationIgnored private var hover = 0
   /// When the rows last started to slide.
   @ObservationIgnored private var slid: Date?
+  /// How far into the dragged row the pointer holds it, along the axis (`retarget`).
+  @ObservationIgnored private var grab: CGFloat?
   /// How long the dragged rows count as, when a group collapses to its first row (`ContReorderRow.collapses`).
   @ObservationIgnored private var collapsedLength: CGFloat?
 

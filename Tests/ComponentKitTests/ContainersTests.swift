@@ -319,6 +319,9 @@ private func landed(_ rows: [String], dragging: IndexSet, anchor: Int, target: I
   }
   for (index, row) in rows.enumerated() { state.register(row, in: "hosts", at: index) }
   state.start("hosts", at: 0, axis: .vertical)
+  // Held at its middle, then moved down 43: its middle is at 53, past the tall row's (52).
+  state.retarget("hosts", count: 2, pointer: CGPoint(x: 10, y: 10))
+  #expect(state.target == 0)
   state.retarget("hosts", count: 2, pointer: CGPoint(x: 10, y: 53))
   #expect(state.target == 1)
   #expect(state.offset("hosts", at: 1) == -22 && state.offset("hosts", at: 0) == 62)
@@ -332,6 +335,22 @@ private func landed(_ rows: [String], dragging: IndexSet, anchor: Int, target: I
   #expect(state.offset("hosts", at: 1) == 0)
 }
 
+@MainActor @Test func reorderPlacesTheDragByItsImagesMiddle() {
+  let state = ContReorderState()
+  for (index, y) in [0.0, 22, 44].enumerated() {
+    let geometry = ContRowGeometry()
+    geometry.frame = CGRect(x: 0, y: y, width: 100, height: 20)
+    state.register(geometry, in: "rows", at: index)
+  }
+  // Row 2 (44…64) held near its bottom edge (63) and moved up to 40: the pointer is still in row 1's lower half, but
+  // the row's middle (31) has passed row 1's (32).
+  state.start("rows", at: 2, axis: .vertical)
+  state.retarget("rows", count: 3, pointer: CGPoint(x: 10, y: 63))
+  state.retarget("rows", count: 3, pointer: CGPoint(x: 10, y: 40))
+  #expect(state.target == 1)
+  state.end()
+}
+
 @MainActor @Test func reorderStateHoldsACollapsedGroupsRowsUntilTheDragEnds() {
   let state = ContReorderState()
   for (index, height) in [20.0, 60, 20].enumerated() {
@@ -341,7 +360,8 @@ private func landed(_ rows: [String], dragging: IndexSet, anchor: Int, target: I
   }
   // The tall group 1, collapsed to 20, dragged above row 0.
   state.start("hosts", at: 1, axis: .vertical, collapsedLength: 20)
-  state.retarget("hosts", count: 3, pointer: CGPoint(x: 10, y: 5))
+  state.retarget("hosts", count: 3, pointer: CGPoint(x: 10, y: 32))
+  state.retarget("hosts", count: 3, pointer: CGPoint(x: 10, y: 9))
   #expect(state.target == 0)
   state.land(in: "hosts", count: 3) { _, _ in }
   // Rows 0 and 2 (now 1 and 2) stay up under the collapsed group until it sits back in.
