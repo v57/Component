@@ -28,6 +28,9 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
   private var rootTitle: String?
   private let listName: AnyHashable?
   private var receive: ((Element.ID, AnyHashable, Element.ID?, Int) -> Void)?
+  private var exportURL: ((Element) -> URL?)?
+  private var together: Set<Element.ID> = []
+  private var moveTogether: (([Element.ID], Element.ID?, Int) -> Void)?
   @State private var ownExpanded: Set<Element.ID> = []
   @State private var ownList = UUID()
   /// The folders the drag opened, which close again when it moves back above them, and where the drag image's
@@ -83,8 +86,12 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
       // Empty, a row's room still takes items from other outlines.
       ContOutlineEmptyDrop(list: list, state: state, receive: receiving)
     }
+    // The selection's rows, when several items of it are on screen to drag together.
+    let selected = moveTogether == nil ? IndexSet() : rows.together(together)
+    let dragsSelection = rows.tops(of: selected).count > 1
     ForEach(rows.entries) { entry in
       let id = entry.id
+      let isTogether = dragsSelection && selected.contains(entry.index)
       row(entry.element)
         .environment(\.contRowIndent, baseIndent + entry.depth)
         .environment(
@@ -100,13 +107,18 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
         )
         .modifier(
           ContReorderRow(
-            list: list, index: entry.index, move: { rows.move($0, to: $1, level: state.level, move) }, state: state,
+            list: list, index: entry.index,
+            move: { rows.move($0, to: $1, level: state.level, move, together: moveTogether) }, state: state,
             receive: receiving,
-            group: entry.end > entry.index + 1 ? IndexSet(integersIn: entry.index..<entry.end) : nil,
-            count: rows.entries.count, collapses: true,
+            group: isTogether
+              ? selected : entry.end > entry.index + 1 ? IndexSet(integersIn: entry.index..<entry.end) : nil,
+            exportURL: exportURL.map { url in { url(entry.element) } }, count: rows.entries.count,
+            // Rows dragged together keep their own heights, as a list's do; a folder counts as its first row.
+            collapses: !isTogether,
             // Into closed folders only: an open one's rows show where the drop goes, as its slot.
             nests: { rows.entries[$0].isFolder && !rows.entries[$0].isOpen },
-            nest: { rows.nest($0, into: $1, move) }, levels: levels, item: AnyHashable(entry.id)))
+            nest: { rows.nest($0, into: $1, move, together: moveTogether) }, levels: levels,
+            item: AnyHashable(entry.id)))
         // Held over, a closed folder opens.
         .task(id: entry.isFolder && !entry.isOpen && state.isInto(list, at: entry.index)) {
           guard entry.isFolder, !entry.isOpen, state.isInto(list, at: entry.index) else { return }
@@ -136,6 +148,40 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
     var outline = self
     outline.title = title
     outline.rootTitle = root
+    return outline
+  }
+
+  /// Lets a row be dragged out of the app as `url` (`nil` for none): a file URL drops into Finder, Mail or Terminal
+  /// as the file itself, a web URL as the link. Reordering inside the app goes on as before; a drag of several rows
+  /// (`dragsTogether`) carries the URL of the row under the pointer.
+  ///
+  /// ```swift
+  /// ReorderableOutline(projects, children: \.children, move: move) { … }
+  ///   .exportsURL { $0.folder }
+  /// ```
+  public func exportsURL(_ url: @escaping (Element) -> URL?) -> Self {
+    var outline = self
+    outline.exportURL = url
+    return outline
+  }
+
+  /// Drags the rows of `selection` together: dragging one of them picks up all those on screen (a folder with its
+  /// open rows; the lifted card shows how many), they gather where it passes, and `move` gets them all, top to
+  /// bottom, with their new parent and their place among its children as they are before the move (`.onMove`'s
+  /// `toOffset`). A row outside the selection still drags alone, through the outline's own `move`. Rows dragged
+  /// together stay in their own outline.
+  ///
+  /// ```swift
+  /// ReorderableOutline(files, children: \.children, move: move) { … }
+  ///   .dragsTogether(selectedFiles) { ids, parent, index in tree.move(ids, into: parent, at: index) }
+  /// ```
+  public func dragsTogether(
+    _ selection: Set<Element.ID>,
+    move: @escaping (_ items: [Element.ID], _ parent: Element.ID?, _ index: Int) -> Void
+  ) -> Self {
+    var outline = self
+    outline.together = selection
+    outline.moveTogether = move
     return outline
   }
 
@@ -310,16 +356,52 @@ struct ContOutlineRows<Element: Identifiable> {
     return (sibling.parent, sibling.place + 1)
   }
 
-  func move(_ dragged: IndexSet, to destination: Int, level: Int? = nil, _ move: (Element.ID, Element.ID?, Int) -> Void) {
+  /// The rows (indices) of the `selection`'s items on screen, each with its open rows.
+  func together(_ selection: Set<Element.ID>) -> IndexSet {
+    guard !selection.isEmpty else { return [] }
+    var rows = IndexSet()
+    for entry in entries where selection.contains(entry.id) { rows.insert(integersIn: entry.index..<entry.end) }
+    return rows
+  }
+
+  /// The dragged rows' items that move, top to bottom: those not inside another dragged row (it carries them).
+  func tops(of dragged: IndexSet) -> [Entry] {
+    var tops: [Entry] = []
+    for index in dragged where !tops.contains(where: { index < $0.end }) { tops.append(entries[index]) }
+    return tops
+  }
+
+  func move(
+    _ dragged: IndexSet, to destination: Int, level: Int? = nil, _ move: (Element.ID, Element.ID?, Int) -> Void,
+    together: (([Element.ID], Element.ID?, Int) -> Void)? = nil
+  ) {
     guard let first = dragged.first else { return }
     let (parent, index) = self.destination(of: dragged, before: destination, level: level)
+    let tops = tops(of: dragged)
+    if tops.count > 1, let together {
+      // Already together there, in order: nothing moves.
+      let places = tops.map(\.place)
+      let inPlace =
+        tops.allSatisfy { $0.parent == parent } && places == Array(places[0]..<places[0] + tops.count)
+        && (places[0]...(places[0] + tops.count)).contains(index)
+      if !inPlace { together(tops.map(\.id), parent, index) }
+      return
+    }
     // In place at its own level: nothing moves.
     if parent == entries[first].parent, index == entries[first].place || index == entries[first].place + 1 { return }
     move(entries[first].id, parent, index)
   }
 
-  func nest(_ dragged: IndexSet, into folder: Int, _ move: (Element.ID, Element.ID?, Int) -> Void) {
+  func nest(
+    _ dragged: IndexSet, into folder: Int, _ move: (Element.ID, Element.ID?, Int) -> Void,
+    together: (([Element.ID], Element.ID?, Int) -> Void)? = nil
+  ) {
     guard let first = dragged.first, entries.indices.contains(folder) else { return }
+    let tops = tops(of: dragged)
+    if tops.count > 1, let together {
+      together(tops.map(\.id), entries[folder].id, entries[folder].childCount ?? 0)
+      return
+    }
     move(entries[first].id, entries[folder].id, entries[folder].childCount ?? 0)
   }
 }
