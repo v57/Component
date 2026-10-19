@@ -228,8 +228,7 @@ struct GitScenarioPage: View {
     .kitPane(.content)
     .kitStatusBar(systemImage: "arrow.down.circle", status: fetch.status) {
       Text(fetch.status == .done ? "Fetched just now" : fetch.status.isWorking ? "Fetching origin…" : "Fetched 2 hr ago")
-      Spacer()
-      Text("\(sampleCommits.count) commits")
+      Text("\(sampleCommits.count) commits").foregroundStyle(.kitSecondary)
     }
   }
 
@@ -317,7 +316,7 @@ struct DatabaseScenarioPage: View {
             ChangesCard(count: pending.count, meta: ["orders on Shop"], discardAll: discard, review: save) { changeRows }
           }
         }
-        .kitStatusBar(systemImage: "bolt", status: saving) { Text("Connected"); Spacer(); Text("12 ms") }
+        .kitStatusBar(systemImage: "bolt", status: saving) { Text("Connected"); Text("12 ms") }
         """,
       paneTitles: ["Tables", "orders"]
     ) {
@@ -407,8 +406,7 @@ struct DatabaseScenarioPage: View {
     .kitPane(.content)
     .kitStatusBar(systemImage: "bolt", hue: .green, status: saving) {
       Text(saving == .done ? "Saved" : "Connected to localhost:5432")
-      Spacer()
-      Text("12 ms")
+      Text("12 ms").foregroundStyle(.kitSecondary)
     }
   }
 
@@ -573,7 +571,7 @@ struct MarkdownScenarioPage: View {
           if mode == .edit { TextEditor(text: $note.text).kitFont(.mono) } else { MarkdownView(note.text) }
         }
         .kitPane(.content)
-        .kitStatusBar(systemImage: "checkmark", status: .done) { Text("Saved"); Spacer(); Text("\\(words) words") }
+        .kitStatusBar(systemImage: "checkmark", status: .done) { Text("Saved"); Text("\\(words) words") }
         """,
       paneTitles: ["Notes", "Note"]
     ) {

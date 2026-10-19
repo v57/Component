@@ -90,31 +90,28 @@ enum ContPaneEdges {
 
 // MARK: - Status bar
 
-/// A pane's status bar as a small card bar, 8pt in from the pane's edges (like the sidebar's bottom bar): a live icon
-/// leads, the status line follows in the caption style, and what sits at the end (counts, the cursor position) trails
-/// after a `Spacer`. With `alignment`, the card is only as wide as its content, at that side of the pane.
+/// A pane's status bar as a small card, as wide as what it shows, at the pane's trailing side (or `alignment`'s), 8pt
+/// in from its edges and opaque over content that runs on under it: a live icon leads, then the status line and what
+/// goes with it (counts, the cursor position) in the caption style, 8pt apart.
 ///
 /// ```swift
 /// StatusBar(systemImage: "checkmark", status: .done) {
 ///   Text("Saved")
-///   Spacer()
-///   Text("101 words · 1 min read")
+///   Text("101 words · 1 min read").foregroundStyle(.kitSecondary)
 /// }
-/// StatusBar(alignment: .trailing) { Text("Line: 12  Col: 4") }
 /// ```
 public struct StatusBar<Content: View>: View {
   var systemImage: String?
   var hue: Hue
   var status: WorkStatus
-  var alignment: HorizontalAlignment?
+  var alignment: HorizontalAlignment
   @ViewBuilder var content: Content
   @Environment(\.kitIdiom) private var idiom
 
-  /// A status bar; `systemImage` adds the live icon that carries `status`. `alignment` fits the card to its content
-  /// at that side; nil spans the pane.
+  /// A status bar; `systemImage` adds the live icon that carries `status`, `alignment` is the pane's side it sits at.
   public init(
     systemImage: String? = nil, hue: Hue = .accent, status: WorkStatus = .idle,
-    alignment: HorizontalAlignment? = nil, @ViewBuilder content: () -> Content
+    alignment: HorizontalAlignment = .trailing, @ViewBuilder content: () -> Content
   ) {
     self.systemImage = systemImage
     self.hue = hue
@@ -135,9 +132,10 @@ public struct StatusBar<Content: View>: View {
     .padding(.leading, systemImage == nil ? 10 : 4)
     .padding(.trailing, 10)
     .frame(height: idiom.isTouch ? 38 : 30)
-    .frame(maxWidth: alignment == nil ? .infinity : nil, alignment: .leading)
     .kitSurface(.card)
-    .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment ?? .leading, vertical: .center))
+    // Opaque: content may run on under it.
+    .kitBar()
+    .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .center))
     .padding([.horizontal, .bottom], KitMetrics.gutter)
     .accessibilityElement(children: .combine)
   }
@@ -147,12 +145,11 @@ extension View {
   /// Adds a status bar card at the bottom of this pane (its content stays above it).
   ///
   /// ```swift
-  /// Editor().kitStatusBar(systemImage: "hammer", status: buildStatus) { Text("Test failed"); Spacer(); Text("Line 17") }
-  /// Editor().kitStatusBar(alignment: .trailing) { Text("Line 17") }   // a card as wide as its content
+  /// Editor().kitStatusBar(systemImage: "hammer", status: buildStatus) { Text("Test failed"); Text("Line 17") }
   /// ```
   public func kitStatusBar<Content: View>(
     systemImage: String? = nil, hue: Hue = .accent, status: WorkStatus = .idle,
-    alignment: HorizontalAlignment? = nil, @ViewBuilder content: () -> Content
+    alignment: HorizontalAlignment = .trailing, @ViewBuilder content: () -> Content
   ) -> some View {
     safeAreaInset(edge: .bottom, spacing: 0) {
       StatusBar(systemImage: systemImage, hue: hue, status: status, alignment: alignment, content: content)
@@ -409,8 +406,7 @@ enum ContSplit {
       .kitPane(.content)
       .kitStatusBar(systemImage: "checkmark", status: .done) {
         Text("Saved")
-        Spacer()
-        Text("101 words · 1 min read")
+        Text("101 words · 1 min read").foregroundStyle(.kitSecondary)
       }
     } pane: {
       Color.clear.kitPane(.secondary)

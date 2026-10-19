@@ -795,8 +795,7 @@ struct WindowPage: View {
               .kitPane(.content)
               .kitStatusBar(systemImage: "checkmark", status: saved) {
                 Text(saved == .done ? "Saved" : "Saving…")
-                Spacer()
-                Text("101 words · 1 min read")
+                Text("101 words · 1 min read").foregroundStyle(.kitSecondary)
               }
             } pane: {
               VStack(alignment: .leading, spacing: 10) {
@@ -823,7 +822,7 @@ struct WindowPage: View {
             NoteList().frame(width: 220).kitPane(.secondary)
             ResizableSplit("inspectorWidth", pane: .trailing, width: 240, range: 180...360, mainMinWidth: 260) {
               NoteEditor().kitPane(.content)
-                .kitStatusBar(systemImage: "checkmark", status: saved) { Text("Saved"); Spacer(); Text("101 words") }
+                .kitStatusBar(systemImage: "checkmark", status: saved) { Text("Saved"); Text("101 words") }
             } pane: {
               Inspector().kitPane(.secondary)
             }
@@ -875,31 +874,26 @@ struct WindowPage: View {
         }
       }
       SpecimenSection("Status bars") {
-        Specimen("StatusBar", ground: .window, padding: 0, code: "StatusBar(systemImage: \"hammer\", status: .failed) { Text(\"Test failed\"); Spacer(); Text(\"Line 17\") }") {
+        Specimen("StatusBar", ground: .window, padding: 0, code: "StatusBar(systemImage: \"hammer\", status: .failed) { Text(\"Test failed\"); Text(\"Line 17\") }") {
           VStack(spacing: 0) {
             StatusBar(systemImage: "checkmark", status: .done) {
               Text("Saved")
-              Spacer()
-              Text("101 words · 1 min read")
+              Text("101 words · 1 min read").foregroundStyle(.kitSecondary)
             }
             StatusBar(systemImage: "hammer", status: .working(progress: 0.6)) {
               Text("Building Atlas · 31 of 48")
-              Spacer()
-              Text("12 s")
+              Text("12 s").foregroundStyle(.kitSecondary)
             }
             StatusBar(systemImage: "testtube.2", status: .failed) {
               Text("Test failed").foregroundStyle(Hue.red.text)
-              Spacer()
-              Text("Line 17, Column 9")
+              Text("Line 17, Column 9").foregroundStyle(.kitSecondary)
             }
             StatusBar {
               Text("No icon")
-              Spacer()
-              Text("UTF-8 · LF")
+              Text("UTF-8 · LF").foregroundStyle(.kitSecondary)
             }
-            StatusBar(alignment: .trailing) {
-              Text("Fits its content")
-              Text("Line: 12  Col: 4")
+            StatusBar(alignment: .leading) {
+              Text("At the leading side")
             }
           }
           .padding(.top, KitMetrics.gutter)
