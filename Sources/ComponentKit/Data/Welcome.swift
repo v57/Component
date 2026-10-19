@@ -371,6 +371,7 @@ public struct WelcomeAction: View {
 ///
 /// ```swift
 /// RecentItem("harbor", subtitle: "~/Developer/harbor", date: "Today", status: "1 change", statusHue: .orange) { … }
+/// RecentItem("Shell", subtitle: "~/Developer/Shell", image: shellIcon) { … }   // a project's icon in the tile's place
 /// ```
 public struct RecentItem: View {
   var title: String
@@ -379,6 +380,7 @@ public struct RecentItem: View {
   var status: String?
   var statusHue: Hue
   var systemImage: String?
+  var image: Image?
   var id: String
   var action: () -> Void
   @Environment(DataNavModel.self) private var nav: DataNavModel?
@@ -387,7 +389,7 @@ public struct RecentItem: View {
 
   public init(
     _ title: String, subtitle: String? = nil, date: String? = nil, status: String? = nil, statusHue: Hue = .gray,
-    systemImage: String? = nil, id: String? = nil, action: @escaping () -> Void
+    systemImage: String? = nil, image: Image? = nil, id: String? = nil, action: @escaping () -> Void
   ) {
     self.title = title
     self.subtitle = subtitle
@@ -395,6 +397,7 @@ public struct RecentItem: View {
     self.status = status
     self.statusHue = statusHue
     self.systemImage = systemImage
+    self.image = image
     self.id = id ?? subtitle ?? title
     self.action = action
   }
@@ -404,7 +407,9 @@ public struct RecentItem: View {
   public var body: some View {
     HStack(spacing: 12) {
       Group {
-        if let systemImage {
+        if let image {
+          Avatar(name: title, image: image, kind: .thing, size: 36)
+        } else if let systemImage {
           Tile(systemImage: systemImage, hue: StableHue.pick(title), size: 36)
         } else {
           Tile(letters: String(title.prefix(1)).uppercased(), hue: StableHue.pick(title), size: 36)
