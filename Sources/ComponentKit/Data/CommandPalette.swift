@@ -6,6 +6,10 @@ import SwiftUI
 /// with rich headers; the selected row is raised and Return runs it; a card bar of key hints closes it.
 /// ↑↓ move through every group's items, Return runs the selected one, Escape calls `dismiss`.
 ///
+/// Summon it with `kitPaletteOverlay(isPresented:)`, which dims the window, places it and closes it on a click outside;
+/// a palette placed in the window by hand doesn't dim. Put it in a view directly only to embed it in a page
+/// (`focusesOnAppear: false`).
+///
 /// ```swift
 /// KitPalette(query: $query, prompt: "Run an action or search", status: .done, dismiss: { isOpen = false }) {
 ///   PaletteMenu("atlas", systemImage: "folder") { Button("atlas") {}; Button("pebble") {} }
