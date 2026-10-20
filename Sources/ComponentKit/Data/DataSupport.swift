@@ -112,10 +112,12 @@ struct DataNavItemsKey: PreferenceKey {
   private(set) var activated: String?
 
   /// Keeps the selection on an item that exists: the first one when it went away.
-  func update(ids: [String]) {
+  /// The rows now listed; the selection moves to the first when its row went away (or stays empty without
+  /// `selectsFirst`, on iPhone, where no keyboard opens the selected row).
+  func update(ids: [String], selectsFirst: Bool = true) {
     self.ids = ids
     if let selected, ids.contains(selected) { return }
-    selected = ids.first
+    selected = selectsFirst ? ids.first : nil
   }
 
   func move(by offset: Int) {

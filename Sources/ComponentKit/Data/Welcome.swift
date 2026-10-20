@@ -137,7 +137,7 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
     .modifier(WelcomeDrop(onDrop: onDrop, isTargeted: $isDropTargeted))
     .environment(nav)
     .onPreferenceChange(DataNavItemsKey.self) { ids in
-      MainActor.assumeIsolated { nav.update(ids: ids) }
+      MainActor.assumeIsolated { nav.update(ids: ids, selectsFirst: idiom != .phone) }
     }
     .animation(.kit, value: isDropTargeted)
   }
@@ -152,8 +152,16 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
           // The Mac's app icon keeps Apple's grid margin (its artwork is 824 of 1024 points, with the system's own
           // shadow around it): drawn larger, so the artwork is the 64pt the window wants.
           let size = DataPlatform.appIconArtwork < 1 ? 64 / DataPlatform.appIconArtwork : 64
-          icon.resizable().interpolation(.high).aspectRatio(contentMode: .fit)
-            .frame(width: size, height: size)
+          #if os(macOS)
+            icon.resizable().interpolation(.high).aspectRatio(contentMode: .fit)
+              .frame(width: size, height: size)
+          #else
+            // iOS keeps its icons square; the system masks them, so the welcome does too.
+            icon.resizable().interpolation(.high).aspectRatio(contentMode: .fit)
+              .frame(width: size, height: size)
+              .clipShape(RoundedRectangle(cornerRadius: size * 0.225, style: .continuous))
+              .shadow(color: .black.opacity(0.12), radius: 3, y: 1.5)
+          #endif
         } else {
           Tile(letters: String(appName.prefix(1)), hue: .accent, size: 64, style: .solid)
             .shadow(color: .black.opacity(0.12), radius: 3, y: 1.5)
