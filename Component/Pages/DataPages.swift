@@ -729,18 +729,24 @@ struct WelcomePage: View {
 
 struct SettingsPage: View {
   @State private var pane = "General"
+  @Environment(\.kitIdiom) private var idiom
 
   var body: some View {
     CatalogPage(page: .settings, maxWidth: 1100) {
-      SpecimenSection("KitSettings", note: "The app's panes first, then the shared ones under their section. ↑↓ move through the panes.") {
+      SpecimenSection("KitSettings", note: "The app's panes first, then the shared ones under their section. ↑↓ move through the panes. On iPhone the panes are rows with their value, and a row pushes its pane.") {
         WindowFrame(height: 520) {
-          SampleSettings(selection: $pane)
+          // On iPhone a pane pushes on the stack around the settings.
+          if idiom == .phone {
+            NavigationStack { SampleSettings(selection: $pane) }
+          } else {
+            SampleSettings(selection: $pane)
+          }
         }
         CodeSnippet(
           """
           KitSettings(selection: $pane) {
             SettingsPane("General", systemImage: "gearshape") { FormCard { … } }
-            SettingsPane("Updates", systemImage: "arrow.down.circle", hue: .blue, section: "v57") { UpdatesSettings() }
+            SettingsPane("Updates", systemImage: "arrow.down.circle", hue: .blue, section: "v57", value: "Daily") { UpdatesSettings() }
             SettingsPane("About", systemImage: "info.circle", section: "v57") { AboutSettings() }
           }
           """)
@@ -818,7 +824,7 @@ struct SampleSettings: View {
           }
         }
       }
-      SettingsPane("Updates", systemImage: "arrow.down.circle", hue: .blue, section: "v57") {
+      SettingsPane("Updates", systemImage: "arrow.down.circle", hue: .blue, section: "v57", value: autoUpdate ? "Daily" : "Off") {
         FormCard(footer: "Updates come from GitHub Releases. Nothing is checked unless you turn it on.") {
           FormRow("Check automatically", help: "Once a day", systemImage: "clock.arrow.circlepath", hue: .blue) {
             Toggle("Check automatically", isOn: $autoUpdate).labelsHidden().toggleStyle(.kitSwitch)
@@ -838,7 +844,7 @@ struct SampleSettings: View {
           Banner(check == .done ? "Component is up to date." : "Checking for updates…", systemImage: "arrow.down.circle", hue: check == .done ? .green : .blue)
         }
       }
-      SettingsPane("iCloud", systemImage: "icloud", hue: .teal, section: "v57") {
+      SettingsPane("iCloud", systemImage: "icloud", hue: .teal, section: "v57", value: sync ? "On" : "Off") {
         FormCard("Devices", footer: "Shared by Git, Shell, Database, Markdown, Code and Dev.") {
           FormRow("Sync with iCloud", help: "Projects, hosts and notes", systemImage: "icloud", hue: .teal) {
             Toggle("Sync with iCloud", isOn: $sync).labelsHidden().toggleStyle(.kitSwitch)

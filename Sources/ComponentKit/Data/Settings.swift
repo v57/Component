@@ -2,8 +2,10 @@ import SwiftUI
 
 /// The Settings window: the kit sidebar listing the panes (the app's own first, then the shared ones under their
 /// section, such as "v57": Updates, iCloud, About) with the selected pane's form beside it, under its title. The
-/// same layout on macOS and iPad at touch sizes; on iPhone the list pushes the pane. Panes hold any view, usually
-/// form cards; the kit only hosts shared panes such as UpdateKit's or Vault's, which their packages provide.
+/// same layout on macOS and iPad at touch sizes. On iPhone the panes are rows in a card (a tile, the name, the
+/// pane's `value`, a chevron), and a row pushes its pane on the `NavigationStack` the settings sit in (put one
+/// around them where there's none), under the kit's toolbar (Back, the pane's name, "Settings"). Panes hold any view, usually form cards; the kit only hosts
+/// shared panes such as UpdateKit's or Vault's, which their packages provide.
 ///
 /// ```swift
 /// @AppStorage("settings.pane") private var pane = "General"
@@ -54,17 +56,10 @@ public struct KitSettings<Content: View>: View {
   public var body: some View {
     Group {
       if idiom == .phone {
-        ZStack {
-          if showsPane {
-            detail.transition(.move(edge: .trailing))
-          } else {
-            // The panes list themselves from `content`, so it stays in the hierarchy, out of sight, under the list.
-            sidebar
-              .background { ZStack { content }.hidden().accessibilityHidden(true) }
-              .transition(.opacity)
-          }
-        }
-        .animation(.kitSlow, value: showsPane)
+        // The panes list themselves from `content`, so it stays in the hierarchy, out of sight, under the list.
+        phoneList
+          .background { ZStack { content }.hidden().accessibilityHidden(true) }
+          .modifier(SettingsPush(isPresented: $showsPane) { phonePane })
       } else {
         HStack(spacing: 0) {
           sidebar.frame(width: idiom.isTouch ? 260 : 190)
@@ -92,11 +87,8 @@ public struct KitSettings<Content: View>: View {
             .padding(.bottom, 4)
         }
         ForEach(panes.filter { $0.section == section }) { pane in
-          SettingsSidebarRow(pane: pane, isSelected: pane.id == current?.id && (idiom != .phone || showsPane)) {
-            withKitAnimation {
-              selection = pane.id
-              showsPane = true
-            }
+          SettingsSidebarRow(pane: pane, isSelected: pane.id == current?.id) {
+            withKitAnimation { selection = pane.id }
           }
         }
       }
@@ -104,8 +96,7 @@ public struct KitSettings<Content: View>: View {
     }
     .padding(.horizontal, KitMetrics.gutter)
     .padding(.top, topInset)
-    // The whole screen on iPhone, the column's width elsewhere.
-    .frame(maxWidth: idiom == .phone ? .infinity : nil, maxHeight: .infinity, alignment: .topLeading)
+    .frame(maxHeight: .infinity, alignment: .topLeading)
     .background(.kitSidebar)
     .focusable()
     .focused($isSidebarFocused)
@@ -128,17 +119,56 @@ public struct KitSettings<Content: View>: View {
     return .handled
   }
 
+  // MARK: iPhone
+
+  /// The panes as rows in a card per section, under the section's name.
+  private var phoneList: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: KitMetrics.gutter) {
+        ForEach(sections, id: \.self) { section in
+          if !section.isEmpty {
+            Text(section).kitFont(.sectionHeader).padding(.leading, 10).padding(.top, 6)
+          }
+          VStack(spacing: 0) {
+            ForEach(panes.filter { $0.section == section }) { pane in
+              SettingsPhoneRow(pane: pane) {
+                selection = pane.id
+                showsPane = true
+              }
+            }
+          }
+          .padding(4)
+          .kitSurface(.card)
+        }
+      }
+      .padding(.horizontal, KitMetrics.gutter + 4)
+      .padding(.top, 4)
+      .padding(.bottom, 24)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .background(.kitWindow)
+  }
+
+  /// The selected pane, pushed: its form under the kit's toolbar.
+  private var phonePane: some View {
+    ZStack(alignment: .topLeading) { content }
+      .environment(\.dataSettingsSelection, current?.id ?? "")
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      .background(.kitWindow)
+      .kitPane(.content)
+      .kitToolbar(
+        current?.title ?? "", meta: ["Settings"], systemImage: current?.systemImage ?? "gearshape",
+        hue: current?.hue ?? .gray
+      ) {}
+  }
+
   // MARK: Detail
 
   private var detail: some View {
     VStack(alignment: .leading, spacing: 0) {
       HStack(spacing: 8) {
-        if idiom == .phone {
-          Button("Settings", systemImage: "chevron.left") { withKitAnimation { showsPane = false } }
-            .buttonStyle(.kitPlain)
-        }
         Text(current?.title ?? "")
-          .kitFont(idiom == .phone ? .title3 : .headline)
+          .kitFont(.headline)
           .contentTransition(.opacity)
       }
       .padding(.horizontal, 24)
@@ -183,6 +213,48 @@ struct SettingsPaneInfo: Identifiable, Hashable {
   var systemImage: String
   var hue: Hue
   var section: String
+  var value: String?
+}
+
+/// Pushes the pane on iPhone, on the navigation stack around the settings.
+private struct SettingsPush<Pane: View>: ViewModifier {
+  @Binding var isPresented: Bool
+  @ViewBuilder var pane: Pane
+
+  func body(content: Content) -> some View {
+    #if os(iOS)
+      content.navigationDestination(isPresented: $isPresented) { pane.navigationBarBackButtonHidden(true) }
+    #else
+      content.navigationDestination(isPresented: $isPresented) { pane }
+    #endif
+  }
+}
+
+/// A pane's row on iPhone: its solid tile, the name, the pane's value and a chevron, at touch height.
+private struct SettingsPhoneRow: View {
+  let pane: SettingsPaneInfo
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      HStack(spacing: 12) {
+        Tile(systemImage: pane.systemImage, hue: pane.hue, size: 30, style: .solid)
+        Text(pane.title).kitFont(.body).lineLimit(1)
+        Spacer(minLength: 8)
+        if let value = pane.value {
+          Text(value).kitFont(.caption).foregroundStyle(.kitTertiary).lineLimit(1)
+        }
+        Image(systemName: "chevron.right")
+          .font(.system(size: 12, weight: .semibold))
+          .foregroundStyle(.kitTertiary)
+      }
+      .padding(.horizontal, 8)
+      .frame(height: 52)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityValue(pane.value ?? "")
+  }
 }
 
 struct SettingsPanesKey: PreferenceKey {
@@ -231,11 +303,12 @@ private struct SettingsSidebarRow: View {
   }
 }
 
-/// One pane of `KitSettings`: its sidebar row (title, glyph, tile hue, the section it's listed under) and its
-/// content, shown beside the sidebar when selected, scrolling, with an 18pt rhythm between its cards.
+/// One pane of `KitSettings`: its sidebar row (title, glyph, tile hue, the section it's listed under, and on
+/// iPhone its `value`, such as "On" or "iCloud") and its content, shown beside the sidebar when selected (pushed on
+/// iPhone), scrolling, with an 18pt rhythm between its cards.
 ///
 /// ```swift
-/// SettingsPane("Editor", systemImage: "character.cursor.ibeam", hue: .blue) {
+/// SettingsPane("Editor", systemImage: "character.cursor.ibeam", hue: .blue, value: wrap ? "Wrap" : nil) {
 ///   FormCard { FormRow("Wrap lines") { Toggle("", isOn: $wrap) } }
 /// }
 /// ```
@@ -244,13 +317,14 @@ public struct SettingsPane<Content: View>: View {
   var content: Content
   @Environment(\.dataSettingsSelection) private var selection
   @Environment(\.dataRendersFlat) private var flat
+  @Environment(\.kitIdiom) private var idiom
 
   public init(
-    _ title: String, systemImage: String, hue: Hue = .gray, section: String? = nil, id: String? = nil,
-    @ViewBuilder content: () -> Content
+    _ title: String, systemImage: String, hue: Hue = .gray, section: String? = nil, value: String? = nil,
+    id: String? = nil, @ViewBuilder content: () -> Content
   ) {
     self.info = SettingsPaneInfo(
-      id: id ?? title, title: title, systemImage: systemImage, hue: hue, section: section ?? "")
+      id: id ?? title, title: title, systemImage: systemImage, hue: hue, section: section ?? "", value: value)
     self.content = content()
   }
 
@@ -258,7 +332,7 @@ public struct SettingsPane<Content: View>: View {
     ZStack(alignment: .topLeading) {
       if selection == info.id {
         let stack = VStack(alignment: .leading, spacing: 18) { content }
-          .padding(.horizontal, 24)
+          .padding(.horizontal, idiom == .phone ? KitMetrics.gutter + 4 : 24)
           .padding(.top, 4)
           .padding(.bottom, 24)
           .frame(maxWidth: .infinity, alignment: .topLeading)
