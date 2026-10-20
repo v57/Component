@@ -21,7 +21,7 @@ public struct Keycap: View {
       case .phone: 26
       }
     let shape = RoundedRectangle(cornerRadius: 5, style: .continuous)
-    Text(key)
+    Text(Keycaps.displayed(key))
       .foregroundStyle(.kitLabel)
       .kitFont(.caption)
       .fontWeight(.medium)
@@ -55,7 +55,7 @@ public struct Keycaps: View {
 
   public var body: some View {
     HStack(spacing: 3) {
-      ForEach(Array(Self.split(keys).enumerated()), id: \.offset) { _, key in
+      ForEach(Array(Self.ordered(Self.split(keys)).enumerated()), id: \.offset) { _, key in
         Keycap(key)
       }
     }
@@ -92,6 +92,38 @@ public struct Keycaps: View {
     "⌫": "Delete", "⌦": "Forward Delete", "⎋": "Escape", "esc": "Escape", "↑": "Up Arrow", "↓": "Down Arrow",
     "←": "Left Arrow", "→": "Right Arrow", "␣": "Space", "⇪": "Caps Lock",
   ]
+
+  /// A key as this platform writes it: the Mac's symbols, or their names on Windows and Linux, where ⌘ shortcuts
+  /// are Ctrl shortcuts, ⌃ is the Windows key and ⌥ is Alt (as v57/SwiftUI maps them).
+  nonisolated static func displayed(_ key: String) -> String {
+    #if os(Windows) || os(Linux)
+      switch key {
+      case "⌘": "Ctrl"
+      case "⌃": "Win"
+      case "⌥": "Alt"
+      case "⇧": "Shift"
+      case "↩", "⏎": "Enter"
+      case "⌫": "Backspace"
+      case "⌦": "Del"
+      case "⎋": "Esc"
+      case "⇥": "Tab"
+      default: key
+      }
+    #else
+      key
+    #endif
+  }
+
+  /// Keys in this platform's order: the Mac's (⇧⌘F), or Ctrl, Win, Alt, Shift and then the key on Windows and Linux.
+  nonisolated static func ordered(_ keys: [String]) -> [String] {
+    #if os(Windows) || os(Linux)
+      let order = ["⌘", "⌃", "⌥", "⇧"]
+      let modifiers = keys.filter(order.contains).sorted { order.firstIndex(of: $0)! < order.firstIndex(of: $1)! }
+      return modifiers + keys.filter { !order.contains($0) }
+    #else
+      keys
+    #endif
+  }
 
   /// How VoiceOver reads a key or a shortcut: "Shift Command F".
   nonisolated static func spoken(_ key: String) -> String {

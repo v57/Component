@@ -436,8 +436,8 @@ struct ContKeycaps: View {
 
   var body: some View {
     HStack(spacing: 2) {
-      ForEach(Array(ContKeycaps.keys(shortcut).enumerated()), id: \.offset) { _, key in
-        Text(key)
+      ForEach(Array(Keycaps.ordered(ContKeycaps.keys(shortcut)).enumerated()), id: \.offset) { _, key in
+        Text(Keycaps.displayed(key))
           .font(.system(size: 11, weight: .medium))
           .foregroundStyle(.kitSecondary)
           .frame(minWidth: 18, minHeight: 18)
