@@ -787,24 +787,31 @@ struct KitMenuSectionHeader: View {
 }
 
 /// A row that shares `items` (URLs, text, images) with the system's share sheet, once the menu has closed (a
-/// `ShareLink` in a menu goes with it): from the view the menu opened from, as a share button would.
+/// `ShareLink` in a menu goes with it): from the view the menu opened from, as a share button would. `prepare`
+/// makes the items only when the row is picked (a temporary copy written just for sharing); empty, nothing opens.
 ///
 /// ```swift
 /// .kitContextMenu {
 ///   Button("Open", systemImage: "arrow.up.right.square") { open(note) }
 ///   KitMenuShare(items: [note.url])
 /// }
+/// KitMenuShare("Share a Copy…") { [try? exportCopy()].compactMap { $0 } }
 /// ```
 public struct KitMenuShare: View {
   var title: String
   var systemImage: String
-  var items: [Any]
+  var items: () -> [Any]
   @Environment(\.kitMenuModel) private var model
 
   public init(_ title: String = "Share…", systemImage: String = "square.and.arrow.up", items: [Any]) {
+    self.init(title, systemImage: systemImage) { items }
+  }
+
+  /// A row whose items `prepare` makes when it is picked.
+  public init(_ title: String = "Share…", systemImage: String = "square.and.arrow.up", prepare: @escaping () -> [Any]) {
     self.title = title
     self.systemImage = systemImage
-    self.items = items
+    self.items = prepare
   }
 
   public var body: some View {
@@ -812,7 +819,8 @@ public struct KitMenuShare: View {
   }
 
   private func share() {
-    if let share = model?.share { share(items) } else { model?.dismiss() }
+    let items = items()
+    if let share = model?.share, !items.isEmpty { share(items) } else { model?.dismiss() }
   }
 }
 

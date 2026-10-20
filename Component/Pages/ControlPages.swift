@@ -543,12 +543,13 @@ struct MenusPage: View {
             }
           }
           Specimen(
-            "Share", note: "Shares once the menu has closed, from where it opened",
-            code: "KitMenuShare(items: [note.url])"
+            "Share", note: "Shares once the menu has closed, from where it opened; prepare makes the items when picked",
+            code: "KitMenuShare(items: [note.url])\nKitMenuShare(\"Share a Copy…\") { [exportCopy()] }"
           ) {
             contextTarget("Share a note").kitContextMenu {
               Button("Open", systemImage: "arrow.up.right.square") {}
               KitMenuShare(items: [URL(string: "https://github.com/v57")!])
+              KitMenuShare("Share a Copy…", systemImage: "doc.on.doc") { ["A copy made when picked"] }
             }
           }
           Specimen(
