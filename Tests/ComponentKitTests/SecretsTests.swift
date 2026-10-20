@@ -151,3 +151,30 @@ import Testing
     }
   }
 #endif
+
+#if canImport(AppKit)
+  import AppKit
+
+  @Test func qrReaderReadsPictures() throws {
+    let text = "v57vault://invite?id=abc&name=Rafael"
+    let matrix = try #require(QRMatrix.encode(Array(text.utf8)))
+    let scale = 8
+    let side = (matrix.size + 8) * scale
+    let rep = try #require(
+      NSBitmapImageRep(
+        bitmapDataPlanes: nil, pixelsWide: side, pixelsHigh: side, bitsPerSample: 8, samplesPerPixel: 1,
+        hasAlpha: false, isPlanar: false, colorSpaceName: .deviceWhite, bytesPerRow: side, bitsPerPixel: 8))
+    let pixels = try #require(rep.bitmapData)
+    for i in 0..<(side * side) { pixels[i] = 255 }
+    for y in 0..<matrix.size {
+      for x in 0..<matrix.size where matrix[x, y] {
+        for dy in 0..<scale {
+          for dx in 0..<scale { pixels[((y + 4) * scale + dy) * side + (x + 4) * scale + dx] = 0 }
+        }
+      }
+    }
+    let png = try #require(rep.representation(using: .png, properties: [:]))
+    #expect(KitQRReader.codes(inImageData: png) == [text])
+    #expect(KitQRReader.codes(inImageData: Data("not a picture".utf8)).isEmpty)
+  }
+#endif

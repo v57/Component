@@ -951,6 +951,9 @@ struct MetersPage: View {
 
 struct SecretsPage: View {
   @State private var revealed = false
+  @State private var scanning = false
+  @State private var scanned: String?
+  @State private var screenCodes: [String] = []
   @State private var mineChoice: String?
   @State private var selection: Set<String> = ["Estimated payments.numbers"]
 
@@ -1043,6 +1046,35 @@ struct SecretsPage: View {
         }
         Specimen("Recovery words", code: "KitWordGrid(recoveryKey.words)") {
           KitWordGrid(Self.words)
+        }
+      }
+      SpecimenSection(
+        "Reading codes",
+        note: "The camera, a picture, or (on the Mac) the screen. Each asks for its permission the first time it's used, and only then."
+      ) {
+        SpecimenGrid(minWidth: 340) {
+          Specimen("Camera", code: "KitQRScanner { text in accept(text) }.frame(height: 240)") {
+            VStack(alignment: .leading, spacing: 10) {
+              if scanning {
+                KitQRScanner { scanned = $0 }.frame(height: 220)
+              }
+              HStack {
+                Button(scanning ? "Stop" : "Scan with Camera", systemImage: "qrcode.viewfinder") { scanning.toggle() }
+                  .buttonStyle(.kit)
+                Text(scanned ?? "Nothing scanned yet").kitFont(.caption).lineLimit(2)
+              }
+            }
+          }
+          Specimen("Screen and pictures", code: "try await KitQRReader.codesOnScreen()\nKitQRReader.codes(inImageData: data)") {
+            VStack(alignment: .leading, spacing: 10) {
+              Button("Scan Screen", systemImage: "rectangle.dashed") {
+                Task { screenCodes = (try? await KitQRReader.codesOnScreen()) ?? ["Not allowed"] }
+              }
+              .buttonStyle(.kit)
+              .disabled(!KitQRReader.canScanScreen)
+              Text(screenCodes.isEmpty ? "Codes on screen appear here" : screenCodes.joined(separator: "\n")).kitFont(.caption)
+            }
+          }
         }
       }
       SpecimenSection("Files", note: "A file's kind from its extension: folders teal, files quiet, the name shortened in the middle.") {
