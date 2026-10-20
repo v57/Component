@@ -19,8 +19,49 @@ struct ComponentApp: App {
         .hitchTest(model)
     }
     .defaultSize(width: 1320, height: 900)
+    .commands { CatalogCommands(model: model) }
     // A fixed width (`--width`) sizes the window to it.
     .windowResizability(model.windowWidth == nil ? .automatic : .contentSize)
+  }
+}
+
+// MARK: - Commands
+
+/// The Catalog menu: moving between pages and the toolbar's overrides, from the keyboard (on Windows the kit draws the
+/// menu bar in the title bar row, `ContMenuBar`).
+struct CatalogCommands: Commands {
+  @Bindable var model: CatalogModel
+
+  var body: some Commands {
+    CommandMenu("Catalog") {
+      Button("Next Page") { model.page = model.page.next }
+        .keyboardShortcut("]", modifiers: .command)
+      Button("Previous Page") { model.page = model.page.previous }
+        .keyboardShortcut("[", modifiers: .command)
+      Divider()
+      Picker("Appearance", selection: $model.appearance) {
+        ForEach(Appearance.allCases, id: \.self) { appearance in
+          Text(appearance.title).tag(appearance)
+        }
+      }
+      Toggle("Increase Contrast", isOn: $model.increaseContrast)
+        .keyboardShortcut("k", modifiers: [.command, .shift])
+      Toggle("Inactive Window", isOn: $model.inactiveWindow)
+    }
+  }
+}
+
+extension Page {
+  /// The page after this one in the sidebar's order (the first after the last).
+  var next: Page {
+    let pages = Page.allCases
+    return pages[(pages.firstIndex(of: self)! + 1) % pages.count]
+  }
+
+  /// The page before this one (the last before the first).
+  var previous: Page {
+    let pages = Page.allCases
+    return pages[(pages.firstIndex(of: self)! + pages.count - 1) % pages.count]
   }
 }
 
