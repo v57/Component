@@ -683,6 +683,24 @@ struct WelcomePage: View {
             }
             .frame(maxWidth: 480)
           }
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Waiting, with its own list title").kitFont(.headline)
+            WindowFrame(height: 560) {
+              KitWelcome(
+                appName: "Vault", version: "Passwords, encrypted folders and sync", icon: AppIcon.image(systemImage: "lock.rectangle.stack", hue: .blue),
+                showAtLaunch: $show, emptyTitle: "Waiting for Your Keys",
+                emptyMessage: "They arrive through iCloud Keychain from your other Apple devices.", close: {}
+              ) {
+                WelcomeAction("Recover with Key…", detail: "Type your 24 words or scan the kit’s QR code", systemImage: "key") {}
+                WelcomeAction("Join from Another Device…", detail: "Scan an invite on a device that has your keys", systemImage: "qrcode") {}
+              } recents: {
+                EmptyView()
+              }
+              .listTitle("This Mac")
+              .emptyState(systemImage: "key", status: .working)
+            }
+            .frame(maxWidth: 480)
+          }
         }
         CodeSnippet(
           """
@@ -698,6 +716,9 @@ struct WelcomePage: View {
           @AppStorage("welcome.source") var source = WelcomeSource.recent
           KitWelcome(…, source: $source, …) { … } recents: { … } projects: { … }   // Recent | Projects, remembered
           // With close:, the window's own buttons hide while the welcome fills its window; on iPhone it fills the width.
+          KitWelcome(emptyTitle: "Waiting for Your Keys", …) { … } recents: { … }
+            .listTitle("Already in your vault")                       // in place of "Recent"
+            .emptyState(systemImage: "key", status: .working)         // a live icon over the empty list
           """)
       }
     }

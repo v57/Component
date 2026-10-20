@@ -38,6 +38,8 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
   var searchText: Binding<String>?
   var searchPrompt: String
   var optionsView: AnyView?
+  var listTitle = "Recent"
+  var emptyIcon: (systemImage: String, status: WorkStatus)?
   @State private var ownSource = WelcomeSource.recent
   @State private var nav = DataNavModel()
   @State private var isDropTargeted = false
@@ -89,6 +91,30 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
   public func options<Options: View>(@ViewBuilder _ content: () -> Options) -> Self {
     var welcome = self
     welcome.optionsView = AnyView(content())
+    return welcome
+  }
+
+  /// Names the list when it isn't recent items ("Already in your vault": what other apps saved).
+  ///
+  /// ```swift
+  /// KitWelcome(showAtLaunch: $show) { … } recents: { … }.listTitle("Already in your vault")
+  /// ```
+  public func listTitle(_ title: String) -> Self {
+    var welcome = self
+    welcome.listTitle = title
+    return welcome
+  }
+
+  /// Puts a live icon over the empty list's title, for a list that waits on work ("Waiting for Your Keys" while
+  /// a new device's keys arrive).
+  ///
+  /// ```swift
+  /// KitWelcome(emptyTitle: "Waiting for Your Keys", …) { … } recents: { … }
+  ///   .emptyState(systemImage: "key", status: .working)
+  /// ```
+  public func emptyState(systemImage: String, status: WorkStatus) -> Self {
+    var welcome = self
+    welcome.emptyIcon = (systemImage, status)
     return welcome
   }
 
@@ -158,7 +184,7 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
           KitSegmented(selection: sourceSelection, options: WelcomeSource.allCases.map { ($0.rawValue, $0) })
             .fixedSize()
         } else {
-          Text("Recent").kitFont(.headline).padding(.leading, 6)
+          Text(listTitle).kitFont(.headline).padding(.leading, 6)
         }
         if let searchText {
           Spacer(minLength: 0)
@@ -215,6 +241,9 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
     .overlay {
       if nav.ids.isEmpty {
         VStack(spacing: 4) {
+          if let emptyIcon {
+            LiveIcon(systemImage: emptyIcon.systemImage, status: emptyIcon.status, size: 56).padding(.bottom, 8)
+          }
           Text(emptyTitle).kitFont(.headline)
           Text(onDrop == nil ? emptyMessage : "\(emptyMessage) Or drop a folder on this window.")
             .kitFont(.callout)
