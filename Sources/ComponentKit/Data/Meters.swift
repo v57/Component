@@ -171,8 +171,9 @@ extension Hue {
   }
 }
 
-/// A board column (Agentus' tasks, Dev's workflows) as a card: a rich header (the live icon, the name with a bare
-/// count, a status line) over its items on a field-filled track. Lanes sit 12pt apart in a horizontal stack.
+/// A board column (Agentus' tasks, Dev's workflows) as a card, like a sidebar's section: a rich header (the live icon,
+/// the name with a bare count, a status line) over its items as rows, 2pt apart. Put lanes in a `LaneBoard`, which
+/// lays them 12pt apart on the sidebar's ground.
 ///
 /// ```swift
 /// Lane("Running", count: 2, meta: ["2 agents", "1 failing"], systemImage: "bolt", status: .working) {
@@ -211,10 +212,34 @@ public struct Lane<Accessory: View, Items: View>: View {
         meta: { MetaLine(meta) },
         accessory: { accessory })
       VStack(spacing: 2) { items }
-        .padding(2)
-        .background(.kitField, in: RoundedRectangle(cornerRadius: KitMetrics.radiusLarge, style: .continuous))
     }
     .kitCard()
+  }
+}
+
+/// A board: lanes side by side, 12pt apart and 16pt in, on the sidebar's ground so each lane's card stands out as a
+/// sidebar's sections do. Scrolls sideways lane by lane where they don't all fit.
+///
+/// ```swift
+/// LaneBoard {
+///   Lane("Ready", count: 2, systemImage: "tray") { … }
+///   Lane("Running", count: 1, systemImage: "bolt", status: .working) { … }
+/// }
+/// ```
+public struct LaneBoard<Content: View>: View {
+  var content: Content
+
+  public init(@ViewBuilder content: () -> Content) { self.content = content() }
+
+  public var body: some View {
+    ScrollView(.horizontal) {
+      HStack(alignment: .top, spacing: 12) { content }
+        .padding(KitMetrics.gutter * 2)
+        .scrollTargetLayout()
+    }
+    .scrollTargetBehavior(.viewAligned)
+    .scrollBounceBehavior(.basedOnSize)
+    .background(.kitSidebar)
   }
 }
 
@@ -229,8 +254,9 @@ extension Lane where Accessory == EmptyView {
   }
 }
 
-/// A task on a lane's track: a leading view (an agent's square, a person's circle, a check), a title and a line
-/// under it (red when it failed); the selected task is raised.
+/// A task in a lane: a leading view (an agent's square, a person's circle, a check), a title and a line under it (red
+/// when it failed). It is a row like a sidebar's: the hover fill, and the selected task raised (at 60% while the window
+/// isn't focused).
 ///
 /// ```swift
 /// LaneItem("#3 Stone walls", subtitle: "tester: Test failed", subtitleHue: .red) { AgentTile("C1", status: .failed) }
@@ -241,6 +267,7 @@ public struct LaneItem<Leading: View>: View {
   var subtitleHue: Hue?
   var isSelected: Bool
   var leading: Leading
+  @Environment(\.kitWindowIsActive) private var isActive
   @State private var isHovered = false
 
   public init(
@@ -271,10 +298,12 @@ public struct LaneItem<Leading: View>: View {
     .padding(.horizontal, 6)
     .padding(.vertical, 6)
     .background {
-      if isSelected {
+      if isSelected, isActive {
         SurfaceShape(surface: .raised, cornerRadius: KitMetrics.radius)
+      } else if isSelected {
+        RoundedRectangle(cornerRadius: KitMetrics.radius, style: .continuous).fill(KitColor.raised).opacity(0.6)
       } else if isHovered {
-        RoundedRectangle(cornerRadius: KitMetrics.radius, style: .continuous).fill(.kitHover)
+        RoundedRectangle(cornerRadius: KitMetrics.radius, style: .continuous).fill(KitColor.rowHover)
       }
     }
     .kitHover { isHovered = $0 }

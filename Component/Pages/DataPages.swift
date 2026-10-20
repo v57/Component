@@ -882,47 +882,43 @@ struct MetersPage: View {
           }
         }
       }
-      SpecimenSection("Lanes", note: "Board columns: a rich header over items on a track.") {
+      SpecimenSection("Lanes", note: "Board columns: cards on the sidebar's ground, like a sidebar's sections.") {
         Specimen(
           "Lane and LaneItem", ground: .sidebar,
           code: """
-            Lane("Running", count: 2, meta: ["2 agents", "1 failing"], systemImage: "bolt", status: .working) {
-              LaneItem("#5 Damage-state sprites", subtitle: "artist · 3 of 8", isSelected: true) { Avatar(…) }
+            LaneBoard {
+              Lane("Running", count: 2, meta: ["2 agents", "1 failing"], systemImage: "bolt", status: .working) {
+                LaneItem("#5 Damage-state sprites", subtitle: "artist · 3 of 8", isSelected: true) { Avatar(…) }
+              }
             }
             """
         ) {
-          ScrollView(.horizontal) {
-            HStack(alignment: .top, spacing: 12) {
-              Lane("Queued", count: 1, meta: ["waiting on #5"], systemImage: "tray", hue: .gray) {
-                LaneItem("#7 Sound effects", subtitle: "Needs #5")
-              }
-              Lane("Running", count: 2, meta: ["2 agents", "1 failing"], systemImage: "bolt", status: .working) {
-                Button("Add Task", systemImage: "plus") {}
-              } items: {
-                Button { selectedTask = "#5" } label: {
-                  LaneItem("#5 Damage-state sprites", subtitle: "artist · 3 of 8 sprites", isSelected: selectedTask == "#5") {
-                    Avatar(name: "artist", kind: .agent, status: .working(progress: 0.38))
-                  }
-                }
-                .buttonStyle(.plain)
-                Button { selectedTask = "#3" } label: {
-                  LaneItem("#3 Stone walls", subtitle: "tester: Test failed, crashed on launch", subtitleHue: .red, isSelected: selectedTask == "#3") {
-                    Avatar(name: "coder-1", kind: .agent, status: .failed)
-                  }
-                }
-                .buttonStyle(.plain)
-              }
-              Lane("Done", count: 3, meta: ["3 today"], systemImage: "checkmark", hue: .green, status: .done) {
-                LaneItem("#1 Wall defs") { Image(systemName: "checkmark.circle.fill").foregroundStyle(Hue.green.fill) }
-                LaneItem("#9 Mod settings page") { Image(systemName: "checkmark.circle.fill").foregroundStyle(Hue.green.fill) }
-                LaneItem("#2 Fog of war") { Image(systemName: "checkmark.circle.fill").foregroundStyle(Hue.green.fill) }
-              }
+          LaneBoard {
+            Lane("Queued", count: 1, meta: ["waiting on #5"], systemImage: "tray", hue: .gray) {
+              LaneItem("#7 Sound effects", subtitle: "Needs #5")
             }
-            .padding(2)
-            .scrollTargetLayout()
+            Lane("Running", count: 2, meta: ["2 agents", "1 failing"], systemImage: "bolt", status: .working) {
+              Button("Add Task", systemImage: "plus") {}
+            } items: {
+              Button { selectedTask = "#5" } label: {
+                LaneItem("#5 Damage-state sprites", subtitle: "artist · 3 of 8 sprites", isSelected: selectedTask == "#5") {
+                  Avatar(name: "artist", kind: .agent, status: .working(progress: 0.38))
+                }
+              }
+              .buttonStyle(.plain)
+              Button { selectedTask = "#3" } label: {
+                LaneItem("#3 Stone walls", subtitle: "tester: Test failed, crashed on launch", subtitleHue: .red, isSelected: selectedTask == "#3") {
+                  Avatar(name: "coder-1", kind: .agent, status: .failed)
+                }
+              }
+              .buttonStyle(.plain)
+            }
+            Lane("Done", count: 3, meta: ["3 today"], systemImage: "checkmark", hue: .green, status: .done) {
+              LaneItem("#1 Wall defs") { Image(systemName: "checkmark.circle.fill").foregroundStyle(Hue.green.fill) }
+              LaneItem("#9 Mod settings page") { Image(systemName: "checkmark.circle.fill").foregroundStyle(Hue.green.fill) }
+              LaneItem("#2 Fog of war") { Image(systemName: "checkmark.circle.fill").foregroundStyle(Hue.green.fill) }
+            }
           }
-          // Lane by lane where they don't all fit (an iPhone).
-          .scrollTargetBehavior(.viewAligned)
           .scrollIndicators(.never)
         }
       }
