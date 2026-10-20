@@ -353,8 +353,8 @@ private struct ContSystemToolbarAway: ViewModifier {
   }
 #endif
 
-/// The bar's Show Sidebar button.
-private struct ContShowSidebarButton: View {
+/// The kit's Show Sidebar button: in its bar, and as the system toolbar's item (without the glass) elsewhere.
+struct ContShowSidebarButton: View {
   let action: ContShowSidebarAction
 
   var body: some View {

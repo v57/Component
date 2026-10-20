@@ -331,7 +331,7 @@ extension EnvironmentValues {
 
 extension View {
   /// Brings back a sidebar the kit's toggle hid: while the sidebar is hidden, a "Show Sidebar" button leads the
-  /// toolbar (the kit's own bar under a `kitToolbar`, the system toolbar otherwise). Put it on the detail column (the content column in a three-column split), with the same visibility
+  /// toolbar (the kit's own bar under a `kitToolbar`, the system toolbar otherwise; the kit draws the button in both). Put it on the detail column (the content column in a three-column split), with the same visibility
   /// binding the `KitSidebar` got (on iPad and iPhone the bar's toggle hides it, and the split view's own toggle may
   /// be removed). On iPad it also shows at `.automatic` while the split keeps the sidebar out of the way (portrait,
   /// or always in a three-column split).
@@ -459,13 +459,11 @@ private struct ContShowSidebarItem: ToolbarContent {
   @Binding var columnVisibility: NavigationSplitViewVisibility
   let isHidden: Bool
 
+  // The kit's own button, without the system's glass: a plain `ToolbarItem` button was the glass circle on iPad.
   var body: some ToolbarContent {
-    ToolbarItem(placement: .navigation) {
+    KitToolbarItem(placement: .navigation) {
       if isHidden {
-        Button("Show Sidebar", systemImage: "sidebar.left") {
-          ContSplitVisibility.showSidebar($columnVisibility)
-        }
-        .help("Show Sidebar")
+        ContShowSidebarButton(action: ContShowSidebarAction { ContSplitVisibility.showSidebar($columnVisibility) })
       }
     }
   }
