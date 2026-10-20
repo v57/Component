@@ -882,9 +882,9 @@ struct MetersPage: View {
           }
         }
       }
-      SpecimenSection("Lanes", note: "Board columns: cards on the sidebar's ground, like a sidebar's sections.") {
+      SpecimenSection("Lanes", note: "Board columns: cards like a sidebar's sections, their tasks as rows.") {
         Specimen(
-          "Lane and LaneItem", ground: .sidebar,
+          "Lane and LaneItem",
           code: """
             LaneBoard {
               Lane("Running", count: 2, meta: ["2 agents", "1 failing"], systemImage: "bolt", status: .working) {

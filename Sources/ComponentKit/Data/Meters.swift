@@ -173,7 +173,7 @@ extension Hue {
 
 /// A board column (Agentus' tasks, Dev's workflows) as a card, like a sidebar's section: a rich header (the live icon,
 /// the name with a bare count, a status line) over its items as rows, 2pt apart. Put lanes in a `LaneBoard`, which
-/// lays them 12pt apart on the sidebar's ground.
+/// lays them 12pt apart.
 ///
 /// ```swift
 /// Lane("Running", count: 2, meta: ["2 agents", "1 failing"], systemImage: "bolt", status: .working) {
@@ -217,8 +217,8 @@ public struct Lane<Accessory: View, Items: View>: View {
   }
 }
 
-/// A board: lanes side by side, 12pt apart and 16pt in, on the sidebar's ground so each lane's card stands out as a
-/// sidebar's sections do. Scrolls sideways lane by lane where they don't all fit.
+/// A board: lanes side by side, 12pt apart and 16pt in, on the pane's own ground. Scrolls sideways lane by lane where
+/// they don't all fit.
 ///
 /// ```swift
 /// LaneBoard {
@@ -239,7 +239,6 @@ public struct LaneBoard<Content: View>: View {
     }
     .scrollTargetBehavior(.viewAligned)
     .scrollBounceBehavior(.basedOnSize)
-    .background(.kitSidebar)
   }
 }
 
