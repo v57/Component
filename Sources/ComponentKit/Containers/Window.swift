@@ -86,6 +86,38 @@ enum ContPaneEdges {
     }
     return lines
   }
+
+  struct Span: Equatable {
+    var minX: CGFloat
+    var width: CGFloat
+    var ground: PaneGround
+    var midX: CGFloat { minX + width / 2 }
+  }
+
+  /// The grounds along the top of a view `width` wide: the panes that reach its top (their frames in its space), the
+  /// rest the window's sheet. The first pane listed wins where panes overlap.
+  static func topSpans(_ panes: [(CGRect, PaneGround)], width: CGFloat) -> [Span] {
+    var spans: [Span] = []
+    var covered: [ClosedRange<CGFloat>] = []
+    for (frame, ground) in panes where frame.minY <= 1 {
+      var start = max(frame.minX, 0)
+      var end = min(frame.maxX, width)
+      for range in covered.sorted(by: { $0.lowerBound < $1.lowerBound }) {
+        if range.contains(start) { start = range.upperBound }
+        if range.lowerBound > start { end = min(end, range.lowerBound) }
+      }
+      guard end - start > 0.5 else { continue }
+      spans.append(Span(minX: start, width: end - start, ground: ground))
+      covered.append(start...end)
+    }
+    var x: CGFloat = 0
+    for range in covered.sorted(by: { $0.lowerBound < $1.lowerBound }) {
+      if range.lowerBound - x > 0.5 { spans.append(Span(minX: x, width: range.lowerBound - x, ground: .content)) }
+      x = max(x, range.upperBound)
+    }
+    if width - x > 0.5 { spans.append(Span(minX: x, width: width - x, ground: .content)) }
+    return spans
+  }
 }
 
 // MARK: - Status bar

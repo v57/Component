@@ -123,6 +123,28 @@ import Testing
   #expect(ContPaneEdges.lines([(a, .content), (b, .content)]).isEmpty)
 }
 
+@Test func barFadeFollowsThePanesAtTheTop() {
+  typealias Span = ContPaneEdges.Span
+  // A panel list beside the content sheet; a console lower down doesn't reach the bar.
+  let list = CGRect(x: 0, y: -52, width: 200, height: 452)
+  let editor = CGRect(x: 200, y: 0, width: 500, height: 300)
+  let console = CGRect(x: 200, y: 300, width: 500, height: 100)
+  #expect(
+    ContPaneEdges.topSpans([(list, .secondary), (editor, .content), (console, .secondary)], width: 800) == [
+      Span(minX: 0, width: 200, ground: .secondary), Span(minX: 200, width: 500, ground: .content),
+      Span(minX: 700, width: 100, ground: .content),
+    ])
+  // No panes: the window's sheet all along.
+  #expect(ContPaneEdges.topSpans([], width: 300) == [Span(minX: 0, width: 300, ground: .content)])
+  // Overlapping panes: the first keeps its part.
+  let wide = CGRect(x: 0, y: 0, width: 300, height: 100)
+  let inner = CGRect(x: 100, y: 0, width: 300, height: 100)
+  #expect(
+    ContPaneEdges.topSpans([(wide, .secondary), (inner, .content)], width: 400) == [
+      Span(minX: 0, width: 300, ground: .secondary), Span(minX: 300, width: 100, ground: .content),
+    ])
+}
+
 // MARK: - Flow and keycaps
 
 @Test func flowWrapsWhenTheNextItemDoesNotFit() {

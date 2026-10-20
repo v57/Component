@@ -204,17 +204,40 @@ private struct ContKitToolbar<Title: View>: ViewModifier {
   }
 }
 
-/// The bar as a top safe-area inset the content scrolls under, with a fade of the window's ground. On the Mac the view
+/// The bar as a top safe-area inset the content scrolls under, with a fade of the ground under it. On the Mac the view
 /// runs up into the title bar, so the bar takes its place.
 private struct ContTopBar<Bar: View>: ViewModifier {
   @ViewBuilder var bar: Bar
 
   func body(content: Content) -> some View {
     content
-      .contEdgeBar(.top) { bar.background { ContEdgeFade(edge: .top, ground: .kitWindow) } }
+      .overlayPreferenceValue(ContPaneKey.self) { panes in ContTopBarFade(panes: panes) }
+      .contEdgeBar(.top) { bar }
     #if os(macOS)
       .ignoresSafeArea(.container, edges: .top)
     #endif
+  }
+}
+
+/// The bar's fade, over the content and under the bar: each pane that reaches the bar (`kitPane`) fades its own ground,
+/// so the bar over a panel-ground pane stays the panel; the rest fades the window's. A single fade of the window's
+/// white read as a lighter band (#fafafb) over a panel pane.
+private struct ContTopBarFade: View {
+  let panes: [ContPane]
+
+  var body: some View {
+    GeometryReader { proxy in
+      let top = proxy.safeAreaInsets.top
+      let spans = ContPaneEdges.topSpans(panes.map { (proxy[$0.bounds], $0.ground) }, width: proxy.size.width)
+      ForEach(Array(spans.enumerated()), id: \.offset) { _, span in
+        Rectangle()
+          .fill(ContGroundFade(ground: span.ground == .content ? .kitWindow : .kitPanel, edge: .top))
+          .frame(width: span.width, height: top)
+          .position(x: span.midX, y: -top / 2)
+      }
+    }
+    .allowsHitTesting(false)
+    .accessibilityHidden(true)
   }
 }
 
