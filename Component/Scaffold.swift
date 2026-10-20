@@ -49,6 +49,7 @@ struct PageContent: View {
     case .welcome: WelcomePage()
     case .settings: SettingsPage()
     case .meters: MetersPage()
+    case .secrets: SecretsPage()
     case .gitApp: GitScenarioPage()
     case .databaseApp: DatabaseScenarioPage()
     case .shellApp: ShellScenarioPage()

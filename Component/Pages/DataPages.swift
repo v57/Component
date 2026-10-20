@@ -925,3 +925,149 @@ struct MetersPage: View {
     }
   }
 }
+
+// MARK: - Secrets & Codes
+
+struct SecretsPage: View {
+  @State private var revealed = false
+  @State private var mineChoice: String?
+  @State private var selection: Set<String> = ["Estimated payments.numbers"]
+
+  /// A stand-in for a TOTP: six digits that change every 30 seconds (the catalog has no secret to hash).
+  private static func sampleCode(_ date: Date) -> String {
+    let step = UInt64(date.timeIntervalSince1970 / 30)
+    let mixed = (step &* 0x9E37_79B9_7F4A_7C15) >> 32
+    return String(format: "%06d", Int(mixed % 1_000_000))
+  }
+
+  private static let words = [
+    "orbit", "lantern", "maple", "fossil", "cradle", "velvet", "harbor", "ember", "quiet", "saddle", "tundra", "pixel",
+    "anchor", "willow", "copper", "meadow", "falcon", "riddle", "summit", "pebble", "canyon", "violet", "thimble", "glacier",
+  ]
+
+  private struct SampleFile: Identifiable {
+    var name: String
+    var isFolder = false
+    var size: String
+    var modified: String
+    var id: String { name }
+  }
+
+  private static let files = [
+    SampleFile(name: "Receipts", isFolder: true, size: "64 items", modified: "Oct 18"),
+    SampleFile(name: "2025 Return.pdf", size: "2.4 MB", modified: "Apr 11"),
+    SampleFile(name: "Estimated payments.numbers", size: "412 KB", modified: "Today, 9:14 AM"),
+    SampleFile(name: "Home office.heic", size: "3.8 MB", modified: "Sep 12"),
+    SampleFile(name: "Accountant notes.md", size: "8 KB", modified: "Sep 9"),
+    SampleFile(name: "IMG_2293.mov", size: "84 MB", modified: "Oct 19"),
+  ]
+
+  var body: some View {
+    CatalogPage(page: .secrets) {
+      SpecimenSection(
+        "Secrets", note: "Dots until shown: always sixteen, so they don't tell the length. The value is read only when shown or copied, and Copy keeps it on this device for 90 seconds."
+      ) {
+        SpecimenGrid(minWidth: 340) {
+          Specimen(
+            "In an inspector", ground: .panel,
+            code: "InspectorRow(\"Password\") { KitSecretValue { VaultSecrets.password(for: login.id) } }"
+          ) {
+            VStack(spacing: 0) {
+              InspectorRow("Username", value: "aiko")
+              InspectorRow("Password") { KitSecretValue("vT7q-Lm2x-9KpR-wd4Z") }
+              InspectorRow("Token") { KitSecretValue("ghp_4f1c09e2b7a9", label: "Token", copies: false) }
+            }
+            .kitCard()
+          }
+          Specimen("Shown from outside", code: "KitSecretValue(isRevealed: $revealed) { password }") {
+            VStack(alignment: .leading, spacing: 10) {
+              KitSecretValue("vT7q-Lm2x-9KpR-wd4Z", isRevealed: $revealed)
+              Toggle("Show passwords", isOn: $revealed).toggleStyle(.kitSwitch)
+            }
+          }
+        }
+      }
+      SpecimenSection(
+        "One-time codes", note: "The live icon's ring empties as the code runs out, orange in its last five seconds. The view ticks every second and asks the app for the code of that moment."
+      ) {
+        SpecimenGrid(minWidth: 340) {
+          Specimen("With seconds", code: "KitOneTimeCode(period: 30) { totp.code(at: $0) }") {
+            KitOneTimeCode { Self.sampleCode($0) }
+          }
+          Specimen("Narrow, and waiting for its secret", code: "KitOneTimeCode(showsSeconds: false) { _ in nil }") {
+            VStack(alignment: .leading, spacing: 12) {
+              KitOneTimeCode(showsSeconds: false) { Self.sampleCode($0) }
+              KitOneTimeCode(showsSeconds: false) { _ in nil }
+            }
+          }
+        }
+      }
+      SpecimenSection(
+        "Safety codes and QR codes",
+        note: "Two people compare the safety code to rule out a swapped key. The QR plate stays white in dark mode: scanners need the light ground."
+      ) {
+        SpecimenGrid(minWidth: 340) {
+          Specimen("Safety code", code: "KitSafetyCode(code)\nKitSafetyCode(code).controlSize(.small)") {
+            VStack(alignment: .leading, spacing: 12) {
+              KitSafetyCode("482109375512067304187729105536641028931722740519834062518874")
+              KitSafetyCode("603919375512067304187729128814641028931722740519834062518874").controlSize(.small)
+            }
+          }
+          Specimen("QR code", code: "KitQRCode(invite.link)") {
+            HStack(alignment: .top, spacing: 16) {
+              KitQRCode("v57vault://invite?id=v57id:Q2hhbmdlIHRoaXMgaW52aXRlIGlmIHlvdSByZWFkIGl0&name=Rafael", size: 140)
+              KitQRCode("otpauth://totp/Atlas:aiko?secret=JBSWY3DPEHPK3PXP", size: 80)
+            }
+          }
+        }
+        Specimen("Recovery words", code: "KitWordGrid(recoveryKey.words)") {
+          KitWordGrid(Self.words)
+        }
+      }
+      SpecimenSection("Files", note: "A file's kind from its extension: folders teal, files quiet, the name shortened in the middle.") {
+        Specimen(
+          "In a grid", padding: 8,
+          code: "KitGridColumn<FileItem>(\"Name\", width: 300) { KitFileCell($0.name, isFolder: $0.isFolder) }"
+        ) {
+          KitGrid(
+            Self.files,
+            columns: [
+              KitGridColumn("Name", width: 280) { KitFileCell($0.name, isFolder: $0.isFolder) },
+              KitGridColumn("Size", width: 90, alignment: .trailing) { $0.size },
+              KitGridColumn("Modified", width: 140) { $0.modified },
+            ],
+            selection: $selection
+          )
+          .frame(height: 270)
+        }
+      }
+      SpecimenSection(
+        "Text conflicts",
+        note: "Two copies of a text file side by side, the changed words in bold. The section's header carries the choice."
+      ) {
+        Specimen(
+          "Mine and Remote", ground: .panel,
+          code: "TextConflict(mine: ConflictSide(\"Mine\", ref: \"Studio Mac · 10:12 AM\", code: mine),\n             theirs: ConflictSide(\"Remote\", ref: \"Jonas · MacBook Air · 10:40 AM\", code: remote))"
+        ) {
+          KitSection(
+            mineChoice ?? "Selects.txt",
+            meta: ["changed here and on MacBook Air", "your edit is kept until you choose"],
+            systemImage: "exclamationmark.triangle", hue: .purple
+          ) {
+            TextConflict(
+              mine: ConflictSide("Mine", ref: "Studio Mac · 10:12 AM", code: "IMG_2201 cover\nIMG_2214 tram, cropped\nIMG_2230 night"),
+              theirs: ConflictSide(
+                "Remote", ref: "Jonas · MacBook Air · 10:40 AM", code: "IMG_2201 cover\nIMG_2214 tram\nIMG_2251 river")
+            )
+            .padding([.horizontal, .bottom], 6)
+          } accessory: {
+            HStack(spacing: 6) {
+              Button("Keep Mine") { mineChoice = "Kept mine" }.buttonStyle(.kit).controlSize(.small)
+              Button("Revert to Remote") { mineChoice = "Reverted to remote" }.buttonStyle(.kitPrimary).controlSize(.small)
+            }
+          }
+        }
+      }
+    }
+  }
+}
