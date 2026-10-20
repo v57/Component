@@ -479,9 +479,12 @@ struct ContSidebarBar<Actions: View>: View {
   var isSearching: Binding<Bool>? = nil
   let toggle: (@MainActor () -> Void)?
   var status: AnyView? = nil
+  /// Buttons show their titles (a pushed screen's bar: "Copy Password"); a button's own `.labelStyle(.iconOnly)` wins.
+  var labeled = false
   @ViewBuilder let actions: Actions
   @State private var ownSearching = false
   @Environment(\.kitIdiom) private var idiom
+  @Environment(\.contBarGround) private var barGround
 
   var body: some View {
     let searching = isSearching ?? $ownSearching
@@ -494,12 +497,19 @@ struct ContSidebarBar<Actions: View>: View {
           status
             .kitFont(.caption)
             .lineLimit(1)
+            // Text has no card of its own: a soft plate of the bar's ground keeps it clear of the rows scrolling
+            // under the bar, where the edge fade alone still lets them show through.
+            .background {
+              if let barGround {
+                Capsule().fill(barGround).padding(.horizontal, -8).padding(.vertical, -3).blur(radius: 5)
+              }
+            }
             .padding(.leading, searchText == nil ? 4 : 0)
             .transition(.opacity)
         }
         Spacer(minLength: 0)
         if Actions.self != EmptyView.self || toggle != nil {
-          ContBarCard {
+          ContBarCard(labeled: labeled) {
             HStack(spacing: 2) {
               actions
               if let toggle {

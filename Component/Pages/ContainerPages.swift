@@ -584,6 +584,7 @@ let sampleTree = [
 
 struct ToolbarPage: View {
   @Environment(\.kitIdiom) private var idiom
+  @State private var barSearch = ""
   @State private var width: CGFloat = 640
   @State private var fetch = SimulatedWork()
   @State private var filterOn = true
@@ -591,6 +592,31 @@ struct ToolbarPage: View {
 
   var body: some View {
     CatalogPage(page: .toolbar) {
+      SpecimenSection(
+        "Bottom bar", note: "A pushed iPhone screen's bar, as the root list's: search leads, the screen's actions on one card at the end; content scrolls on under it."
+      ) {
+        Specimen(
+          "kitBottomBar", ground: .window, padding: 0,
+          code: "LoginDetail().kitBottomBar(searchText: $search, prompt: \"Search logins\") {\n  Button(\"Copy Password\", systemImage: \"doc.on.doc\") { … }\n  Button(\"Share\", systemImage: \"square.and.arrow.up\") { … }.labelStyle(.iconOnly)\n}"
+        ) {
+          ScrollView {
+            VStack(spacing: KitMetrics.gutter) {
+              ForEach(["Sign-in", "Linked", "Changes"], id: \.self) { name in
+                KitSection(name, meta: "a card under the bar", systemImage: "rectangle.stack") {
+                  ForEach(1...3, id: \.self) { InspectorRow("Row \($0)", value: "Value") }
+                }
+              }
+            }
+            .padding(KitMetrics.gutter)
+          }
+          .kitBottomBar(searchText: $barSearch, prompt: "Search logins") {
+            Button("Copy Password", systemImage: "doc.on.doc") {}
+            Button("Share", systemImage: "square.and.arrow.up") {}.labelStyle(.iconOnly)
+            Button("More", systemImage: "ellipsis") {}.labelStyle(.iconOnly)
+          }
+          .frame(height: 320)
+        }
+      }
       SpecimenSection("The rich title", note: "The live icon carries the running operation.") {
         Specimen("KitTitle", ground: .window, code: "KitTitle(\"History\", meta: [\"main\", \"2 commits to push\"], systemImage: \"clock\", status: fetch)") {
           VStack(alignment: .leading, spacing: 14) {
