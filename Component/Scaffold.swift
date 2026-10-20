@@ -538,7 +538,11 @@ struct WindowFrame<Content: View>: View {
 /// An app icon drawn by the kit (an app avatar), as an image for views that take one (the welcome window).
 enum AppIcon {
   static func image(systemImage: String, hue: Hue) -> Image {
-    let renderer = ImageRenderer(content: Avatar(name: "App", kind: .app, systemImage: systemImage, hue: hue, size: 56).padding(4))
+    // Edge to edge, as an iOS icon (the kit gives a passed icon its shadow); clipped so the avatar's own shadow
+    // doesn't end in a hard edge at the image's border.
+    let renderer = ImageRenderer(
+      content: Avatar(name: "App", kind: .app, systemImage: systemImage, hue: hue, size: 64)
+        .clipShape(RoundedRectangle(cornerRadius: 64 * 0.225, style: .continuous)))
     renderer.scale = 3
     guard let cgImage = renderer.cgImage else { return Image(systemName: systemImage) }
     return Image(decorative: cgImage, scale: 3)

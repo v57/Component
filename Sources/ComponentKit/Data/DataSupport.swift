@@ -179,6 +179,16 @@ enum DataPlatform {
     #endif
   }
 
+  /// How much of the app icon's square its artwork fills: a Mac icon keeps Apple's grid margin (824 of 1024
+  /// points); iOS icons are the artwork edge to edge.
+  static var appIconArtwork: CGFloat {
+    #if os(macOS)
+      824 / 1024
+    #else
+      1
+    #endif
+  }
+
   static var appName: String {
     Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
       ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? ProcessInfo.processInfo.processName

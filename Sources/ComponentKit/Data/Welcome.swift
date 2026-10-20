@@ -119,14 +119,21 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
   private var identity: some View {
     VStack(spacing: 0) {
       Group {
-        if let icon = icon ?? DataPlatform.appIcon {
+        if let icon {
           icon.resizable().interpolation(.high).aspectRatio(contentMode: .fit)
+            .shadow(color: .black.opacity(0.12), radius: 3, y: 1.5)
+        } else if let icon = DataPlatform.appIcon {
+          // The Mac's app icon keeps Apple's grid margin (its artwork is 824 of 1024 points, with the system's own
+          // shadow around it): drawn larger, so the artwork is the 64pt the window wants.
+          let size = DataPlatform.appIconArtwork < 1 ? 64 / DataPlatform.appIconArtwork : 64
+          icon.resizable().interpolation(.high).aspectRatio(contentMode: .fit)
+            .frame(width: size, height: size)
         } else {
           Tile(letters: String(appName.prefix(1)), hue: .accent, size: 64, style: .solid)
+            .shadow(color: .black.opacity(0.12), radius: 3, y: 1.5)
         }
       }
       .frame(width: 64, height: 64)
-      .shadow(color: .black.opacity(0.12), radius: 3, y: 1.5)
       .accessibilityHidden(true)
       Text(appName)
         .kitFont(.largeTitle)
@@ -197,7 +204,8 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
         rows
       } else {
         ScrollViewReader { proxy in
-          ScrollView { rows }
+          // The rows fade out at the bottom while more run on under the options (`.ck-scroll-edge`).
+          ContEdgeScroll { rows }
             .scrollIndicators(.never)
             .onChange(of: nav.selected) { _, id in if let id { proxy.scrollTo(id) } }
         }
