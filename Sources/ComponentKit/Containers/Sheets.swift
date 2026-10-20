@@ -7,7 +7,8 @@ import SwiftUI
 /// A sheet's content: the still rich header (an icon tile, the title, one line of meta that wraps), the body's cards
 /// 8pt in from the edges, and the footer as a card bar. Buttons in the footer are filled and borderless; give the
 /// primary one `.buttonStyle(.kitPrimary)`. Lead the footer with a `SheetStatus` to show the sheet's own state (the
-/// arc while input is checked, red when wrong, a check when ready).
+/// arc while input is checked, red when wrong, a check when ready). On iPhone the sheet takes the height it's given
+/// and its body scrolls between the header and the footer.
 ///
 /// ```swift
 /// .sheet(isPresented: $cloning) {
@@ -54,8 +55,16 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
     VStack(alignment: .leading, spacing: 0) {
       header
       if Content.self != EmptyView.self {
-        VStack(alignment: .leading, spacing: KitMetrics.gutter) { content }
-          .padding(.horizontal, KitMetrics.gutter)
+        if idiom == .phone {
+          ScrollView {
+            sheetBody
+              .padding(.bottom, Footer.self == EmptyView.self ? 0 : 4)
+          }
+          .scrollBounceBehavior(.basedOnSize)
+          .frame(maxHeight: .infinity, alignment: .top)
+        } else {
+          sheetBody
+        }
       }
       if Footer.self != EmptyView.self {
         footerBar
@@ -65,6 +74,11 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
     }
     .frame(width: idiom == .mac ? width : nil)
     .background { Rectangle().fill(.kitPanel).ignoresSafeArea() }
+  }
+
+  private var sheetBody: some View {
+    VStack(alignment: .leading, spacing: KitMetrics.gutter) { content }
+      .padding(.horizontal, KitMetrics.gutter)
   }
 
   private var header: some View {
