@@ -196,8 +196,9 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
         ContEdgeFade(edge: .top, ground: .kitSidebar).frame(height: top)
         #if os(macOS)
           // The Mac's hide button sits at the sidebar's top right, centered on the traffic lights, as the system's
-          // does.
-          if let toggle {
+          // does. A sidebar with no title bar over it (one shown inside a page) has nowhere to put it: drawn
+          // there, it sat half above the sidebar's top edge.
+          if let toggle, top >= ContMetrics.toolbarHeight(.mac) / 2 {
             ToolGroup(iconOnly: true) {
               Button("Hide Sidebar", systemImage: "sidebar.left") { toggle() }
             }
