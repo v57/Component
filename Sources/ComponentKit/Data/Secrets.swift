@@ -50,6 +50,8 @@ public struct KitSecretValue: View {
 
   /// The dots shown in place of any secret.
   nonisolated static var mask: String { String(repeating: "•", count: maskLength) }
+  /// The dots where a row has no room for sixteen.
+  nonisolated static var shortMask: String { String(repeating: "•", count: 8) }
 
   public var body: some View {
     HStack(spacing: 6) {
@@ -62,10 +64,13 @@ public struct KitSecretValue: View {
             .truncationMode(.middle)
             .accessibilityLabel(revealed)
         } else {
-          Text(Self.mask)
-            .tracking(1)
-            .lineLimit(1)
-            .accessibilityLabel("\(label), hidden")
+          // Fewer dots where the row is narrow: the count never said anything about the secret.
+          ViewThatFits(in: .horizontal) {
+            Text(Self.mask).tracking(1).lineLimit(1).fixedSize()
+            Text(Self.shortMask).tracking(1).lineLimit(1).fixedSize()
+          }
+          .accessibilityElement()
+          .accessibilityLabel("\(label), hidden")
         }
       }
       .font(.system(size: idiom.isTouch ? 15 : 13, design: .monospaced))
@@ -140,34 +145,43 @@ public struct KitOneTimeCode: View {
     TimelineView(.periodic(from: .now, by: 1)) { context in
       let left = Self.remaining(at: context.date, period: period)
       let current = code(context.date)
-      HStack(spacing: 6) {
-        if showsSeconds {
-          Text("\(Int(left.rounded(.up))) s")
-            .kitFont(.caption)
-            .monospacedDigit()
-            .contentTransition(.numericText(countsDown: true))
-        }
-        LiveIcon(
-          systemImage: "clock", hue: left <= 5 ? .orange : .accent,
-          status: .working(progress: left / period), size: idiom.isTouch ? 30 : 24)
-        Text(current.map(Self.grouped) ?? "––– –––")
-          .font(.system(size: idiom.isTouch ? 20 : 17, weight: .semibold, design: .monospaced))
-          .tracking(1)
-          .monospacedDigit()
-          .foregroundStyle(current == nil ? AnyShapeStyle(.kitTertiary) : AnyShapeStyle(.kitLabel))
-          .contentTransition(.numericText())
-          .accessibilityLabel(current.map { "One-time code \($0.map(String.init).joined(separator: " ")), \(Int(left)) seconds left" } ?? "One-time code unavailable")
-        Button("Copy Code", systemImage: "doc.on.doc") {
-          guard let current else { return }
-          KitPasteboard.copySecret(current, expiresAfter: left)
-          copies += 1
-        }
-        .buttonStyle(.kitIcon)
-        .help("Copy Code")
-        .disabled(current == nil)
-        .effect(.success, on: copies, cornerRadius: 6)
+      ViewThatFits(in: .horizontal) {
+        row(left: left, current: current, seconds: showsSeconds)
+        row(left: left, current: current, seconds: false)
       }
       .animation(.kit, value: current)
+    }
+  }
+
+  private func row(left: TimeInterval, current: String?, seconds: Bool) -> some View {
+    HStack(spacing: 6) {
+      if seconds {
+        Text("\(Int(left.rounded(.up))) s")
+          .kitFont(.caption)
+          .monospacedDigit()
+          .contentTransition(.numericText(countsDown: true))
+          .fixedSize()
+      }
+      LiveIcon(
+        systemImage: "clock", hue: left <= 5 ? .orange : .accent,
+        status: .working(progress: left / period), size: idiom.isTouch ? 30 : 24)
+      Text(current.map(Self.grouped) ?? "––– –––")
+        .font(.system(size: idiom.isTouch ? 20 : 17, weight: .semibold, design: .monospaced))
+        .tracking(1)
+        .monospacedDigit()
+        .foregroundStyle(current == nil ? AnyShapeStyle(.kitTertiary) : AnyShapeStyle(.kitLabel))
+        .contentTransition(.numericText())
+        .fixedSize()
+        .accessibilityLabel(current.map { "One-time code \($0.map(String.init).joined(separator: " ")), \(Int(left)) seconds left" } ?? "One-time code unavailable")
+      Button("Copy Code", systemImage: "doc.on.doc") {
+        guard let current else { return }
+        KitPasteboard.copySecret(current, expiresAfter: left)
+        copies += 1
+      }
+      .buttonStyle(.kitIcon)
+      .help("Copy Code")
+      .disabled(current == nil)
+      .effect(.success, on: copies, cornerRadius: 6)
     }
   }
 }
