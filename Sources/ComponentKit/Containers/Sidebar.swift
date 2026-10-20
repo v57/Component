@@ -484,7 +484,6 @@ struct ContSidebarBar<Actions: View>: View {
   @ViewBuilder let actions: Actions
   @State private var ownSearching = false
   @Environment(\.kitIdiom) private var idiom
-  @Environment(\.contBarGround) private var barGround
 
   var body: some View {
     let searching = isSearching ?? $ownSearching
@@ -494,17 +493,15 @@ struct ContSidebarBar<Actions: View>: View {
       }
       if !searching.wrappedValue {
         if let status {
+          // A card of its own, as the search and the actions have: rows scrolling on under the bar would otherwise
+          // read through the text.
           status
             .kitFont(.caption)
             .lineLimit(1)
-            // Text has no card of its own: a soft plate of the bar's ground keeps it clear of the rows scrolling
-            // under the bar, where the edge fade alone still lets them show through.
-            .background {
-              if let barGround {
-                Capsule().fill(barGround).padding(.horizontal, -8).padding(.vertical, -3).blur(radius: 5)
-              }
-            }
-            .padding(.leading, searchText == nil ? 4 : 0)
+            .padding(.horizontal, idiom.isTouch ? 12 : 9)
+            .frame(minHeight: ContMetrics.barHeight(idiom))
+            .kitSurface(.card, cornerRadius: ContMetrics.barRadius(idiom))
+            .layoutPriority(-1)
             .transition(.opacity)
         }
         Spacer(minLength: 0)
