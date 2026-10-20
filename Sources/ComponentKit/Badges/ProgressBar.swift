@@ -11,6 +11,7 @@ import SwiftUI
 /// KitProgressBar(value: 0.4)
 /// KitProgressBar(value: played, secondary: buffered, hue: .red)
 /// KitProgressBar(status: .paused(progress: 0.6))   // gray; green when done, red when failed
+/// KitProgressBar(status: file.isPaused ? .paused(progress: done) : .working(progress: done), secondary: verified)
 /// ```
 public struct KitProgressBar: View {
   var value: Double
@@ -27,9 +28,10 @@ public struct KitProgressBar: View {
     self.hue = hue
   }
 
-  /// A bar for a piece of work: its progress, in the state's hue (green done, red failed, gray paused).
-  public init(status: WorkStatus, hue: Hue = .accent) {
-    self.init(value: status.progress ?? 0, hue: status.hue ?? hue)
+  /// A bar for a piece of work: its progress, in the state's hue (green done, red failed, gray paused), with
+  /// `secondary` (0…1) drawn softly behind it in the same hue.
+  public init(status: WorkStatus, secondary: Double? = nil, hue: Hue = .accent) {
+    self.init(value: status.progress ?? 0, secondary: secondary, hue: status.hue ?? hue)
   }
 
   public var body: some View {

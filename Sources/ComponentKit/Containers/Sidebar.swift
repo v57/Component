@@ -534,7 +534,8 @@ struct ContSidebarBar<Actions: View>: View {
 /// ```
 ///
 /// More, as initializer parameters or chained on the row:
-/// - `progress:` (and `secondaryProgress:`) draws a `KitProgressBar` under the title (a download, a sync).
+/// - `progress:` (and `secondaryProgress:`) draws a `KitProgressBar` under the title (a download, a sync); a row
+///   with a `status:` draws it in the state's hue (gray while paused), as `.progress(_:secondary:status:)` does.
 /// - `isExpanded:` leads with a disclosure chevron for a tree row (`KitOutline` sets it, and the indent, for you);
 ///   `.disclosureSlot()` keeps its empty slot on a leaf beside such rows.
 /// - `.title(_:)` swaps the title for any `Text` (an attributed match, coloured runs); renaming still edits the string.
@@ -562,6 +563,8 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
   var accessoryView: AnyView?
   var progress: Double?
   var secondaryProgress: Double?
+  /// The work the bar shows: its hue is the state's (gray paused, green done, red failed).
+  var progressStatus = WorkStatus.idle
   var isExpanded: Binding<Bool>?
   var reservesDisclosure = false
   var isCurrent = false
@@ -651,15 +654,18 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
     return row
   }
 
-  /// Draws a progress bar under the title (`nil` removes it); `secondary` sits softly behind it.
+  /// Draws a progress bar under the title (`nil` removes it); `secondary` sits softly behind it. `status` gives the
+  /// bar the state's hue: gray while paused, green done, red failed.
   ///
   /// ```swift
   /// SidebarRow(value: torrent.id, torrent.name, systemImage: "arrow.down").progress(torrent.done, secondary: torrent.available)
+  /// SidebarRow(value: item.id, item.title).progress(item.progress, status: item.isPaused ? .paused() : .working)
   /// ```
-  public func progress(_ value: Double?, secondary: Double? = nil) -> Self {
+  public func progress(_ value: Double?, secondary: Double? = nil, status: WorkStatus? = nil) -> Self {
     var row = self
     row.progress = value
     row.secondaryProgress = secondary
+    if let status { row.progressStatus = status }
     return row
   }
 
@@ -776,7 +782,7 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
             .lineLimit(1)
         }
         if let progress {
-          KitProgressBar(value: progress, secondary: secondaryProgress)
+          KitProgressBar(value: progress, secondary: secondaryProgress, hue: progressStatus.hue ?? .accent)
             .padding(.top, compact ? 2 : 4)
             .padding(.bottom, compact ? 1 : 2)
             .transition(.opacity)
@@ -879,6 +885,7 @@ extension SidebarRow where Icon == RowTile {
       value: value, title, subtitle: subtitle, progress: progress, secondaryProgress: secondaryProgress,
       isExpanded: isExpanded, icon: { RowTile(systemImage: systemImage, hue: hue, status: status) },
       trailing: trailing)
+    progressStatus = status
   }
 
   /// A row with an SF Symbol tile; it selects the value given by `.kitTag(_:)`.
@@ -890,6 +897,7 @@ extension SidebarRow where Icon == RowTile {
     self.init(
       title, subtitle: subtitle, progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded,
       icon: { RowTile(systemImage: systemImage, hue: hue, status: status) }, trailing: trailing)
+    progressStatus = status
   }
 }
 
@@ -938,6 +946,7 @@ extension SidebarRow where Icon == RowTile {
     self.init(
       value: value, title, subtitle: subtitle, progress: progress, secondaryProgress: secondaryProgress,
       isExpanded: isExpanded, icon: { tile }, trailing: trailing)
+    progressStatus = status
   }
 
   /// A row with a tile around any glyph and trailing views; it selects the value given by `.kitTag(_:)`.
@@ -951,6 +960,7 @@ extension SidebarRow where Icon == RowTile {
     self.init(
       title, subtitle: subtitle, progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded,
       icon: { tile }, trailing: trailing)
+    progressStatus = status
   }
 }
 

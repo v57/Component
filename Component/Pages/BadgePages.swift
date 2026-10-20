@@ -293,13 +293,13 @@ struct LineCountsPage: View {
         }
         Specimen(
           "KitProgressBar", note: "Stretches to its width; a second value (buffered, available) sits softly behind.",
-          code: "KitProgressBar(value: 0.4)\nKitProgressBar(value: played, secondary: buffered, hue: .red)\nKitProgressBar(status: .paused(progress: 0.6))\nKitProgressBar(value: 0.55).controlSize(.large)"
+          code: "KitProgressBar(value: 0.4)\nKitProgressBar(value: played, secondary: buffered, hue: .red)\nKitProgressBar(status: .paused(progress: 0.6), secondary: 0.8)\nKitProgressBar(value: 0.55).controlSize(.large)"
         ) {
           VStack(alignment: .leading, spacing: 12) {
             KitProgressBar(value: progress)
             KitProgressBar(value: progress, secondary: min(progress + 0.3, 1), hue: .red)
             HStack(spacing: 12) {
-              KitProgressBar(status: .paused(progress: 0.6))
+              KitProgressBar(status: .paused(progress: 0.6), secondary: 0.8)
               KitProgressBar(status: .done)
               KitProgressBar(status: .failed)
             }
