@@ -7,7 +7,8 @@ extension Animation {
   public static let kitFast = Animation.smooth(duration: 0.15)
   /// Windows, sheets, the sidebar.
   public static let kitSlow = Animation.smooth(duration: 0.35)
-  /// Things that land: an inserted or dropped row, a done check.
+  /// Things that land with a bounce: an inserted row, a toast rising, the folder that takes a dropped row. The dropped
+  /// row itself settles into its place with `.kit`.
   public static let kitSpring = Animation.spring(response: 0.35, dampingFraction: 0.68)
 }
 
