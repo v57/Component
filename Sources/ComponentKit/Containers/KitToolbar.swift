@@ -84,6 +84,8 @@ public struct KitToolbar<Title: View>: View {
   #if os(Windows)
     /// The title bar row the bar sits in (v57/SwiftUI): its height, the menu bar before it, the caption buttons after.
     @Environment(\.windowTitleBarArea) private var titleBarArea
+    /// The app's menus, which the bar draws at its leading end (`ContMenuBar`).
+    @Environment(\.windowMenuBar) private var menus
   #endif
   #if os(iOS)
     @Environment(\.isPresented) private var isPresented
@@ -106,6 +108,12 @@ public struct KitToolbar<Title: View>: View {
               Button("Back", systemImage: "chevron.left") { dismiss() }
             }
             .transition(.opacity)
+          }
+        #endif
+        #if os(Windows)
+          // The window's menus, drawn by the kit at the start of the bar (the row's own menu bar steps aside).
+          if let menus, !menus.isEmpty {
+            ContMenuBar(menus: menus)
           }
         #endif
         // On the Mac the system toolbar's item carries the button (`ContSystemToolbarAway`): the item sits there
@@ -306,10 +314,11 @@ private struct ContSystemToolbarAway: ViewModifier {
           ContTitlebarClear(isFullScreen: $isFullScreen).frame(width: 0, height: 0).accessibilityHidden(true)
         }
     #elseif os(Windows)
-      // As on the Mac: the content runs up into the title bar row (no toolbar background), which shows no title, and
-      // the bar takes the row between the menu bar and the caption buttons.
+      // As on the Mac: the content runs up into the title bar row (no toolbar background), which shows no title or
+      // menu bar of its own; the bar takes the row up to the caption buttons and draws the menus (`ContMenuBar`).
       content
         .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+        .windowMenuBarVisibility(.hidden)
         .kitHidesSystemTitle()
     #else
       content.toolbar(.hidden, for: .navigationBar)
