@@ -1077,6 +1077,16 @@ struct SecretsPage: View {
           }
         }
       }
+      SpecimenSection("Previews", note: "A file shown from bytes the app already has (an encrypted folder's sealed chunks): nothing plain is written.") {
+        SpecimenGrid(minWidth: 300) {
+          Specimen("Text", code: "KitFilePreview(name: entry.name, data: try folder.read(entry.path))") {
+            KitFilePreview(name: "Colors.json", data: Data(##"{ "accent": "#007AFF", "teal": "#59ADC4" }"##.utf8)).frame(height: 140)
+          }
+          Specimen("No preview", code: "KitFilePreview(name: \"Moodboard.fig\", data: data)") {
+            KitFilePreview(name: "Moodboard.fig", data: Data(count: 18_200)).frame(height: 140)
+          }
+        }
+      }
       SpecimenSection("Files", note: "A file's kind from its extension: folders teal, files quiet, the name shortened in the middle.") {
         Specimen(
           "In a grid", padding: 8,

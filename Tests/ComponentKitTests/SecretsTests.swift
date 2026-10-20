@@ -178,3 +178,12 @@ import Testing
     #expect(KitQRReader.codes(inImageData: Data("not a picture".utf8)).isEmpty)
   }
 #endif
+
+@Test func filePreviewForms() {
+  #expect(KitFilePreview.form(of: "Brand guide.pdf") == .pdf)
+  #expect(KitFilePreview.form(of: "Hero Lisbon.heic") == .image)
+  #expect(KitFilePreview.form(of: "Colors.json") == .text)
+  #expect(KitFilePreview.form(of: "Moodboard.fig") == .none)
+  #expect(KitFilePreview.form(of: "logo.svg") == .none)
+  #expect(KitFilePreview.form(of: "archive.zip") == .none)
+}
