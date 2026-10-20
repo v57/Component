@@ -97,6 +97,7 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   @Namespace private var namespace
   @State private var reorder = ContReorderState()
   @Environment(\.kitIdiom) private var idiom
+  @Environment(\.kitAppearsActive) private var appearsActive
   @Environment(\.kitSectionStyle) private var style
   @Environment(\.contThreeColumns) private var threeColumns
   #if !os(macOS)
@@ -218,7 +219,7 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     .environment(
       \.contSidebarSelection,
       ContSidebarSelection(
-        value: selection, select: setSelection, isFocused: focused || idiom.isTouch, namespace: namespace,
+        value: selection, select: setSelection, isFocused: focused || idiom.isTouch || appearsActive, namespace: namespace,
         primaryAction: primary)
     )
     .environment(\.contReorderState, reorder)

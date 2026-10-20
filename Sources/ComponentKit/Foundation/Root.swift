@@ -19,6 +19,15 @@ extension EnvironmentValues {
   /// ```
   @Entry public var kitIncreaseContrast: Bool = false
 
+  /// Draws every window as the focused, key window whatever its real state: selections keep the accent, nothing goes
+  /// gray, animations run. For screenshots taken in the background (`dev-screenshots` launches apps with
+  /// `-KitAppearsActive YES`, which sets the default); an app can also set it for previews.
+  ///
+  /// ```swift
+  /// Preview().environment(\.kitAppearsActive, true)
+  /// ```
+  @Entry public var kitAppearsActive: Bool = KitLaunchOptions.appearsActive
+
   /// Whether the kit draws its Increase Contrast values: the system's setting, or `kitIncreaseContrast`.
   var kitMoreContrast: Bool { kitIncreaseContrast || colorSchemeContrast == .increased }
 }
@@ -89,16 +98,23 @@ private struct ContColorScheme: ViewModifier {
   #endif
 }
 
+/// What the kit reads from its launch arguments (the argument domain of `UserDefaults`).
+public enum KitLaunchOptions {
+  /// `-KitAppearsActive YES`: every window draws as focused (see `kitAppearsActive`).
+  public static let appearsActive = UserDefaults.standard.bool(forKey: "KitAppearsActive")
+}
+
 struct ComponentKitRoot: ViewModifier {
   var accent: Color?
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.kitAppearsActive) private var appearsActive
   #if os(macOS) || os(Windows) || os(Linux)
     @Environment(\.controlActiveState) private var activeState
-    private var isActive: Bool { activeState != .inactive }
+    private var isActive: Bool { appearsActive || activeState != .inactive }
   #else
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
-    private var isActive: Bool { scenePhase != .background }
+    private var isActive: Bool { appearsActive || scenePhase != .background }
   #endif
 
   func body(content: Content) -> some View {

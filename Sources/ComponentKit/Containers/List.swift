@@ -30,6 +30,7 @@ public struct KitList<Content: View>: View {
   @FocusState private var focused: Bool
   @Namespace private var namespace
   @Environment(\.kitIdiom) private var idiom
+  @Environment(\.kitAppearsActive) private var appearsActive
 
   /// A list whose rows select an optional value.
   public init<Selection: Hashable & Sendable>(
@@ -102,7 +103,7 @@ public struct KitList<Content: View>: View {
     .environment(
       \.contSidebarSelection,
       ContSidebarSelection(
-        value: selection, select: setSelection, isFocused: focused || idiom.isTouch, namespace: namespace,
+        value: selection, select: setSelection, isFocused: focused || idiom.isTouch || appearsActive, namespace: namespace,
         primaryAction: primary)
     )
     .animation(.kit, value: selection)
