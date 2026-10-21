@@ -263,16 +263,25 @@ enum CtlChipMetrics {
 /// ```
 public struct ChipTrack<Content: View>: View {
   @ViewBuilder var content: Content
+  /// One line, built lazily: only the chips on screen exist — for a track of many chips in a
+  /// horizontal scroll view, where the flow layout would build every chip up front.
+  let lazy: Bool
   @Environment(\.kitIdiom) private var idiom
 
-  public init(@ViewBuilder content: () -> Content) {
+  public init(lazy: Bool = false, @ViewBuilder content: () -> Content) {
+    self.lazy = lazy
     self.content = content()
   }
 
   public var body: some View {
     let radius = CtlChipMetrics.radius(idiom) + 2
-    CtlFlowLayout(spacing: 2, lineSpacing: 2) {
-      content
+    Group {
+      if lazy {
+        // Only as tall as its chips: a lazy stack takes all the height it is offered.
+        LazyHStack(spacing: 2) { content }.fixedSize(horizontal: false, vertical: true)
+      } else {
+        CtlFlowLayout(spacing: 2, lineSpacing: 2) { content }
+      }
     }
     .toggleStyle(.kitChip)
     .environment(\.ctlInChipTrack, true)
