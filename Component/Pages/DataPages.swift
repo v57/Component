@@ -295,7 +295,7 @@ struct ChangesPage: View {
 // MARK: - Diffs
 
 struct DiffsPage: View {
-  @State private var selection: Set<DiffLine.ID> = ["-1:27", "-1:28"]
+  @State private var selection: Set<DiffLine.ID> = [DiffLine.id(old: nil, new: 27), DiffLine.id(old: nil, new: 28)]
   @State private var unstaged = sampleDiffLines
   @State private var staged: [DiffLine] = []
   @State private var choice: ConflictChoice?

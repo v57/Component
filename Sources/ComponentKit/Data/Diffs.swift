@@ -8,32 +8,79 @@ import SwiftUI
 /// ```swift
 /// DiffLine(.added, new: 32, text: "private func load() throws {", highlights: [19..<26])
 /// ```
+///
+/// Plain text stays a `String` until a line is drawn, so a diff of a million lines costs little more than its text.
 public struct DiffLine: Identifiable, Hashable, Sendable {
   public enum Kind: Hashable, Sendable {
     case context, added, removed
   }
 
+  private enum Content: Hashable, Sendable {
+    case plain(String)
+    case attributed(AttributedString)
+  }
+
   public var kind: Kind
   public var oldNumber: Int?
   public var newNumber: Int?
-  public var text: AttributedString
+  private var content: Content
   /// Changed words, as character offsets into `text`.
   public var highlights: [Range<Int>]
+  /// Unique within a hunk, or across every hunk sharing a selection: the app's own id for the line, else one made
+  /// from its old and new numbers (`DiffLine.id(old:new:)`).
+  public var id: Int
 
-  /// Unique within a hunk: a line's old and new numbers.
-  public var id: String { "\(oldNumber ?? -1):\(newNumber ?? -1)" }
   public var isChange: Bool { kind != .context }
 
-  public init(_ kind: Kind, old: Int? = nil, new: Int? = nil, text: AttributedString, highlights: [Range<Int>] = []) {
+  public var text: AttributedString {
+    get {
+      switch content {
+      case .plain(let string): AttributedString(string)
+      case .attributed(let text): text
+      }
+    }
+    set { content = .attributed(newValue) }
+  }
+
+  /// The text when it has no attributes.
+  var plain: String? {
+    if case .plain(let string) = content { string } else { nil }
+  }
+
+  /// The text without its attributes.
+  public var string: String {
+    switch content {
+    case .plain(let string): string
+    case .attributed(let text): String(text.characters)
+    }
+  }
+
+  public init(
+    _ kind: Kind, old: Int? = nil, new: Int? = nil, text: AttributedString, highlights: [Range<Int>] = [],
+    id: Int? = nil
+  ) {
     self.kind = kind
     self.oldNumber = old
     self.newNumber = new
-    self.text = text
+    self.content = .attributed(text)
     self.highlights = highlights
+    self.id = id ?? Self.id(old: old, new: new)
   }
 
-  public init(_ kind: Kind, old: Int? = nil, new: Int? = nil, text: String, highlights: [Range<Int>] = []) {
-    self.init(kind, old: old, new: new, text: AttributedString(text), highlights: highlights)
+  public init(
+    _ kind: Kind, old: Int? = nil, new: Int? = nil, text: String, highlights: [Range<Int>] = [], id: Int? = nil
+  ) {
+    self.kind = kind
+    self.oldNumber = old
+    self.newNumber = new
+    self.content = .plain(text)
+    self.highlights = highlights
+    self.id = id ?? Self.id(old: old, new: new)
+  }
+
+  /// The id a line with these numbers gets when the app gives none: unique within a hunk.
+  public static func id(old: Int?, new: Int?) -> Int {
+    ((old ?? -1) + 1) << 32 | ((new ?? -1) + 1)
   }
 
   /// Pairs the lines for side by side: context on both sides, a run of removed lines beside the added run that
@@ -127,6 +174,8 @@ public struct HunkCard: View {
   @State private var width: CGFloat = 0
   /// The widest line's text, for `overflow: .scroll` (every row stretches to the widest one).
   @State private var textWidth: CGFloat = 0
+  /// How far the lines are scrolled sideways, for `overflow: .scroll`: every block of lines follows it.
+  @State private var scrollX: CGFloat = 0
   @Environment(\.kitIdiom) private var idiom
 
   public init(
@@ -236,7 +285,7 @@ public struct HunkCard: View {
         .font(.system(size: 11, weight: .medium))
         .foregroundStyle(Hue.green.text)
       if let unstageLines {
-        let chosen = lines.filter { selected.contains($0.id) && $0.isChange }
+        let chosen = chosenLines
         if !chosen.isEmpty {
           Button(chosen.count == 1 ? "Unstage 1 Line" : "Unstage \(chosen.count) Lines") {
             unstageLines(chosen)
@@ -248,7 +297,7 @@ public struct HunkCard: View {
       }
       if let unstage { Button("Unstage", action: unstage).buttonStyle(.dataSoft) }
     } else if let stage {
-      let chosen = lines.filter { selected.contains($0.id) && $0.isChange }
+      let chosen = chosenLines
       if !chosen.isEmpty {
         Button(chosen.count == 1 ? "Stage 1 Line" : "Stage \(chosen.count) Lines") {
           stage(chosen)
@@ -262,29 +311,46 @@ public struct HunkCard: View {
     }
   }
 
+  /// The selected changed lines (none to look through while nothing is selected, as in a huge hunk).
+  private var chosenLines: [DiffLine] {
+    selected.isEmpty ? [] : lines.filter { selected.contains($0.id) && $0.isChange }
+  }
+
   // MARK: Unified
+
+  /// Lines per horizontal scroll view with `overflow: .scroll`. A scroll view builds all of its content, even a lazy
+  /// stack's, so a long hunk scrolls sideways in blocks that the lazy stack builds as they come into view.
+  static let scrollBlock = 50
 
   /// The lines, lazily (a scroll view around the card keeps a huge hunk cheap), scrolling sideways together when
   /// `overflow` is `.scroll`; a drag down them selects the run it passes over.
   @ViewBuilder
   private var unifiedLines: some View {
     let stack = LazyVStack(alignment: .leading, spacing: 0) {
-      ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
-        unifiedLine(line, index: index)
-          .frame(width: overflow == .scroll ? max(width, textWidth + DiffSelect.gutterWidth) : nil)
+      switch overflow {
+      case .truncate:
+        ForEach(lines) { line in unifiedLine(line) }
+      case .scroll:
+        ForEach(Array(stride(from: 0, to: lines.count, by: Self.scrollBlock)), id: \.self) { start in
+          let end = min(start + Self.scrollBlock, lines.count)
+          // The scroller shows under the last block only, not every 50 lines.
+          DiffScrollBlock(offset: $scrollX, showsIndicator: end == lines.count) {
+            VStack(alignment: .leading, spacing: 0) {
+              ForEach(lines[start..<end]) { line in
+                unifiedLine(line).frame(width: max(width, textWidth + DiffSelect.gutterWidth))
+              }
+            }
+            .frame(minWidth: width, alignment: .leading)
+          }
+        }
       }
     }
     .coordinateSpace(name: DiffSpace.lines)
     .simultaneousGesture(dragSelect, including: selection == nil ? .subviews : .all)
-    switch overflow {
-    case .truncate:
+    if overflow == .scroll {
+      stack.onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+    } else {
       stack
-    case .scroll:
-      ScrollView(.horizontal) {
-        stack.frame(minWidth: width, alignment: .leading)
-      }
-      .scrollIndicators(.automatic)
-      .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
   }
 
@@ -311,7 +377,7 @@ public struct HunkCard: View {
 
   private var canSelect: Bool { !isStaged || unstageLines != nil }
 
-  private func unifiedLine(_ line: DiffLine, index: Int = 0) -> some View {
+  private func unifiedLine(_ line: DiffLine) -> some View {
     let isSelected = selected.contains(line.id)
     let isHovered = hovered == line.id
     return HStack(spacing: 0) {
@@ -379,7 +445,7 @@ public struct HunkCard: View {
     } else {
       chosen = []
     }
-    return chosen.map { String($0.text.characters) }.joined(separator: "\n")
+    return chosen.map(\.string).joined(separator: "\n")
   }
 
   private func number(_ value: Int?, line: DiffLine, selected: Bool) -> some View {
@@ -423,7 +489,7 @@ public struct HunkCard: View {
   // MARK: Split
 
   private var splitLines: some View {
-    VStack(spacing: 0) {
+    LazyVStack(spacing: 0) {
       ForEach(Array(DiffLine.splitRows(lines).enumerated()), id: \.offset) { _, row in
         HStack(spacing: 0) {
           splitHalf(row.old, number: row.old?.oldNumber, side: .removed)
@@ -496,12 +562,63 @@ private struct DiffCopyCommand: ViewModifier {
   }
 }
 
+/// A block of a hunk's lines in a horizontal scroll view that keeps to the hunk's shared offset: scrolling one block
+/// scrolls the others, and a block coming into view starts where they are. Before macOS 15 and iOS 18 each block
+/// scrolls on its own.
+private struct DiffScrollBlock<Content: View>: View {
+  @Binding var offset: CGFloat
+  var showsIndicator: Bool
+  @ViewBuilder var content: Content
+
+  var body: some View {
+    let scroll = ScrollView(.horizontal) { content }
+      .scrollIndicators(showsIndicator ? .automatic : .hidden)
+    if #available(macOS 15, iOS 18, *) {
+      scroll.modifier(DiffScrollSync(offset: $offset))
+    } else {
+      scroll
+    }
+  }
+}
+
+@available(macOS 15, iOS 18, *)
+private struct DiffScrollSync: ViewModifier {
+  @Binding var offset: CGFloat
+  @State private var position = ScrollPosition(edge: .leading)
+  /// This block's own offset, so it isn't moved to where it already is (that would stop a fling).
+  @State private var current: CGFloat = 0
+
+  func body(content: Content) -> some View {
+    content
+      .scrollPosition($position)
+      .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.x } action: { _, x in
+        current = x
+        if abs(x - offset) > 0.5 { offset = x }
+      }
+      .onChange(of: offset) { _, x in follow(x) }
+      .onAppear { follow(offset) }
+  }
+
+  private func follow(_ x: CGFloat) {
+    guard abs(x - current) > 0.5 else { return }
+    position.scrollTo(x: x)
+  }
+}
+
 /// A line's text with its changed words on a stronger tint of the line's hue.
 private struct WordMarkedText: View {
   let line: DiffLine
   @Environment(\.self) private var environment
 
   var body: some View {
+    if line.highlights.isEmpty, let plain = line.plain {
+      Text(verbatim: plain)
+    } else {
+      marked
+    }
+  }
+
+  private var marked: Text {
     switch line.kind {
     case .added: Text(line.marked(Hue.green.fill.resolve(in: environment).opacity(0.32)))
     case .removed: Text(line.marked(Hue.red.fill.resolve(in: environment).opacity(0.3)))
@@ -801,7 +918,7 @@ public struct ConflictCard: View {
 // MARK: - Previews
 
 #Preview("Hunk cards") {
-  @Previewable @State var selection: Set<DiffLine.ID> = ["-1:27", "-1:28"]
+  @Previewable @State var selection: Set<DiffLine.ID> = [DiffLine.id(old: nil, new: 27), DiffLine.id(old: nil, new: 28)]
   let lines: [DiffLine] = [
     DiffLine(.context, old: 23, new: 24, text: "    save()"),
     DiffLine(.context, old: 24, new: 25, text: "  }"),
