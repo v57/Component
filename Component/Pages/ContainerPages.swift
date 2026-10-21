@@ -1157,6 +1157,8 @@ struct SheetsPage: View {
   @State private var confirming = false
   @State private var deleted = 0
   @State private var panel = false
+  @State private var approving = false
+  @State private var approved = 0
   @Environment(\.showToast) private var showToast
 
   var body: some View {
@@ -1223,6 +1225,30 @@ struct SheetsPage: View {
             Button("Clone") { clone() }.buttonStyle(.kitPrimary).keyboardShortcut(.defaultAction)
           }
           """)
+      }
+      SpecimenSection("Dialog", note: "Centered over the screen on iPhone and iPad (a sheet on the Mac), with what the decision needs.") {
+        Specimen(
+          "kitDialog",
+          code: """
+            .kitDialog("Approve ThinkPad X1?", isPresented: $approving, message: "Windows · wants to join Home Hub",
+                       systemImage: "checkmark.shield", confirm: "Approve") {
+              KitSafetyCode(groups: ["702", "115"], columns: 2)
+            } action: { approve() }
+            """
+        ) {
+          Flow(spacing: 10) {
+            Button("Approve Device…", systemImage: "checkmark.shield") { approving = true }.buttonStyle(.kitPrimary)
+            if approved > 0 { Text("Approved \(approved)×").kitFont(.caption) }
+          }
+          .kitDialog(
+            "Approve ThinkPad X1?", isPresented: $approving, message: "Windows · wants to join Home Hub. Only if its screen shows this code:",
+            systemImage: "checkmark.shield", confirm: "Approve"
+          ) {
+            KitSafetyCode(groups: ["702", "115"], columns: 2)
+          } action: {
+            approved += 1
+          }
+        }
       }
       SpecimenSection("Several choices", note: "Cancel and each way to go; the default is filled and takes Return.") {
         Specimen(
