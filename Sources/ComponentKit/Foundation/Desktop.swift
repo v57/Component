@@ -76,11 +76,37 @@ public enum KitDesktop {
 }
 
 extension KitDesktop {
+  /// Whether the app with a bundle identifier (`dev.v57.code`) is installed, for items such as Open in Code that
+  /// show only then. Only the Mac looks apps up this way: false elsewhere.
+  @MainActor public static func isAppInstalled(_ bundleIdentifier: String) -> Bool {
+    #if canImport(AppKit)
+      NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) != nil
+    #else
+      false
+    #endif
+  }
+
+  /// Opens files and folders in the app with a bundle identifier, handed over in order (a project's folder, then a
+  /// file in it). Does nothing when the app isn't installed, and off the Mac.
+  ///
+  /// ```swift
+  /// if KitDesktop.isAppInstalled("dev.v57.code") {
+  ///   Button("Open in Code", systemImage: "chevron.left.forwardslash.chevron.right") {
+  ///     KitDesktop.open([project, file], withApp: "dev.v57.code")
+  ///   }
+  /// }
+  /// ```
+  @MainActor public static func open(_ urls: [URL], withApp bundleIdentifier: String) {
+    #if canImport(AppKit)
+      guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else { return }
+      NSWorkspace.shared.open(urls, withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+    #endif
+  }
+
   /// Opens a terminal in a folder: Terminal on the Mac, Windows Terminal (else PowerShell) on Windows.
   @MainActor public static func openTerminal(at folder: URL) {
     #if canImport(AppKit)
-      guard let terminal = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") else { return }
-      NSWorkspace.shared.open([folder], withApplicationAt: terminal, configuration: NSWorkspace.OpenConfiguration())
+      open([folder], withApp: "com.apple.Terminal")
     #elseif os(Windows)
       let path = folder.path.replacingOccurrences(of: "/", with: "\\")
       let local = ProcessInfo.processInfo.environment["LOCALAPPDATA"] ?? ""
