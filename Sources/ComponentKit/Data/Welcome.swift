@@ -6,22 +6,35 @@ public enum WelcomeSource: String, Hashable, Sendable, CaseIterable {
   case projects = "Projects"
 }
 
-/// The one welcome window every app shows, the compact one: a round close button, the app's icon, name and version,
-/// its actions, then the recent items on the panel ground (or Recent | Projects when the app passes projects), and
-/// "Show this window when … opens". A folder dropped anywhere on the window goes to `onDrop`. ↑↓ move through the
-/// items, Return opens the selected one; a click selects, a double click opens. Name, version and icon default to
-/// the app bundle's.
+/// The welcome every app shows as its main screen's empty state: drawn as the detail pane's content while nothing
+/// is selected (on iPhone, the root's first screen while there is nothing to list). The app's icon, name and
+/// version, its actions, then the recent items on a card (or Recent | Projects when the app passes projects), filling
+/// the pane and centred: one column, or two side by side in a wide pane. A folder dropped anywhere on it goes to
+/// `onDrop`. ↑↓ move through the items once the list has focus and Return opens the selected one; on the Mac a click
+/// selects and a double click opens, on iPad and iPhone a tap opens. Name, version and icon default to the app
+/// bundle's.
 ///
 /// ```swift
-/// KitWelcome(showAtLaunch: $showAtLaunch, close: { dismissWindow() }, onDrop: { library.open($0) }) {
-///   WelcomeAction("Clone Repository…", detail: "From GitHub, GitLab or any URL", systemImage: "arrow.down") { … }
-///   WelcomeAction("Open Local Repository…", detail: "Any folder with a .git directory", systemImage: "folder") { … }
-/// } recents: {
-///   ForEach(recent) { repo in
-///     RecentItem(repo.name, subtitle: repo.path, date: "Today", status: "1 change", statusHue: .orange) { open(repo) }
+/// NavigationSplitView {
+///   Sidebar(selection: $selection)
+/// } detail: {
+///   if let selection {
+///     ProjectView(selection)
+///   } else {
+///     KitWelcome(onDrop: { library.open($0) }) {
+///       WelcomeAction("Clone Repository…", detail: "From GitHub, GitLab or any URL", systemImage: "arrow.down") { … }
+///       WelcomeAction("Open Local Repository…", detail: "Any folder with a .git directory", systemImage: "folder") { … }
+///     } recents: {
+///       ForEach(recent) { repo in
+///         RecentItem(repo.name, subtitle: repo.path, date: "Today", status: "1 change", statusHue: .orange) { open(repo) }
+///       }
+///     }
 ///   }
 /// }
 /// ```
+///
+/// The initializers with `showAtLaunch:` and `close:` draw the old welcome window (480pt, a round close button,
+/// "Show this window when … opens"); they are deprecated: drop both arguments and show the welcome in the detail pane.
 public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
   var appName: String
   var version: String
@@ -40,6 +53,9 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
   var optionsView: AnyView?
   var listTitle = "Recent"
   var emptyIcon: (systemImage: String, status: WorkStatus)?
+  /// The old compact window (the initializers with `showAtLaunch:` and `close:`).
+  var isWindow = false
+  @State private var identityHeight: CGFloat = 320
   @State private var ownSource = WelcomeSource.recent
   @State private var nav = DataNavModel()
   @State private var isDropTargeted = false
@@ -47,14 +63,42 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
   @Environment(\.dataRendersFlat) private var flat
   @Environment(\.kitIdiom) private var idiom
 
-  /// A welcome window with Recent | Projects.
+  /// The welcome with Recent | Projects, as the main screen's empty state.
   ///
   /// - Parameters:
-  ///   - source: which list shows, to remember it (`@AppStorage`); without it the window keeps its own.
+  ///   - source: which list shows, to remember it (`@AppStorage`); without it the welcome keeps its own.
   ///   - searchText: shows a search field over the lists, bound to this text (filter `recents` and `projects`
   ///     with it).
+  public init(
+    appName: String? = nil, version: String? = nil, icon: Image? = nil,
+    emptyTitle: String = "No Recent Items", emptyMessage: String = "What you open appears here.",
+    source: Binding<WelcomeSource>? = nil, searchText: Binding<String>? = nil, searchPrompt: String = "Search",
+    onDrop: (([URL]) -> Bool)? = nil, @ViewBuilder actions: () -> Actions,
+    @ViewBuilder recents: () -> Recents, @ViewBuilder projects: () -> Projects
+  ) {
+    self.sourceBinding = source
+    self.searchText = searchText
+    self.searchPrompt = searchPrompt
+    self.appName = appName ?? DataPlatform.appName
+    self.version = version ?? "Version \(DataPlatform.version)"
+    self.icon = icon
+    self.emptyTitle = emptyTitle
+    self.emptyMessage = emptyMessage
+    self.onDrop = onDrop
+    self.actions = actions()
+    self.recents = recents()
+    self.projects = projects()
+  }
+
+  /// The old welcome window with Recent | Projects.
+  ///
+  /// - Parameters:
   ///   - close: draws the round close button; on the Mac the window's own buttons are hidden then, so they don't
   ///     sit over it in a window without a title bar.
+  @available(
+    *, deprecated,
+    message: "The welcome is the main screen's empty state: drop showAtLaunch: and close:, and show it in the detail pane when nothing is selected."
+  )
   public init(
     appName: String? = nil, version: String? = nil, icon: Image? = nil, showAtLaunch: Binding<Bool>? = nil,
     emptyTitle: String = "No Recent Items", emptyMessage: String = "What you open appears here.",
@@ -76,6 +120,7 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
     self.actions = actions()
     self.recents = recents()
     self.projects = projects()
+    self.isWindow = true
   }
 
   private var hasProjects: Bool { Projects.self != EmptyView.self }
@@ -119,6 +164,20 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
   }
 
   public var body: some View {
+    Group {
+      if isWindow { window } else { inline }
+    }
+    .overlay { if isDropTargeted { DropRing(title: "Open in \(appName)") } }
+    .modifier(WelcomeDrop(onDrop: onDrop, isTargeted: $isDropTargeted))
+    .environment(nav)
+    .onPreferenceChange(DataNavItemsKey.self) { ids in
+      // The window starts with its first item selected (Return opens it); the pane waits for the list's focus.
+      MainActor.assumeIsolated { nav.update(ids: ids, selectsFirst: isWindow && idiom != .phone) }
+    }
+    .animation(.kit, value: isDropTargeted)
+  }
+
+  private var window: some View {
     VStack(spacing: 0) {
       identity
       list
@@ -133,13 +192,44 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
       // The round close button replaces the window's own buttons when the welcome fills its window.
       if close != nil { DataWindowButtonsHidden().ignoresSafeArea() }
     }
-    .overlay { if isDropTargeted { DropRing(title: "Open in \(appName)") } }
-    .modifier(WelcomeDrop(onDrop: onDrop, isTargeted: $isDropTargeted))
-    .environment(nav)
-    .onPreferenceChange(DataNavItemsKey.self) { ids in
-      MainActor.assumeIsolated { nav.update(ids: ids, selectsFirst: idiom != .phone) }
+  }
+
+  /// The main screen's empty state: on the pane's own ground, the identity and actions over the list's card in one
+  /// column (520pt at most), or beside it when the pane is wide; centred, the list as tall as the pane allows (at
+  /// least 260pt: a shorter pane scrolls).
+  private var inline: some View {
+    GeometryReader { proxy in
+      let size = proxy.size
+      let isWide = WelcomeLayout.isWide(width: size.width, idiom: idiom)
+      let margin: CGFloat = idiom == .phone ? KitMetrics.gutter : 24
+      let available = size.height - margin * 2
+      ScrollView {
+        Group {
+          if isWide {
+            HStack(alignment: .center, spacing: 32) {
+              identity.frame(width: 340)
+              listCard
+                .frame(maxWidth: 500)
+                .frame(height: WelcomeLayout.wideListHeight(available: available))
+            }
+            .frame(maxWidth: 880)
+          } else {
+            VStack(spacing: 0) {
+              identity.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { identityHeight = $0 }
+              listCard.frame(
+                height: WelcomeLayout.columnListHeight(
+                  available: available, identity: identityHeight, fills: idiom == .phone))
+            }
+            .frame(maxWidth: idiom == .phone ? .infinity : 520)
+          }
+        }
+        .padding(margin)
+        .frame(width: size.width)
+        .frame(minHeight: size.height)
+      }
+      .scrollBounceBehavior(.basedOnSize)
+      .scrollIndicators(.automatic)
     }
-    .animation(.kit, value: isDropTargeted)
   }
 
   private var identity: some View {
@@ -177,15 +267,35 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
         .foregroundStyle(.kitSecondary)
         .padding(.top, 2)
       VStack(spacing: 2) { actions }
-        .padding(.horizontal, idiom == .phone ? 16 : 40)
+        .padding(.horizontal, isWindow ? (idiom == .phone ? 16 : 40) : 0)
         .padding(.top, 18)
     }
-    .padding(.top, 36)
-    .padding(.bottom, 14)
+    .padding(.top, isWindow ? 36 : idiom == .phone ? 16 : 0)
+    .padding(.bottom, isWindow ? 14 : 18)
     .frame(maxWidth: .infinity)
   }
 
   private var list: some View {
+    listContent
+      .padding(.horizontal, idiom == .phone ? 8 : 16)
+      .padding(.top, 14)
+      .padding(.bottom, 18)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+      .background(.kitPanel)
+      .overlay(alignment: .top) { Rectangle().fill(.kitSeparator).frame(height: 0.5) }
+  }
+
+  /// The pane's list: a card on the pane's ground.
+  private var listCard: some View {
+    listContent
+      .padding(.horizontal, KitMetrics.gutter)
+      .padding(.top, 10)
+      .padding(.bottom, 12)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+      .kitSurface(.card, cornerRadius: idiom.isTouch ? KitMetrics.radiusXL : KitMetrics.radiusOverlay)
+  }
+
+  private var listContent: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(spacing: KitMetrics.gutter) {
         if hasProjects {
@@ -218,12 +328,6 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
           .padding(.top, 4)
       }
     }
-    .padding(.horizontal, idiom == .phone ? 8 : 16)
-    .padding(.top, 14)
-    .padding(.bottom, 18)
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    .background(.kitPanel)
-    .overlay(alignment: .top) { Rectangle().fill(.kitSeparator).frame(height: 0.5) }
   }
 
   private var items: some View {
@@ -253,7 +357,7 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
             LiveIcon(systemImage: emptyIcon.systemImage, status: emptyIcon.status, size: 56).padding(.bottom, 8)
           }
           Text(emptyTitle).kitFont(.headline)
-          Text(onDrop == nil ? emptyMessage : "\(emptyMessage) Or drop a folder on this window.")
+          Text(onDrop == nil ? emptyMessage : "\(emptyMessage) Or drop a folder \(isWindow ? "on this window" : "here").")
             .kitFont(.callout)
             .foregroundStyle(.kitSecondary)
             .multilineTextAlignment(.center)
@@ -277,13 +381,31 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
       nav.activate()
       return .handled
     }
-    .onAppear { isListFocused = true }
+    .onAppear { if isWindow { isListFocused = true } }
     .onChange(of: source) { nav.selected = nil }
   }
 }
 
 extension KitWelcome where Projects == EmptyView {
-  /// A welcome window with one list, the recent items; `searchText` adds a search field over it.
+  /// The welcome with one list, the recent items, as the main screen's empty state; `searchText` adds a search
+  /// field over it.
+  public init(
+    appName: String? = nil, version: String? = nil, icon: Image? = nil,
+    emptyTitle: String = "No Recent Items", emptyMessage: String = "What you open appears here.",
+    searchText: Binding<String>? = nil, searchPrompt: String = "Search",
+    onDrop: (([URL]) -> Bool)? = nil, @ViewBuilder actions: () -> Actions, @ViewBuilder recents: () -> Recents
+  ) {
+    self.init(
+      appName: appName, version: version, icon: icon, emptyTitle: emptyTitle, emptyMessage: emptyMessage,
+      searchText: searchText, searchPrompt: searchPrompt, onDrop: onDrop, actions: actions, recents: recents,
+      projects: { EmptyView() })
+  }
+
+  /// The old welcome window with one list.
+  @available(
+    *, deprecated,
+    message: "The welcome is the main screen's empty state: drop showAtLaunch: and close:, and show it in the detail pane when nothing is selected."
+  )
   public init(
     appName: String? = nil, version: String? = nil, icon: Image? = nil, showAtLaunch: Binding<Bool>? = nil,
     emptyTitle: String = "No Recent Items", emptyMessage: String = "What you open appears here.",
@@ -295,6 +417,27 @@ extension KitWelcome where Projects == EmptyView {
       appName: appName, version: version, icon: icon, showAtLaunch: showAtLaunch, emptyTitle: emptyTitle,
       emptyMessage: emptyMessage, searchText: searchText, searchPrompt: searchPrompt, close: close, onDrop: onDrop,
       actions: actions, recents: recents, projects: { EmptyView() })
+  }
+}
+
+/// The inline welcome's layout: two columns from 800pt (not on iPhone); the list as tall as the pane allows, from
+/// 260pt (a shorter pane scrolls) to 560pt beside the identity or 440pt under it (no limit on iPhone, where it fills
+/// the screen).
+enum WelcomeLayout {
+  static let twoColumnWidth: CGFloat = 800
+  static let minListHeight: CGFloat = 260
+
+  static func isWide(width: CGFloat, idiom: KitIdiom) -> Bool {
+    idiom != .phone && width >= twoColumnWidth
+  }
+
+  static func wideListHeight(available: CGFloat) -> CGFloat {
+    min(max(available, minListHeight), 560)
+  }
+
+  static func columnListHeight(available: CGFloat, identity: CGFloat, fills: Bool) -> CGFloat {
+    let room = max(available - identity, minListHeight)
+    return fills ? room : min(room, 440)
   }
 }
 
@@ -410,9 +553,26 @@ public struct WelcomeAction: View {
   }
 }
 
-/// A recent item (or a shared project) in the welcome window: a letter tile in the name's stable colour (or a
+/// On the Mac a click selects a recent item and a double click opens it; a tap opens it on iPad and iPhone.
+private struct RecentItemTaps: ViewModifier {
+  let isTouch: Bool
+  let open: () -> Void
+  let select: () -> Void
+
+  func body(content: Content) -> some View {
+    if isTouch {
+      content.onTapGesture { open() }
+    } else {
+      content
+        .onTapGesture(count: 2) { open() }
+        .simultaneousGesture(TapGesture().onEnded { select() })
+    }
+  }
+}
+
+/// A recent item (or a shared project) in the welcome: a letter tile in the name's stable colour (or a
 /// glyph), the name and its path (cut in the middle), a status chip and when it was last opened. The selected item
-/// is a raised card; Return or a double click opens it.
+/// is a raised card; Return or a double click opens it (a tap on iPad and iPhone).
 ///
 /// ```swift
 /// RecentItem("harbor", subtitle: "~/Developer/harbor", date: "Today", status: "1 change", statusHue: .orange) { … }
@@ -430,6 +590,7 @@ public struct RecentItem: View {
   var action: () -> Void
   @Environment(DataNavModel.self) private var nav: DataNavModel?
   @Environment(\.colorScheme) private var scheme
+  @Environment(\.kitIdiom) private var idiom
   @State private var isHovered = false
 
   public init(
@@ -486,8 +647,9 @@ public struct RecentItem: View {
     }
     .contentShape(Rectangle())
     .kitHover { isHovered = $0 }
-    .onTapGesture(count: 2) { nav?.activate(id) ?? action() }
-    .simultaneousGesture(TapGesture().onEnded { withKitAnimation(.kitFast) { nav?.selected = id } })
+    .modifier(RecentItemTaps(isTouch: idiom.isTouch, open: { nav?.activate(id) ?? action() }, select: {
+      withKitAnimation(.kitFast) { nav?.selected = id }
+    }))
     .dataNavItem(id, model: nav, action: action)
     .id(id)
     .help(subtitle ?? title)
@@ -498,8 +660,7 @@ public struct RecentItem: View {
 }
 
 #Preview("Welcome") {
-  @Previewable @State var show = true
-  KitWelcome(appName: "Git", version: "Version 1.0", showAtLaunch: $show, close: {}, onDrop: { _ in true }) {
+  KitWelcome(appName: "Git", version: "Version 1.0", onDrop: { _ in true }) {
     WelcomeAction("Clone Repository…", detail: "From GitHub, GitLab or any URL", systemImage: "arrow.down") {}
     WelcomeAction("Open Local Repository…", detail: "Any folder with a .git directory", systemImage: "folder") {}
     WelcomeAction("New Repository…", detail: "Start tracking a folder", systemImage: "plus") {}
@@ -508,15 +669,14 @@ public struct RecentItem: View {
     RecentItem("harbor", subtitle: "~/Developer/Projects/harbor", date: "Today", status: "1 change", statusHue: .orange) {}
     RecentItem("atlas", subtitle: "~/Developer/Projects/atlas", date: "Today", status: "4 changes", statusHue: .orange) {}
   }
-  .frame(height: 660)
+  .frame(width: 900, height: 660)
   .componentKit()
 }
 
 #Preview("Welcome, empty") {
-  @Previewable @State var show = true
   KitWelcome(
-    appName: "Markdown", version: "Notes in plain Markdown files", showAtLaunch: $show, emptyTitle: "No Recent Notes",
-    emptyMessage: "Notes you open appear here.", close: {}
+    appName: "Markdown", version: "Notes in plain Markdown files", emptyTitle: "No Recent Notes",
+    emptyMessage: "Notes you open appear here."
   ) {
     WelcomeAction("New Note", detail: "Start writing", systemImage: "square.and.pencil") {}
   } recents: {
@@ -524,6 +684,6 @@ public struct RecentItem: View {
   } projects: {
     RecentItem("Notes", subtitle: "~/Notes", systemImage: "folder") {}
   }
-  .frame(height: 560)
+  .frame(width: 600, height: 700)
   .componentKit()
 }

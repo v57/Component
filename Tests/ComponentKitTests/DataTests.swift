@@ -172,3 +172,24 @@ private struct Key { var name: String; var children: [Key]? }
   #expect(DiffSelect.index(atY: -10, count: 5) == 0)
   #expect(DiffSelect.index(atY: 900, count: 5) == 4)
 }
+
+// MARK: - Inline welcome
+
+@Test func welcomeGoesTwoColumnsInAWidePane() {
+  #expect(WelcomeLayout.isWide(width: 900, idiom: .mac))
+  #expect(WelcomeLayout.isWide(width: 1000, idiom: .pad))
+  #expect(!WelcomeLayout.isWide(width: 640, idiom: .mac))
+  #expect(!WelcomeLayout.isWide(width: 1000, idiom: .phone))
+}
+
+@Test func welcomeListTakesThePaneWithinLimits() {
+  #expect(WelcomeLayout.wideListHeight(available: 900) == 560)
+  #expect(WelcomeLayout.wideListHeight(available: 400) == 400)
+  #expect(WelcomeLayout.wideListHeight(available: 100) == WelcomeLayout.minListHeight)
+  #expect(WelcomeLayout.columnListHeight(available: 1000, identity: 320, fills: false) == 440)
+  #expect(WelcomeLayout.columnListHeight(available: 650, identity: 320, fills: false) == 330)
+  // A short pane keeps the list readable and scrolls.
+  #expect(WelcomeLayout.columnListHeight(available: 500, identity: 320, fills: false) == WelcomeLayout.minListHeight)
+  // On iPhone it fills the screen under the identity.
+  #expect(WelcomeLayout.columnListHeight(available: 1000, identity: 320, fills: true) == 680)
+}

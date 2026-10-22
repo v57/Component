@@ -628,7 +628,6 @@ struct PalettePage: View {
 struct WelcomePage: View {
   private func matches(_ name: String) -> Bool { search.isEmpty || name.localizedCaseInsensitiveContains(search) }
 
-  @State private var show = true
   @State private var opened: String?
   @State private var search = ""
   @State private var source = WelcomeSource.projects
@@ -637,59 +636,63 @@ struct WelcomePage: View {
   var body: some View {
     CatalogPage(page: .welcome, maxWidth: 1100) {
       SpecimenSection(
-        "The welcome window", note: "↑↓ move through the items, Return or a double click opens one. Drop a folder on the window."
+        "The main screen's empty state",
+        note: "Drawn in the detail pane while nothing is selected: two columns in a wide pane, one in a narrow one, "
+          + "the list on a card as tall as the pane allows. ↑↓ and Return once the list has focus; on the Mac a click "
+          + "selects and a double click opens, a tap opens on iPad and iPhone. Drop a folder on it."
       ) {
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Wide: beside each other").kitFont(.headline)
+          WindowFrame(height: 560) {
+            KitWelcome(
+              appName: "Git", version: "Version 1.0", icon: AppIcon.image(systemImage: "arrow.triangle.branch", hue: .orange),
+              searchText: $search, searchPrompt: "Filter",
+              onDrop: { urls in
+                opened = urls.first?.lastPathComponent
+                return true
+              }
+            ) {
+              WelcomeAction("Clone Repository…", detail: "From GitHub, GitLab or any URL", systemImage: "arrow.down") {}
+              WelcomeAction("Open Local Repository…", detail: "Any folder with a .git directory", systemImage: "folder") {}
+              WelcomeAction("New Repository…", detail: "Start tracking a folder", systemImage: "plus") {}
+            } recents: {
+              if matches("pebble") { RecentItem("pebble", subtitle: "~/Developer/Projects/pebble", date: "Today", status: "Up to date", statusHue: .green) { opened = "pebble" } }
+              if matches("harbor") { RecentItem("harbor", subtitle: "~/Developer/Projects/harbor", date: "Today", status: "1 change", statusHue: .orange) { opened = "harbor" } }
+              if matches("atlas") { RecentItem("atlas", subtitle: "~/Developer/Projects/atlas", date: "Yesterday", status: "4 changes", statusHue: .orange) { opened = "atlas" } }
+              if matches("lighthouse") { RecentItem("lighthouse", subtitle: "~/Developer/Archive/2025/lighthouse-for-the-harbor-project", date: "Oct 2") { opened = "lighthouse" } }
+            }
+            .options { Toggle("Reopen the last repository", isOn: $reopen) }
+            .kitPane(.content)
+          }
+          Text("Opened: \(opened ?? "nothing")").kitFont(.caption)
+        }
         Columns(minWidth: 980) {
           VStack(alignment: .leading, spacing: 8) {
-            Text("Recent").kitFont(.headline)
+            Text("Narrow: one column, Recent | Projects").kitFont(.headline)
             WindowFrame(height: 640) {
               KitWelcome(
-                appName: "Git", version: "Version 1.0", icon: AppIcon.image(systemImage: "arrow.triangle.branch", hue: .orange), showAtLaunch: $show,
-                searchText: $search, searchPrompt: "Filter", close: {},
-                onDrop: { urls in
-                  opened = urls.first?.lastPathComponent
-                  return true
-                }
-              ) {
-                WelcomeAction("Clone Repository…", detail: "From GitHub, GitLab or any URL", systemImage: "arrow.down") {}
-                WelcomeAction("Open Local Repository…", detail: "Any folder with a .git directory", systemImage: "folder") {}
-                WelcomeAction("New Repository…", detail: "Start tracking a folder", systemImage: "plus") {}
-              } recents: {
-                if matches("pebble") { RecentItem("pebble", subtitle: "~/Developer/Projects/pebble", date: "Today", status: "Up to date", statusHue: .green) { opened = "pebble" } }
-                if matches("harbor") { RecentItem("harbor", subtitle: "~/Developer/Projects/harbor", date: "Today", status: "1 change", statusHue: .orange) { opened = "harbor" } }
-                if matches("atlas") { RecentItem("atlas", subtitle: "~/Developer/Projects/atlas", date: "Yesterday", status: "4 changes", statusHue: .orange) { opened = "atlas" } }
-                if matches("lighthouse") { RecentItem("lighthouse", subtitle: "~/Developer/Archive/2025/lighthouse-for-the-harbor-project", date: "Oct 2") { opened = "lighthouse" } }
-              }
-              .options { Toggle("Reopen the last repository", isOn: $reopen) }
-            }
-            .frame(maxWidth: 480)
-            Text("Opened: \(opened ?? "nothing")").kitFont(.caption)
-          }
-          VStack(alignment: .leading, spacing: 8) {
-            Text("Empty, with projects").kitFont(.headline)
-            WindowFrame(height: 560) {
-              KitWelcome(
                 appName: "Markdown", version: "Notes in plain Markdown files", icon: AppIcon.image(systemImage: "text.alignleft", hue: .red),
-                showAtLaunch: $show,
-                emptyTitle: "No Recent Notes", emptyMessage: "Notes you open appear here.", source: $source, close: {}
+                emptyTitle: "No Recent Notes", emptyMessage: "Notes you open appear here.", source: $source,
+                onDrop: { _ in true }
               ) {
                 WelcomeAction("New Note", detail: "Start writing", systemImage: "square.and.pencil") {}
+                WelcomeAction("Open Folder…", detail: "Edit the Markdown files already on your Mac", systemImage: "folder") {}
               } recents: {
                 EmptyView()
               } projects: {
                 RecentItem("Notes", subtitle: "~/Notes", systemImage: "folder") {}
                 RecentItem("Journal", subtitle: "~/Documents/Journal", systemImage: "book") {}
               }
+              .kitPane(.content)
             }
-            .frame(maxWidth: 480)
           }
           VStack(alignment: .leading, spacing: 8) {
             Text("Waiting, with its own list title").kitFont(.headline)
-            WindowFrame(height: 560) {
+            WindowFrame(height: 640) {
               KitWelcome(
                 appName: "Vault", version: "Passwords, encrypted folders and sync", icon: AppIcon.image(systemImage: "lock.rectangle.stack", hue: .blue),
-                showAtLaunch: $show, emptyTitle: "Waiting for Your Keys",
-                emptyMessage: "They arrive through iCloud Keychain from your other Apple devices.", close: {}
+                emptyTitle: "Waiting for Your Keys",
+                emptyMessage: "They arrive through iCloud Keychain from your other Apple devices."
               ) {
                 WelcomeAction("Recover with Key…", detail: "Type your 24 words or scan the kit’s QR code", systemImage: "key") {}
                 WelcomeAction("Join from Another Device…", detail: "Scan an invite on a device that has your keys", systemImage: "qrcode") {}
@@ -698,27 +701,36 @@ struct WelcomePage: View {
               }
               .listTitle("This Mac")
               .emptyState(systemImage: "key", status: .working)
+              .kitPane(.content)
             }
-            .frame(maxWidth: 480)
           }
         }
         CodeSnippet(
           """
-          KitWelcome(showAtLaunch: $showAtLaunch, searchText: $filter, close: { dismissWindow() }, onDrop: { library.open($0) }) {
-            WelcomeAction("Clone Repository…", detail: "From GitHub, GitLab or any URL", systemImage: "arrow.down") { … }
-          } recents: {
-            ForEach(recent.filter(matching: filter)) { repo in
-              RecentItem(repo.name, subtitle: repo.path, date: "Today", status: "1 change", statusHue: .orange) { open(repo) }
+          NavigationSplitView {
+            Sidebar(selection: $selection)
+          } detail: {
+            if let selection {
+              RepositoryView(selection)
+            } else {
+              KitWelcome(searchText: $filter, onDrop: { library.open($0) }) {
+                WelcomeAction("Clone Repository…", detail: "From GitHub, GitLab or any URL", systemImage: "arrow.down") { … }
+              } recents: {
+                ForEach(recent.filter(matching: filter)) { repo in
+                  RecentItem(repo.name, subtitle: repo.path, date: "Today", status: "1 change", statusHue: .orange) { open(repo) }
+                }
+              }
+              .options { Toggle("Reopen the last repository", isOn: $reopen) }   // under the list
             }
           }
-          .options { Toggle("Reopen the last repository", isOn: $reopen) }   // above "Show this window…"
 
           @AppStorage("welcome.source") var source = WelcomeSource.recent
           KitWelcome(…, source: $source, …) { … } recents: { … } projects: { … }   // Recent | Projects, remembered
-          // With close:, the window's own buttons hide while the welcome fills its window; on iPhone it fills the width.
           KitWelcome(emptyTitle: "Waiting for Your Keys", …) { … } recents: { … }
             .listTitle("Already in your vault")                       // in place of "Recent"
             .emptyState(systemImage: "key", status: .working)         // a live icon over the empty list
+
+          // The old window (showAtLaunch:, close:) is deprecated: drop both arguments and the Window scene.
           """)
       }
       SpecimenSection("The app's icon", note: "For an app's own welcome in a pane or an About box: the artwork fills the size on the Mac too.") {

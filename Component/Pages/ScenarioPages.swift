@@ -729,50 +729,114 @@ struct SettingsScenarioPage: View {
 }
 
 struct WelcomeScenarioPage: View {
-  @State private var show = true
+  @State private var selection: String?
+  @State private var cloning = false
+  @State private var url = ""
   @Environment(\.showToast) private var showToast
 
   var body: some View {
     ScenarioPage(
-      page: .welcomeApp, height: 700,
-      note: "The compact welcome window, as Git shows it: actions, the recent repositories, and drop a folder to open it.",
+      page: .welcomeApp, height: 700, minWidth: 900,
+      note: "No window of its own: the main window's detail is the welcome while no repository is selected. Pick one in "
+        + "the sidebar, then Close Repository to come back. Clone opens a kit sheet over the whole window, from the "
+        + "welcome or from the sidebar's bar.",
       code: """
-        Window("Welcome", id: "welcome") {
-          KitWelcome(showAtLaunch: $showWelcome, close: { dismissWindow() }, onDrop: { library.open($0) }) {
-            WelcomeAction("Clone Repository…", detail: "From GitHub, GitLab or any URL", systemImage: "arrow.down") { clone() }
-            WelcomeAction("Open Local Repository…", detail: "Any folder with a .git directory", systemImage: "folder") { open() }
-          } recents: {
-            ForEach(library.recent) { repo in
-              RecentItem(repo.name, subtitle: repo.path, date: repo.opened, status: repo.summary, statusHue: repo.hue) { open(repo) }
+        NavigationSplitView {
+          KitSidebar(selection: $selection) {
+            KitSection("Repositories", …) { ForEach(repos) { SidebarRow(value: $0.id, $0.name, …) } }
+          } bottomBar: { Button("Clone Repository", systemImage: "plus") { cloning = true } }
+        } detail: {
+          if let selection {
+            RepositoryView(selection)
+          } else {
+            KitWelcome(onDrop: { library.open($0) }) {
+              WelcomeAction("Clone Repository…", detail: "From GitHub, GitLab or any URL", systemImage: "arrow.down") { cloning = true }
+              WelcomeAction("Open Local Repository…", detail: "Any folder with a .git directory", systemImage: "folder") { open() }
+            } recents: {
+              ForEach(library.recent) { repo in
+                RecentItem(repo.name, subtitle: repo.path, date: repo.opened, status: repo.summary, statusHue: repo.hue) { selection = repo.id }
+              }
             }
           }
-          .componentKit(accent: Color(red: 0.94, green: 0.33, blue: 0.2))
         }
-        .windowResizability(.contentSize)
-        """
+        .kitSheet(isPresented: $cloning) { CloneSheet() }
+        """,
+      paneTitles: ["Sidebar", "Welcome"]
     ) {
+      HStack(spacing: 0) {
+        sidebar.frame(width: 250)
+        detail
+      }
+      .kitSheet(isPresented: $cloning) { cloneSheet }
+    } panes: {
+      sidebar.scenarioPane("Sidebar")
+      detail.scenarioPane("Welcome")
+    }
+  }
+
+  private var sidebar: some View {
+    KitSidebar(selection: $selection) {
+      KitSection("Repositories", meta: ["\(sampleRepos.count) repositories"], systemImage: "folder", hue: .indigo) {
+        ForEach(sampleRepos) { repo in
+          SidebarRow(value: repo.id, repo.name, subtitle: repo.branch) {
+            Tile(letters: String(repo.name.prefix(1)).uppercased(), hue: StableHue.pick(repo.name), size: 18)
+          } trailing: {
+            SyncCounts(changes: repo.changes, ahead: repo.ahead, behind: repo.behind)
+          }
+        }
+      }
+    } bottomBar: {
+      Button("Clone Repository", systemImage: "plus") { cloning = true }
+    }
+  }
+
+  @ViewBuilder
+  private var detail: some View {
+    if let repo = sampleRepos.first(where: { $0.id == selection }) {
+      VStack(spacing: 12) {
+        Tile(letters: String(repo.name.prefix(1)).uppercased(), hue: StableHue.pick(repo.name), size: 48)
+        Text(repo.name).kitFont(.title2)
+        Text(repo.branch).kitFont(.callout).foregroundStyle(.kitSecondary)
+        Button("Close Repository") { selection = nil }.buttonStyle(.kit)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .kitPane(.content)
+    } else {
       KitWelcome(
         appName: "Git", version: "Version 1.0", icon: AppIcon.image(systemImage: "arrow.triangle.branch", hue: .orange),
-        showAtLaunch: $show, close: { showToast("Closed the welcome window") },
         onDrop: { urls in
           showToast("Opened \(urls.first?.lastPathComponent ?? "a folder")", systemImage: "folder")
           return true
         }
       ) {
-        WelcomeAction("Clone Repository…", detail: "From GitHub, GitLab or any URL", systemImage: "arrow.down") { showToast("Clone…", systemImage: "arrow.down") }
+        WelcomeAction("Clone Repository…", detail: "From GitHub, GitLab or any URL", systemImage: "arrow.down") { cloning = true }
         WelcomeAction("Open Local Repository…", detail: "Any folder with a .git directory", systemImage: "folder") { showToast("Open…", systemImage: "folder") }
       } recents: {
         ForEach(sampleRepos) { repo in
           RecentItem(
             repo.name, subtitle: "~/Developer/Projects/\(repo.name)", date: repo.name == "lighthouse" ? "Oct 2" : "Today",
             status: repo.changes > 0 ? "\(repo.changes) change\(repo.changes == 1 ? "" : "s")" : "Up to date",
-            statusHue: repo.changes > 0 ? .orange : .green
+            statusHue: repo.changes > 0 ? .orange : .green, id: repo.id
           ) {
-            showToast("Opened \(repo.name)", systemImage: "folder")
+            selection = repo.id
           }
         }
       }
-      .frame(maxHeight: .infinity)
+      .kitPane(.content)
+    }
+  }
+
+  private var cloneSheet: some View {
+    KitSheet(title: "Clone Repository", meta: "Copies a repository from GitHub, GitLab or any URL.", systemImage: "arrow.down.circle") {
+      FormCard { FormRow("Repository URL", systemImage: "link", field: TextField("https://", text: $url)) }
+    } footer: {
+      Button("Cancel") { cloning = false }.keyboardShortcut(.cancelAction)
+      Button("Clone") {
+        cloning = false
+        showToast("Cloning \(url.isEmpty ? "the repository" : url)", systemImage: "arrow.down")
+      }
+      .buttonStyle(.kitPrimary)
+      .keyboardShortcut(.defaultAction)
     }
   }
 }
