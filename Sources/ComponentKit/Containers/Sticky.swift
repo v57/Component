@@ -176,23 +176,30 @@ struct ContStickyTable: Equatable, @unchecked Sendable {
       result[index] = ContStickyPlacement(edge: .top, part: part, y: y)
       cursor = max(cursor, y + block.height + spacing)
     }
-    // The bottom stack, in reverse; past its share, every item shows its title.
+    // The bottom stack, in reverse; past its share, every item shows its title, and if the titles don't fit
+    // either, the farthest let go one by one (a stack that grew past its share pushed sections in view up).
     let cap = (bottom - top) * Self.bottomShare
-    var stack = bottomStack(above: bottom, skipping: result, titlesOnly: false)
+    var stack = bottomStack(above: bottom, skipping: result, titlesOnly: false, dropping: [])
     if stack.height > cap {
-      stack = bottomStack(above: bottom, skipping: result, titlesOnly: true)
+      var dropped: Set<Int> = []
+      stack = bottomStack(above: bottom, skipping: result, titlesOnly: true, dropping: dropped)
+      while stack.height > cap, let farthest = stack.placements.map(\.0).max() {
+        dropped.insert(farthest)
+        stack = bottomStack(above: bottom, skipping: result, titlesOnly: true, dropping: dropped)
+      }
     }
     for (index, placement) in stack.placements { result[index] = placement }
     return result
   }
 
-  private func bottomStack(above bottom: CGFloat, skipping top: [ContStickyPlacement?], titlesOnly: Bool) -> (
-    placements: [(Int, ContStickyPlacement)], height: CGFloat
-  ) {
+  private func bottomStack(
+    above bottom: CGFloat, skipping top: [ContStickyPlacement?], titlesOnly: Bool, dropping dropped: Set<Int>
+  ) -> (placements: [(Int, ContStickyPlacement)], height: CGFloat) {
     var cursor = bottom
     var placements: [(Int, ContStickyPlacement)] = []
     var height: CGFloat = 0
-    for index in items.indices.reversed() where top[index] == nil && items[index].sticky.bottom != .none {
+    for index in items.indices.reversed()
+    where top[index] == nil && items[index].sticky.bottom != .none && !dropped.contains(index) {
       let item = items[index]
       let part: ContStickyPart = item.sticky.bottom == .content && !titlesOnly ? .content : .title
       let block = item.block(part)
@@ -371,7 +378,7 @@ struct ContStickyItemModifier: ViewModifier {
 
   func body(content: Content) -> some View {
     if let table {
-      let keyed = ContStickyKeyed(table: table, id: id, naturalTop: frame?.minY ?? 0)
+      let keyed = ContStickyKeyed(table: table, id: id)
       // What reads geometry sits outside the offset: inside it, frames move with it, and the offset would follow.
       content
         .environment(\.contStickyContext, ContStickyContext(id: id, state: state, scroll: scroll))
@@ -426,14 +433,19 @@ final class ContStickyVisible {
 struct ContStickyKeyed: @unchecked Sendable {
   let table: ContStickyTable
   let id: AnyHashable
-  let naturalTop: CGFloat
+
+  /// The view's own top in the stack's space, read with its place in the scroll view in the same frame: a top
+  /// from the table may lag the layout (as a navigation bar's large title settles) and set the view off.
+  private func naturalTop(_ proxy: GeometryProxy) -> CGFloat {
+    proxy.frame(in: .named(ContStickyTable.space)).minY
+  }
 
   func placement(_ proxy: GeometryProxy) -> ContStickyPlacement? {
-    table.placement(of: id, proxy: proxy, naturalTop: naturalTop)
+    table.placement(of: id, proxy: proxy, naturalTop: naturalTop(proxy))
   }
 
   func offset(_ part: ContStickyPart, _ proxy: GeometryProxy) -> CGFloat {
-    table.offset(of: id, part: part, naturalTop: naturalTop, proxy: proxy)
+    table.offset(of: id, part: part, naturalTop: naturalTop(proxy), proxy: proxy)
   }
 }
 
@@ -461,8 +473,7 @@ struct ContStickyTitleModifier: ViewModifier {
   func body(content: Content) -> some View {
     let _ = box.context = context
     if let context, let table {
-      let keyed = ContStickyKeyed(
-        table: table, id: context.id, naturalTop: table.item(context.id)?.titleTop ?? 0)
+      let keyed = ContStickyKeyed(table: table, id: context.id)
       content
         .background(alignment: .top) {
           if let state = context.state, state.part == .title {
@@ -507,6 +518,8 @@ struct ContStickyCardGround: View {
 /// the next card of its stack (the gap toward the bar), so the rows scrolling under don't show between stuck cards.
 /// A plain section's title gets the sidebar's ground alone.
 struct ContStuckGround: View {
+  /// How far the ground reaches toward the bar: through any bar's gap above its cards.
+  static let barReach: CGFloat = 120
   var cornerRadius: CGFloat
   var plain = false
   var edge: ContStickyEdge
@@ -521,8 +534,10 @@ struct ContStuckGround: View {
         .environment(\.contBarGround, KitColor.sidebar)
         .shadow(color: .black.opacity(scheme == .dark ? 0.5 : 0.16), radius: 16, y: 12)
         .background {
+          // To the next card, and for the card nearest a bar through the bar's own gap: the rows don't show
+          // between a stack and its bar (the cards nearer the bar cover the rest).
           Rectangle().fill(.kitSidebar)
-            .padding(edge == .bottom ? .bottom : .top, -gap)
+            .padding(edge == .bottom ? .bottom : .top, -max(gap, Self.barReach))
         }
     }
   }

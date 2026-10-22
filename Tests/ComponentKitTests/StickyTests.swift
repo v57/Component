@@ -106,3 +106,19 @@ private func gitTable(atlasRows: CGFloat = 100) -> ContStickyTable {
   #expect(ContStickyState(edge: .top, part: .title, order: 0).zIndex > ContStickyState(edge: .top, part: .title, order: 1).zIndex)
   #expect(ContStickyState(edge: .bottom, part: .title, order: 1).zIndex > ContStickyState(edge: .bottom, part: .title, order: 0).zIndex)
 }
+
+@Test func stickyBottomTitlesPastTheShareLetTheFarthestGo() {
+  // Six titles of 60pt under a 600pt sidebar: 40% holds three, the nearest; the rest scroll as usual, and no
+  // section in view is pushed up.
+  let items = (0..<6).map { index in
+    ContStickyItem(
+      id: AnyHashable(index), sticky: ContSticky(top: .none, bottom: .title), minY: 1000 + CGFloat(index) * 300,
+      maxY: 1250 + CGFloat(index) * 300, titleTop: 1000 + CGFloat(index) * 300, titleHeight: 60)
+  }
+  let table = ContStickyTable(items: items, spacing: 10, topGap: 0)
+  let placements = table.placements(visibleTop: 0, visibleBottom: 600)
+  #expect(placements.compactMap { $0 }.count == 3)
+  #expect(placements[0] == ContStickyPlacement(edge: .bottom, part: .title, y: 400))
+  #expect(placements[2] == ContStickyPlacement(edge: .bottom, part: .title, y: 540))
+  #expect(placements[3] == nil && placements[5] == nil)
+}

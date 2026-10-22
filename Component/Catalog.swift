@@ -330,10 +330,14 @@ struct CatalogSidebar: View {
             }
           }
           // The area's title stays in view while its pages scroll by.
-          .kitSticky()
+          .kitSticky(bottom: ProcessInfo.processInfo.arguments.contains("--large-title") ? .title : .none)
         }
       }
     }
+    #if os(iOS)
+      // --large-title: the iPhone's root under a large title, as Shell's Terminals (sticky sections under it).
+      .navigationTitle(ProcessInfo.processInfo.arguments.contains("--large-title") ? "Component" : "")
+    #endif
   }
 
   private func matches(_ page: Page) -> Bool {
