@@ -4,8 +4,8 @@ import SwiftUI
 public enum KitSliderStyle: Hashable, Sendable {
   /// The field track and the accent fill (forms, inspectors).
   case standard
-  /// Over a video or a photo (a player's scrubber, volume): the track is white at 50%, each part (track, fill, knob)
-  /// casts one soft shadow so it holds on a bright frame, and nothing has an outline.
+  /// Over a video or a photo (a player's scrubber, volume): the track is white at 50%; the track and the knob wear a
+  /// hairline dark edge and a soft halo (the played part sits in the track's), so they hold on a white frame.
   case overlay
 }
 
@@ -71,16 +71,25 @@ public struct KitSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloa
       let center = CtlSliderMath.knobCenter(fraction: fraction, width: width, knobWidth: metrics.knobWidth)
       let overlay = style == .overlay
       ZStack(alignment: .leading) {
+        // Over a video the track's halo is the played part's too: the fill lies inside it and casts nothing.
         Capsule().fill(overlay ? AnyShapeStyle(KitColor.ctlOnMedia) : AnyShapeStyle(.kitFill))
+          .overlay { if overlay { Capsule().stroke(Color.black.opacity(0.4), lineWidth: 0.5) } }
           .frame(height: metrics.track)
-          .shadow(color: .black.opacity(overlay ? 0.3 : 0), radius: 2, y: 0.5)
+          .shadow(color: .black.opacity(overlay ? 0.4 : 0), radius: 1)
+          .shadow(color: .black.opacity(overlay ? 0.3 : 0), radius: 3, y: 1)
         Capsule().fill(Hue.accent.fill)
           .frame(width: max(center, metrics.track), height: metrics.track)
-          .shadow(color: .black.opacity(overlay ? 0.25 : 0), radius: 2, y: 0.5)
         Capsule()
           .fill(KitColor.ctlKnob)
-          .overlay(Capsule().strokeBorder(Color.black.opacity(overlay ? 0 : 0.1), lineWidth: 0.5))
-          .shadow(color: .black.opacity(overlay ? 0.45 : 0.2), radius: overlay ? 2.5 : 1.5, y: 1)
+          .overlay {
+            if overlay {
+              Capsule().stroke(Color.black.opacity(0.4), lineWidth: 0.5)
+            } else {
+              Capsule().strokeBorder(Color.black.opacity(0.1), lineWidth: 0.5)
+            }
+          }
+          .shadow(color: .black.opacity(overlay ? 0.4 : 0.2), radius: 1.5, y: 1)
+          .shadow(color: .black.opacity(overlay ? 0.3 : 0), radius: 4, y: 2)
           .frame(width: metrics.knobWidth, height: metrics.knobHeight)
           .ctlFieldRing((isHovered || isDragging) && !isFocused, cornerRadius: metrics.knobHeight / 2)
           .ctlStandaloneRing(isFocused, cornerRadius: nil)
