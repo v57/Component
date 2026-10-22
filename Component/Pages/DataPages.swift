@@ -721,6 +721,15 @@ struct WelcomePage: View {
             .emptyState(systemImage: "key", status: .working)         // a live icon over the empty list
           """)
       }
+      SpecimenSection("The app's icon", note: "For an app's own welcome in a pane or an About box: the artwork fills the size on the Mac too.") {
+        Specimen("KitAppIcon", ground: .window, code: "KitAppIcon(size: 72)") {
+          HStack(alignment: .bottom, spacing: 20) {
+            KitAppIcon(size: 32)
+            KitAppIcon()
+            KitAppIcon(size: 72)
+          }
+        }
+      }
     }
   }
 }
