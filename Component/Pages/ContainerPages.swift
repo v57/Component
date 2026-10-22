@@ -1144,6 +1144,57 @@ struct FormsPage: View {
           }
         }
       }
+      SpecimenSection("Plain rows", note: "GroupRow: a form row without the tile, for settings that need none and short lists in a card.") {
+        Specimen(
+          "Settings", ground: .panel,
+          code: """
+            FormCard("Pipeline settings") {
+              GroupRow("Big sorts use disk") { Toggle("Big sorts use disk", isOn: $disk).toggleStyle(.kitSwitch).kitLabelsHidden() }
+              GroupRow("Time limit", help: "0 runs without one") { KitStepper("Time limit", value: $limit, in: 0...60, unit: "s") }
+            }
+            """
+        ) {
+          FormCard("Pipeline settings") {
+            GroupRow("Big sorts use disk") {
+              Toggle("Big sorts use disk", isOn: $sync).toggleStyle(.kitSwitch).kitLabelsHidden()
+            }
+            GroupRow("Time limit", help: "0 runs without one") {
+              KitStepper("Time limit", value: $size, in: 0...60, unit: "s")
+            }
+            GroupRow("Tag in server logs") {
+              TextField("Tag in server logs", text: $empty, prompt: Text("e.g. review-trends")).kitField().frame(width: 150)
+            }
+          }
+          .frame(maxWidth: 520)
+        }
+        Specimen(
+          "A list in a card", ground: .panel,
+          code: """
+            FormCard {
+              GroupRow { Label("Filter and shape", systemImage: "line.3.horizontal.decrease") } trailing: { Text("3") }
+              GroupRow("Filter", action: { add(.match) }) { Text("$match").kitFont(.monoSmall).foregroundStyle(.kitSecondary) }
+            }
+            .controlSize(.small)
+            """
+        ) {
+          FormCard {
+            GroupRow {
+              Label {
+                Text("Filter and shape").kitFont(.headline)
+              } icon: {
+                Tile(systemImage: "line.3.horizontal.decrease", hue: .blue, size: 22)
+              }
+            } trailing: {
+              Text("3").kitFont(.caption)
+            }
+            ForEach([("Filter", "$match"), ("Pick Fields", "$project"), ("Add Fields", "$set")], id: \.0) { step in
+              GroupRow(step.0, action: {}) { Text(step.1).kitFont(.monoSmall).foregroundStyle(.kitSecondary) }
+            }
+          }
+          .controlSize(.small)
+          .frame(maxWidth: 260)
+        }
+      }
     }
   }
 }
