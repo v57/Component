@@ -699,6 +699,7 @@ private struct ResizeHandle: View {
       .contentShape(Rectangle())
       .offset(x: 4.5)
       .kitHover { isHovered = $0 }
+      #if !os(tvOS)
       .gesture(
         DragGesture(minimumDistance: 1)
           .onChanged { value in
@@ -707,6 +708,7 @@ private struct ResizeHandle: View {
           }
           .onEnded { _ in start = nil }
       )
+      #endif
       .onTapGesture(count: 2, perform: reset)
       .accessibilityHidden(true)
   }

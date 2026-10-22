@@ -346,7 +346,9 @@ public struct HunkCard: View {
       }
     }
     .coordinateSpace(name: DiffSpace.lines)
+    #if !os(tvOS)
     .simultaneousGesture(dragSelect, including: selection == nil ? .subviews : .all)
+    #endif
     if overflow == .scroll {
       stack.onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     } else {
@@ -356,6 +358,7 @@ public struct HunkCard: View {
 
   private enum DiffSpace: Hashable { case lines }
 
+  #if !os(tvOS)
   /// A drag down the lines selects them: rows are at least 20pt, so the index under the pointer is its height over 20.
   private var dragSelect: some Gesture {
     DragGesture(minimumDistance: 6, coordinateSpace: .named(DiffSpace.lines))
@@ -368,6 +371,7 @@ public struct HunkCard: View {
       }
       .onEnded { _ in dragStart = nil }
   }
+  #endif
 
   private func selectRun(from start: Int, to end: Int) {
     guard let selection, canSelect else { return }

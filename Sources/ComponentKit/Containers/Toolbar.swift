@@ -99,7 +99,7 @@ struct SharedBackgroundHidden<Content: ToolbarContent>: ToolbarContent {
   var content: Content
 
   var body: some ToolbarContent {
-    #if os(visionOS)
+    #if os(visionOS) || os(tvOS)
       content
     #else
       if #available(macOS 26.0, iOS 26.0, *) {
@@ -157,11 +157,15 @@ extension View {
   /// ```
   @ViewBuilder
   public func kitHidesSystemTitle(_ hides: Bool = true) -> some View {
+    #if os(tvOS)
+      self
+    #else
     if #available(macOS 15.0, iOS 18.0, *) {
       toolbar(removing: hides ? .title : nil)
     } else {
       background { ContWindowTitleHidden(hides: hides) }
     }
+    #endif
   }
 
   /// Draws a tool as on (a toggled tool: the inspector shown, a filter applied), in a `ToolGroup` or with the

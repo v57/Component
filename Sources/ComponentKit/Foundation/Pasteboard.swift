@@ -6,7 +6,8 @@ import SwiftUI
   import UIKit
 #endif
 
-/// The system pasteboard, without the platform's types: copy text on the Mac, iPad and iPhone alike.
+/// The system pasteboard, without the platform's types: copy text on the Mac, iPad and iPhone alike. Apple TV has
+/// none: copying does nothing there and `string()` is `nil`.
 ///
 /// ```swift
 /// Button("Copy Hash", systemImage: "doc.on.doc") { KitPasteboard.copy(commit.hash) }
@@ -40,6 +41,8 @@ public enum KitPasteboard {
         try? await Task.sleep(for: .seconds(expiry))
         if board.changeCount == count { board.clearContents() }
       }
+    #elseif os(tvOS)
+      // Apple TV has no pasteboard.
     #elseif canImport(UIKit)
       UIPasteboard.general.setItems(
         [["public.utf8-plain-text": string]],

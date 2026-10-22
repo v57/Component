@@ -320,6 +320,7 @@ public struct ResizableSplit<Main: View, Pane: View>: View {
             .contentShape(Rectangle())
             .contResizeCursor(vertical: vertical)
             .kitHover { isHovered = $0 }
+            #if !os(tvOS)
             .gesture(
               DragGesture(minimumDistance: 1, coordinateSpace: .global)
                 .onChanged { drag in
@@ -331,6 +332,7 @@ public struct ResizableSplit<Main: View, Pane: View>: View {
                 }
                 .onEnded { _ in dragStart = nil }
             )
+            #endif
             .onTapGesture(count: 2) { withKitAnimation { width = defaultWidth } }
         }
         .animation(.kitFast, value: isHovered)

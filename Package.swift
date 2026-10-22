@@ -3,7 +3,7 @@
 import PackageDescription
 
 let package = Package(
-  name: "Component", platforms: [.macOS(.v14), .iOS(.v17), .visionOS(.v2)],
+  name: "Component", platforms: [.macOS(.v14), .iOS(.v17), .tvOS(.v18), .visionOS(.v2)],
   products: [.library(name: "ComponentKit", targets: ["ComponentKit"])],
   targets: [
     .target(name: "ComponentKit"),

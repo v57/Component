@@ -1256,6 +1256,9 @@ private struct ContDragSessionEnd: ViewModifier {
   var ended: () -> Void = {}
 
   func body(content: Content) -> some View {
+    #if os(tvOS)
+    content
+    #else
     if #available(macOS 26.0, iOS 27.0, visionOS 27.0, *) {
       content
         .dragConfiguration(DragConfiguration(allowMove: true))
@@ -1271,6 +1274,7 @@ private struct ContDragSessionEnd: ViewModifier {
     } else {
       content
     }
+    #endif
   }
 }
 

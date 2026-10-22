@@ -114,6 +114,7 @@ public struct KitSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloa
       }
       .frame(height: geometry.size.height)
       .contentShape(Rectangle())
+      #if !os(tvOS)
       .gesture(
         DragGesture(minimumDistance: 0)
           .onChanged { drag in
@@ -129,6 +130,7 @@ public struct KitSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloa
             onEditingChanged(false)
           },
         isEnabled: isEnabled)
+      #endif
     }
     .frame(height: metrics.height)
     .frame(minWidth: 96)
@@ -141,9 +143,16 @@ public struct KitSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloa
     .onKeyPress(keys: [.leftArrow, .downArrow]) { _ in nudge(-1) }
     .animation(.kitFast, value: showsBubble)
     .animation(.kitFast, value: isHovered)
+    #if os(tvOS)
+    // No system slider on Apple TV: the kit's takes VoiceOver's swipes itself.
+    .accessibilityElement()
+    .accessibilityLabel(Text(title))
+    .accessibilityAdjustableAction { direction in _ = nudge(direction == .increment ? 1 : -1) }
+    #else
     .accessibilityRepresentation {
       Slider(value: $value, in: range) { Text(title) }
     }
+    #endif
     .accessibilityValue(format(value))
   }
 

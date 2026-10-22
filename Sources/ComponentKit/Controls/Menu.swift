@@ -877,7 +877,7 @@ struct KitMenuPresenter<MenuContent: View>: ViewModifier {
         }
         .background { anchor(catchesClicks: false).allowsHitTesting(false).accessibilityHidden(true) }
       }
-    #elseif canImport(UIKit)
+    #elseif canImport(UIKit) && !os(tvOS)
       Group {
         switch kind {
         case .attached: content
@@ -899,6 +899,7 @@ struct KitMenuPresenter<MenuContent: View>: ViewModifier {
     #endif
   }
 
+  #if !os(tvOS)
   /// The trigger: one gesture from press to release. The press opens the menu (or closes it when it is open), the
   /// pointer highlights the row under it, and the release picks that row; a release on the trigger itself leaves
   /// the menu open.
@@ -936,6 +937,7 @@ struct KitMenuPresenter<MenuContent: View>: ViewModifier {
       .accessibilityAddTraits(.isButton)
       .accessibilityAction { if isEnabled { isPresented.wrappedValue.toggle() } }
   }
+  #endif
 
   #if canImport(AppKit)
     /// The view that finds the window and the frame the menu opens from; for a context menu it also takes the
@@ -953,7 +955,7 @@ struct KitMenuPresenter<MenuContent: View>: ViewModifier {
           } : nil,
         menu: { model, anchor in AnyView(overlay(model, anchor)) })
     }
-  #elseif canImport(UIKit)
+  #elseif canImport(UIKit) && !os(tvOS)
     /// The view that finds the window and the frame the menu opens from; on touch a context menu's long press is its.
     private func anchor() -> KitMenuAnchor {
       KitMenuAnchor(
@@ -981,7 +983,7 @@ struct KitMenuPresenter<MenuContent: View>: ViewModifier {
 /// window (the trigger's origin plus the pointer's place on it).
 @MainActor
 final class KitMenuSession {
-  #if canImport(UIKit) && !os(macOS)
+  #if canImport(UIKit) && !os(macOS) && !os(tvOS)
     static let isTouch = true
   #else
     static let isTouch = false
@@ -992,18 +994,18 @@ final class KitMenuSession {
   var pressCloses = false
   #if canImport(AppKit)
     let controller = KitMenuPanelController()
-  #elseif canImport(UIKit)
+  #elseif canImport(UIKit) && !os(tvOS)
     let controller = KitMenuWindowController()
   #endif
 
   init() {
-    #if canImport(AppKit) || canImport(UIKit)
+    #if canImport(AppKit) || (canImport(UIKit) && !os(tvOS))
       controller.isTracking = { [weak self] in self?.isPressing == true }
     #endif
   }
 
   private var model: KitMenuModel? {
-    #if canImport(AppKit) || canImport(UIKit)
+    #if canImport(AppKit) || (canImport(UIKit) && !os(tvOS))
       controller.model
     #else
       nil
@@ -1531,7 +1533,7 @@ struct KitMenuOverlay<Content: View>: View {
     override var canBecomeMain: Bool { false }
   }
 
-#elseif canImport(UIKit)
+#elseif canImport(UIKit) && !os(tvOS)
   /// Sits behind the anchored view: finds its window and frame, and opens or closes the menu window as
   /// `isPresented` changes (and refreshes it while open).
   struct KitMenuAnchor: UIViewRepresentable {

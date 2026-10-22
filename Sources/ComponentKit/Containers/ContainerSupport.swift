@@ -157,7 +157,7 @@ private struct ContEdgeEffectHidden: ViewModifier {
       // No scroll edge effect there.
       content
     #else
-      if #available(macOS 26.0, iOS 26.0, *) {
+      if #available(macOS 26.0, iOS 26.0, tvOS 26.0, *) {
         content.scrollEdgeEffectHidden(true, for: edge == .top ? .top : .bottom)
       } else {
         content
@@ -473,7 +473,9 @@ enum ContPlatform {
       NSPasteboard.general.clearContents()
       NSPasteboard.general.setString(string, forType: .string)
     #elseif canImport(UIKit)
-      UIPasteboard.general.string = string
+      #if !os(tvOS)
+        UIPasteboard.general.string = string
+      #endif
     #else
       // v57/SwiftUI's pasteboard (Windows, Linux).
       Pasteboard.general.setString(string)
@@ -484,7 +486,11 @@ enum ContPlatform {
     #if canImport(AppKit)
       NSPasteboard.general.string(forType: .string)
     #elseif canImport(UIKit)
-      UIPasteboard.general.hasStrings ? UIPasteboard.general.string : nil
+      #if os(tvOS)
+        nil
+      #else
+        UIPasteboard.general.hasStrings ? UIPasteboard.general.string : nil
+      #endif
     #else
       Pasteboard.general.string()
     #endif
