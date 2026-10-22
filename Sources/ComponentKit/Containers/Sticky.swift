@@ -106,6 +106,8 @@ struct ContStickyState: Hashable, Sendable {
   var part: ContStickyPart
   /// Its place among the sticky views.
   var order = 0
+  /// Another view of its stack is stuck nearer the bar: its ground fills the gap up to that one.
+  var bridges = false
 
   /// Stuck views draw over the rest; in the top stack the first over the next (whose card scrolls on under it), in
   /// the bottom stack the last; the bottom stack over the top one, whose rows scroll on under it.
@@ -450,7 +452,16 @@ struct ContStickyItemModifier: ViewModifier {
           }
         }
         .onChange(of: sticky) { report() }
-        .onDisappear { registry?.remove(id) }
+        .onAppear {
+          visible.isPresent = true
+          report()
+        }
+        // A report already on its way (a layout's, after the update) mustn't bring a view that's gone back: a section
+        // that never draws again would stay in the table and push the stack beside it out of place.
+        .onDisappear {
+          visible.isPresent = false
+          registry?.remove(id)
+        }
         // Whether it's stuck follows the scroll and the table (another section moved, a title came).
         // (A geometry action keeps the closure it was first given: it reads the table from the box.)
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(ContStickyTable.hostSpace)).minY } action: { top in
@@ -480,8 +491,14 @@ extension ContStickyItemModifier {
     {
       let area = table.visibleArea(naturalTop: frame.minY, hostTop: hostTop)
       if let (live, order) = table.live(id, part: .content, at: frame.minY) {
-        new = live.placements(visibleTop: area.top, visibleBottom: area.bottom)[order]
-          .map { ContStickyState(edge: $0.edge, part: $0.part, order: order) }
+        let placements = live.placements(visibleTop: area.top, visibleBottom: area.bottom)
+        new = placements[order].map { placement in
+          let bridges = placements.contains { other in
+            guard let other, other.edge == placement.edge else { return false }
+            return placement.edge == .top ? other.y < placement.y : other.y > placement.y
+          }
+          return ContStickyState(edge: placement.edge, part: placement.part, order: order, bridges: bridges)
+        }
       }
     }
     if new != state {
@@ -509,12 +526,14 @@ extension ContStickyItemModifier {
 
   /// Tells the host where the item is.
   private func report() {
-    guard let frame = visible.frame else { return }
+    guard visible.isPresent, let frame = visible.frame else { return }
     registry?.set(ContStickyItem(id: id, sticky: sticky, minY: frame.minY, maxY: frame.maxY))
   }
 }
 
 final class ContStickyVisible {
+  /// Between its appearance and its disappearance: reports only then.
+  var isPresent = false
   var frame: CGRect?
   var hostTop: CGFloat?
   var table: ContStickyTable?
@@ -564,11 +583,11 @@ struct ContStickyTitleModifier: ViewModifier {
       let keyed = ContStickyKeyed(table: table, id: context.id)
       content
         .background(alignment: .top) {
-          if let state = context.state, state.part == .title {
-            ContStuckGround(cornerRadius: cornerRadius, plain: plain, edge: state.edge, gap: table.spacing)
-              .padding(.bottom, -extra)
-              .transition(.opacity)
-          }
+          ContStuckGround(
+            cornerRadius: cornerRadius, plain: plain, state: context.state?.part == .title ? context.state : nil,
+            gap: table.spacing
+          )
+          .padding(.bottom, -extra)
         }
         .visualEffect { effect, proxy in
           effect.offset(y: keyed.offset(.title, proxy))
@@ -603,39 +622,53 @@ struct ContStickyCardGround: View {
   @Environment(\.contStickyTable) private var table
 
   var body: some View {
-    if let state = context?.state, state.part == .content {
-      ContStuckGround(cornerRadius: cornerRadius, edge: state.edge, gap: table?.spacing ?? 0)
+    if let context {
+      SurfaceShape(surface: .card, cornerRadius: cornerRadius)
+        .overlay {
+          ContStuckGround(
+            cornerRadius: cornerRadius, state: context.state?.part == .content ? context.state : nil,
+            gap: table?.spacing ?? 0)
+        }
     } else {
       SurfaceShape(surface: .card, cornerRadius: cornerRadius)
     }
   }
 }
 
-/// A stuck card's ground: the card, opaque over the sidebar, with the float shadow, on the sidebar's ground out to
-/// the next card of its stack (the gap toward the bar), so the rows scrolling under don't show between stuck cards.
-/// A plain section's title gets the sidebar's ground alone.
+/// A stuck card's ground: the card, opaque over the sidebar, with the float shadow; with another card of its stack
+/// stuck nearer the bar, the sidebar's ground out to that one, so the rows scrolling under don't show between them.
+/// Toward the bar itself nothing: the rows run on under the bar as they do while nothing is stuck. A plain section's
+/// title gets the sidebar's ground alone.
+///
+/// It stays in place while the view is in a sticky item, `state` `nil` while the view isn't stuck: the ground comes
+/// and goes at once (the view sticks and comes free where it is, on its own card) and the shadow fades.
 struct ContStuckGround: View {
-  /// How far the ground reaches toward the bar: through any bar's gap above its cards.
-  static let barReach: CGFloat = 120
   var cornerRadius: CGFloat
   var plain = false
-  var edge: ContStickyEdge
+  var state: ContStickyState?
   var gap: CGFloat
   @Environment(\.colorScheme) private var scheme
 
   var body: some View {
+    let isStuck = state != nil
     if plain {
       Rectangle().fill(.kitSidebar)
+        .opacity(isStuck ? 1 : 0)
     } else {
-      SurfaceShape(surface: .card, cornerRadius: cornerRadius)
-        .environment(\.contBarGround, KitColor.sidebar)
-        .shadow(color: .black.opacity(scheme == .dark ? 0.5 : 0.16), radius: 16, y: 12)
-        .background {
-          // To the next card, and for the card nearest a bar through the bar's own gap: the rows don't show
-          // between a stack and its bar (the cards nearer the bar cover the rest).
-          Rectangle().fill(.kitSidebar)
-            .padding(edge == .bottom ? .bottom : .top, -max(gap, Self.barReach))
-        }
+      ZStack {
+        SurfaceShape(surface: .card, cornerRadius: cornerRadius)
+          .shadow(color: .black.opacity(scheme == .dark ? 0.5 : 0.16), radius: 16, y: 12)
+          .opacity(isStuck ? 1 : 0)
+          .animation(.kit, value: isStuck)
+        SurfaceShape(surface: .card, cornerRadius: cornerRadius)
+          .opacity(isStuck ? 1 : 0)
+      }
+      .environment(\.contBarGround, KitColor.sidebar)
+      .background {
+        Rectangle().fill(.kitSidebar)
+          .padding(state?.edge == .bottom ? .bottom : .top, -gap)
+          .opacity(state?.bridges == true ? 1 : 0)
+      }
     }
   }
 }
