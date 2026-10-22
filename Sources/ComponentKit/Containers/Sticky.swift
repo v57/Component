@@ -410,11 +410,11 @@ private struct ContStickyClear: Equatable {
 struct ContStickyItemModifier: ViewModifier {
   let id: AnyHashable
   let sticky: ContSticky
-  @State private var frame: CGRect?
   @State private var state: ContStickyState?
   /// Bumped to draw again after a change SwiftUI may have dropped (see `ContStickyHost.redrawSoon`).
   @State private var revision = 0
-  /// The item's top in the scroll view as of the last frame: not state, it changes every frame.
+  /// The item's frame and top in the scroll view as of the last frame: not state, which a screen's first frame can
+  /// drop (an iPad sidebar opening on an empty detail kept a bottom section stuck over its own rows).
   @State private var visible = ContStickyVisible()
   @Environment(\.contStickyTable) private var table
   @Environment(\.contStickyScroll) private var scroll
@@ -433,9 +433,21 @@ struct ContStickyItemModifier: ViewModifier {
           effect.offset(y: keyed.offset(.content, proxy))
         }
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(ContStickyTable.space)) } action: {
-          frame = $0
+          visible.frame = $0
           report()
+          update()
           redrawSoon()
+        }
+        // The same places read in layout: `onGeometryChange` can stop reporting while a screen settles (an iPad
+        // sidebar opening on an empty detail kept a section one screen taller than it drew, and the section under
+        // it stuck over its own rows). A reader runs with every layout; what it finds is handled after it.
+        .background {
+          GeometryReader { proxy in
+            let _ = observe(
+              frame: proxy.frame(in: .named(ContStickyTable.space)),
+              hostTop: proxy.frame(in: .named(ContStickyTable.hostSpace)).minY)
+            Color.clear
+          }
         }
         .onChange(of: sticky) { report() }
         .onDisappear { registry?.remove(id) }
@@ -449,7 +461,9 @@ struct ContStickyItemModifier: ViewModifier {
           visible.table = table
           update()
         }
-        .onChange(of: frame) { update() }
+        // Again after each redraw: a stuck state set while the screen settled may have been dropped, and nothing
+        // else checks it once the layout holds still.
+        .onChange(of: revision) { update() }
         .zIndex(state?.zIndex ?? 0)
     } else {
       content
@@ -461,7 +475,9 @@ struct ContStickyItemModifier: ViewModifier {
 extension ContStickyItemModifier {
   private func update() {
     var new: ContStickyState?
-    if let hostTop = visible.hostTop, let frame, let table = visible.table, table.clearBottom > table.clearTop {
+    if let hostTop = visible.hostTop, let frame = visible.frame, let table = visible.table,
+      table.clearBottom > table.clearTop
+    {
       let area = table.visibleArea(naturalTop: frame.minY, hostTop: hostTop)
       if let (live, order) = table.live(id, part: .content, at: frame.minY) {
         new = live.placements(visibleTop: area.top, visibleBottom: area.bottom)[order]
@@ -478,14 +494,28 @@ extension ContStickyItemModifier {
     Task { @MainActor in revision &+= 1 }
   }
 
+  /// The item's places as a layout found them: when they differ from the last report, it reports and checks its
+  /// state after this update (a redraw only if the state changed: the top changes with every scrolled frame).
+  private func observe(frame: CGRect, hostTop: CGFloat) {
+    guard frame != visible.frame || hostTop != visible.hostTop else { return }
+    let moved = frame != visible.frame
+    visible.frame = frame
+    visible.hostTop = hostTop
+    Task { @MainActor in
+      if moved { report() }
+      update()
+    }
+  }
+
   /// Tells the host where the item is.
   private func report() {
-    guard let frame else { return }
+    guard let frame = visible.frame else { return }
     registry?.set(ContStickyItem(id: id, sticky: sticky, minY: frame.minY, maxY: frame.maxY))
   }
 }
 
 final class ContStickyVisible {
+  var frame: CGRect?
   var hostTop: CGFloat?
   var table: ContStickyTable?
 }
