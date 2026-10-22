@@ -88,8 +88,9 @@ final class CatalogModel {
   var windowWidth: CGFloat?
   /// Opens with the sidebar hidden (`--no-sidebar`).
   var hidesSidebar = false
-  /// Opens the sidebar scrolled to its middle (`--sidebar-middle`), so rows run under both of its bars.
-  var sidebarMiddle = false
+  /// Opens the sidebar scrolled to its middle (`--sidebar-middle`), so rows run under both of its bars, or to any
+  /// point from its top (0) to its end (1) (`--sidebar-anchor <fraction>`), with the titles stuck at either edge.
+  var sidebarAnchor: Double?
   /// Opens on the page rather than the page list on an iPhone (`--page`).
   var opensOnPage = false
   /// Opens the page scrolled this far down (`--offset <points>`), for iPhone captures.
@@ -105,7 +106,7 @@ final class CatalogModel {
 
   #if DEBUG
     /// `--page <id>`, `--section <title>`, `--dark`, `--light`, `--idiom mac|pad|phone|tv`, `--accent <id>`, `--contrast`, `--inactive`,
-    /// `--sidebar-middle`, `--width <points>`, `--no-sidebar`, `--offset <points>`, `--focus <name>`: opens any page in any state without clicking (for window captures).
+    /// `--sidebar-middle`, `--sidebar-anchor <fraction>`, `--width <points>`, `--no-sidebar`, `--offset <points>`, `--focus <name>`: opens any page in any state without clicking (for window captures).
     func applyLaunchArguments(_ arguments: [String]) {
       func value(after flag: String) -> String? {
         guard let index = arguments.firstIndex(of: flag), index + 1 < arguments.count else { return nil }
@@ -131,7 +132,7 @@ final class CatalogModel {
       section = value(after: "--section")
       windowWidth = value(after: "--width").flatMap(Double.init).map { CGFloat($0) }
       hidesSidebar = arguments.contains("--no-sidebar")
-      sidebarMiddle = arguments.contains("--sidebar-middle")
+      sidebarAnchor = arguments.contains("--sidebar-middle") ? 0.5 : value(after: "--sidebar-anchor").flatMap(Double.init)
       focus = value(after: "--focus")
     }
   #endif

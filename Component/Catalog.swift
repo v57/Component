@@ -272,7 +272,7 @@ struct CatalogView: View {
       CatalogSidebar(search: $search, columns: platformIdiom.isTouch ? $columns : nil)
         .toolbar(removing: .sidebarToggle)
         .navigationSplitViewColumnWidth(min: 250, ideal: 270, max: 340)
-        .defaultScrollAnchor(model.sidebarMiddle ? .center : nil)
+        .defaultScrollAnchor(model.sidebarAnchor.map { UnitPoint(x: 0.5, y: $0) })
     } detail: {
       // The page's identity stays inside the column: an `id` on the column's root would be the whole detail's, and
       // the split view would build the column again on every page, its toolbar too.
@@ -329,8 +329,8 @@ struct CatalogSidebar: View {
               SidebarRow(value: page, page.title, systemImage: page.systemImage)
             }
           }
-          // The area's title stays in view while its pages scroll by.
-          .kitSticky(bottom: ProcessInfo.processInfo.arguments.contains("--large-title") ? .title : .none)
+          // The area's title stays in view while its pages scroll by, and waits at the bottom until they come.
+          .kitSticky(bottom: .title)
         }
       }
     }
