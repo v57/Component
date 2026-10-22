@@ -243,7 +243,20 @@ struct CtlSegmentLabel<Value: Hashable>: View {
         shape.fill(KitColor.ctlGhost)
       }
     }
+    #if os(tvOS)
+    // Apple TV: the focused segment fills with the accent at 30% over its ground, grows and casts a shadow.
+    .background {
+      if isFocused && isEnabled {
+        RoundedRectangle(cornerRadius: metrics.radius, style: .continuous)
+          .fill(Hue.accent.soft(0.3))
+          .shadow(color: .black.opacity(0.25), radius: 7, y: 6)
+      }
+    }
+    .scaleEffect(isFocused && isEnabled ? (isPressed ? 1.07 : 1.14) : 1)
+    .zIndex(isFocused ? 1 : 0)
+    #else
     .scaleEffect(isPressed && isEnabled ? 0.98 : 1)
+    #endif
     .contentShape(Rectangle())
     .help(iconOnly ? segment.title : "")
     .accessibilityLabel(segment.title)

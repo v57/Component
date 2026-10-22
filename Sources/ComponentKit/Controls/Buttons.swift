@@ -8,6 +8,9 @@ import SwiftUI
 /// Button("Clone") { … }.buttonStyle(.kitPrimary)
 /// Button("Discard", role: .destructive) { … }.buttonStyle(.kit)
 /// ```
+///
+/// On Apple TV a focused button grows 16%, tilts and lights as `kitHoverEffect` does, and a primary's tint fills 20%
+/// more: no ring.
 public struct KitButtonStyle: ButtonStyle {
   public enum Kind: Hashable, Sendable {
     /// A raised button: white in light, one step of light in dark.
@@ -44,8 +47,15 @@ struct KitButton: View {
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.colorScheme) private var scheme
   @State private var isHovered = false
+  #if os(tvOS)
+    @Environment(\.isFocused) private var isFocused
+  #else
+    private let isFocused = false
+  #endif
 
   private var isDestructive: Bool { configuration.role == .destructive }
+  /// Hovered on the Mac and iPad, focused on Apple TV.
+  private var isLit: Bool { (isHovered || isFocused) && isEnabled }
 
   var body: some View {
     let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
@@ -60,11 +70,18 @@ struct KitButton: View {
       .frame(width: kind == .icon ? height : nil)
       .background { background(shape) }
       .overlay {
-        shape.fill(Color.primary.opacity(configuration.isPressed ? 0.1 : isHovered && isEnabled ? 0.04 : 0))
+        shape.fill(Color.primary.opacity(configuration.isPressed ? 0.1 : isLit ? 0.04 : 0))
       }
       .opacity(isEnabled || kind == .primary ? 1 : 0.45)
       .contentShape(shape)
       .kitHover { isHovered = $0 }
+      #if os(tvOS)
+      .overlay {
+        // The tint fills 20% more while focused.
+        if isFocused && kind == .primary && isEnabled { shape.fill(Color.white.opacity(0.2)).allowsHitTesting(false) }
+      }
+      .kitFocusedButton(in: shape, isPressed: configuration.isPressed)
+      #endif
       .animation(.kitFast, value: isHovered)
       .animation(.kitFast, value: configuration.isPressed)
   }
@@ -116,7 +133,7 @@ struct KitButton: View {
     case .secondary:
       SurfaceShape(surface: .raised, cornerRadius: radius)
     case .plain, .icon:
-      shape.fill(isHovered && isEnabled ? AnyShapeStyle(.kitHover) : AnyShapeStyle(Color.clear))
+      shape.fill(isLit ? AnyShapeStyle(.kitHover) : AnyShapeStyle(Color.clear))
     }
   }
 }
@@ -137,6 +154,18 @@ struct KitButtonLabelStyle: LabelStyle {
     }
   }
 }
+
+#if os(tvOS)
+  extension View {
+    /// A kit button's focus on Apple TV: the hover effect, driven by the button's focus, growing 16% (the canvas's
+    /// focused buttons), its press sinking it back.
+    func kitFocusedButton<S: InsettableShape>(in shape: S, isPressed: Bool) -> some View {
+      kitHoverEffect(in: shape)
+        .environment(\.kitFocusGrowth, 0.16)
+        .environment(\.kitHoverPressed, isPressed)
+    }
+  }
+#endif
 
 // MARK: - Round
 
@@ -182,6 +211,9 @@ struct KitRoundButton: View {
       .contentShape(Circle())
       .scaleEffect(configuration.isPressed ? 0.97 : 1)
       .kitHover { isHovered = $0 }
+      #if os(tvOS)
+      .kitFocusedButton(in: Circle(), isPressed: configuration.isPressed)
+      #endif
       .animation(.kitFast, value: isHovered)
       .animation(.kitFast, value: configuration.isPressed)
   }

@@ -7,14 +7,22 @@ import UIKit
 // Hub's 3D hover: the view tilts toward the pointer, a soft light follows it and a rim catches the light. A view
 // inside another one (a tile in a card) tilts less and lights its parent faintly, so the parent reads as focused too.
 //
-// The light and the rim are only in the tree while the view is lit (hovered, touched, pressed, or a child is): an
-// idle view draws its content and nothing else, however many there are on screen.
+// The light and the rim are only in the tree while the view is lit (hovered, touched, pressed, focused, or a child
+// is): an idle view draws its content and nothing else, however many there are on screen.
+//
+// On Apple TV focus drives it, as Hub draws it: the focused view grows, tilts toward the thumb on the remote's touch
+// surface (toward the top right while it rests), lights there and casts the only shadow on screen; its parent lifts a
+// little and glows faintly. No ring.
 
 extension View {
   /// Tilts the view toward the pointer and lights it where the pointer is; touches do the same on iOS. Inside
   /// another hover effect it tilts less and lights the outer view faintly. Put it on the thing that's pressed (the
   /// tile, the card), not around its caption: text under the light washes out. In a button, give the button
   /// `.buttonStyle(.kitHoverEffect)` so presses deepen the effect.
+  ///
+  /// On Apple TV focus lights it: the effect follows the focus of the nearest focusable view around it (the button
+  /// it's in), growing the view and tilting it toward the thumb on the remote, and its parent effect lifts. For a
+  /// view that isn't a button, `kitFocusEffect(in:)` also makes it focusable.
   ///
   ///     Button { open() } label: {
   ///       Image(systemName: "clock").frame(width: 56, height: 56)
@@ -24,6 +32,22 @@ extension View {
   ///     .buttonStyle(.kitHoverEffect)
   public func kitHoverEffect<S: InsettableShape>(in shape: S) -> some View {
     modifier(KitHoverEffect(shape: shape))
+  }
+
+  /// The hover effect, driven by focus on Apple TV, on a view that isn't a button: a card that opens a page, a row.
+  /// On tvOS it makes the view focusable, so the remote moves to it and its press reaches `onTapGesture`; elsewhere
+  /// it's `kitHoverEffect(in:)`.
+  ///
+  ///     HubCard(hub)
+  ///       .background(.kitCard, in: .rect(cornerRadius: KitMetrics.radiusCard))
+  ///       .kitFocusEffect(in: .rect(cornerRadius: KitMetrics.radiusCard))
+  ///       .onTapGesture { open(hub) }
+  public func kitFocusEffect<S: InsettableShape>(in shape: S) -> some View {
+    #if os(tvOS)
+      modifier(KitHoverEffect(shape: shape)).focusable()
+    #else
+      modifier(KitHoverEffect(shape: shape))
+    #endif
   }
 
   /// Keeps the hover effects around this view flat: they still light, but don't tilt (a view that holds a text
@@ -60,17 +84,28 @@ public struct KitHoverTileLabelStyle: LabelStyle {
   public init() {}
 
   public func makeBody(configuration: Configuration) -> some View {
+    KitHoverTile(configuration: configuration)
+  }
+}
+
+private struct KitHoverTile: View {
+  let configuration: LabelStyleConfiguration
+  @Environment(\.kitIdiom) private var idiom
+
+  var body: some View {
     let shape = RoundedRectangle(cornerRadius: KitMetrics.radiusOverlay, style: .continuous)
-    VStack(spacing: 6) {
+    VStack(spacing: 6 * idiom.scale) {
       configuration.icon
-        .font(.system(size: 26, weight: .medium))
-        .frame(width: 64, height: 64)
+        .font(.system(size: 26 * idiom.scale, weight: .medium))
+        .frame(width: 64 * idiom.scale, height: 64 * idiom.scale)
         .background { shape.fill(.kitCard).strokeBorder(.kitBorder) }
         .kitHoverEffect(in: shape)
       configuration.title
-        .font(.callout)
+        .font(idiom == .tv ? KitFont.callout.font(scale: 1, idiom: .tv) : .callout)
         .foregroundStyle(.kitLabel)
         .lineLimit(1)
+        // Over the focused icon's shadow, which falls this way.
+        .zIndex(2)
     }
     .contentShape(.rect)
   }
@@ -81,6 +116,8 @@ extension EnvironmentValues {
   @Entry var kitHoverPressed = false
   /// Inside another hover effect: tilt less, so the inner view doesn't leave its parent.
   @Entry fileprivate var kitHoverInner = false
+  /// How much a focused view grows on Apple TV: 6% for cards and tiles, more for the kit's buttons.
+  @Entry var kitFocusGrowth: CGFloat = 0.06
 }
 
 /// Whether a hover effect inside is lit (any of them), so its parent dims its own light.
@@ -102,6 +139,13 @@ private struct KitHoverEffect<S: InsettableShape>: ViewModifier {
   @Environment(\.kitHoverInner) private var isInner
   @Environment(\.displayScale) private var displayScale
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.kitFocusGrowth) private var focusGrowth
+  @Environment(\.kitIdiom) private var idiom
+  #if os(tvOS)
+    @Environment(\.isFocused) private var isFocused
+  #else
+    private let isFocused = false
+  #endif
 
   @State private var hovering = false
   @State private var touching = false
@@ -113,7 +157,7 @@ private struct KitHoverEffect<S: InsettableShape>: ViewModifier {
   /// Whether the light is in the tree: set as soon as the view lights, cleared once it has faded out.
   @State private var lightOn = false
 
-  private var isActive: Bool { hovering || touching }
+  private var isActive: Bool { hovering || touching || isFocused }
   private var wantsLight: Bool { isActive || isPressed || innerLit }
   private var isDark: Bool { scheme == .dark }
   /// Tilting blurs edges on a low-resolution screen, and moves the view under Reduce Motion.
@@ -131,16 +175,32 @@ private struct KitHoverEffect<S: InsettableShape>: ViewModifier {
           shape.fill(light).strokeBorder(rim, lineWidth: 1).allowsHitTesting(false)
         }
       }
+      #if os(tvOS)
+      .background {
+        // The only shadows on a TV screen: the focused view's, and a softer one under its parent.
+        if lightOn {
+          shape.fill(.kitCard)
+            .shadow(color: .black.opacity(shadowOpacity), radius: innerLit ? 10 : 15, y: innerLit ? 8 : 14)
+            .allowsHitTesting(false)
+        }
+      }
+      .scaleEffect(growth)
+      #endif
       .rotation3DEffect(tilts ? .degrees(-offset.y * 8) : .zero, axis: (1, 0, 0), anchorZ: depth)
       .rotation3DEffect(tilts ? .degrees(offset.x * 8) : .zero, axis: (0, 1, 0), anchorZ: depth)
       .offset(x: tilts ? offset.x * shift : 0, y: tilts ? offset.y * shift : 0)
+      .zIndex(isActive || innerLit ? 1 : 0)
       .background {
         GeometryReader { proxy in
           Color.clear.onAppear { size = proxy.size }.onChange(of: proxy.size) { _, new in size = new }
         }
       }
       .preference(key: HoverInnerLit.self, value: isActive)
+      #if os(tvOS)
+      .modifier(FocusInput(isFocused: isFocused, innerLit: innerLit, offset: $offset))
+      #else
       .modifier(HoverInput(hovering: $hovering, touching: $touching, offset: $offset, size: size))
+      #endif
       .task(id: wantsLight) {
         if wantsLight {
           lightOn = true
@@ -152,7 +212,20 @@ private struct KitHoverEffect<S: InsettableShape>: ViewModifier {
       }
   }
 
-  private var shift: Double { isInner ? 2 : 8 }
+  private var shift: Double { (isInner ? 2 : 8) * idiom.scale }
+
+  #if os(tvOS)
+    /// The focused view grows, and sinks back a little while pressed; its parent rises 2%.
+    private var growth: CGFloat {
+      if isFocused { return 1 + (isPressed ? focusGrowth / 2 : focusGrowth) }
+      return innerLit ? 1.02 : 1
+    }
+
+    private var shadowOpacity: Double {
+      guard isFocused || innerLit else { return 0 }
+      return (isDark ? 0.6 : 0.3) * (innerLit ? 0.55 : 1)
+    }
+  #endif
 
   private var depth: Double {
     guard tilts else { return 0 }
@@ -175,14 +248,15 @@ private struct KitHoverEffect<S: InsettableShape>: ViewModifier {
       radius = isPressed || !isActive ? 200 : 32
     }
     return RadialGradient(
-      colors: [.white.opacity(start), .white.opacity(end)], center: center, startRadius: 0, endRadius: radius)
+      colors: [.white.opacity(start), .white.opacity(end)], center: center, startRadius: 0,
+      endRadius: radius * idiom.scale)
   }
 
   private var rim: RadialGradient {
     let color = KitColor.label.color(scheme, moreContrast: false)
     return RadialGradient(
       colors: [color.opacity(isActive ? 1 : 0), color.opacity(0)], center: center, startRadius: 0,
-      endRadius: isPressed ? 64 : isActive ? 32 : 200)
+      endRadius: (isPressed ? 64 : isActive ? 32 : 200) * idiom.scale)
   }
 }
 
@@ -284,4 +358,52 @@ private struct TouchTracking: UIGestureRecognizerRepresentable {
     ) -> Bool { true }
   }
 }
+#endif
+
+#if os(tvOS)
+  /// Focus in place of the pointer: the focused view leans toward the thumb on the remote's touch surface, or toward
+  /// the top right while the thumb is off it; the parent of a focused view leans the same way, a little.
+  private struct FocusInput: ViewModifier {
+    let isFocused: Bool
+    let innerLit: Bool
+    @Binding var offset: CGPoint
+
+    /// Where the light rests on a focused view: the top right, as the canvas draws it.
+    static let resting = CGPoint(x: 0.22, y: -0.28)
+
+    func body(content: Content) -> some View {
+      content
+        .background {
+          // Only a focused view follows the remote, so a thumb moving on it redraws that view alone.
+          if isFocused { RemoteTouchFollower(offset: $offset) }
+        }
+        .onChange(of: isFocused, initial: true) { _, focused in lean(focused: focused, innerLit: innerLit) }
+        .onChange(of: innerLit) { _, lit in lean(focused: isFocused, innerLit: lit) }
+    }
+
+    private func lean(focused: Bool, innerLit: Bool) {
+      let target =
+        focused ? (KitRemoteTouch.shared.point ?? Self.resting)
+        : innerLit ? CGPoint(x: Self.resting.x / 3, y: Self.resting.y / 3) : .zero
+      guard target != offset else { return }
+      withAnimation(focused || innerLit ? .spring(response: 0.25, dampingFraction: 1) : .spring(response: 0.5, dampingFraction: 0.8)) {
+        offset = target
+      }
+    }
+  }
+
+  private struct RemoteTouchFollower: View {
+    @Binding var offset: CGPoint
+    private let remote = KitRemoteTouch.shared
+
+    var body: some View {
+      Color.clear
+        .onAppear { remote.start() }
+        .onChange(of: remote.point) { _, point in
+          withAnimation(.spring(response: 0.25, dampingFraction: 1)) { offset = point ?? FocusInput.resting }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+  }
 #endif

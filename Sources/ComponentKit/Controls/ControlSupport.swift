@@ -58,7 +58,12 @@ extension View {
   /// The field ring: 2pt outside the shape, the accent (or red) at half strength; solid under Increase Contrast.
   /// Fields, tracks (while an item inside has focus) and a picked choice card wear it.
   func ctlFieldRing(_ isOn: Bool, hue: Hue = .accent, cornerRadius: CGFloat) -> some View {
-    overlay { CtlFieldRing(isOn: isOn, hue: hue, cornerRadius: cornerRadius) }
+    #if os(tvOS)
+      // No rings on Apple TV: the focused item itself grows and lights.
+      self
+    #else
+      overlay { CtlFieldRing(isOn: isOn, hue: hue, cornerRadius: cornerRadius) }
+    #endif
   }
 }
 
