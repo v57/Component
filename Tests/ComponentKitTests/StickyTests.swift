@@ -122,3 +122,23 @@ private func gitTable(atlasRows: CGFloat = 100) -> ContStickyTable {
   #expect(placements[2] == ContStickyPlacement(edge: .bottom, part: .title, y: 540))
   #expect(placements[3] == nil && placements[5] == nil)
 }
+
+@Test func stickyLaysOutItsOwnItemFromWhereItIs() {
+  // The table still has Databases far below (its place from a frame before the screen settled); Databases' own
+  // view, at 306 in a 608pt sidebar, is in place, not stuck at the bottom.
+  let stale = ContStickyTable(
+    items: [
+      ContStickyItem(
+        id: "remote", sticky: ContSticky(top: .titleWhileVisible, bottom: .title), minY: 0, maxY: 290, titleTop: 0,
+        titleHeight: 60),
+      ContStickyItem(
+        id: "databases", sticky: ContSticky(top: .titleWhileVisible, bottom: .title), minY: 1306, maxY: 1510,
+        titleTop: 1306, titleHeight: 60),
+    ],
+    spacing: 16, topGap: 2)
+  #expect(stale.placements(visibleTop: -2, visibleBottom: 606)[1] != nil)
+  let live = stale.live("databases", part: .title, at: 306)
+  #expect(live?.index == 1)
+  #expect(live?.table.items[1].minY == 306 && live?.table.items[1].maxY == 510)
+  #expect(live?.table.placements(visibleTop: -2, visibleBottom: 606)[1] == nil)
+}

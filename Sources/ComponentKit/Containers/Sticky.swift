@@ -219,20 +219,30 @@ struct ContStickyTable: Equatable, @unchecked Sendable {
     return placements(visibleTop: visibleTop, visibleBottom: visibleBottom)[index]
   }
 
+  /// The table with the item `id` where it is now: its `part` at `liveTop` in the stack's space. The table's places
+  /// come through preferences and can lag the layout (as a screen first settles); a view always lays out its own
+  /// item from where it really is, and the others from the table.
+  func live(_ id: AnyHashable, part: ContStickyPart, at liveTop: CGFloat) -> (table: ContStickyTable, index: Int)? {
+    guard let index = items.firstIndex(where: { $0.id == id }) else { return nil }
+    var table = self
+    let shift = liveTop - items[index].block(part).top
+    if shift != 0 {
+      table.items[index].minY += shift
+      table.items[index].maxY += shift
+      if let titleTop = table.items[index].titleTop { table.items[index].titleTop = titleTop + shift }
+    }
+    return (table, index)
+  }
+
   /// How far `part` of the item `id` moves from its place this frame. `naturalTop` is the top of the view the proxy
   /// measures, in the stack's space: the visible area follows from it.
   func offset(of id: AnyHashable, part: ContStickyPart, naturalTop: CGFloat, proxy: GeometryProxy) -> CGFloat {
-    guard let placement = placement(of: id, proxy: proxy, naturalTop: naturalTop), placement.part == part else {
-      return 0
-    }
-    return placement.y - naturalTop
-  }
-
-  /// Where the item `id` shows, from a proxy of a view whose top is `naturalTop` in the stack's space.
-  func placement(of id: AnyHashable, proxy: GeometryProxy, naturalTop: CGFloat) -> ContStickyPlacement? {
-    guard items.count > 0, clearBottom > clearTop else { return nil }
+    guard let (table, index) = live(id, part: part, at: naturalTop), clearBottom > clearTop else { return 0 }
     let visible = visibleArea(naturalTop: naturalTop, hostTop: proxy.frame(in: .named(Self.hostSpace)).minY)
-    return placement(of: id, visibleTop: visible.top, visibleBottom: visible.bottom)
+    guard let placement = table.placements(visibleTop: visible.top, visibleBottom: visible.bottom)[index],
+      placement.part == part
+    else { return 0 }
+    return placement.y - naturalTop
   }
 
   /// The clear area in the stack's space, for a view whose top is `naturalTop` there and `hostTop` in the scroll
@@ -266,18 +276,12 @@ extension EnvironmentValues {
   /// The sticky views of the host above (a sidebar), `nil` where nothing sticks.
   @Entry var contStickyTable: ContStickyTable? = nil
   @Entry var contStickyScroll: ContStickyScroll? = nil
+  @Entry var contStickyRegistry: ContStickyRegistry? = nil
   /// The sticky item this view is in, for the `KitSection` inside it.
   @Entry var contStickyContext: ContStickyContext? = nil
 }
 
-// MARK: - Preferences
-
-struct ContStickyItemsKey: PreferenceKey {
-  static let defaultValue: [ContStickyItem] = []
-  static func reduce(value: inout [ContStickyItem], nextValue: () -> [ContStickyItem]) {
-    value.append(contentsOf: nextValue())
-  }
-}
+// MARK: - Registry
 
 /// A section's title: its top in its item and its height as a card of its own.
 struct ContStickyTitle: Equatable, @unchecked Sendable {
@@ -286,10 +290,43 @@ struct ContStickyTitle: Equatable, @unchecked Sendable {
   var height: CGFloat
 }
 
-struct ContStickyTitlesKey: PreferenceKey {
-  static let defaultValue: [ContStickyTitle] = []
-  static func reduce(value: inout [ContStickyTitle], nextValue: () -> [ContStickyTitle]) {
-    value.append(contentsOf: nextValue())
+/// Where a host's sticky views are, written by the views themselves. Not preferences: in Shell's iPhone sidebar, past
+/// the first value, the sections' preference changes never reached the host, which kept their first places.
+@MainActor
+final class ContStickyRegistry {
+  private(set) var items: [AnyHashable: ContStickyItem] = [:]
+  private(set) var titles: [AnyHashable: ContStickyTitle] = [:]
+  /// The host draws again (once for any number of changes in one update).
+  var onChange: (@MainActor () -> Void)?
+  private var isPending = false
+
+  func set(_ item: ContStickyItem) {
+    guard items[item.id] != item else { return }
+    items[item.id] = item
+    changed()
+  }
+
+  func set(_ title: ContStickyTitle) {
+    guard titles[title.id] != title else { return }
+    titles[title.id] = title
+    changed()
+  }
+
+  func remove(_ id: AnyHashable) {
+    guard items[id] != nil || titles[id] != nil else { return }
+    items[id] = nil
+    titles[id] = nil
+    changed()
+  }
+
+  /// After this update: a state change made while a screen's first frame is built can be dropped.
+  private func changed() {
+    guard !isPending else { return }
+    isPending = true
+    Task { @MainActor [weak self] in
+      self?.isPending = false
+      self?.onChange?()
+    }
   }
 }
 
@@ -317,17 +354,21 @@ private struct ContStickyHost: ViewModifier {
   let topGap: CGFloat
   let bottomGap: CGFloat
   let scroll: ContStickyScroll
-  @State private var items: [ContStickyItem] = []
-  @State private var titles: [ContStickyTitle] = []
+  @State private var registry = ContStickyRegistry()
   @State private var clear = ContStickyClear()
+  @State private var revision = 0
 
   func body(content: Content) -> some View {
+    let _ = revision
     if #available(macOS 15.0, iOS 18.0, *) {
       content
         .environment(\.contStickyTable, table)
         .environment(\.contStickyScroll, scroll)
-        .onPreferenceChange(ContStickyItemsKey.self) { items = $0 }
-        .onPreferenceChange(ContStickyTitlesKey.self) { titles = $0 }
+        .environment(\.contStickyRegistry, registry)
+        .onAppear {
+          registry.onChange = { revision &+= 1 }
+          revision &+= 1
+        }
         // The scroll view's own space is its frame clear of its bars (the title bar, the bottom bar), which it scrolls
         // on under: its content insets reach beyond it. (Its visible bounds take them in on the Mac and not on iOS.)
         .onScrollGeometryChange(for: ContStickyClear.self) { geometry in
@@ -342,9 +383,9 @@ private struct ContStickyHost: ViewModifier {
   }
 
   private var table: ContStickyTable {
-    var sorted = items.sorted { $0.minY < $1.minY }
+    var sorted = registry.items.values.sorted { $0.minY < $1.minY }
     for index in sorted.indices {
-      if let title = titles.first(where: { $0.id == sorted[index].id }) {
+      if let title = registry.titles[sorted[index].id] {
         sorted[index].titleTop = sorted[index].minY + title.top
         sorted[index].titleHeight = title.height
       }
@@ -371,12 +412,16 @@ struct ContStickyItemModifier: ViewModifier {
   let sticky: ContSticky
   @State private var frame: CGRect?
   @State private var state: ContStickyState?
+  /// Bumped to draw again after a change SwiftUI may have dropped (see `ContStickyHost.redrawSoon`).
+  @State private var revision = 0
   /// The item's top in the scroll view as of the last frame: not state, it changes every frame.
   @State private var visible = ContStickyVisible()
   @Environment(\.contStickyTable) private var table
   @Environment(\.contStickyScroll) private var scroll
+  @Environment(\.contStickyRegistry) private var registry
 
   func body(content: Content) -> some View {
+    let _ = revision
     if let table {
       let keyed = ContStickyKeyed(table: table, id: id)
       // What reads geometry sits outside the offset: inside it, frames move with it, and the offset would follow.
@@ -387,10 +432,13 @@ struct ContStickyItemModifier: ViewModifier {
         .visualEffect { effect, proxy in
           effect.offset(y: keyed.offset(.content, proxy))
         }
-        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(ContStickyTable.space)) } action: { frame = $0 }
-        .preference(
-          key: ContStickyItemsKey.self,
-          value: frame.map { [ContStickyItem(id: id, sticky: sticky, minY: $0.minY, maxY: $0.maxY)] } ?? [])
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(ContStickyTable.space)) } action: {
+          frame = $0
+          report()
+          redrawSoon()
+        }
+        .onChange(of: sticky) { report() }
+        .onDisappear { registry?.remove(id) }
         // Whether it's stuck follows the scroll and the table (another section moved, a title came).
         // (A geometry action keeps the closure it was first given: it reads the table from the box.)
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(ContStickyTable.hostSpace)).minY } action: { top in
@@ -415,12 +463,25 @@ extension ContStickyItemModifier {
     var new: ContStickyState?
     if let hostTop = visible.hostTop, let frame, let table = visible.table, table.clearBottom > table.clearTop {
       let area = table.visibleArea(naturalTop: frame.minY, hostTop: hostTop)
-      if let order = table.items.firstIndex(where: { $0.id == id }) {
-        new = table.placements(visibleTop: area.top, visibleBottom: area.bottom)[order]
+      if let (live, order) = table.live(id, part: .content, at: frame.minY) {
+        new = live.placements(visibleTop: area.top, visibleBottom: area.bottom)[order]
           .map { ContStickyState(edge: $0.edge, part: $0.part, order: order) }
       }
     }
-    if new != state { state = new }
+    if new != state {
+      state = new
+      redrawSoon()
+    }
+  }
+
+  private func redrawSoon() {
+    Task { @MainActor in revision &+= 1 }
+  }
+
+  /// Tells the host where the item is.
+  private func report() {
+    guard let frame else { return }
+    registry?.set(ContStickyItem(id: id, sticky: sticky, minY: frame.minY, maxY: frame.maxY))
   }
 }
 
@@ -438,10 +499,6 @@ struct ContStickyKeyed: @unchecked Sendable {
   /// from the table may lag the layout (as a navigation bar's large title settles) and set the view off.
   private func naturalTop(_ proxy: GeometryProxy) -> CGFloat {
     proxy.frame(in: .named(ContStickyTable.space)).minY
-  }
-
-  func placement(_ proxy: GeometryProxy) -> ContStickyPlacement? {
-    table.placement(of: id, proxy: proxy, naturalTop: naturalTop(proxy))
   }
 
   func offset(_ part: ContStickyPart, _ proxy: GeometryProxy) -> CGFloat {
@@ -469,6 +526,7 @@ struct ContStickyTitleModifier: ViewModifier {
   @State private var frame: CGRect?
   @Environment(\.contStickyTable) private var table
   @Environment(\.contStickyContext) private var context
+  @Environment(\.contStickyRegistry) private var registry
 
   func body(content: Content) -> some View {
     let _ = box.context = context
@@ -486,16 +544,25 @@ struct ContStickyTitleModifier: ViewModifier {
           effect.offset(y: keyed.offset(.title, proxy))
         }
         // Outside the offset, in the item's space: the item may be moving too.
-        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(ContStickyTable.itemSpace)) } action: { frame = $0 }
-        .preference(
-          key: ContStickyTitlesKey.self,
-          value: frame.map { [ContStickyTitle(id: context.id, top: $0.minY, height: $0.height + extra)] } ?? [])
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(ContStickyTable.itemSpace)) } action: {
+          frame = $0
+          report(context.id)
+        }
+        .onChange(of: extra) { report(context.id) }
         .zIndex(1)
         // What a click on the stuck title scrolls to (an id outside the stack's subview is never found).
         .id(ContStickyScrollID(value: context.id))
     } else {
       content
     }
+  }
+}
+
+extension ContStickyTitleModifier {
+  /// Tells the host where the title is in its item.
+  private func report(_ id: AnyHashable) {
+    guard let frame else { return }
+    registry?.set(ContStickyTitle(id: id, top: frame.minY, height: frame.height + extra))
   }
 }
 
