@@ -620,10 +620,15 @@ struct MarkdownScenarioPage: View {
         .frame(height: KitMetrics.titlebarHeight)
         Group {
           if mode == .edit {
-            TextEditor(text: $notes[index].1)
-              .kitFont(.mono)
-              .scrollContentBackground(.hidden)
-              .padding(.horizontal, 24)
+            #if os(tvOS)
+              // No multi-line editor on Apple TV.
+              TextField("Note", text: $notes[index].1).kitFont(.mono).padding(.horizontal, 24)
+            #else
+              TextEditor(text: $notes[index].1)
+                .kitFont(.mono)
+                .scrollContentBackground(.hidden)
+                .padding(.horizontal, 24)
+            #endif
           } else {
             ScrollView {
               MarkdownText(source: notes[index].1)

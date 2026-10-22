@@ -50,7 +50,7 @@ enum Area: String, CaseIterable, Identifiable {
 
 /// One page of the catalog. The raw value is the id `--page` takes.
 enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
-  case colours, hues, type, surfaces, motion, metrics
+  case colours, hues, type, surfaces, motion, metrics, appleTV = "apple-tv"
   case liveIcon = "live-icon", workStatus = "work-status", effects
   case buttons, toggles, segmented, menus, tabs, fields, search, stepper, keycaps, choiceCards = "choice-cards"
   case counts, chips, refs, lineCounts = "line-counts", avatars
@@ -65,7 +65,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
 
   var area: Area {
     switch self {
-    case .colours, .hues, .type, .surfaces, .motion, .metrics: .foundations
+    case .colours, .hues, .type, .surfaces, .motion, .metrics, .appleTV: .foundations
     case .liveIcon, .workStatus, .effects: .status
     case .buttons, .toggles, .segmented, .menus, .tabs, .fields, .search, .stepper, .keycaps, .choiceCards: .controls
     case .counts, .chips, .refs, .lineCounts, .avatars: .badges
@@ -85,6 +85,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     case .surfaces: "Surfaces"
     case .motion: "Motion"
     case .metrics: "Metrics"
+    case .appleTV: "Apple TV"
     case .liveIcon: "Live Icon"
     case .workStatus: "Work Status"
     case .effects: "Effects"
@@ -143,6 +144,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     case .surfaces: "square.stack"
     case .motion: "wind"
     case .metrics: "ruler"
+    case .appleTV: "appletv"
     case .liveIcon: "circle.dashed"
     case .workStatus: "arrow.triangle.2.circlepath"
     case .effects: "sparkles"
@@ -202,6 +204,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     case .surfaces: "Cards, raised, floating, fields and fills"
     case .motion: "One animation for everything, and the transitions"
     case .metrics: "Radii, the gutter, control and row heights"
+    case .appleTV: "Twice the Mac, lit by focus: cards, tiles, buttons and rows"
     case .liveIcon: "The tile that carries work: progress, done, failed"
     case .workStatus: "A piece of work through its states, in every component"
     case .effects: "Feedback, flourishes, light and moves"

@@ -13,6 +13,7 @@ struct PageContent: View {
     case .surfaces: SurfacesPage()
     case .motion: MotionPage()
     case .metrics: MetricsPage()
+    case .appleTV: AppleTVPage()
     case .liveIcon: LiveIconPage()
     case .workStatus: WorkStatusPage()
     case .effects: EffectsPage()

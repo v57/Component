@@ -18,15 +18,18 @@ struct ComponentApp: App {
         // `--hitch-test <report>` (DEBUG): walks and scrolls every page, writing its hitches (`HitchTest.swift`).
         .hitchTest(model)
     }
+    #if !os(tvOS)
     .defaultSize(width: 1320, height: 900)
     .commands { CatalogCommands(model: model) }
     // A fixed width (`--width`) sizes the window to it.
     .windowResizability(model.windowWidth == nil ? .automatic : .contentSize)
+    #endif
   }
 }
 
 // MARK: - Commands
 
+#if !os(tvOS)
 /// The Catalog menu: moving between pages and the toolbar's overrides, from the keyboard (on Windows the kit draws the
 /// menu bar in the title bar row, `ContMenuBar`).
 struct CatalogCommands: Commands {
@@ -50,6 +53,7 @@ struct CatalogCommands: Commands {
     }
   }
 }
+#endif
 
 extension Page {
   /// The page after this one in the sidebar's order (the first after the last).
@@ -90,6 +94,8 @@ final class CatalogModel {
   var opensOnPage = false
   /// Opens the page scrolled this far down (`--offset <points>`), for iPhone captures.
   var pageOffset: CGFloat = 0
+  /// The specimen the Apple TV page focuses first (`--focus <name>`), for captures of each focus state.
+  var focus: String?
 
   init() {
     #if DEBUG
@@ -98,8 +104,8 @@ final class CatalogModel {
   }
 
   #if DEBUG
-    /// `--page <id>`, `--section <title>`, `--dark`, `--light`, `--idiom mac|pad|phone`, `--accent <id>`, `--contrast`, `--inactive`,
-    /// `--sidebar-middle`, `--width <points>`, `--no-sidebar`, `--offset <points>`: opens any page in any state without clicking (for window captures).
+    /// `--page <id>`, `--section <title>`, `--dark`, `--light`, `--idiom mac|pad|phone|tv`, `--accent <id>`, `--contrast`, `--inactive`,
+    /// `--sidebar-middle`, `--width <points>`, `--no-sidebar`, `--offset <points>`, `--focus <name>`: opens any page in any state without clicking (for window captures).
     func applyLaunchArguments(_ arguments: [String]) {
       func value(after flag: String) -> String? {
         guard let index = arguments.firstIndex(of: flag), index + 1 < arguments.count else { return nil }
@@ -116,6 +122,7 @@ final class CatalogModel {
       case "mac": idiom = .mac
       case "pad": idiom = .pad
       case "phone": idiom = .phone
+      case "tv": idiom = .tv
       default: break
       }
       if let id = value(after: "--accent"), let accent = Accent(rawValue: id) { self.accent = accent }
@@ -125,6 +132,7 @@ final class CatalogModel {
       windowWidth = value(after: "--width").flatMap(Double.init).map { CGFloat($0) }
       hidesSidebar = arguments.contains("--no-sidebar")
       sidebarMiddle = arguments.contains("--sidebar-middle")
+      focus = value(after: "--focus")
     }
   #endif
 }
