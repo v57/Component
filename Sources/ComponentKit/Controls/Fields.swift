@@ -84,7 +84,7 @@ struct CtlFieldModifier<Trailing: View>: ViewModifier {
   func body(content: Content) -> some View {
     let height = CtlFieldMetrics.height(idiom)
     let icon = CtlFieldMetrics.icon(idiom)
-    let radius: CGFloat = idiom.isTouch ? 11 : 9
+    let radius: CGFloat = idiom.size(9, touch: 11)
     let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
     HStack(spacing: 8) {
       content
@@ -99,8 +99,8 @@ struct CtlFieldModifier<Trailing: View>: ViewModifier {
           .transition(.opacity.combined(with: .scale(scale: 0.8)))
       }
     }
-    .padding(.leading, idiom.isTouch ? 12 : 10)
-    .padding(.trailing, hasIcon ? (height - icon) / 2 : idiom.isTouch ? 12 : 10)
+    .padding(.leading, idiom.size(10, touch: 12))
+    .padding(.trailing, hasIcon ? (height - icon) / 2 : idiom.size(10, touch: 12))
     .padding(.vertical, 6)
     .frame(minHeight: height)
     .background {
@@ -126,6 +126,7 @@ enum CtlFieldMetrics {
     case .mac: 32
     case .pad: 40
     case .phone: 44
+    case .tv: 64
     }
   }
 
@@ -134,6 +135,7 @@ enum CtlFieldMetrics {
     case .mac: 18
     case .pad: 22
     case .phone: 26
+    case .tv: 36
     }
   }
 }

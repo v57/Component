@@ -127,7 +127,7 @@ public struct RunBlock: View {
     }
     .padding(.leading, 8)
     .padding(.trailing, 6)
-    .frame(height: idiom.isTouch ? 40 : 30)
+    .frame(height: idiom.size(30, touch: 40))
     .contentShape(Rectangle())
     .onTapGesture {
       withKitAnimation {

@@ -258,7 +258,7 @@ public struct ToolGroup<Content: View>: View {
       .labelStyle(ContToolLabelStyle(iconOnly: iconOnly))
       .menuStyle(.button)
       .menuIndicator(.hidden)
-      .padding(.horizontal, idiom.isTouch ? 4 : 3)
+      .padding(.horizontal, idiom.size(3, touch: 4))
       .frame(height: ContMetrics.toolGroupHeight(idiom))
       .kitSurface(.card, cornerRadius: ContMetrics.toolGroupRadius(idiom))
       .fixedSize()

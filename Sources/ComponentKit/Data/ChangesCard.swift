@@ -149,7 +149,7 @@ extension ChangeRow {
     Text(kind.title)
       .kitFont(.headline)
       .lineLimit(1)
-      .frame(width: idiom.isTouch ? 76 : 58, alignment: .leading)
+      .frame(width: idiom.size(58, touch: 76), alignment: .leading)
     Text(title)
       .monospacedDigit()
       .lineLimit(1)

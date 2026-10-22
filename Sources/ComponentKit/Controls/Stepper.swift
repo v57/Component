@@ -140,6 +140,7 @@ struct CtlStepperMetrics {
     case .mac: (button, buttonWidth, radius, valueWidth) = (24, 24, 7, 34)
     case .pad: (button, buttonWidth, radius, valueWidth) = (32, 32, 10, 44)
     case .phone: (button, buttonWidth, radius, valueWidth) = (36, 40, 11, 48)
+    case .tv: (button, buttonWidth, radius, valueWidth) = (48, 48, 14, 68)
     }
   }
 }

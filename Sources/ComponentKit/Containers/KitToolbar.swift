@@ -100,8 +100,8 @@ public struct KitToolbar<Title: View>: View {
 
   public var body: some View {
     let height = barHeight
-    ContToolbarLayout(spacing: idiom.isTouch ? 10 : 8) {
-      HStack(spacing: idiom.isTouch ? 10 : 8) {
+    ContToolbarLayout(spacing: idiom.size(8, touch: 10)) {
+      HStack(spacing: idiom.size(8, touch: 10)) {
         #if os(iOS)
           if isPresented {
             ToolGroup(iconOnly: true) {

@@ -54,7 +54,7 @@ public struct KitFilePreview: View {
       case .text:
         ScrollView {
           Text(String(decoding: data.prefix(512 * 1024), as: UTF8.self))
-            .font(.system(size: idiom.isTouch ? 13 : 12, design: .monospaced))
+            .font(.system(size: idiom.size(12, touch: 13), design: .monospaced))
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)

@@ -6,7 +6,7 @@ public enum RichHeaderSize: Hashable, Sendable {
 
   func tile(_ idiom: KitIdiom) -> CGFloat {
     switch self {
-    case .section: idiom == .phone ? 32 : idiom == .pad ? 30 : 24
+    case .section: idiom.size(24, pad: 30, phone: 32)
     case .title: 28
     case .sheet: 30
     }
@@ -68,7 +68,7 @@ public struct RichHeader<Icon: View, Meta: View, Accessory: View>: View {
     .padding(.leading, size == .section ? 6 : 0)
     .padding(.trailing, size == .section ? 2 : 0)
     .padding(.vertical, size == .section ? 4 : 0)
-    .frame(minHeight: size == .section ? (idiom.isTouch ? 48 : 40) : nil)
+    .frame(minHeight: size == .section ? (idiom.size(40, touch: 48)) : nil)
   }
 }
 

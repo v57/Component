@@ -32,10 +32,10 @@ public struct KitInspector<Content: View>: View {
   }
 
   public var body: some View {
-    let inset: CGFloat = idiom == .phone ? 16 : idiom == .pad ? 12 : 10
+    let inset: CGFloat = idiom.size(10, pad: 12, phone: 16)
     ContEdgeScroll {
-      VStack(alignment: .leading, spacing: idiom == .phone ? 16 : idiom == .pad ? 12 : 10) { content }
-        .padding(.top, idiom.isTouch ? 16 : 14)
+      VStack(alignment: .leading, spacing: idiom.size(10, pad: 12, phone: 16)) { content }
+        .padding(.top, idiom.size(14, touch: 16))
         .padding(.horizontal, inset)
         .padding(.bottom, inset)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -76,7 +76,7 @@ public struct InspectorHeader<Tags: View>: View {
 
   public var body: some View {
     HStack(alignment: .top, spacing: 10) {
-      LiveIcon(systemImage: systemImage, hue: hue, status: status, size: idiom == .phone ? 40 : idiom == .pad ? 36 : 30)
+      LiveIcon(systemImage: systemImage, hue: hue, status: status, size: idiom.size(30, pad: 36, phone: 40))
         .padding(.top, 1)
       VStack(alignment: .leading, spacing: 2) {
         Text(title)
@@ -158,9 +158,9 @@ public struct InspectorRow<Value: View>: View {
         .padding(.trailing, -2)
       }
     }
-    .padding(.horizontal, idiom.isTouch ? 10 : 6)
-    .padding(.vertical, idiom.isTouch ? 6 : 4)
-    .frame(minHeight: idiom == .phone ? 44 : idiom == .pad ? 40 : 30)
+    .padding(.horizontal, idiom.size(6, touch: 10))
+    .padding(.vertical, idiom.size(4, touch: 6))
+    .frame(minHeight: idiom.size(30, pad: 40, phone: 44))
     .background {
       if isHovered, !idiom.isTouch {
         RoundedRectangle(cornerRadius: ContMetrics.rowRadius(idiom), style: .continuous).fill(.kitHover)

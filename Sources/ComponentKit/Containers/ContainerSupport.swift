@@ -13,8 +13,8 @@ import SwiftUI
 /// The containers' sizes per idiom (the stylesheet's `.ck[data-idiom]` values).
 enum ContMetrics {
   /// The sidebar's inset from its edges, and the gap between its section cards.
-  static func sidebarInset(_ idiom: KitIdiom) -> CGFloat { idiom == .phone ? 16 : idiom == .pad ? 12 : 10 }
-  static func sectionSpacing(_ idiom: KitIdiom) -> CGFloat { idiom == .phone ? 16 : idiom == .pad ? 12 : 10 }
+  static func sidebarInset(_ idiom: KitIdiom) -> CGFloat { idiom.size(10, pad: 12, phone: 16) }
+  static func sectionSpacing(_ idiom: KitIdiom) -> CGFloat { idiom.size(10, pad: 12, phone: 16) }
   /// A card section's corners: 12 on the Mac, 18 on iPad, 22 on iPhone.
   static func cardRadius(_ idiom: KitIdiom) -> CGFloat { idiom == .phone ? 22 : idiom == .pad ? 18 : KitMetrics.radiusCard }
   /// A row's corners (the selection card's).
@@ -22,26 +22,26 @@ enum ContMetrics {
     compact && !idiom.isTouch ? 6 : idiom == .phone ? 14 : idiom == .pad ? KitMetrics.radiusLarge : KitMetrics.radius
   }
   /// How far a tree row moves in per level.
-  static func rowIndent(_ idiom: KitIdiom) -> CGFloat { idiom.isTouch ? 20 : 14 }
+  static func rowIndent(_ idiom: KitIdiom) -> CGFloat { idiom.size(14, touch: 20) }
   /// A row's icon tile and the glyph inside it.
   static func rowTile(_ idiom: KitIdiom) -> CGFloat { KitMetrics.rowTile(idiom) }
-  static func rowGlyph(_ idiom: KitIdiom) -> CGFloat { idiom == .phone ? 18 : idiom == .pad ? 17 : 12 }
+  static func rowGlyph(_ idiom: KitIdiom) -> CGFloat { idiom.size(12, pad: 17, phone: 18) }
   /// The bottom bar's square search button and action card: 32, 40 on iPad, 44 on iPhone.
-  static func barHeight(_ idiom: KitIdiom) -> CGFloat { idiom == .phone ? 44 : idiom == .pad ? 40 : 32 }
+  static func barHeight(_ idiom: KitIdiom) -> CGFloat { idiom.size(32, pad: 40, phone: 44) }
   static func barRadius(_ idiom: KitIdiom) -> CGFloat { idiom == .phone ? 16 : idiom == .pad ? 14 : KitMetrics.radiusCard }
   /// A button inside a bar card.
   static func barButton(_ idiom: KitIdiom) -> CGSize {
     idiom == .phone ? CGSize(width: 40, height: 36) : idiom == .pad ? CGSize(width: 36, height: 32) : CGSize(width: 28, height: 26)
   }
-  static func barButtonRadius(_ idiom: KitIdiom) -> CGFloat { idiom == .phone ? 12 : idiom == .pad ? 10 : 9 }
+  static func barButtonRadius(_ idiom: KitIdiom) -> CGFloat { idiom.size(9, pad: 10, phone: 12) }
   /// A tool group in a toolbar: 32 on the Mac, 44 on touch.
-  static func toolGroupHeight(_ idiom: KitIdiom) -> CGFloat { idiom.isTouch ? 44 : 32 }
+  static func toolGroupHeight(_ idiom: KitIdiom) -> CGFloat { idiom.size(32, touch: 44) }
   static func toolGroupRadius(_ idiom: KitIdiom) -> CGFloat { idiom.isTouch ? 16 : KitMetrics.radiusCard }
-  static func toolHeight(_ idiom: KitIdiom) -> CGFloat { idiom.isTouch ? 36 : 26 }
-  static func toolIconWidth(_ idiom: KitIdiom) -> CGFloat { idiom.isTouch ? 40 : 28 }
-  static func toolRadius(_ idiom: KitIdiom) -> CGFloat { idiom.isTouch ? 12 : 9 }
+  static func toolHeight(_ idiom: KitIdiom) -> CGFloat { idiom.size(26, touch: 36) }
+  static func toolIconWidth(_ idiom: KitIdiom) -> CGFloat { idiom.size(28, touch: 40) }
+  static func toolRadius(_ idiom: KitIdiom) -> CGFloat { idiom.size(9, touch: 12) }
   /// The kit's toolbar: 52 on the Mac (the title bar's height), 60 on iPad, 56 on iPhone.
-  static func toolbarHeight(_ idiom: KitIdiom) -> CGFloat { idiom == .phone ? 56 : idiom == .pad ? 60 : 52 }
+  static func toolbarHeight(_ idiom: KitIdiom) -> CGFloat { idiom.size(52, pad: 60, phone: 56) }
   /// How far the Mac's traffic lights reach into the title bar from the window's leading edge.
   static let windowControlsWidth: CGFloat = 80
   /// How far the system toolbar item that carries the kit bar's Show Sidebar button on the Mac
@@ -228,7 +228,7 @@ struct ContEdgeScroll<Content: View>: View {
     }
     .coordinateSpace(.named(space))
     .modifier(ContHeightReader(height: $viewport))
-    .contScrollEdge(contentBottom > viewport + 0.5, length: idiom == .phone ? 48 : idiom == .pad ? 40 : 32)
+    .contScrollEdge(contentBottom > viewport + 0.5, length: idiom.size(32, pad: 40, phone: 48))
   }
 }
 
@@ -279,7 +279,7 @@ private struct ContBarButton: View {
       .fontWeight(labeled ? .medium : .regular)
       .lineLimit(1)
       .foregroundStyle(foreground)
-      .padding(.horizontal, labeled ? (idiom.isTouch ? 12 : 8) : 4)
+      .padding(.horizontal, labeled ? (idiom.size(8, touch: 12)) : 4)
       .frame(minWidth: size.width, minHeight: size.height)
       .background {
         shape.fill(configuration.isPressed ? AnyShapeStyle(.kitPress) : isHovered && isEnabled ? AnyShapeStyle(.kitFill) : AnyShapeStyle(Color.clear))
@@ -319,7 +319,7 @@ struct ContBarCard<Content: View>: View {
   @Environment(\.kitIdiom) private var idiom
 
   var body: some View {
-    let inset: CGFloat = idiom.isTouch ? 4 : 3
+    let inset: CGFloat = idiom.size(3, touch: 4)
     // The label style sits on the card rather than in the button style, so a button's own `.labelStyle(.iconOnly)`
     // is closer to its label and wins.
     content
@@ -360,7 +360,7 @@ private struct ContToolButton: View {
       .foregroundStyle(
         configuration.role == .destructive ? AnyShapeStyle(Hue.red.text)
           : isEnabled ? AnyShapeStyle(.kitLabel) : AnyShapeStyle(.kitTertiary))
-      .padding(.horizontal, iconOnly ? 0 : (idiom.isTouch ? 10 : 8))
+      .padding(.horizontal, iconOnly ? 0 : (idiom.size(8, touch: 10)))
       .frame(minWidth: iconOnly ? ContMetrics.toolIconWidth(idiom) : height, minHeight: height)
       .background {
         if isOn || configuration.isPressed {
@@ -397,9 +397,9 @@ struct ContFilledField<Field: View>: View {
   @Environment(\.kitIdiom) private var idiom
 
   var body: some View {
-    let height: CGFloat = idiom.isTouch ? 40 : 32
-    let shape = RoundedRectangle(cornerRadius: idiom.isTouch ? 11 : 9, style: .continuous)
-    let icon: CGFloat = idiom.isTouch ? 22 : 18
+    let height: CGFloat = idiom.size(32, touch: 40)
+    let shape = RoundedRectangle(cornerRadius: idiom.size(9, touch: 11), style: .continuous)
+    let icon: CGFloat = idiom.size(18, touch: 22)
     HStack(spacing: 8) {
       field
         .textFieldStyle(.plain)
@@ -417,7 +417,7 @@ struct ContFilledField<Field: View>: View {
     }
     .overlay {
       if isFocused || isError {
-        RoundedRectangle(cornerRadius: (idiom.isTouch ? 11 : 9) + ContMetrics.ringWidth, style: .continuous)
+        RoundedRectangle(cornerRadius: (idiom.size(9, touch: 11)) + ContMetrics.ringWidth, style: .continuous)
           .strokeBorder((isError ? Hue.red : Hue.accent).soft(0.5), lineWidth: ContMetrics.ringWidth)
           .padding(-ContMetrics.ringWidth)
           .allowsHitTesting(false)

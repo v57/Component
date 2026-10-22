@@ -95,7 +95,7 @@ public struct FormRow<Control: View, Field: View>: View {
   private var hasField: Bool { Field.self != EmptyView.self }
 
   public var body: some View {
-    let tile: CGFloat = idiom.isTouch ? 30 : 24
+    let tile: CGFloat = idiom.size(24, touch: 30)
     VStack(alignment: .leading, spacing: 0) {
       HStack(spacing: 12) {
         ContFormTile(systemImage: systemImage, hue: error == nil ? hue : .red, size: tile)
@@ -113,7 +113,7 @@ public struct FormRow<Control: View, Field: View>: View {
         control
           .controlSize(.small)
       }
-      .frame(minHeight: idiom.isTouch ? 48 : 40)
+      .frame(minHeight: idiom.size(40, touch: 48))
       if hasField {
         ContFilledField(
           isFocused: fieldFocused, isError: error != nil, status: status, systemImage: "checkmark", hue: hue

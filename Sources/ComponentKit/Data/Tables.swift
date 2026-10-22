@@ -296,7 +296,7 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
 
   private var rowHeight: CGFloat { KitMetrics.tableRow(idiom) }
   private var gutter: CGFloat { rowState == nil ? 0 : 30 }
-  private var inset: CGFloat { idiom.isTouch ? 6 : 4 }
+  private var inset: CGFloat { idiom.size(4, touch: 6) }
 
   private var widths: [CGFloat] {
     KitGridLayout.widths(
@@ -432,7 +432,7 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
             RoundedRectangle(cornerRadius: KitMetrics.radiusSmall, style: .continuous)
               .strokeBorder(Hue.accent.fill, lineWidth: 1.5)
           }
-          .frame(height: KitMetrics.controlSmall + (idiom.isTouch ? 8 : 0))
+          .frame(height: KitMetrics.controlSmall + (idiom.size(0, touch: 8)))
           .padding(.horizontal, 2)
       }
       if focused, editing {
@@ -451,7 +451,7 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
         HStack(spacing: 4) {
           if let outline {
             disclosure(row, hasChildren: outline.hasChildren)
-              .padding(.leading, CGFloat(outline.depth) * (idiom.isTouch ? 20 : 14))
+              .padding(.leading, CGFloat(outline.depth) * (idiom.size(14, touch: 20)))
           }
           cellContent(row, column: column, state: state)
         }
@@ -501,7 +501,7 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
   /// An outline row's chevron (or the empty slot of a leaf), which opens and closes it.
   @ViewBuilder
   private func disclosure(_ row: Row, hasChildren: Bool) -> some View {
-    let size: CGFloat = idiom.isTouch ? 14 : 12
+    let size: CGFloat = idiom.size(12, touch: 14)
     if hasChildren {
       let isOpen = expanded.wrappedValue.contains(row.id)
       Button {
@@ -526,7 +526,7 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
   }
 
   private func cellFont(_ column: KitGridColumn<Row>) -> Font {
-    let touch: CGFloat = idiom.isTouch ? 4 : 0
+    let touch: CGFloat = idiom.size(0, touch: 4)
     return column.isMono
       ? .system(size: 12 + touch, design: .monospaced) : .system(size: 13 + touch)
   }

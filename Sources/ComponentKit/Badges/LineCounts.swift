@@ -70,7 +70,7 @@ public struct Diffstat: View {
       if showsCounts { LineCounts(added: added, removed: removed) }
       if let added, let removed {
         let blocks = Self.blocks(added: added, removed: removed)
-        let side: CGFloat = idiom == .mac ? 6 : idiom == .pad ? 7 : 8
+        let side: CGFloat = idiom.size(6, pad: 7, phone: 8)
         HStack(spacing: 1.5) {
           ForEach(0..<Self.blockCount, id: \.self) { index in
             RoundedRectangle(cornerRadius: idiom == .phone ? 2 : 1.5, style: .continuous)
@@ -129,8 +129,8 @@ public struct MicroBar: View {
   }
 
   public var body: some View {
-    let height: CGFloat = idiom.isTouch ? 5 : 4
-    let barWidth = width ?? (idiom == .mac ? 20 : idiom == .pad ? 24 : 26)
+    let height: CGFloat = idiom.size(4, touch: 5)
+    let barWidth = width ?? (idiom.size(20, pad: 24, phone: 26))
     Capsule()
       .fill(.kitFill)
       .overlay(alignment: .leading) {

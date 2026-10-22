@@ -32,20 +32,49 @@ extension EnvironmentValues {
   var kitMoreContrast: Bool { kitIncreaseContrast || colorSchemeContrast == .increased }
 }
 
-/// Where the kit is laid out: the Mac's dense metrics, or touch sizes.
+/// Where the kit is laid out: the Mac's dense metrics, touch sizes, or Apple TV's: the Mac's layout at twice its
+/// size, driven by focus.
+///
+/// ```swift
+/// @Environment(\.kitIdiom) private var idiom
+/// Image(systemName: "bolt").frame(width: 20 * idiom.scale, height: 20 * idiom.scale)
+/// ```
 public enum KitIdiom: Hashable, Sendable {
   case mac, pad, phone
+  /// Apple TV: the Mac's sizes doubled (type, rows, controls, corners, gutters), inside the TV safe area, lit by
+  /// focus instead of a pointer (`kitHoverEffect`).
+  case tv
 
   public static var current: KitIdiom {
     #if os(macOS) || os(Windows) || os(Linux)
       .mac
+    #elseif os(tvOS)
+      .tv
     #else
       .pad
     #endif
   }
 
-  /// Touch targets: 44pt rows on iPad and iPhone instead of the Mac's 32.
-  public var isTouch: Bool { self != .mac }
+  /// Touch targets: 44pt rows on iPad and iPhone instead of the Mac's 32. Apple TV isn't touch: it keeps the Mac's
+  /// layout, doubled.
+  public var isTouch: Bool { self == .pad || self == .phone }
+
+  /// How much larger than the Mac the idiom draws the Mac's sizes: 2 on Apple TV, 1 elsewhere (touch idioms have
+  /// sizes of their own). For an app's own sizes on a TV screen.
+  public var scale: CGFloat { self == .tv ? 2 : 1 }
+
+  /// A size: the Mac's (doubled on Apple TV), or the touch one on iPad and iPhone.
+  func size(_ mac: CGFloat, touch: CGFloat) -> CGFloat { isTouch ? touch : mac * scale }
+
+  /// A size: the Mac's (doubled on Apple TV), iPad's or iPhone's.
+  func size(_ mac: CGFloat, pad: CGFloat, phone: CGFloat) -> CGFloat {
+    switch self {
+    case .mac: mac
+    case .pad: pad
+    case .phone: phone
+    case .tv: mac * 2
+    }
+  }
 }
 
 extension View {
@@ -124,8 +153,8 @@ struct ComponentKitRoot: ViewModifier {
       .environment(\.kitWindowIsActive, isActive)
       .environment(\.kitIdiom, idiom)
       .modifier(OptionalAccent(accent: accent))
-      .font(KitFont.body.font)
-      .tracking(KitFont.body.tracking)
+      .font(idiom == .tv ? KitFont.body.font(scale: 1, idiom: .tv) : KitFont.body.font)
+      .tracking(KitFont.body.tracking * idiom.scale)
       .foregroundStyle(.kitLabel)
       .transaction { transaction in
         // A window that isn't focused doesn't animate at all; Reduce Motion keeps a short crossfade.
@@ -141,6 +170,8 @@ struct ComponentKitRoot: ViewModifier {
   private var idiom: KitIdiom {
     #if os(macOS) || os(Windows) || os(Linux)
       .mac
+    #elseif os(tvOS)
+      .tv
     #else
       sizeClass == .compact ? .phone : .pad
     #endif

@@ -52,7 +52,7 @@ struct KitButton: View {
     configuration.label
       .kitFont(kind == .primary ? .headline : .body)
       .fontWeight(kind == .primary ? .semibold : .medium)
-      .labelStyle(KitButtonLabelStyle(iconOnly: kind == .icon))
+      .labelStyle(KitButtonLabelStyle(iconOnly: kind == .icon, spacing: 6 * idiom.scale))
       .lineLimit(1)
       .foregroundStyle(foreground)
       .padding(.horizontal, kind == .icon ? 0 : horizontalPadding)
@@ -70,7 +70,7 @@ struct KitButton: View {
   }
 
   private var height: CGFloat {
-    if kind == .icon { return idiom.isTouch ? 32 : 24 }
+    if kind == .icon { return idiom.size(24, touch: 32) }
     let base: CGFloat =
       switch controlSize {
       case .mini, .small: KitMetrics.controlSmall
@@ -81,11 +81,12 @@ struct KitButton: View {
   }
 
   private var radius: CGFloat {
-    if kind == .icon { return 6 }
-    return height <= 28 ? 7 : height <= 30 ? 8 : 9
+    if kind == .icon { return 6 * idiom.scale }
+    let height = height / idiom.scale
+    return (height <= 28 ? 7 : height <= 30 ? 8 : 9) * idiom.scale
   }
 
-  private var horizontalPadding: CGFloat { kind == .plain ? 8 : 12 }
+  private var horizontalPadding: CGFloat { (kind == .plain ? 8 : 12) * idiom.scale }
 
   private var foreground: AnyShapeStyle {
     if isDestructive {
@@ -123,12 +124,13 @@ struct KitButton: View {
 /// Icon and title 6pt apart; an icon-only button shows just the icon (the title stays for accessibility).
 struct KitButtonLabelStyle: LabelStyle {
   var iconOnly: Bool
+  var spacing: CGFloat = 6
 
   func makeBody(configuration: Configuration) -> some View {
     if iconOnly {
       configuration.icon
     } else {
-      HStack(spacing: 6) {
+      HStack(spacing: spacing) {
         configuration.icon.imageScale(.small)
         configuration.title
       }
@@ -184,9 +186,9 @@ struct KitRoundButton: View {
       .animation(.kitFast, value: configuration.isPressed)
   }
 
-  /// 32pt (28 small) on the Mac, 44 (36 small) on touch.
+  /// 32pt (28 small) on the Mac, 44 (36 small) on touch, 64 (56 small) on Apple TV.
   static func size(idiom: KitIdiom, small: Bool) -> CGFloat {
-    idiom.isTouch ? (small ? 36 : 44) : (small ? 28 : 32)
+    idiom.size(small ? 28 : 32, touch: small ? 36 : 44)
   }
 }
 

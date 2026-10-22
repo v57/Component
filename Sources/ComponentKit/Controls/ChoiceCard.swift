@@ -75,6 +75,7 @@ public struct ChoiceCard<Content: View>: View {
     case .mac: 12
     case .pad: 14
     case .phone: 16
+    case .tv: 24
     }
   }
 }
@@ -96,6 +97,7 @@ struct CtlChoiceCardBody<Content: View>: View {
       case .mac: 48
       case .pad: 56
       case .phone: 60
+      case .tv: 96
       }
     let layout =
       style == .tall

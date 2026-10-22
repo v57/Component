@@ -26,7 +26,7 @@ public enum KitFont: Hashable, Sendable {
   /// 11/14 monospaced: small values and line numbers.
   case monoSmall
 
-  /// Mac size; iPad adds 2 (13 → 15), iPhone 4 (13 → 17).
+  /// Mac size; iPad adds 2 (13 → 15), iPhone 4 (13 → 17), Apple TV doubles it (13 → 26).
   var size: CGFloat {
     switch self {
     case .largeTitle: 26
@@ -73,9 +73,13 @@ public enum KitFont: Hashable, Sendable {
   public var font: Font { font(scale: 1) }
 
   func font(scale: CGFloat, idiom: KitIdiom = .mac) -> Font {
+    .system(size: pointSize(scale: scale, idiom: idiom), weight: weight, design: isMono ? .monospaced : .default)
+  }
+
+  /// The point size in an idiom, at a Dynamic Type scale.
+  func pointSize(scale: CGFloat, idiom: KitIdiom) -> CGFloat {
     let grow: CGFloat = self.size >= 20 ? 0 : idiom == .phone ? 4 : idiom == .pad ? 2 : 0
-    let size = (self.size + grow) * scale
-    return .system(size: size, weight: weight, design: isMono ? .monospaced : .default)
+    return (self.size + grow) * idiom.scale * scale
   }
 }
 
@@ -94,9 +98,9 @@ struct KitFontModifier: ViewModifier {
   func body(content: Content) -> some View {
     let font = style.font(scale: scale, idiom: idiom)
     if let color = style.defaultStyle {
-      content.font(font).tracking(style.tracking).foregroundStyle(color)
+      content.font(font).tracking(style.tracking * idiom.scale).foregroundStyle(color)
     } else {
-      content.font(font).tracking(style.tracking)
+      content.font(font).tracking(style.tracking * idiom.scale)
     }
   }
 

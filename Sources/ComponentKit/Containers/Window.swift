@@ -155,7 +155,7 @@ public struct StatusBar<Content: View>: View {
   public var body: some View {
     HStack(spacing: 8) {
       if let systemImage {
-        LiveIcon(systemImage: systemImage, hue: hue, status: status, size: idiom.isTouch ? 26 : 22)
+        LiveIcon(systemImage: systemImage, hue: hue, status: status, size: idiom.size(22, touch: 26))
       }
       content
     }
@@ -163,7 +163,7 @@ public struct StatusBar<Content: View>: View {
     .lineLimit(1)
     .padding(.leading, systemImage == nil ? 10 : 4)
     .padding(.trailing, 10)
-    .frame(height: idiom.isTouch ? 38 : 30)
+    .frame(height: idiom.size(30, touch: 38))
     .kitSurface(.card)
     // Opaque: content may run on under it.
     .kitBar()

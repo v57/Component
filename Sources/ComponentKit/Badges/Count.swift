@@ -132,7 +132,7 @@ public struct StepNumber: View {
   }
 
   public var body: some View {
-    let side: CGFloat = idiom == .mac ? 18 : idiom == .pad ? 22 : 24
+    let side: CGFloat = idiom.size(18, pad: 22, phone: 24)
     let shape = RoundedRectangle(cornerRadius: idiom == .mac ? KitMetrics.radiusXS : 6, style: .continuous)
     Text("\(number)")
       .font(.system(size: badgeFigureSize(idiom), weight: .semibold).monospacedDigit())

@@ -241,10 +241,10 @@ public struct HunkCard: View {
         Spacer(minLength: 8)
         headerActions
       }
-      .frame(height: idiom.isTouch ? 46 : 38)
+      .frame(height: idiom.size(38, touch: 46))
       VStack(alignment: .trailing, spacing: 4) {
         HStack(spacing: 8) { headerTitle }
-          .frame(maxWidth: .infinity, minHeight: idiom.isTouch ? 40 : 32, alignment: .leading)
+          .frame(maxWidth: .infinity, minHeight: idiom.size(32, touch: 40), alignment: .leading)
         HStack(spacing: 8) { headerActions }
       }
       .padding(.bottom, 6)

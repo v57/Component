@@ -222,6 +222,7 @@ struct CtlSliderMetrics {
     case .mac: (height, track, knobWidth, knobHeight) = (20, 6, 24, 16)
     case .pad: (height, track, knobWidth, knobHeight) = (28, 8, 32, 22)
     case .phone: (height, track, knobWidth, knobHeight) = (30, 8, 36, 24)
+    case .tv: (height, track, knobWidth, knobHeight) = (40, 12, 48, 32)
     }
   }
 }

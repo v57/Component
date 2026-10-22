@@ -134,7 +134,7 @@ public struct KitTabStrip<ID: Hashable>: View {
   }
 
   private var row: some View {
-    HStack(spacing: idiom.isTouch ? 6 : 4) {
+    HStack(spacing: idiom.size(4, touch: 6)) {
       ForEach(Array((tabs.count > 1 ? tabs : []).enumerated()), id: \.element.id) { index, tab in
         CtlTabView(
           tab: tab, isSelected: tab.id == selection, isFocused: focus == tab.id, namespace: namespace,
@@ -153,7 +153,7 @@ public struct KitTabStrip<ID: Hashable>: View {
           .help("New Tab")
       }
     }
-    .padding(.horizontal, idiom.isTouch ? 4 : 2)
+    .padding(.horizontal, idiom.size(2, touch: 4))
     .fixedSize(horizontal: true, vertical: false)
     .frame(maxHeight: .infinity)
   }
@@ -216,12 +216,12 @@ struct CtlTabView<ID: Hashable>: View {
   @State private var isHovered = false
 
   var body: some View {
-    let radius: CGFloat = idiom.isTouch ? 10 : 8
+    let radius: CGFloat = idiom.size(8, touch: 10)
     HStack(spacing: 6) {
       Button(action: select) {
         HStack(spacing: 6) {
           if let icon = tab.icon {
-            icon.frame(width: idiom.isTouch ? 18 : 14, height: idiom.isTouch ? 18 : 14)
+            icon.frame(width: idiom.size(14, touch: 18), height: idiom.size(14, touch: 18))
           } else if let systemImage = tab.systemImage {
             Image(systemName: systemImage)
               .imageScale(.small)
@@ -248,10 +248,10 @@ struct CtlTabView<ID: Hashable>: View {
     .fontWeight(.regular)
     .lineLimit(1)
     .foregroundStyle(isSelected || isHovered ? .kitLabel : .kitSecondary)
-    .padding(.leading, idiom.isTouch ? 12 : 10)
-    .padding(.trailing, close != nil || tab.isEdited ? (idiom.isTouch ? 6 : 5) : (idiom.isTouch ? 12 : 10))
-    .frame(maxWidth: idiom.isTouch ? 240 : 200)
-    .frame(height: idiom.isTouch ? 36 : 28)
+    .padding(.leading, idiom.size(10, touch: 12))
+    .padding(.trailing, close != nil || tab.isEdited ? (idiom.size(5, touch: 6)) : (idiom.size(10, touch: 12)))
+    .frame(maxWidth: idiom.size(200, touch: 240))
+    .frame(height: idiom.size(28, touch: 36))
     .background {
       if isSelected {
         CtlRaisedCard(cornerRadius: radius).matchedGeometryEffect(id: "tab", in: namespace)
@@ -267,7 +267,7 @@ struct CtlTabView<ID: Hashable>: View {
 
   @ViewBuilder
   private var trailing: some View {
-    let size: CGFloat = idiom.isTouch ? 24 : 18
+    let size: CGFloat = idiom.size(18, touch: 24)
     ZStack {
       if let close, isSelected || isHovered || !tab.isEdited {
         CtlTabCloseButton(title: tab.title, size: size, action: close)
@@ -368,9 +368,9 @@ public struct KitPathBar: View {
           .layoutPriority(isLast ? 1 : 0)
         if !isLast {
           Image(systemName: "chevron.right")
-            .font(.system(size: idiom.isTouch ? 10 : 8, weight: .semibold))
+            .font(.system(size: idiom.size(8, touch: 10), weight: .semibold))
             .foregroundStyle(.kitTertiary)
-            .frame(width: idiom.isTouch ? 12 : 10)
+            .frame(width: idiom.size(10, touch: 12))
             .accessibilityHidden(true)
         }
       }
@@ -391,13 +391,13 @@ struct CtlCrumb: View {
   @State private var isHovered = false
 
   var body: some View {
-    let radius: CGFloat = idiom.isTouch ? 9 : 7
+    let radius: CGFloat = idiom.size(7, touch: 9)
     Button {
       item.action?()
     } label: {
       HStack(spacing: 4) {
         if let icon = item.icon {
-          icon.frame(width: idiom.isTouch ? 18 : 14, height: idiom.isTouch ? 18 : 14)
+          icon.frame(width: idiom.size(14, touch: 18), height: idiom.size(14, touch: 18))
         } else if let systemImage = item.systemImage {
           Image(systemName: systemImage)
             .imageScale(.small)
@@ -408,8 +408,8 @@ struct CtlCrumb: View {
           .truncationMode(.middle)
       }
       .foregroundStyle(isCurrent || isHovered ? .kitLabel : .kitSecondary)
-      .padding(.horizontal, idiom.isTouch ? 8 : 6)
-      .frame(height: idiom.isTouch ? 32 : 24)
+      .padding(.horizontal, idiom.size(6, touch: 8))
+      .frame(height: idiom.size(24, touch: 32))
       .background {
         if isHovered && !isCurrent && item.action != nil {
           RoundedRectangle(cornerRadius: radius, style: .continuous).fill(.kitField)

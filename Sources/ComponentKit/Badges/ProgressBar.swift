@@ -63,7 +63,7 @@ public struct KitProgressBar: View {
 
   /// 4pt (5 on touch), 6pt large (7 on touch).
   static func height(large: Bool, idiom: KitIdiom) -> CGFloat {
-    (large ? 6 : 4) + (idiom.isTouch ? 1 : 0)
+    (large ? 6 : 4) * idiom.scale + (idiom.isTouch ? 1 : 0)
   }
 
   /// The filled width for `value` on a bar `width` wide: 0 stays empty, any other value shows at least a dot (the

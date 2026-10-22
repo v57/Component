@@ -73,7 +73,7 @@ public struct KitSecretValue: View {
           .accessibilityLabel("\(label), hidden")
         }
       }
-      .font(.system(size: idiom.isTouch ? 15 : 13, design: .monospaced))
+      .font(.system(size: idiom.size(13, touch: 15), design: .monospaced))
       .foregroundStyle(.kitLabel)
       Button(
         isRevealed.wrappedValue ? "Hide \(label)" : "Show \(label)",
@@ -164,9 +164,9 @@ public struct KitOneTimeCode: View {
       }
       LiveIcon(
         systemImage: "clock", hue: left <= 5 ? .orange : .accent,
-        status: .working(progress: left / period), size: idiom.isTouch ? 30 : 24)
+        status: .working(progress: left / period), size: idiom.size(24, touch: 30))
       Text(current.map(Self.grouped) ?? "––– –––")
-        .font(.system(size: idiom.isTouch ? 20 : 17, weight: .semibold, design: .monospaced))
+        .font(.system(size: idiom.size(17, touch: 20), weight: .semibold, design: .monospaced))
         .tracking(1)
         .monospacedDigit()
         .foregroundStyle(current == nil ? AnyShapeStyle(.kitTertiary) : AnyShapeStyle(.kitLabel))
@@ -221,7 +221,7 @@ public struct KitSafetyCode: View {
 
   public var body: some View {
     let small = controlSize == .small || controlSize == .mini
-    let size: CGFloat = (small ? 11.5 : 13) + (idiom.isTouch ? 2 : 0)
+    let size: CGFloat = (small ? 11.5 : 13) + (idiom.size(0, touch: 2))
     Grid(alignment: .leading, horizontalSpacing: small ? 10 : 14, verticalSpacing: small ? 2 : 6) {
       ForEach(Array(stride(from: 0, to: groups.count, by: columns)), id: \.self) { start in
         GridRow {
@@ -278,7 +278,7 @@ public struct KitWordGrid: View {
 
   public var body: some View {
     let columns = columns ?? (idiom == .phone ? 3 : 4)
-    let size: CGFloat = idiom.isTouch ? 14 : 12
+    let size: CGFloat = idiom.size(12, touch: 14)
     Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
       ForEach(Self.rows(count: words.count, columns: columns), id: \.lowerBound) { row in
         GridRow {

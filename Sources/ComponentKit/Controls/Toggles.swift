@@ -127,6 +127,7 @@ struct CtlSwitchTrack: View {
       case .mac: (36, 20, 1)
       case .pad: (44, 26, 1)
       case .phone: (51, 31, 2)
+      case .tv: (72, 40, 2)
       }
     let knob = height - inset * 2
     Capsule()
@@ -154,8 +155,8 @@ struct CtlCheckbox: View {
   @Environment(\.colorScheme) private var scheme
 
   var body: some View {
-    let size: CGFloat = idiom.isTouch ? 20 : 14
-    let radius: CGFloat = idiom.isTouch ? 6 : 4.5
+    let size: CGFloat = idiom.size(14, touch: 20)
+    let radius: CGFloat = idiom.size(4.5, touch: 6)
     let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
     ZStack {
       if isOn {
@@ -232,6 +233,7 @@ enum CtlChipMetrics {
     case .mac: 24
     case .pad: 32
     case .phone: 34
+    case .tv: 48
     }
   }
   static func padding(_ idiom: KitIdiom) -> CGFloat {
@@ -239,6 +241,7 @@ enum CtlChipMetrics {
     case .mac: 10
     case .pad: 12
     case .phone: 14
+    case .tv: 20
     }
   }
   static func radius(_ idiom: KitIdiom) -> CGFloat {
@@ -246,6 +249,7 @@ enum CtlChipMetrics {
     case .mac: 8
     case .pad: 10
     case .phone: 11
+    case .tv: 16
     }
   }
 }

@@ -229,6 +229,9 @@ struct KitMenuMetrics {
     case .mac:
       (rowHeight, rowRadius, rowGap, rowPadding, cardPadding, cardRadius) = (26, 6, 1, 8, 5, KitMetrics.radiusLarge)
       (font, hintFont, icon, iconGap, minWidth) = (13, 12, 16, 8, 160)
+    case .tv:
+      (rowHeight, rowRadius, rowGap, rowPadding, cardPadding, cardRadius) = (52, 12, 2, 16, 10, KitMetrics.radiusLarge)
+      (font, hintFont, icon, iconGap, minWidth) = (26, 24, 32, 16, 320)
     case .pad, .phone:
       (rowHeight, rowRadius, rowGap, rowPadding, cardPadding, cardRadius) = (44, 14, 2, 12, 6, KitMetrics.radiusOverlay)
       (font, hintFont, icon, iconGap, minWidth) = (idiom == .pad ? 15 : 17, 13, 20, 12, 250)
@@ -779,8 +782,8 @@ struct KitMenuSectionHeader: View {
       .lineLimit(1)
       .padding(.leading, metrics.rowPadding + CGFloat(columns) * (metrics.icon + metrics.iconGap))
       .padding(.trailing, metrics.rowPadding)
-      .padding(.top, idiom.isTouch ? 10 : 4)
-      .padding(.bottom, idiom.isTouch ? 4 : 1)
+      .padding(.top, idiom.size(4, touch: 10))
+      .padding(.bottom, idiom.size(1, touch: 4))
       .frame(maxWidth: .infinity, alignment: .leading)
       .accessibilityAddTraits(.isHeader)
   }

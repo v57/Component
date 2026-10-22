@@ -172,6 +172,7 @@ struct CtlSearchMetrics {
     case .mac: (height, radius, spacing, leading, trailing, scope, icon, clear) = (30, 9, 6, 9, 7, 22, 18, 16)
     case .pad: (height, radius, spacing, leading, trailing, scope, icon, clear) = (36, 12, 8, 12, 8, 28, 22, 20)
     case .phone: (height, radius, spacing, leading, trailing, scope, icon, clear) = (44, 14, 8, 14, 10, 32, 26, 22)
+    case .tv: (height, radius, spacing, leading, trailing, scope, icon, clear) = (60, 18, 12, 18, 14, 44, 36, 32)
     }
   }
 }
@@ -206,7 +207,7 @@ public struct SidebarSearchButton: View {
   }
 
   public var body: some View {
-    let size: CGFloat = idiom.isTouch ? 40 : 32
+    let size: CGFloat = idiom.size(32, touch: 40)
     Group {
       if isSearching {
         HStack(spacing: 8) {
@@ -222,7 +223,7 @@ public struct SidebarSearchButton: View {
               close()
               return .handled
             }
-          CtlSearchCloseButton(size: idiom.isTouch ? 28 : 22, action: close)
+          CtlSearchCloseButton(size: idiom.size(22, touch: 28), action: close)
         }
         .padding(.leading, 12)
         .padding(.trailing, 6)

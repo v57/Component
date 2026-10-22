@@ -218,13 +218,13 @@ public struct FilterToken: View {
   }
 
   public var body: some View {
-    let height: CGFloat = idiom.isTouch ? 32 : 24
-    let radius: CGFloat = idiom.isTouch ? 10 : 7
+    let height: CGFloat = idiom.size(24, touch: 32)
+    let radius: CGFloat = idiom.size(7, touch: 10)
     let close = height - 6
     HStack(spacing: 5) {
       if let systemImage {
         Image(systemName: systemImage)
-          .font(.system(size: idiom.isTouch ? 12 : 10, weight: .semibold))
+          .font(.system(size: idiom.size(10, touch: 12), weight: .semibold))
           .imageScale(.small)
       }
       title
@@ -247,7 +247,7 @@ public struct FilterToken: View {
       .accessibilityLabel("Remove")
     }
     .foregroundStyle(BadgeInk(hue: hue))
-    .padding(.leading, idiom.isTouch ? 10 : 8)
+    .padding(.leading, idiom.size(8, touch: 10))
     .padding(.trailing, 3)
     .frame(height: height)
     .background(BadgeTint(hue: hue), in: RoundedRectangle(cornerRadius: radius, style: .continuous))

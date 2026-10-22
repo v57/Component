@@ -23,7 +23,7 @@ struct ContDisclosureButton: View {
   @State private var isHovered = false
 
   var body: some View {
-    let size: CGFloat = idiom.isTouch ? 14 : 12
+    let size: CGFloat = idiom.size(12, touch: 14)
     if let isExpanded = disclosure.isExpanded {
       Button {
         withKitAnimation { isExpanded.wrappedValue.toggle() }

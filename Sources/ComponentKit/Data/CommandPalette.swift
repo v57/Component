@@ -83,7 +83,7 @@ public struct KitPalette<Scope: View, Content: View>: View {
       scope
       TextField(prompt, text: $query)
         .textFieldStyle(.plain)
-        .font(.system(size: idiom.isTouch ? 20 : 17))
+        .font(.system(size: idiom.size(17, touch: 20)))
         .focused($isFocused)
         .onSubmit { nav.activate() }
         .onKeyPress(.upArrow) {
@@ -104,7 +104,7 @@ public struct KitPalette<Scope: View, Content: View>: View {
     }
     .padding(.leading, 8)
     .padding(.trailing, 6)
-    .frame(height: idiom.isTouch ? 52 : 44)
+    .frame(height: idiom.size(44, touch: 52))
     .background {
       let shape = RoundedRectangle(cornerRadius: KitMetrics.radiusCard, style: .continuous)
       SurfaceShape(surface: .raised, cornerRadius: KitMetrics.radiusCard)
@@ -360,7 +360,7 @@ public struct PaletteItem: View {
     }
     .padding(.horizontal, 8)
     .padding(.vertical, subtitle == nil ? 0 : 3)
-    .frame(minHeight: subtitle == nil ? (idiom.isTouch ? 44 : 36) : KitMetrics.twoLineRow(idiom))
+    .frame(minHeight: subtitle == nil ? (idiom.size(36, touch: 44)) : KitMetrics.twoLineRow(idiom))
     .background {
       if isSelected {
         SurfaceShape(surface: .raised, cornerRadius: KitMetrics.radius)

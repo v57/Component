@@ -346,7 +346,7 @@ struct RefsCard: View {
       }
     }
     .padding(idiom.isTouch ? 8 : KitMetrics.cardPadding)
-    .frame(minWidth: 240, maxWidth: idiom.isTouch ? 460 : 360, alignment: .leading)
+    .frame(minWidth: 240, maxWidth: idiom.size(360, touch: 460), alignment: .leading)
     .fixedSize(horizontal: false, vertical: true)
     .presentationBackground(.kitElevated)
   }

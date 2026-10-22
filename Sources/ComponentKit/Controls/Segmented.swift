@@ -191,6 +191,8 @@ struct CtlSegmentMetrics {
       (trackPadding, trackRadius, height, horizontalPadding, radius, font) = (3, 12, 32, 14, 9, .callout)
     case (_, .phone):
       (trackPadding, trackRadius, height, horizontalPadding, radius, font) = (3, 12, 34, style == .wide ? 8 : 14, 9, .callout)
+    case (_, .tv):
+      (trackPadding, trackRadius, height, horizontalPadding, radius, font) = (4, 18, 52, 22, 14, .callout)
     }
   }
 }

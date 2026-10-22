@@ -495,7 +495,7 @@ struct ContSidebarBar<Actions: View>: View {
 
   var body: some View {
     let searching = isSearching ?? $ownSearching
-    HStack(spacing: idiom.isTouch ? 10 : 8) {
+    HStack(spacing: idiom.size(8, touch: 10)) {
       if let searchText {
         SidebarSearchButton(text: searchText, isSearching: searching, prompt: prompt)
       }
@@ -506,7 +506,7 @@ struct ContSidebarBar<Actions: View>: View {
           status
             .kitFont(.caption)
             .lineLimit(1)
-            .padding(.horizontal, idiom.isTouch ? 12 : 9)
+            .padding(.horizontal, idiom.size(9, touch: 12))
             .frame(minHeight: ContMetrics.barHeight(idiom))
             .kitSurface(.card, cornerRadius: ContMetrics.barRadius(idiom))
             .layoutPriority(-1)
@@ -528,9 +528,9 @@ struct ContSidebarBar<Actions: View>: View {
     }
     // On the Mac the card sits 10pt from the bar's top and the window's bottom, as from the sidebar's edge (52pt, the
     // title bar's height).
-    .padding(.top, idiom == .phone ? 10 : idiom == .pad ? 8 : 10)
-    .padding(.horizontal, idiom == .phone ? 20 : idiom == .pad ? 12 : 10)
-    .padding(.bottom, idiom == .phone ? 10 : idiom == .pad ? 14 : 10)
+    .padding(.top, idiom.size(10, pad: 8, phone: 10))
+    .padding(.horizontal, idiom.size(10, pad: 12, phone: 20))
+    .padding(.bottom, idiom.size(10, pad: 14, phone: 10))
   }
 }
 
@@ -758,7 +758,7 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
     let isEmphasized = isSelected && (selection?.isFocused ?? false) && isActive
     let isRenaming = rename?.isRenaming.wrappedValue ?? false
     let disclosure = disclosure
-    HStack(spacing: compact ? 6 : idiom.isTouch ? 12 : 8) {
+    HStack(spacing: compact ? 6 : idiom.size(8, touch: 12)) {
       if let disclosure {
         ContDisclosureButton(disclosure: disclosure, title: title)
       }
@@ -808,8 +808,8 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
     }
     .environment(\.contRowState, ContRowState(isSelected: isSelected, isEmphasized: isEmphasized))
     .padding(.vertical, compact ? 1 : idiom == .phone ? 6 : 4)
-    .padding(.leading, (idiom.isTouch ? 10 : 6) + CGFloat(indent) * ContMetrics.rowIndent(idiom) - (disclosure != nil ? 4 : 0))
-    .padding(.trailing, idiom.isTouch ? 10 : 6)
+    .padding(.leading, (idiom.size(6, touch: 10)) + CGFloat(indent) * ContMetrics.rowIndent(idiom) - (disclosure != nil ? 4 : 0))
+    .padding(.trailing, idiom.size(6, touch: 10))
     .frame(minHeight: compact ? 24 : KitMetrics.row(idiom))
     .background { background(isSelected: isSelected, isEmphasized: isEmphasized, isRenaming: isRenaming) }
     .contentShape(Rectangle())

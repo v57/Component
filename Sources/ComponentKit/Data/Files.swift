@@ -66,9 +66,9 @@ public struct KitFileCell: View {
   public var body: some View {
     HStack(spacing: 8) {
       Image(systemName: systemImage ?? kind.systemImage)
-        .font(.system(size: idiom.isTouch ? 15 : 13))
+        .font(.system(size: idiom.size(13, touch: 15)))
         .foregroundStyle(kind == .folder ? AnyShapeStyle(Hue.teal.fill) : AnyShapeStyle(.kitSecondary))
-        .frame(width: idiom.isTouch ? 20 : 16)
+        .frame(width: idiom.size(16, touch: 20))
         .accessibilityHidden(true)
       Text(name)
         .lineLimit(1)
@@ -139,10 +139,10 @@ public struct TextConflict: View {
               .lineLimit(1)
               .truncationMode(.tail)
           }
-          .frame(minHeight: idiom.isTouch ? 22 : 18)
+          .frame(minHeight: idiom.size(18, touch: 22))
         }
       }
-      .font(.system(size: idiom.isTouch ? 14 : 12, design: .monospaced))
+      .font(.system(size: idiom.size(12, touch: 14), design: .monospaced))
       .textSelection(.enabled)
     }
     .padding(.horizontal, 10)

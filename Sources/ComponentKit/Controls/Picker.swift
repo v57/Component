@@ -134,6 +134,7 @@ struct KitPickerMetrics {
     case .mac: (height, radius, leading, trailing, chevron, minWidth) = (30, 9, 10, 8, 9, 96)
     case .pad: (height, radius, leading, trailing, chevron, minWidth) = (36, 12, 12, 10, 10, 120)
     case .phone: (height, radius, leading, trailing, chevron, minWidth) = (44, 14, 14, 12, 11, 120)
+    case .tv: (height, radius, leading, trailing, chevron, minWidth) = (60, 18, 20, 16, 18, 192)
     }
   }
 }
@@ -220,7 +221,7 @@ public struct KitMenuButton<Content: View>: View {
         .foregroundStyle(.kitSecondary)
     }
     .foregroundStyle(.kitLabel)
-    .padding(.horizontal, idiom.isTouch ? 10 : 8)
+    .padding(.horizontal, idiom.size(8, touch: 10))
     .frame(height: height)
     .background {
       CtlRaisedCard(cornerRadius: height * 0.3)
@@ -297,9 +298,9 @@ public struct KitSplitButton<Menu: View>: View {
       isOpen.toggle()
     } label: {
       Image(systemName: "chevron.down")
-        .font(.system(size: idiom.isTouch ? 11 : 9, weight: .bold))
+        .font(.system(size: idiom.size(9, touch: 11), weight: .bold))
         .foregroundStyle(.kitSecondary)
-        .frame(width: idiom.isTouch ? 14 : 10)
+        .frame(width: idiom.size(10, touch: 14))
     }
     .accessibilityLabel("\(title) Options")
     .kitToolOn(isOpen)

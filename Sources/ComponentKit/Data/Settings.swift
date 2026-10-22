@@ -62,7 +62,7 @@ public struct KitSettings<Content: View>: View {
           .modifier(SettingsPush(isPresented: $showsPane) { phonePane })
       } else {
         HStack(spacing: 0) {
-          sidebar.frame(width: idiom.isTouch ? 260 : 190)
+          sidebar.frame(width: idiom.size(190, touch: 260))
           detail
         }
       }
@@ -282,7 +282,7 @@ private struct SettingsSidebarRow: View {
       HStack(spacing: 8) {
         Tile(
           systemImage: pane.systemImage, hue: isSelected && isActive ? .accent : pane.hue,
-          size: idiom.isTouch ? 28 : 20, style: .solid)
+          size: idiom.size(20, touch: 28), style: .solid)
         Text(pane.title).lineLimit(1)
         Spacer(minLength: 0)
       }

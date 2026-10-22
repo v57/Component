@@ -115,7 +115,7 @@ public struct MeterLegend: View {
         .monospacedDigit()
         .foregroundStyle(.kitSecondary)
     }
-    .frame(minHeight: idiom.isTouch ? 36 : 26)
+    .frame(minHeight: idiom.size(26, touch: 36))
     .accessibilityElement(children: .combine)
   }
 }

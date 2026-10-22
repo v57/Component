@@ -101,8 +101,8 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
       if let onClose {
         Button(action: onClose) {
           Image(systemName: "xmark")
-            .font(.system(size: idiom.isTouch ? 12 : 10, weight: .bold))
-            .frame(width: idiom.isTouch ? 30 : 24, height: idiom.isTouch ? 30 : 24)
+            .font(.system(size: idiom.size(10, touch: 12), weight: .bold))
+            .frame(width: idiom.size(24, touch: 30), height: idiom.size(24, touch: 30))
             .background { Circle().fill(.kitFill) }
             .contentShape(Circle())
         }
@@ -121,7 +121,7 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
       .controlSize(.small)
       .frame(maxWidth: .infinity, alignment: .trailing)
       .padding(4)
-      .frame(minHeight: idiom == .phone ? 52 : idiom == .pad ? 44 : 36)
+      .frame(minHeight: idiom.size(36, pad: 44, phone: 52))
       .kitSurface(.card, cornerRadius: idiom == .phone ? 18 : idiom == .pad ? KitMetrics.radiusXL : KitMetrics.radiusCard)
       .padding(KitMetrics.gutter)
   }
@@ -176,7 +176,7 @@ public struct SheetStatus: View {
 
   public var body: some View {
     HStack(spacing: 8) {
-      LiveIcon(systemImage: systemImage, hue: hue, status: status, size: idiom.isTouch ? 26 : 22)
+      LiveIcon(systemImage: systemImage, hue: hue, status: status, size: idiom.size(22, touch: 26))
       Text(text)
         .kitFont(.callout)
         .foregroundStyle(isFailed ? AnyShapeStyle(Hue.red.text) : AnyShapeStyle(.kitSecondary))
@@ -212,8 +212,8 @@ private struct ContSheetButton: View {
       .fontWeight(.medium)
       .lineLimit(1)
       .foregroundStyle(configuration.role == .destructive ? AnyShapeStyle(Hue.red.text) : AnyShapeStyle(.kitLabel))
-      .padding(.horizontal, idiom.isTouch ? 16 : 12)
-      .frame(minHeight: idiom == .phone ? 44 : idiom == .pad ? 36 : 28)
+      .padding(.horizontal, idiom.size(12, touch: 16))
+      .frame(minHeight: idiom.size(28, pad: 36, phone: 44))
       .background { shape.fill(scheme == .dark ? KitColor.raised : KitColor.fill) }
       .overlay {
         shape.fill(configuration.isPressed ? AnyShapeStyle(.kitPress) : isHovered && isEnabled ? AnyShapeStyle(.kitHover) : AnyShapeStyle(Color.clear))

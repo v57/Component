@@ -183,10 +183,10 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
     HStack(spacing: 2) {
       if isHovered || !expanded || idiom.isTouch {
         Image(systemName: "chevron.down")
-          .font(.system(size: idiom.isTouch ? 12 : 10, weight: .semibold))
+          .font(.system(size: idiom.size(10, touch: 12), weight: .semibold))
           .foregroundStyle(.kitTertiary)
           .rotationEffect(.degrees(expanded ? 0 : -90))
-          .frame(width: idiom.isTouch ? 24 : 16)
+          .frame(width: idiom.size(16, touch: 24))
           .transition(.opacity)
           .accessibilityHidden(true)
       }
@@ -223,7 +223,7 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
       }
       .padding(.leading, 4)
       .padding(.trailing, 2)
-      .frame(minHeight: idiom.isTouch ? 34 : 22)
+      .frame(minHeight: idiom.size(22, touch: 34))
       .contentShape(Rectangle())
       .onTapGesture(perform: toggle)
       .kitHover { isHovered = $0 }

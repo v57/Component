@@ -96,6 +96,7 @@ struct ChipMetrics {
       case .mac: self.init(height: 18, fontSize: 11, padding: 6, radius: 5, gap: 4, glyph: 10)
       case .pad: self.init(height: 22, fontSize: 12, padding: 8, radius: 6, gap: 5, glyph: 12)
       case .phone: self.init(height: 24, fontSize: 13, padding: 8, radius: 6, gap: 5, glyph: 12)
+      case .tv: self.init(height: 36, fontSize: 22, padding: 12, radius: 10, gap: 8, glyph: 20)
       }
     }
   }
@@ -118,5 +119,6 @@ func badgeFigureSize(_ idiom: KitIdiom) -> CGFloat {
   case .mac: 11
   case .pad: 13
   case .phone: 15
+  case .tv: 22
   }
 }

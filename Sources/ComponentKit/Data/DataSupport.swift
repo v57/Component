@@ -52,7 +52,7 @@ private struct DataSoftButton: View {
       .lineLimit(1)
       .foregroundStyle(configuration.role == .destructive ? AnyShapeStyle(Hue.red.text) : AnyShapeStyle(.kitLabel))
       .padding(.horizontal, small ? 8 : 10)
-      .frame(height: (small ? 22 : 24) + (idiom.isTouch ? 8 : 0))
+      .frame(height: (small ? 22 : 24) + (idiom.size(0, touch: 8)))
       .background {
         if scheme == .dark {
           SurfaceShape(surface: .raised, cornerRadius: small ? 6 : 7)

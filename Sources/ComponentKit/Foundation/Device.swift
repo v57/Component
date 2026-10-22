@@ -10,10 +10,12 @@ import SwiftUI
 /// Label("On My \(KitDevice.name)", systemImage: KitDevice.systemImage)
 /// ```
 public enum KitDevice {
-  /// "Mac", "iPad", "iPhone", or "PC" (Windows) / "Computer" (Linux).
+  /// "Mac", "iPad", "iPhone", "Apple TV", or "PC" (Windows) / "Computer" (Linux).
   @MainActor public static var name: String {
     #if os(macOS)
       "Mac"
+    #elseif os(tvOS)
+      "Apple TV"
     #elseif canImport(UIKit)
       UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone"
     #elseif os(Windows)
@@ -27,6 +29,8 @@ public enum KitDevice {
   @MainActor public static var systemImage: String {
     #if os(macOS)
       "laptopcomputer"
+    #elseif os(tvOS)
+      "appletv"
     #elseif canImport(UIKit)
       UIDevice.current.userInterfaceIdiom == .pad ? "ipad" : "iphone"
     #else

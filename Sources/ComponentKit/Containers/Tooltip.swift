@@ -104,7 +104,7 @@ struct ContTooltipCard: View {
   var body: some View {
     HStack(spacing: 9) {
       if let systemImage {
-        LiveIcon(systemImage: systemImage, hue: hue, status: status, size: idiom.isTouch ? 30 : 26)
+        LiveIcon(systemImage: systemImage, hue: hue, status: status, size: idiom.size(26, touch: 30))
       }
       VStack(alignment: .leading, spacing: 1) {
         Text(title).kitFont(.headline)
@@ -116,7 +116,7 @@ struct ContTooltipCard: View {
     .padding(.leading, systemImage == nil ? 10 : 7)
     .padding(.trailing, 8)
     .padding(.vertical, 7)
-    .frame(minHeight: idiom.isTouch ? 48 : 42)
+    .frame(minHeight: idiom.size(42, touch: 48))
     .background { SurfaceShape(surface: .floating, cornerRadius: idiom.isTouch ? KitMetrics.radiusXL : KitMetrics.radiusCard) }
   }
 }

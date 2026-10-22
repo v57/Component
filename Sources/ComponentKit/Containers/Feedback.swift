@@ -36,7 +36,7 @@ public struct Banner<Actions: View>: View {
   }
 
   public var body: some View {
-    let tile: CGFloat = idiom.isTouch ? 32 : 28
+    let tile: CGFloat = idiom.size(28, touch: 32)
     HStack(spacing: 10) {
       Image(systemName: systemImage)
         .font(.system(size: tile * 0.5, weight: .semibold))
@@ -242,7 +242,7 @@ public struct ToastView: View {
     }
     .padding(.leading, toast.systemImage == nil ? 14 : 8)
     .padding(.trailing, 6)
-    .frame(height: idiom.isTouch ? 52 : 44)
+    .frame(height: idiom.size(44, touch: 52))
     .background { SurfaceShape(surface: .floating, cornerRadius: KitMetrics.radiusCard) }
     .accessibilityElement(children: .contain)
   }

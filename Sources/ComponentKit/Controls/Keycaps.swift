@@ -19,6 +19,7 @@ public struct Keycap: View {
       case .mac: 20
       case .pad: 24
       case .phone: 26
+      case .tv: 40
       }
     let shape = RoundedRectangle(cornerRadius: 5, style: .continuous)
     Text(Keycaps.displayed(key))
