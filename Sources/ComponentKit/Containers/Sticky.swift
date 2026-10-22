@@ -106,8 +106,6 @@ struct ContStickyState: Hashable, Sendable {
   var part: ContStickyPart
   /// Its place among the sticky views.
   var order = 0
-  /// Another view of its stack is stuck nearer the bar: its ground fills the gap up to that one.
-  var bridges = false
 
   /// Stuck views draw over the rest; in the top stack the first over the next (whose card scrolls on under it), in
   /// the bottom stack the last; the bottom stack over the top one, whose rows scroll on under it.
@@ -491,14 +489,7 @@ extension ContStickyItemModifier {
     {
       let area = table.visibleArea(naturalTop: frame.minY, hostTop: hostTop)
       if let (live, order) = table.live(id, part: .content, at: frame.minY) {
-        let placements = live.placements(visibleTop: area.top, visibleBottom: area.bottom)
-        new = placements[order].map { placement in
-          let bridges = placements.contains { other in
-            guard let other, other.edge == placement.edge else { return false }
-            return placement.edge == .top ? other.y < placement.y : other.y > placement.y
-          }
-          return ContStickyState(edge: placement.edge, part: placement.part, order: order, bridges: bridges)
-        }
+        new = live.placements(visibleTop: area.top, visibleBottom: area.bottom)[order].map { ContStickyState(edge: $0.edge, part: $0.part, order: order) }
       }
     }
     if new != state {
@@ -584,8 +575,7 @@ struct ContStickyTitleModifier: ViewModifier {
       content
         .background(alignment: .top) {
           ContStuckGround(
-            cornerRadius: cornerRadius, plain: plain, state: context.state?.part == .title ? context.state : nil,
-            gap: table.spacing
+            cornerRadius: cornerRadius, plain: plain, state: context.state?.part == .title ? context.state : nil
           )
           .padding(.bottom, -extra)
         }
@@ -619,15 +609,12 @@ extension ContStickyTitleModifier {
 struct ContStickyCardGround: View {
   var cornerRadius: CGFloat
   @Environment(\.contStickyContext) private var context
-  @Environment(\.contStickyTable) private var table
 
   var body: some View {
     if let context {
       SurfaceShape(surface: .card, cornerRadius: cornerRadius)
         .overlay {
-          ContStuckGround(
-            cornerRadius: cornerRadius, state: context.state?.part == .content ? context.state : nil,
-            gap: table?.spacing ?? 0)
+          ContStuckGround(cornerRadius: cornerRadius, state: context.state?.part == .content ? context.state : nil)
         }
     } else {
       SurfaceShape(surface: .card, cornerRadius: cornerRadius)
@@ -635,9 +622,8 @@ struct ContStickyCardGround: View {
   }
 }
 
-/// A stuck card's ground: the card, opaque over the sidebar, with the float shadow; with another card of its stack
-/// stuck nearer the bar, the sidebar's ground out to that one, so the rows scrolling under don't show between them.
-/// Toward the bar itself nothing: the rows run on under the bar as they do while nothing is stuck. A plain section's
+/// A stuck card's ground: the card, opaque over the sidebar, with the float shadow. Around it nothing: the rows run
+/// on under the gaps between stuck cards and under the bars, as they do while nothing is stuck. A plain section's
 /// title gets the sidebar's ground alone.
 ///
 /// It stays in place while the view is in a sticky item, `state` `nil` while the view isn't stuck: the ground comes
@@ -646,7 +632,6 @@ struct ContStuckGround: View {
   var cornerRadius: CGFloat
   var plain = false
   var state: ContStickyState?
-  var gap: CGFloat
   @Environment(\.colorScheme) private var scheme
 
   var body: some View {
@@ -664,11 +649,6 @@ struct ContStuckGround: View {
           .opacity(isStuck ? 1 : 0)
       }
       .environment(\.contBarGround, KitColor.sidebar)
-      .background {
-        Rectangle().fill(.kitSidebar)
-          .padding(state?.edge == .bottom ? .bottom : .top, -gap)
-          .opacity(state?.bridges == true ? 1 : 0)
-      }
     }
   }
 }
