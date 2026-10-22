@@ -1232,6 +1232,7 @@ struct SheetsPage: View {
   var body: some View {
     CatalogPage(page: .sheets) {
       #if DEBUG && os(macOS)
+        let _ = OverlayTest.setAppearanceIfAsked()
         let _ = OverlayTest.runIfAsked()
       #endif
       SpecimenSection(

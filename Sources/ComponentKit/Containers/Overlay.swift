@@ -156,17 +156,35 @@ final class KitOverlayHost {
   var isShowing: Bool { top != nil }
 }
 
+/// What an overlay's content takes from where it is drawn rather than from its presenter: whether it is enabled (a
+/// card under another isn't) and the window's look. The presenter's environment is a copy from when it last redrew,
+/// so an appearance forced after launch (`NSApp.appearance`, an app's own setting) never reached it.
+struct KitOverlayLook: Equatable {
+  var isEnabled = true
+  var colorScheme: ColorScheme = .light
+  var colorSchemeContrast: ColorSchemeContrast = .standard
+  var windowIsActive = true
+
+  func apply<Content: View>(to content: Content) -> some View {
+    content
+      .environment(\.isEnabled, isEnabled)
+      .environment(\.colorScheme, colorScheme)
+      .environment(\._colorSchemeContrast, colorSchemeContrast)
+      .environment(\.kitWindowIsActive, windowIsActive)
+  }
+}
+
 /// An overlay's content as its presenter last built it. The presenter rebuilds it whenever it redraws (its state
 /// changed), and the overlay redraws on the next turn of the run loop; bindings and observed models inside update
 /// the overlay directly.
 @MainActor @Observable
 final class KitOverlayContent {
   private(set) var version = 0
-  /// Builds the content, enabled or not (a card under another is disabled).
-  @ObservationIgnored private(set) var make: (_ isEnabled: Bool) -> AnyView = { _ in AnyView(EmptyView()) }
+  /// Builds the content with the look of where it is drawn.
+  @ObservationIgnored private(set) var make: (_ look: KitOverlayLook) -> AnyView = { _ in AnyView(EmptyView()) }
   @ObservationIgnored private var isPending = false
 
-  func update(_ make: @escaping (_ isEnabled: Bool) -> AnyView) {
+  func update(_ make: @escaping (_ look: KitOverlayLook) -> AnyView) {
     self.make = make
     guard !isPending else { return }
     isPending = true
@@ -176,7 +194,7 @@ final class KitOverlayContent {
     }
   }
 
-  func set(_ make: @escaping (_ isEnabled: Bool) -> AnyView) {
+  func set(_ make: @escaping (_ look: KitOverlayLook) -> AnyView) {
     self.make = make
     version &+= 1
   }
@@ -276,10 +294,16 @@ private struct KitOverlayEntryView: View {
 private struct KitOverlayBody: View {
   let content: KitOverlayContent
   let isEnabled: Bool
+  @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+  @Environment(\.kitWindowIsActive) private var windowIsActive
 
   var body: some View {
     let _ = content.version
-    content.make(isEnabled)
+    content.make(
+      KitOverlayLook(
+        isEnabled: isEnabled, colorScheme: colorScheme, colorSchemeContrast: colorSchemeContrast,
+        windowIsActive: windowIsActive))
   }
 }
 
@@ -360,18 +384,20 @@ struct KitOverlayPresenter<Overlay: View>: ViewModifier {
   }
 
   /// The content with the presenting view's environment (its models, accent, idiom) and the kit's dismiss.
-  private var make: (_ isEnabled: Bool) -> AnyView {
+  private var make: (_ look: KitOverlayLook) -> AnyView {
     let content = content
     let environment = environment
     let dismiss = dismissAction
-    return { isEnabled in
+    return { look in
       AnyView(
-        content()
-          .environment(\.kitDismiss, dismiss)
-          .environment(\.kitPresentation, .overlay)
-          // The presenter is behind the overlay, so disabled while it shows; the top card isn't.
-          .environment(\.isEnabled, isEnabled)
-          .environment(\.self, environment))
+        // The presenter is behind the overlay, so disabled while it shows (the top card isn't), and its look may be
+        // older than the window's: both come from where the card is drawn.
+        look.apply(
+          to: content()
+            .environment(\.kitDismiss, dismiss)
+            .environment(\.kitPresentation, .overlay)
+        )
+        .environment(\.self, environment))
     }
   }
 

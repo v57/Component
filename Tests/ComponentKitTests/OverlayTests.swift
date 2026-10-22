@@ -81,15 +81,16 @@ private func eventually(_ done: () -> Bool) async throws {
 
 @MainActor @Test func overlayContentBuildsEnabledOnlyOnTop() {
   let content = KitOverlayContent()
-  var built: [Bool] = []
-  content.set { isEnabled in
-    built.append(isEnabled)
+  var built: [KitOverlayLook] = []
+  content.set { look in
+    built.append(look)
     return AnyView(EmptyView())
   }
   let version = content.version
-  _ = content.make(true)
-  _ = content.make(false)
-  #expect(built == [true, false])
+  _ = content.make(KitOverlayLook(isEnabled: true, colorScheme: .light))
+  _ = content.make(KitOverlayLook(isEnabled: false, colorScheme: .dark))
+  #expect(built.map(\.isEnabled) == [true, false])
+  #expect(built.map(\.colorScheme) == [.light, .dark])
   content.set { _ in AnyView(EmptyView()) }
   #expect(content.version == version + 1)
 }

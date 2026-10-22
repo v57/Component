@@ -10,6 +10,19 @@
   enum OverlayTest {
     private static var hasRun = false
 
+    private static var hasSetAppearance = false
+
+    /// `--app-appearance light|dark`: sets the app's appearance after launch, as Git, Database and Dev's screenshots
+    /// force one on a Mac set to the other (`NSApp.appearance`), to check overlays under it.
+    static func setAppearanceIfAsked() {
+      let arguments = ProcessInfo.processInfo.arguments
+      guard !hasSetAppearance, let index = arguments.firstIndex(of: "--app-appearance"), index + 1 < arguments.count
+      else { return }
+      hasSetAppearance = true
+      let name: NSAppearance.Name = arguments[index + 1] == "dark" ? .darkAqua : .aqua
+      Task { @MainActor in NSApp.appearance = NSAppearance(named: name) }
+    }
+
     static func runIfAsked() {
       let arguments = ProcessInfo.processInfo.arguments
       guard !hasRun, let index = arguments.firstIndex(of: "--overlay-test"), index + 1 < arguments.count else { return }
