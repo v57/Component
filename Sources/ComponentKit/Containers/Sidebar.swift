@@ -221,10 +221,10 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
       }
     }
     .background { Rectangle().fill(.kitSidebar).ignoresSafeArea() }
-    // Its own floor: a split view's column minimum gives way under a full toolbar. Not in an iPad three-column
-    // split, whose sidebar column is narrower than the floor in portrait (about 200pt): held wider, the cards ran
-    // past both edges of the column. There it takes the column's width.
-    .frame(minWidth: threeColumns && idiom.isTouch ? nil : KitMetrics.sidebarMinWidth(idiom))
+    // Its own floor on the Mac: a split view's column minimum gives way under a full toolbar. Not on iPad, where
+    // the split view fixes the column's width (about 200pt in a three-column portrait, an app's own 220pt):
+    // held wider than the column, the cards ran past both of its edges, with no gutter at the screen's edge.
+    .frame(minWidth: idiom.isTouch ? nil : KitMetrics.sidebarMinWidth(idiom))
     .environment(
       \.contSidebarSelection,
       ContSidebarSelection(
