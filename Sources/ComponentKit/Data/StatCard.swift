@@ -51,12 +51,12 @@ public struct KitStatCard: View {
   private var card: some View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(spacing: 6) {
-        Tile(systemImage: systemImage, hue: hue, size: 20)
+        Tile(systemImage: systemImage, hue: hue, size: idiom.size(20, touch: 22))
         Text(label).kitFont(.caption).lineLimit(1)
       }
       HStack(alignment: .firstTextBaseline, spacing: 6) {
         Text(value)
-          .font(.system(size: idiom.isTouch ? 26 : 24, weight: .bold))
+          .font(.system(size: idiom.size(24, touch: 26), weight: .bold))
           .monospacedDigit()
           .contentTransition(.numericText())
           .lineLimit(1)
@@ -70,10 +70,10 @@ public struct KitStatCard: View {
       }
       if sparkline.count > 1 {
         KitSparkline(values: sparkline, hue: hue)
-          .frame(height: 30)
+          .frame(height: idiom.size(30, touch: 30))
       }
     }
-    .padding(10)
+    .padding(idiom.size(10, touch: 12))
     .frame(maxWidth: .infinity, alignment: .topLeading)
     .kitSurface(.card)
     .contentShape(Rectangle())
