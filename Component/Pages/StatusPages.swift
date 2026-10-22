@@ -391,6 +391,7 @@ struct EffectsPage: View {
         Self.flourishes)
       section("Light", note: "Drawn on or around the view's edge.", Self.light)
       section("Moves", note: "The view itself moves; its layout doesn't.", Self.moves)
+      HoverEffectSection()
     }
     // Captures run in a background window, where effects never play.
     .transformEnvironment(\.kitWindowIsActive) { if cycling { $0 = true } }
@@ -444,4 +445,54 @@ struct EffectsPage: View {
 
   private func count(_ effect: KitEffect) -> Int { counts[effect, default: 0] }
   private func bump(_ effect: KitEffect) { counts[effect, default: 0] += 1 }
+}
+
+/// Hub's 3D hover: tiles in a card that lights with them, and a card alone.
+private struct HoverEffectSection: View {
+  var body: some View {
+    SpecimenSection(
+      "Hover",
+      note: "Tilts toward the pointer (a finger on iPhone and iPad) and lights where it is. A tile inside a card "
+        + "lights the card faintly. The light is only drawn while something is lit."
+    ) {
+      SpecimenGrid(minWidth: 300) {
+        Specimen(
+          "Tiles in a card", padding: 32,
+          code: """
+            HStack { Button("Requests", systemImage: "clock") { … } }
+              .labelStyle(.kitHoverTile).buttonStyle(.kitHoverEffect)
+              .padding().kitHoverEffect(in: .rect(cornerRadius: 20))
+            """
+        ) {
+          let shape = RoundedRectangle(cornerRadius: KitMetrics.radiusOverlay + 14, style: .continuous)
+          HStack(spacing: 14) {
+            Button("Requests", systemImage: "clock") {}.foregroundStyle(Hue.orange.fill)
+            Button("Devices", systemImage: "laptopcomputer.and.iphone") {}
+            Button("Network", systemImage: "network") {}.foregroundStyle(Hue.blue.fill)
+          }
+          .labelStyle(.kitHoverTile)
+          .buttonStyle(.kitHoverEffect)
+          .padding(14)
+          .background { shape.fill(.kitPanel).strokeBorder(.kitBorder) }
+          .kitHoverEffect(in: shape)
+        }
+        Specimen(
+          "A card", padding: 32,
+          code: """
+            card.background(.kitCard, in: shape).kitHoverEffect(in: shape)
+            """
+        ) {
+          let shape = RoundedRectangle(cornerRadius: KitMetrics.radiusOverlay, style: .continuous)
+          VStack(alignment: .leading, spacing: 4) {
+            Label("Studio", systemImage: "server.rack").font(.headline)
+            Text("70 services · 3 requests").kitFont(.caption).foregroundStyle(.kitSecondary)
+          }
+          .padding(16)
+          .frame(width: 220, alignment: .leading)
+          .background { shape.fill(.kitCard).strokeBorder(.kitBorder) }
+          .kitHoverEffect(in: shape)
+        }
+      }
+    }
+  }
 }
