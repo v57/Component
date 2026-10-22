@@ -4,9 +4,9 @@ import SwiftUI
 
 extension View {
   /// Asks before an action in a centered card over the screen, alert-style: the icon, the title and message centered,
-  /// whatever the decision needs (a safety code to compare), then Cancel and the confirming button. On iPhone and iPad
-  /// it covers the screen with a dimmed backdrop (a tap on it cancels); on the Mac it is a sheet, as Mac apps ask.
-  /// Return confirms and Escape cancels. For a plain yes/no, `kitConfirmation` is the sheet with the same buttons.
+  /// whatever the decision needs (a safety code to compare), then Cancel and the confirming button. On the Mac and iPad
+  /// it is the kit's overlay (the window dims, a click on the dim cancels; it stacks over a sheet it is asked from);
+  /// on iPhone it covers the screen with a dimmed backdrop (a tap on it cancels). Return confirms and Escape cancels. For a plain yes/no, `kitConfirmation` is the sheet with the same buttons.
   ///
   /// ```swift
   /// .kitDialog("Approve ThinkPad X1?", isPresented: $approving, message: "Windows · wants to join Home Hub",
@@ -89,31 +89,56 @@ struct KitDialogCard: View {
 struct KitDialogModifier: ViewModifier {
   @Binding var isPresented: Bool
   let card: KitDialogCard
+  @Environment(\.kitIdiom) private var idiom
+  @Environment(\.kitOverlayHost) private var host
 
   func body(content: Content) -> some View {
     #if os(iOS)
-      content
-        .fullScreenCover(isPresented: $isPresented) {
-          KitDialogCover(card: card) { confirmed in
-            if confirmed { card.action() }
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) { isPresented = false }
+      if idiom == .phone || host == nil {
+        content
+          .fullScreenCover(isPresented: $isPresented) {
+            KitDialogCover(card: card) { confirmed in
+              if confirmed { card.action() }
+              var transaction = Transaction()
+              transaction.disablesAnimations = true
+              withTransaction(transaction) { isPresented = false }
+            }
+            .presentationBackground(.clear)
           }
-          .presentationBackground(.clear)
-        }
-        // Shown and hidden without the system's slide: the dialog draws its own entrance.
-        .transaction(value: isPresented) { $0.disablesAnimations = true }
-    #else
-      content.sheet(isPresented: $isPresented) {
-        var card = card
-        let _ = card.close = { confirmed in
-          if confirmed { card.action() }
-          isPresented = false
-        }
-        card.background { Rectangle().fill(.kitPanel).ignoresSafeArea() }
+          // Shown and hidden without the system's slide: the dialog draws its own entrance.
+          .transaction(value: isPresented) { $0.disablesAnimations = true }
+      } else {
+        overlay(content)
       }
+    #else
+      overlay(content)
     #endif
+  }
+
+  /// On the Mac and iPad, the kit's overlay: the card over the dimmed window, stacking over a sheet it is asked from.
+  private func overlay(_ content: Content) -> some View {
+    let binding = $isPresented
+    var card = card
+    card.close = { confirmed in
+      if confirmed { card.action() }
+      binding.wrappedValue = false
+    }
+    return content.modifier(
+      KitOverlayPresenter(
+        isPresented: binding, style: .sheet, onDismiss: nil, systemSheetOnPhone: false,
+        content: { [card] in KitDialogSheetGround(card: card) }))
+  }
+}
+
+/// The dialog's card, on the panel ground only in a system sheet (the overlay's card is its own ground).
+private struct KitDialogSheetGround: View {
+  let card: KitDialogCard
+  @Environment(\.kitPresentation) private var presentation
+
+  var body: some View {
+    card.background {
+      if presentation == .systemSheet { Rectangle().fill(.kitPanel).ignoresSafeArea() }
+    }
   }
 }
 

@@ -150,6 +150,8 @@ struct ComponentKitRoot: ViewModifier {
     content
       // A row drag's destination, named above the drag image over the whole window.
       .modifier(ContDropHintOverlay())
+      // Sheets, confirmations, dialogs and the palette over the whole window (`kitSheet`, `Containers/Overlay.swift`).
+      .modifier(KitOverlayHostModifier())
       .environment(\.kitWindowIsActive, isActive)
       .environment(\.kitIdiom, idiom)
       .modifier(OptionalAccent(accent: accent))

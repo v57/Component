@@ -487,7 +487,7 @@ struct PalettePage: View {
   @State private var ran: String?
   @State private var scope = "atlas"
   @State private var quickOpen = "tst"
-  @State private var showsOverlay = false
+  @State private var showsOverlay = catalogOpenSheet == "palette"
 
   var body: some View {
     CatalogPage(page: .palette) {

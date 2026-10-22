@@ -6,12 +6,16 @@ import SwiftUI
 
 /// A sheet's content: the still rich header (an icon tile, the title, one line of meta that wraps), the body's cards
 /// 8pt in from the edges, and the footer as a card bar. Buttons in the footer are filled and borderless; give the
-/// primary one `.buttonStyle(.kitPrimary)`. Lead the footer with a `SheetStatus` to show the sheet's own state (the
-/// arc while input is checked, red when wrong, a check when ready). On iPhone the sheet takes the height it's given
-/// and its body scrolls between the header and the footer.
+/// primary one `.buttonStyle(.kitPrimary)` and `.keyboardShortcut(.defaultAction)` (Return), Cancel
+/// `.keyboardShortcut(.cancelAction)` (Escape). Lead the footer with a `SheetStatus` to show the sheet's own state
+/// (the arc while input is checked, red when wrong, a check when ready).
+///
+/// Present it with `.kitSheet(isPresented:)`: on the Mac and iPad it is a card over the dimmed window, `width` wide
+/// (80pt wider on iPad), its body scrolling when the window is too short for it; on iPhone it is the system sheet,
+/// taking the height it's given, with its body scrolling between the header and the footer.
 ///
 /// ```swift
-/// .sheet(isPresented: $cloning) {
+/// .kitSheet(isPresented: $cloning) {
 ///   KitSheet(title: "Clone Repository", meta: "Copies a repository from GitHub, GitLab or any URL.",
 ///            systemImage: "arrow.down.circle") {
 ///     FormCard { FormRow("Repository URL", systemImage: "link", field: TextField("https://", text: $url)) }
@@ -33,9 +37,11 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
   @ViewBuilder var content: Content
   @ViewBuilder var footer: Footer
   @Environment(\.kitIdiom) private var idiom
+  @Environment(\.kitPresentation) private var presentation
+  @State private var bodyHeight: CGFloat = 0
 
-  /// A sheet with any icon (a thing's own tile, an avatar). `width` applies on the Mac; `onClose` adds the round close
-  /// button at the header's end (for panels without a Cancel button).
+  /// A sheet with any icon (a thing's own tile, an avatar). `width` applies on the Mac (and 80pt wider on iPad, over
+  /// the window); `onClose` adds the round close button at the header's end (for panels without a Cancel button).
   public init(
     title: String, meta: String? = nil, width: CGFloat? = 460, onClose: (() -> Void)? = nil,
     @ViewBuilder icon: () -> Icon, @ViewBuilder content: () -> Content, @ViewBuilder footer: () -> Footer
@@ -62,6 +68,14 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
           }
           .scrollBounceBehavior(.basedOnSize)
           .frame(maxHeight: .infinity, alignment: .top)
+        } else if presentation == .overlay {
+          // Over the window the card is as tall as its content, and its body scrolls when the window is shorter.
+          ScrollView {
+            sheetBody.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { bodyHeight = $0 }
+          }
+          .scrollBounceBehavior(.basedOnSize)
+          .scrollIndicators(.automatic)
+          .frame(maxHeight: bodyHeight)
         } else {
           sheetBody
         }
@@ -72,8 +86,20 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
         Spacer(minLength: KitMetrics.gutter).frame(height: KitMetrics.gutter)
       }
     }
-    .frame(width: idiom == .mac ? width : nil)
-    .background { Rectangle().fill(.kitPanel).ignoresSafeArea() }
+    .frame(width: sheetWidth)
+    .background {
+      // Over the window the overlay's card is the ground.
+      if presentation != .overlay { Rectangle().fill(.kitPanel).ignoresSafeArea() }
+    }
+  }
+
+  private var sheetWidth: CGFloat? {
+    guard let width else { return nil }
+    switch idiom {
+    case .mac, .tv: return width
+    case .pad: return presentation == .overlay ? width + 80 : nil
+    case .phone: return nil
+    }
   }
 
   private var sheetBody: some View {
@@ -228,7 +254,8 @@ private struct ContSheetButton: View {
 // MARK: - Confirmation
 
 extension View {
-  /// Asks before an action, as a kit sheet: the still header (a red tile for a destructive action) with the message
+  /// Asks before an action, as a kit sheet (over the window on the Mac and iPad, a system sheet on iPhone; it stacks
+  /// over a sheet it is asked from): the still header (a red tile for a destructive action) with the message
   /// wrapping under the title, and a footer bar with Cancel and the confirming button (filled red when destructive).
   /// Return confirms and Escape cancels.
   ///
@@ -241,7 +268,7 @@ extension View {
     systemImage: String = "exclamationmark.triangle", confirm: String, role: ButtonRole? = .destructive,
     action: @escaping @MainActor () -> Void
   ) -> some View {
-    sheet(isPresented: isPresented) {
+    kitSheet(isPresented: isPresented) {
       ContConfirmation(
         title: title, message: message, systemImage: systemImage, confirm: confirm, role: role, action: action,
         dismiss: { isPresented.wrappedValue = false })
@@ -288,7 +315,7 @@ extension View {
     _ title: String, isPresented: Binding<Bool>, message: String? = nil,
     systemImage: String = "exclamationmark.triangle", hue: Hue? = nil, buttons: [KitConfirmationButton]
   ) -> some View {
-    sheet(isPresented: isPresented) {
+    kitSheet(isPresented: isPresented) {
       ContMultiConfirmation(
         title: title, message: message, systemImage: systemImage, hue: hue, buttons: buttons,
         dismiss: { isPresented.wrappedValue = false })

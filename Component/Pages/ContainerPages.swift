@@ -1201,37 +1201,65 @@ struct FormsPage: View {
 
 // MARK: - Sheets
 
+/// `--open-sheet clone|panel|hosts|stacked|item|dialog|palette`: the Sheets page (the Palette page for `palette`) opens
+/// that overlay at launch (window captures).
+let catalogOpenSheet: String? = {
+  let arguments = ProcessInfo.processInfo.arguments
+  guard let index = arguments.firstIndex(of: "--open-sheet"), index + 1 < arguments.count else { return nil }
+  return arguments[index + 1]
+}()
+
 struct SheetsPage: View {
+  struct Host: Identifiable {
+    var name: String
+    var id: String { name }
+  }
+
   @State private var choosing = false
   @State private var url = "https://github.com/v57/Component.git"
-  @State private var cloning = false
+  @State private var cloning = catalogOpenSheet == "clone"
   @State private var confirming = false
   @State private var deleted = 0
-  @State private var panel = false
-  @State private var approving = false
+  @State private var panel = catalogOpenSheet == "panel"
+  @State private var hosts = catalogOpenSheet == "hosts" || catalogOpenSheet == "stacked"
+  @State private var editing: Host? = catalogOpenSheet == "item" ? Host(name: "atlas-web-1") : nil
+  @State private var approving = catalogOpenSheet == "dialog"
   @State private var approved = 0
   @Environment(\.showToast) private var showToast
 
   var body: some View {
     CatalogPage(page: .sheets) {
-      SpecimenSection("Present one", note: "Return confirms and Escape cancels.") {
+      #if DEBUG && os(macOS)
+        let _ = OverlayTest.runIfAsked()
+      #endif
+      SpecimenSection(
+        "Over the window",
+        note: "On the Mac and iPad a kit sheet dims the whole window, from wherever it is presented, and floats on the "
+          + "palette's card; on iPhone it is the system sheet. Return confirms; Escape, Cancel and a click on the dim "
+          + "close it; focus moves into the card and Tab stays there."
+      ) {
         Specimen(
-          "Sheet and confirmation",
+          "kitSheet and kitConfirmation",
           code: """
-            .sheet(isPresented: $cloning) { CloneSheet() }
+            .kitSheet(isPresented: $cloning) { CloneSheet() }        // was .sheet: the same bindings
+            .kitSheet(item: $editing) { host in HostSheet(host) }    // was .sheet(item:)
             .kitConfirmation("Delete harbor?", isPresented: $confirming,
                              message: "Its worktree and stashes go too.", systemImage: "trash",
                              confirm: "Delete") { delete(harbor) }
+
+            // Inside: the kit's dismiss (SwiftUI's doesn't reach an overlay)
+            @Environment(\\.kitDismiss) private var dismiss
             """
         ) {
           Flow(spacing: 10) {
             Button("Clone Repository…", systemImage: "arrow.down.circle") { cloning = true }.buttonStyle(.kitPrimary)
             Button("Delete harbor…", systemImage: "trash", role: .destructive) { confirming = true }.buttonStyle(.kit)
             Button("Show Panel") { panel = true }.buttonStyle(.kit)
+            Button("Edit atlas-web-1…") { editing = Host(name: "atlas-web-1") }.buttonStyle(.kit)
             if deleted > 0 { Text("Deleted \(deleted)×").kitFont(.caption) }
           }
-          .sheet(isPresented: $cloning) { cloneSheet(dismiss: { cloning = false }) }
-          .sheet(isPresented: $panel) {
+          .kitSheet(isPresented: $cloning) { cloneSheet(dismiss: { cloning = false }) }
+          .kitSheet(isPresented: $panel) {
             KitSheet(title: "Keyboard Shortcuts", meta: "Panels without Cancel get a close button.", systemImage: "keyboard", hue: .gray, onClose: { panel = false }) {
               FormCard {
                 FormRow("Run", systemImage: "play.fill", hue: .green) { Keycaps("⌘R") }
@@ -1239,6 +1267,7 @@ struct SheetsPage: View {
               }
             }
           }
+          .kitSheet(item: $editing) { host in HostSheet(host: host.name) }
           .kitConfirmation(
             "Delete harbor?", isPresented: $confirming,
             message: "Its worktree and 2 stashes are deleted too. This can't be undone.", systemImage: "trash",
@@ -1247,6 +1276,19 @@ struct SheetsPage: View {
             deleted += 1
             showToast(Toast("Deleted harbor", systemImage: "trash", undo: { deleted -= 1 }))
           }
+        }
+        Specimen(
+          "Stacked",
+          note: "A confirmation asked from a sheet stacks over it. Type a host and a click on the dim no longer closes the sheet.",
+          code: """
+            KitSheet(title: "Hosts", …) { … } footer: { … }
+              .kitSheetDismissDisabled(!name.isEmpty)       // unsaved input: the dim doesn't close it
+              .kitConfirmation("Remove atlas-db?", isPresented: $removing, …) { remove() }
+            """
+        ) {
+          Button("Manage Hosts…", systemImage: "server.rack") { hosts = true }
+            .buttonStyle(.kit)
+            .kitSheet(isPresented: $hosts) { HostsSheet(removing: catalogOpenSheet == "stacked" ? "atlas-db" : nil) }
         }
       }
       SpecimenSection("Inline", note: "The same sheets drawn in place, in their states.") {
@@ -1277,7 +1319,7 @@ struct SheetsPage: View {
           }
           """)
       }
-      SpecimenSection("Dialog", note: "Centered over the screen on iPhone and iPad (a sheet on the Mac), with what the decision needs.") {
+      SpecimenSection("Dialog", note: "Centred over the window on the Mac and iPad (the kit's overlay), over the screen on iPhone, with what the decision needs.") {
         Specimen(
           "kitDialog",
           code: """
@@ -1341,6 +1383,65 @@ struct SheetsPage: View {
       Button("Cancel", action: dismiss).keyboardShortcut(.cancelAction)
       Button("Clone", action: dismiss).buttonStyle(.kitPrimary).keyboardShortcut(.defaultAction)
         .disabled(status != .done)
+    }
+  }
+}
+
+/// A sheet with its own state: the kit's dismiss, a confirmation stacked over it, and no dismissing on the dim while
+/// a host is typed.
+private struct HostsSheet: View {
+  @State var removing: String?
+  @State private var hosts = ["atlas-web-1", "atlas-web-2", "atlas-db"]
+  @State private var name = ""
+  @Environment(\.kitDismiss) private var dismiss
+
+  var body: some View {
+    KitSheet(title: "Hosts", meta: "Remove one: its confirmation stacks over this sheet.", systemImage: "server.rack", hue: .teal) {
+      FormCard {
+        FormRow("New host", help: "A name or an address", systemImage: "plus", field: TextField("atlas-web-3", text: $name))
+        ForEach(hosts, id: \.self) { host in
+          FormRow(host, systemImage: "server.rack", hue: .teal) {
+            Button("Remove…", role: .destructive) { removing = host }.buttonStyle(.kit)
+          }
+        }
+      }
+    } footer: {
+      SheetStatus(name.isEmpty ? "\(hosts.count) hosts" : "Not added yet", systemImage: "server.rack", status: name.isEmpty ? .done : .idle)
+      Button("Done") { dismiss() }.keyboardShortcut(.cancelAction)
+      Button("Add") {
+        hosts.append(name)
+        name = ""
+      }
+      .buttonStyle(.kitPrimary)
+      .keyboardShortcut(.defaultAction)
+      .disabled(name.isEmpty)
+    }
+    .kitSheetDismissDisabled(!name.isEmpty)
+    .kitConfirmation(
+      "Remove \(removing ?? "the host")?", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
+      message: "Its saved logins stay in the vault.", systemImage: "trash", confirm: "Remove"
+    ) {
+      hosts.removeAll { $0 == removing }
+    }
+  }
+}
+
+/// `kitSheet(item:)`'s content.
+private struct HostSheet: View {
+  let host: String
+  @State private var user = "deploy"
+  @State private var port = "2222"
+  @Environment(\.kitDismiss) private var dismiss
+
+  var body: some View {
+    KitSheet(title: host, meta: "Edits how Shell signs in to this host.", systemImage: "server.rack", hue: .teal) {
+      FormCard {
+        FormRow("User", systemImage: "person", field: TextField("user", text: $user))
+        FormRow("Port", systemImage: "number", hue: .gray, field: TextField("22", text: $port))
+      }
+    } footer: {
+      Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+      Button("Save") { dismiss() }.buttonStyle(.kitPrimary).keyboardShortcut(.defaultAction)
     }
   }
 }

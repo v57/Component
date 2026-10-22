@@ -6,7 +6,8 @@ import SwiftUI
 /// with rich headers; the selected row is raised and Return runs it; a card bar of key hints closes it.
 /// ↑↓ move through every group's items, Return runs the selected one, Escape calls `dismiss`.
 ///
-/// Summon it with `kitPaletteOverlay(isPresented:)`, which dims the window, places it and closes it on a click outside;
+/// Summon it with `kitPaletteOverlay(isPresented:)`, which dims the whole window (from any view in it, as kit sheets
+/// do, and over a sheet it is opened from), places it and closes it on a click outside;
 /// a palette placed in the window by hand doesn't dim. Put it in a view directly only to embed it in a page
 /// (`focusesOnAppear: false`).
 ///
@@ -63,12 +64,7 @@ public struct KitPalette<Scope: View, Content: View>: View {
       if !hints.isEmpty { footer }
     }
     .padding(KitMetrics.gutter)
-    .background {
-      let shape = RoundedRectangle(cornerRadius: KitMetrics.radiusOverlay, style: .continuous)
-      SurfaceShape(surface: .floating, cornerRadius: KitMetrics.radiusOverlay)
-        .overlay(shape.fill(.kitPanel))
-        .overlay(shape.strokeBorder(.kitBorder, lineWidth: 0.5))
-    }
+    .background { KitOverlayCardGround() }
     .environment(nav)
     .environment(\.dataPaletteQuery, query)
     .onPreferenceChange(DataNavItemsKey.self) { ids in
@@ -408,9 +404,10 @@ enum PaletteMatch {
 // MARK: - Overlay
 
 extension View {
-  /// Shows a palette over this view while `isPresented`: the window dims (`kitScrim`), the palette sits at the top
-  /// centre, 560pt wide at most (8pt from the edges on a narrow window), and a click on the dim closes it. Escape
-  /// closes it through the palette's own `dismiss`.
+  /// Shows a palette over the window while `isPresented`, on the root's overlay host as kit sheets are (from any
+  /// view in the window, stacking with sheets): the window dims (`kitScrim`), the palette sits at the top centre,
+  /// 560pt wide at most (8pt from the edges on a narrow window), and a click on the dim closes it. Escape closes it
+  /// through the palette's own `dismiss`. Without `componentKit()` above it, it covers this view only.
   ///
   /// ```swift
   /// Workspace()
@@ -421,12 +418,29 @@ extension View {
   public func kitPaletteOverlay<Palette: View>(
     isPresented: Binding<Bool>, width: CGFloat = 560, @ViewBuilder palette: @escaping () -> Palette
   ) -> some View {
-    overlay {
-      DataPaletteOverlay(isPresented: isPresented, width: width, palette: palette)
+    modifier(DataPalettePresenter(isPresented: isPresented, width: width, palette: palette))
+  }
+}
+
+private struct DataPalettePresenter<Palette: View>: ViewModifier {
+  @Binding var isPresented: Bool
+  let width: CGFloat
+  let palette: () -> Palette
+  @Environment(\.kitOverlayHost) private var host
+
+  func body(content: Content) -> some View {
+    if host == nil {
+      content.overlay { DataPaletteOverlay(isPresented: $isPresented, width: width, palette: palette) }
+    } else {
+      content.modifier(
+        KitOverlayPresenter(
+          isPresented: $isPresented, style: .palette(width: width), onDismiss: nil, systemSheetOnPhone: false,
+          content: palette))
     }
   }
 }
 
+/// The palette over this view alone, without the root's host.
 private struct DataPaletteOverlay<Palette: View>: View {
   @Binding var isPresented: Bool
   let width: CGFloat
