@@ -154,18 +154,26 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   private func sidebar(_ proxy: ScrollViewProxy) -> some View {
     let selection = getSelection()
     let inset = ContMetrics.sidebarInset(idiom)
+    let spacing = style == .plain ? 8 : ContMetrics.sectionSpacing(idiom)
     // The rows run on under the title bar and the bottom bar (both safe area), so the system's scroll edge
     // blurs them there; the bar's cards carry their own shadows over the rows, and a fade of the sidebar's ground
     // softens both edges.
     return ScrollView {
       // The sections' rows are lazy stacks of their own, so a card nearing the screen comes a few rows at a time.
-      KitLazyStack(alignment: .leading, spacing: style == .plain ? 8 : ContMetrics.sectionSpacing(idiom)) {
+      KitLazyStack(alignment: .leading, spacing: spacing) {
         content
       }
+      // Sticky sections (`.kitSticky`) report their places in the stack's space.
+      .contStickyStack()
       .padding(.horizontal, inset)
       // The ends' gaps are padding, not safe area, so the bars' fades end at the bars.
       .padding(.top, 2)
       .padding(.bottom, inset)
+    }
+    // Stuck sections stack under the title bar and over the bottom bar; a stuck title scrolls to its section.
+    // The bottom bar keeps its own gap above its cards.
+    .contStickyHost(spacing: spacing, topGap: 2, bottomGap: showsBar ? 0 : inset) { id in
+      proxy.scrollTo(ContStickyScrollID(value: id), anchor: .top)
     }
     .focusable()
     .focusEffectDisabled()

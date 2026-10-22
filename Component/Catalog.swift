@@ -54,7 +54,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
   case liveIcon = "live-icon", workStatus = "work-status", effects
   case buttons, toggles, segmented, menus, tabs, fields, search, stepper, keycaps, choiceCards = "choice-cards"
   case counts, chips, refs, lineCounts = "line-counts", avatars
-  case sections, sidebar, toolbar, window, inspector, forms, sheets, feedback, tooltips, dragDrop = "drag-drop"
+  case sections, sidebar, stickySections = "sticky-sections", toolbar, window, inspector, forms, sheets, feedback, tooltips, dragDrop = "drag-drop"
   case grid, changes, diffs, runBlocks = "run-blocks", palette, welcome, settings, meters, secrets
   case gitApp = "git", databaseApp = "database", shellApp = "shell", markdownApp = "markdown"
   case settingsApp = "settings-app", welcomeApp = "welcome-app", longList = "long-list"
@@ -69,7 +69,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     case .liveIcon, .workStatus, .effects: .status
     case .buttons, .toggles, .segmented, .menus, .tabs, .fields, .search, .stepper, .keycaps, .choiceCards: .controls
     case .counts, .chips, .refs, .lineCounts, .avatars: .badges
-    case .sections, .sidebar, .toolbar, .window, .inspector, .forms, .sheets, .feedback, .tooltips, .dragDrop:
+    case .sections, .sidebar, .stickySections, .toolbar, .window, .inspector, .forms, .sheets, .feedback, .tooltips, .dragDrop:
       .containers
     case .grid, .changes, .diffs, .runBlocks, .palette, .welcome, .settings, .meters, .secrets: .data
     case .gitApp, .databaseApp, .shellApp, .markdownApp, .settingsApp, .welcomeApp, .longList, .longSection, .allComponents:
@@ -105,6 +105,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     case .avatars: "Avatars"
     case .sections: "Sections & Headers"
     case .sidebar: "Sidebar"
+    case .stickySections: "Sticky Sections"
     case .toolbar: "Toolbar & Compacting"
     case .window: "Window & Split"
     case .inspector: "Inspector"
@@ -162,6 +163,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     case .avatars: "person.crop.circle"
     case .sections: "rectangle.grid.1x2"
     case .sidebar: "sidebar.left"
+    case .stickySections: "pin"
     case .toolbar: "menubar.dock.rectangle"
     case .window: "rectangle.split.3x1"
     case .inspector: "sidebar.right"
@@ -220,6 +222,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     case .avatars: "People, agents, things and apps"
     case .sections: "Card sections and the rich header"
     case .sidebar: "Card sections, gliding selection, reorder, rename, search"
+    case .stickySections: "Sections that stay in view above or below a long sidebar"
     case .toolbar: "The rich title, tool groups and the compacting toolbar"
     case .window: "Panes on their grounds, the split and the status bar"
     case .inspector: "The sidebar mirrored: header, sections, rows, actions"
@@ -323,6 +326,8 @@ struct CatalogSidebar: View {
               SidebarRow(value: page, page.title, systemImage: page.systemImage)
             }
           }
+          // The area's title stays in view while its pages scroll by.
+          .kitSticky()
         }
       }
     }

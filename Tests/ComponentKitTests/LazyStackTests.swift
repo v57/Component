@@ -39,3 +39,31 @@ import Testing
   #expect(elapsed < .seconds(1), "planning 5,000 rows took \(elapsed)")
   #expect(redraws < 2 * ids.count, "\(redraws) placeholder redraws for \(ids.count) rows")
 }
+
+/// A sticky section (`.kitSticky`) that may show at an edge is built while far off, at once and never let go; the
+/// others far off stay placeholders.
+@MainActor @Test func lazyStackBuildsPinnedViewsFarOff() {
+  let model = ContLazyModel()
+  let ids = (0..<40).map(AnyHashable.init)
+  model.setItems(ids, pinned: [AnyHashable(30)], spacing: 0, parent: nil)
+  for id in ids { model.measured(id, 100) }
+  model.update(ContLazyWindow(top: 0, bottom: 500, height: 500))
+  #expect(model.flag(AnyHashable(30)).isBuilt)
+  #expect(!model.flag(AnyHashable(35)).isBuilt)
+  #expect(model.flag(AnyHashable(0)).isBuilt)
+}
+
+/// A card whose rows are still placeholders doesn't feed the app's average height, which sizes those placeholders:
+/// it grew with the average, and the average with it.
+@MainActor @Test func lazyStackAverageCountsOnlyViewsWithoutStacks() {
+  let scheduler = ContLazyScheduler.shared
+  let before = scheduler.averageHeight
+  let outer = ContLazyModel()
+  outer.setItems(["card"], spacing: 0, parent: nil)
+  let inner = ContLazyModel()
+  inner.setItems(["row"], spacing: 0, parent: ContLazyParent(model: outer, item: "card"))
+  outer.measured("card", 50_000)
+  #expect(scheduler.averageHeight == before)
+  inner.measured("row", 30)
+  #expect(scheduler.averageHeight != before)
+}

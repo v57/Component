@@ -54,6 +54,8 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
   @Environment(\.kitSectionStyle) private var style
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.contInList) private var inList
+  /// The sticky item this section is in, as its title last saw it (`.kitSticky`).
+  @State private var sticky = ContStickyBox()
 
   /// A section with any icon, meta and accessory views.
   public init(
@@ -82,6 +84,11 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
   }
 
   private func toggle() {
+    // A stuck title (`.kitSticky`) scrolls to its section instead.
+    if let context = sticky.context, context.state?.part == .title, let scroll = context.scroll {
+      withKitAnimation { scroll.action(context.id) }
+      return
+    }
     withKitAnimation {
       if let isExpanded { isExpanded.wrappedValue.toggle() } else { ownExpanded.toggle() }
     }
@@ -145,10 +152,15 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
         .padding([.horizontal, .top], KitMetrics.cardPadding)
         .padding(.bottom, expanded ? 0 : KitMetrics.cardPadding)
         .modifier(SectionHeaderAccessibility(title: title, expanded: expanded, toggle: toggle))
+        // Sticky (`.kitSticky`): the title alone stays in view, on a card of its own.
+        .modifier(
+          ContStickyTitleModifier(
+            box: sticky, extra: expanded ? KitMetrics.cardPadding : 0, cornerRadius: radius, plain: false))
       ContRevealLayout(progress: expanded ? 1 : 0) {
         if expanded {
           // Lazy: in a long sidebar the rows come a few at a time as the card nears the screen.
           KitLazyStack(alignment: .leading, spacing: 2) { content }
+            .environment(\.contStickyContext, nil)
             .padding(.top, 2)
             .padding([.horizontal, .bottom], KitMetrics.cardPadding)
             .transition(.opacity)
@@ -156,7 +168,8 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
       }
       .clipped()
     }
-    .kitSurface(.card, cornerRadius: radius)
+    // Stuck whole (`.kitSticky`), the card floats: opaque, with the float shadow.
+    .background { ContStickyCardGround(cornerRadius: radius) }
     .kitHover { isHovered = $0 }
   }
 
@@ -215,10 +228,12 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
       .onTapGesture(perform: toggle)
       .kitHover { isHovered = $0 }
       .modifier(SectionHeaderAccessibility(title: title, expanded: expanded, toggle: toggle))
+      .modifier(ContStickyTitleModifier(box: sticky, extra: 0, cornerRadius: 0, plain: true))
       ContRevealLayout(progress: expanded ? 1 : 0) {
         if expanded {
           KitLazyStack(alignment: .leading, spacing: 0) { content }
             .padding(.top, 1)
+            .environment(\.contStickyContext, nil)
             .transition(.opacity)
         }
       }

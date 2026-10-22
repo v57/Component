@@ -64,7 +64,22 @@ public struct KitLazyStack<Content: View>: View {
 
   public var body: some View {
     if eager {
-      VStack(alignment: alignment, spacing: spacing) { content }
+      if #available(macOS 15, iOS 18, *) {
+        // Sticky views (`.kitSticky`) stick here too.
+        Group(subviews: content) { subviews in
+          VStack(alignment: alignment, spacing: spacing) {
+            ForEach(subviews) { subview in
+              if let sticky = subview.containerValues.contSticky {
+                subview.modifier(ContStickyItemModifier(id: AnyHashable(subview.id), sticky: sticky))
+              } else {
+                subview
+              }
+            }
+          }
+        }
+      } else {
+        VStack(alignment: alignment, spacing: spacing) { content }
+      }
     } else if #available(macOS 15, iOS 18, *) {
       ContLazyStack(alignment: alignment, spacing: spacing, content: content)
     } else {
@@ -102,16 +117,24 @@ private struct ContLazyStack<Content: View>: View {
 
   private func stack(_ subviews: SubviewsCollection) -> some View {
     let ids = subviews.map { AnyHashable($0.id) }
+    // Sticky views (`.kitSticky`) that may show at an edge from anywhere stay built, with their rows.
+    let pinned = Set(subviews.filter { $0.containerValues.contSticky?.isPinned == true }.map { AnyHashable($0.id) })
     return Group {
       VStack(alignment: alignment, spacing: spacing) {
         ForEach(subviews) { subview in
           let id = AnyHashable(subview.id)
-          ContLazyItem(subview: subview, id: id, flag: model.flag(id), model: model, alignment: alignment)
+          let item = ContLazyItem(subview: subview, id: id, flag: model.flag(id), model: model, alignment: alignment)
+          if let sticky = subview.containerValues.contSticky {
+            item.modifier(ContStickyItemModifier(id: id, sticky: sticky))
+          } else {
+            item
+          }
         }
       }
       .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .top))
-      .onAppear { model.setItems(ids, spacing: spacing, parent: parent) }
-      .onChange(of: ids) { model.setItems(ids, spacing: spacing, parent: parent) }
+      .onAppear { model.setItems(ids, pinned: pinned, spacing: spacing, parent: parent) }
+      .onChange(of: ids) { model.setItems(ids, pinned: pinned, spacing: spacing, parent: parent) }
+      .onChange(of: pinned) { model.setItems(ids, pinned: pinned, spacing: spacing, parent: parent) }
     }
     // Where the scroll view's visible bounds fall in the stack, rounded out to 64pt so it plans every 64pt at most
     // (a long page nests many stacks, and each plans when it moves) and still covers all that shows.
@@ -135,6 +158,7 @@ private struct ContLazyItem: View {
   @ObservedObject var flag: ContLazyFlag
   let model: ContLazyModel
   let alignment: HorizontalAlignment
+  @Environment(\.contStickyContext) private var sticky
 
   var body: some View {
     // One container either way, the built view inside it: the item keeps its identity as it is built and let go.
@@ -146,6 +170,9 @@ private struct ContLazyItem: View {
         subview
           .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { model.measured(id, $0) }
           .environment(\.contLazyParent, ContLazyParent(model: model, item: id))
+          // The section's own body ran as the stack resolved its subviews, so the sticky item around this one tells
+          // the views inside it.
+          .environment(\.contStickyContext, sticky)
       }
     }
     .frame(maxWidth: .infinity, minHeight: flag.isBuilt ? nil : flag.height, alignment: alignment)
@@ -197,10 +224,15 @@ final class ContLazySlot {
   let id: AnyHashable
   let flag: ContLazyFlag
   var measured: CGFloat?
+  /// The height it gave the app's average (`ContLazyScheduler.averageHeight`), if it gave one.
+  var counted: CGFloat?
   var isBuilt = false
   /// The built view has drawn (it measured itself since it was built).
   var hasDrawn = false
   var isQueued = false
+  /// A sticky view that may show at an edge from anywhere: built at once, never let go, and the stacks inside it
+  /// build everything (its height must be right wherever it is, and it may show whole at an edge).
+  var isPinned = false
   /// How far it is from the screen, as of the last plan; the stacks inside it read it.
   var distance: CGFloat?
   var children: [ContLazyWeak] = []
@@ -221,6 +253,8 @@ final class ContLazyModel {
   @ObservationIgnored private var hasWindow = false
   @ObservationIgnored private var isReplanning = false
   @ObservationIgnored private var parent: ContLazyParent?
+  /// This stack is inside a pinned sticky view: it builds every view.
+  @ObservationIgnored private var buildsAll = false
   /// The sum and count of the measured heights, for the estimate.
   @ObservationIgnored private var measuredSum: CGFloat = 0
   @ObservationIgnored private var measuredCount = 0
@@ -252,8 +286,9 @@ final class ContLazyModel {
     return ContLazyScheduler.shared.averageHeight ?? max((window?.height ?? 0) / 3, 44)
   }
 
-  func setItems(_ ids: [AnyHashable], spacing: CGFloat, parent: ContLazyParent?) {
+  func setItems(_ ids: [AnyHashable], pinned: Set<AnyHashable> = [], spacing: CGFloat, parent: ContLazyParent?) {
     slots = ids.map(slot)
+    for slot in slots { slot.isPinned = pinned.contains(slot.id) }
     self.spacing = spacing
     if self.parent != parent {
       self.parent = parent
@@ -263,6 +298,7 @@ final class ContLazyModel {
       let current = Set(ids)
       for (id, slot) in byID where !current.contains(id) {
         if let height = slot.measured { measuredSum -= height; measuredCount -= 1 }
+        forgetCounted(slot)
         if slot.isQueued { ContLazyScheduler.shared.dequeue(self, id) }
         byID[id] = nil
       }
@@ -278,7 +314,14 @@ final class ContLazyModel {
     measuredSum += height
     slot.measured = height
     if slot.isBuilt { slot.hasDrawn = true }
-    ContLazyScheduler.shared.measured(height, replacing: old)
+    // Only views without stacks inside feed the app's average: a card whose rows are still placeholders (sized from
+    // that average) grew with it, and the average with the card, without end.
+    if !slot.isPinned, slot.children.isEmpty {
+      ContLazyScheduler.shared.measured(height, replacing: slot.counted)
+      slot.counted = height
+    } else {
+      forgetCounted(slot)
+    }
     // The views below moved: plan again once this frame's sizes are in.
     guard old.map({ abs($0 - height) >= 1 }) ?? true else { return }
     replanSoon()
@@ -299,11 +342,22 @@ final class ContLazyModel {
   /// A stack inside `item`: it plans again whenever the item's distance to the screen changes.
   fileprivate func adopt(_ child: ContLazyModel, in item: AnyHashable) {
     let slot = slot(item)
+    forgetCounted(slot)
     slot.children.removeAll { $0.model == nil || $0.model === child }
     slot.children.append(ContLazyWeak(model: child))
   }
 
+  /// Takes the slot's height out of the app's average.
+  private func forgetCounted(_ slot: ContLazySlot) {
+    guard let counted = slot.counted else { return }
+    ContLazyScheduler.shared.forget(counted)
+    slot.counted = nil
+  }
+
   private func distance(of item: AnyHashable) -> CGFloat { byID[item]?.distance ?? 0 }
+
+  /// Whether the stacks inside `item` build everything: it is pinned, or this stack does.
+  private func buildsAll(in item: AnyHashable) -> Bool { buildsAll || byID[item]?.isPinned == true }
 
   private func step(_ distance: CGFloat, _ screen: CGFloat) -> Int {
     distance == 0 ? 0 : 1 + Int(distance / (screen / 4))
@@ -325,6 +379,7 @@ final class ContLazyModel {
     guard hasWindow else { return }
     let scheduler = ContLazyScheduler.shared
     let outer = parent.flatMap { parent in parent.model?.distance(of: parent.item) } ?? 0
+    buildsAll = parent.flatMap { parent in parent.model?.buildsAll(in: parent.item) } ?? false
     let screen = max(window?.height ?? 0, outer > 0 ? 400 : 100)
     let ahead = screen * (scheduler.isResting ? Self.restingAhead : Self.ahead)
     let farDistance = screen * Self.release
@@ -347,6 +402,7 @@ final class ContLazyModel {
         let own = bottom < window.top ? window.top - bottom : top > window.bottom ? top - window.bottom : 0
         distance = max(own, outer)
       }
+      if buildsAll { distance = 0 }
       // The stacks inside follow when the item comes on screen, leaves it, or moves a quarter screen nearer or
       // farther; scroll views of their own don't see the outer scroll, and every 64pt would be too often.
       if let old = slot.distance, !slot.children.isEmpty, step(old, screen) != step(distance, screen) {
@@ -361,7 +417,7 @@ final class ContLazyModel {
           slot.flag.height = target
         }
       }
-      if distance == 0 {
+      if distance == 0 || slot.isPinned {
         if !slot.isBuilt { now.append(slot) }
         unqueue(slot)
       } else if distance <= ahead, !slot.isBuilt {
@@ -471,13 +527,18 @@ final class ContLazyScheduler {
   private var heightSum: CGFloat = 0
   private var heightCount = 0
 
-  /// The average height of every view measured in any stack: a new stack's first guess, nearer than a fraction of the
+  /// The average height of every view without stacks inside measured in any stack: a new stack's first guess, nearer than a fraction of the
   /// screen (a guess far off changes heights on screen as the views come, which moves the scroll).
   var averageHeight: CGFloat? { heightCount > 0 ? heightSum / CGFloat(heightCount) : nil }
 
   func measured(_ height: CGFloat, replacing old: CGFloat?) {
     if let old { heightSum -= old } else { heightCount += 1 }
     heightSum += height
+  }
+
+  func forget(_ height: CGFloat) {
+    heightSum -= height
+    heightCount -= 1
   }
 
   func register(_ model: ContLazyModel) {

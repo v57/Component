@@ -1,0 +1,529 @@
+import SwiftUI
+
+// Sticky sections: a section of a scrolling stack (a sidebar's cards) that stays in view when it scrolls out of the
+// visible area, above or below it. `.kitSticky(top:bottom:)` marks the section as a container value, so the
+// `KitLazyStack` around it knows before it builds anything: it keeps a section that may show at an edge built while
+// far off. The stack's item reports where the section sits in the stack (a frame that doesn't move as the stack
+// scrolls), the section reports its title, and the host (the sidebar) puts them in one table in the environment.
+// Each frame, every sticky view works out from the table and its own place in the scroll view where it shows, in a
+// `visualEffect`: scrolling changes no state. Only whether a view is stuck is state (its z-order and its stuck card),
+// and that changes as it sticks or comes free. Before macOS 15 and iOS 18 the stack is a `LazyVStack` and nothing
+// sticks.
+
+/// What a sticky section keeps in view once it has scrolled up past the visible area (`.kitSticky(top:bottom:)`).
+public enum KitStickyTop: Hashable, Sendable {
+  /// The whole section stays at the top while the rest scrolls past: for short sections, a few rows.
+  case content
+  /// Its title stays at the top, as a card of its own; clicking it scrolls back to the section.
+  case title
+  /// Its title stays until the section's last row leaves; the next title pushes it up.
+  case titleWhileVisible
+  /// The section scrolls away with the rest.
+  case none
+}
+
+/// What a sticky section keeps in view while it is still below the visible area (`.kitSticky(top:bottom:)`).
+public enum KitStickyBottom: Hashable, Sendable {
+  /// The whole section waits at the bottom (it falls back to its title past 40% of the sidebar).
+  case content
+  /// Its title waits at the bottom, as a card of its own; clicking it scrolls to the section.
+  case title
+  /// Nothing waits; the list ends at the edge.
+  case none
+}
+
+extension View {
+  /// Keeps this section in view when it scrolls out of the visible area of a `KitSidebar`: at the top once it has
+  /// scrolled up past it, at the bottom while it is still below it. Stuck sections stack in their own order (top
+  /// ones under the sidebar's top bar, bottom ones over its bottom bar), float as opaque cards, and a stuck title
+  /// scrolls to its section when clicked. The bottom stack takes at most 40% of the sidebar; past that, `.content`
+  /// shows only the title. Sections without it never stick.
+  ///
+  /// ```swift
+  /// KitSection("Repositories", meta: ["72 repositories"], systemImage: "folder") { rows }
+  ///   .kitSticky()                                  // the title while the list is in view
+  /// KitSection("atlas", meta: ["main", "4 changed"], systemImage: "arrow.triangle.branch") { pages }
+  ///   .kitSticky(bottom: .content)                  // the open repository waits at the bottom
+  /// KitSection("Branches", meta: ["3 local"], glyph: { BranchGlyph() }) { branches }
+  ///   .kitSticky(bottom: .title)
+  /// ```
+  ///
+  /// Use it on the sections directly in the sidebar (through `ForEach`, `Group` and your own views). It needs macOS
+  /// 15 or iOS 18; before them the sections scroll as usual.
+  public func kitSticky(top: KitStickyTop = .titleWhileVisible, bottom: KitStickyBottom = .none) -> some View {
+    modifier(ContStickyMark(sticky: ContSticky(top: top, bottom: bottom)))
+  }
+}
+
+/// A view's sticky options.
+struct ContSticky: Hashable, Sendable {
+  var top: KitStickyTop
+  var bottom: KitStickyBottom
+
+  /// It may show at an edge from anywhere in the stack, so the stack keeps it built while far off. A title kept
+  /// while visible is only stuck while its section is on screen.
+  var isPinned: Bool { top == .content || top == .title || bottom != .none }
+}
+
+@available(macOS 15.0, iOS 18.0, *)
+extension ContainerValues {
+  @Entry var contSticky: ContSticky? = nil
+}
+
+private struct ContStickyMark: ViewModifier {
+  let sticky: ContSticky
+
+  func body(content: Content) -> some View {
+    if #available(macOS 15.0, iOS 18.0, *) {
+      content.containerValue(\.contSticky, sticky)
+    } else {
+      content
+    }
+  }
+}
+
+// MARK: - Layout
+
+/// The part of a sticky view that shows when it's stuck.
+enum ContStickyPart: Hashable, Sendable {
+  case title, content
+}
+
+enum ContStickyEdge: Hashable, Sendable {
+  case top, bottom
+}
+
+/// Where a stuck view shows: its edge, its part, and the part's top in the stack's space.
+struct ContStickyPlacement: Equatable, Sendable {
+  var edge: ContStickyEdge
+  var part: ContStickyPart
+  var y: CGFloat
+}
+
+/// A stuck view's state, without the per-frame position: what draws it differently while stuck.
+struct ContStickyState: Hashable, Sendable {
+  var edge: ContStickyEdge
+  var part: ContStickyPart
+  /// Its place among the sticky views.
+  var order = 0
+
+  /// Stuck views draw over the rest; in the top stack the first over the next (whose card scrolls on under it), in
+  /// the bottom stack the last; the bottom stack over the top one, whose rows scroll on under it.
+  var zIndex: Double { edge == .top ? Double(1000 - order) : Double(1001 + order) }
+}
+
+/// A sticky view's place in the stack's space, which doesn't move as the stack scrolls.
+struct ContStickyItem: Equatable, @unchecked Sendable {
+  var id: AnyHashable
+  var sticky: ContSticky
+  var minY: CGFloat
+  var maxY: CGFloat
+  /// Its title's top, and the title's height as a card of its own. A view without a title (not a `KitSection`)
+  /// shows whole either way.
+  var titleTop: CGFloat? = nil
+  var titleHeight: CGFloat? = nil
+
+  /// The top and height of `part`.
+  func block(_ part: ContStickyPart) -> (top: CGFloat, height: CGFloat) {
+    if part == .title, let titleTop, let titleHeight { return (titleTop, titleHeight) }
+    return (minY, maxY - minY)
+  }
+}
+
+/// Every sticky view of a stack, in the stack's order, with the bars it sticks under. Pure: the views work out
+/// their places from it each frame, and the tests check it.
+struct ContStickyTable: Equatable, @unchecked Sendable {
+  var items: [ContStickyItem] = []
+  /// The part of the scroll view clear of its bars (the Mac's title bar over a sidebar, the sidebar's bottom bar), in
+  /// its own space: its whole frame, as its content insets reach beyond it.
+  var clearTop: CGFloat = 0
+  var clearBottom: CGFloat = 0
+  /// The gap between stuck views.
+  var spacing: CGFloat = 8
+  /// The gaps from the clear area's ends: the stack's own padding there.
+  var topGap: CGFloat = 2
+  var bottomGap: CGFloat = 0
+
+  /// The share of the visible height the bottom stack may take before `.content` falls back to the title.
+  static let bottomShare: CGFloat = 0.4
+  /// The stack's coordinate space, where the frames are.
+  static let space = "kit.sticky"
+  /// The scroll view's own space, where the clear area is.
+  static let hostSpace = "kit.sticky.host"
+  /// A sticky item's own space, where its title measures itself.
+  static let itemSpace = "kit.sticky.item"
+
+  /// Where each item shows, in the items' order: `nil` in place.
+  ///
+  /// - Top: an item sticks once its part has scrolled above the line under the top bar (and the items stuck before
+  ///   it). `.titleWhileVisible` stays only while the section reaches below the title, which its end pushes up.
+  /// - Bottom: an item sticks while its part would end below the bottom bar (and the items stuck after it); an
+  ///   item in place stops the stack, as the items before it end above it.
+  func placements(visibleTop: CGFloat, visibleBottom: CGFloat) -> [ContStickyPlacement?] {
+    var result = [ContStickyPlacement?](repeating: nil, count: items.count)
+    let top = visibleTop + topGap
+    let bottom = visibleBottom - bottomGap
+    var cursor = top
+    for (index, item) in items.enumerated() where item.sticky.top != .none {
+      let part: ContStickyPart = item.sticky.top == .content ? .content : .title
+      let block = item.block(part)
+      guard block.top < cursor else { continue }
+      var y = cursor
+      if item.sticky.top == .titleWhileVisible {
+        guard item.maxY > cursor else { continue }
+        y = min(cursor, item.maxY - block.height)
+      }
+      result[index] = ContStickyPlacement(edge: .top, part: part, y: y)
+      cursor = max(cursor, y + block.height + spacing)
+    }
+    // The bottom stack, in reverse; past its share, every item shows its title.
+    let cap = (bottom - top) * Self.bottomShare
+    var stack = bottomStack(above: bottom, skipping: result, titlesOnly: false)
+    if stack.height > cap {
+      stack = bottomStack(above: bottom, skipping: result, titlesOnly: true)
+    }
+    for (index, placement) in stack.placements { result[index] = placement }
+    return result
+  }
+
+  private func bottomStack(above bottom: CGFloat, skipping top: [ContStickyPlacement?], titlesOnly: Bool) -> (
+    placements: [(Int, ContStickyPlacement)], height: CGFloat
+  ) {
+    var cursor = bottom
+    var placements: [(Int, ContStickyPlacement)] = []
+    var height: CGFloat = 0
+    for index in items.indices.reversed() where top[index] == nil && items[index].sticky.bottom != .none {
+      let item = items[index]
+      let part: ContStickyPart = item.sticky.bottom == .content && !titlesOnly ? .content : .title
+      let block = item.block(part)
+      let y = min(block.top, cursor - block.height)
+      if y < block.top {
+        placements.append((index, ContStickyPlacement(edge: .bottom, part: part, y: y)))
+        height += block.height + (placements.count > 1 ? spacing : 0)
+      }
+      cursor = y - spacing
+    }
+    return (placements, height)
+  }
+
+  /// Where the item `id` shows, with the visible area in the stack's space.
+  func placement(of id: AnyHashable, visibleTop: CGFloat, visibleBottom: CGFloat) -> ContStickyPlacement? {
+    guard let index = items.firstIndex(where: { $0.id == id }) else { return nil }
+    return placements(visibleTop: visibleTop, visibleBottom: visibleBottom)[index]
+  }
+
+  /// How far `part` of the item `id` moves from its place this frame. `naturalTop` is the top of the view the proxy
+  /// measures, in the stack's space: the visible area follows from it.
+  func offset(of id: AnyHashable, part: ContStickyPart, naturalTop: CGFloat, proxy: GeometryProxy) -> CGFloat {
+    guard let placement = placement(of: id, proxy: proxy, naturalTop: naturalTop), placement.part == part else {
+      return 0
+    }
+    return placement.y - naturalTop
+  }
+
+  /// Where the item `id` shows, from a proxy of a view whose top is `naturalTop` in the stack's space.
+  func placement(of id: AnyHashable, proxy: GeometryProxy, naturalTop: CGFloat) -> ContStickyPlacement? {
+    guard items.count > 0, clearBottom > clearTop else { return nil }
+    let visible = visibleArea(naturalTop: naturalTop, hostTop: proxy.frame(in: .named(Self.hostSpace)).minY)
+    return placement(of: id, visibleTop: visible.top, visibleBottom: visible.bottom)
+  }
+
+  /// The clear area in the stack's space, for a view whose top is `naturalTop` there and `hostTop` in the scroll
+  /// view's.
+  func visibleArea(naturalTop: CGFloat, hostTop: CGFloat) -> (top: CGFloat, bottom: CGFloat) {
+    (naturalTop + clearTop - hostTop, naturalTop + clearBottom - hostTop)
+  }
+
+  func item(_ id: AnyHashable) -> ContStickyItem? { items.first { $0.id == id } }
+}
+
+/// What a sticky item tells the section inside it.
+struct ContStickyContext: Equatable, @unchecked Sendable {
+  var id: AnyHashable
+  var state: ContStickyState?
+  var scroll: ContStickyScroll?
+}
+
+/// Scrolls the host to a sticky item (a click on its stuck title).
+struct ContStickyScroll: Equatable {
+  let action: @MainActor (AnyHashable) -> Void
+  static func == (lhs: Self, rhs: Self) -> Bool { true }
+}
+
+/// The id a sticky item scrolls to.
+struct ContStickyScrollID: Hashable {
+  let value: AnyHashable
+}
+
+extension EnvironmentValues {
+  /// The sticky views of the host above (a sidebar), `nil` where nothing sticks.
+  @Entry var contStickyTable: ContStickyTable? = nil
+  @Entry var contStickyScroll: ContStickyScroll? = nil
+  /// The sticky item this view is in, for the `KitSection` inside it.
+  @Entry var contStickyContext: ContStickyContext? = nil
+}
+
+// MARK: - Preferences
+
+struct ContStickyItemsKey: PreferenceKey {
+  static let defaultValue: [ContStickyItem] = []
+  static func reduce(value: inout [ContStickyItem], nextValue: () -> [ContStickyItem]) {
+    value.append(contentsOf: nextValue())
+  }
+}
+
+/// A section's title: its top in its item and its height as a card of its own.
+struct ContStickyTitle: Equatable, @unchecked Sendable {
+  var id: AnyHashable
+  var top: CGFloat
+  var height: CGFloat
+}
+
+struct ContStickyTitlesKey: PreferenceKey {
+  static let defaultValue: [ContStickyTitle] = []
+  static func reduce(value: inout [ContStickyTitle], nextValue: () -> [ContStickyTitle]) {
+    value.append(contentsOf: nextValue())
+  }
+}
+
+// MARK: - Host
+
+extension View {
+  /// Makes this scroll view a host of sticky sections: put it on the `ScrollView` and give its stack the
+  /// `ContStickyTable.space` coordinate space (`contStickyStack()`). `spacing` is the gap between stuck views,
+  /// `topGap` and `bottomGap` their gaps from the visible area's ends.
+  func contStickyHost(
+    spacing: CGFloat, topGap: CGFloat, bottomGap: CGFloat, scroll: @escaping @MainActor (AnyHashable) -> Void
+  ) -> some View {
+    modifier(
+      ContStickyHost(spacing: spacing, topGap: topGap, bottomGap: bottomGap, scroll: ContStickyScroll(action: scroll)))
+  }
+
+  /// The stack of a sticky host's scroll view: the frames the sticky views report are in its space.
+  func contStickyStack() -> some View {
+    coordinateSpace(.named(ContStickyTable.space))
+  }
+}
+
+private struct ContStickyHost: ViewModifier {
+  let spacing: CGFloat
+  let topGap: CGFloat
+  let bottomGap: CGFloat
+  let scroll: ContStickyScroll
+  @State private var items: [ContStickyItem] = []
+  @State private var titles: [ContStickyTitle] = []
+  @State private var clear = ContStickyClear()
+
+  func body(content: Content) -> some View {
+    if #available(macOS 15.0, iOS 18.0, *) {
+      content
+        .environment(\.contStickyTable, table)
+        .environment(\.contStickyScroll, scroll)
+        .onPreferenceChange(ContStickyItemsKey.self) { items = $0 }
+        .onPreferenceChange(ContStickyTitlesKey.self) { titles = $0 }
+        // The scroll view's own space is its frame clear of its bars (the title bar, the bottom bar), which it scrolls
+        // on under: its content insets reach beyond it. (Its visible bounds take them in on the Mac and not on iOS.)
+        .onScrollGeometryChange(for: ContStickyClear.self) { geometry in
+          ContStickyClear(top: 0, bottom: geometry.containerSize.height)
+        } action: { _, new in
+          clear = new
+        }
+        .coordinateSpace(.named(ContStickyTable.hostSpace))
+    } else {
+      content
+    }
+  }
+
+  private var table: ContStickyTable {
+    var sorted = items.sorted { $0.minY < $1.minY }
+    for index in sorted.indices {
+      if let title = titles.first(where: { $0.id == sorted[index].id }) {
+        sorted[index].titleTop = sorted[index].minY + title.top
+        sorted[index].titleHeight = title.height
+      }
+    }
+    return ContStickyTable(
+      items: sorted, clearTop: clear.top, clearBottom: clear.bottom, spacing: spacing, topGap: topGap,
+      bottomGap: bottomGap)
+  }
+}
+
+/// The scroll view's area clear of its bars, in its own space.
+private struct ContStickyClear: Equatable {
+  var top: CGFloat = 0
+  var bottom: CGFloat = 0
+}
+
+// MARK: - Item
+
+/// A lazy stack's item with sticky options: it reports its frame, keeps whether it's stuck (its z-order: a stuck
+/// view draws over the rest), moves while stuck, and tells the section inside.
+@available(macOS 15.0, iOS 18.0, *)
+struct ContStickyItemModifier: ViewModifier {
+  let id: AnyHashable
+  let sticky: ContSticky
+  @State private var frame: CGRect?
+  @State private var state: ContStickyState?
+  /// The item's top in the scroll view as of the last frame: not state, it changes every frame.
+  @State private var visible = ContStickyVisible()
+  @Environment(\.contStickyTable) private var table
+  @Environment(\.contStickyScroll) private var scroll
+
+  func body(content: Content) -> some View {
+    if let table {
+      let keyed = ContStickyKeyed(table: table, id: id, naturalTop: frame?.minY ?? 0)
+      // What reads geometry sits outside the offset: inside it, frames move with it, and the offset would follow.
+      content
+        .environment(\.contStickyContext, ContStickyContext(id: id, state: state, scroll: scroll))
+        // The section's title measures itself from here, so the offset of the whole doesn't move it.
+        .coordinateSpace(.named(ContStickyTable.itemSpace))
+        .visualEffect { effect, proxy in
+          effect.offset(y: keyed.offset(.content, proxy))
+        }
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(ContStickyTable.space)) } action: { frame = $0 }
+        .preference(
+          key: ContStickyItemsKey.self,
+          value: frame.map { [ContStickyItem(id: id, sticky: sticky, minY: $0.minY, maxY: $0.maxY)] } ?? [])
+        // Whether it's stuck follows the scroll and the table (another section moved, a title came).
+        // (A geometry action keeps the closure it was first given: it reads the table from the box.)
+        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(ContStickyTable.hostSpace)).minY } action: { top in
+          visible.hostTop = top
+          update()
+        }
+        .onChange(of: table, initial: true) { _, table in
+          visible.table = table
+          update()
+        }
+        .onChange(of: frame) { update() }
+        .zIndex(state?.zIndex ?? 0)
+    } else {
+      content
+    }
+  }
+}
+
+@available(macOS 15.0, iOS 18.0, *)
+extension ContStickyItemModifier {
+  private func update() {
+    var new: ContStickyState?
+    if let hostTop = visible.hostTop, let frame, let table = visible.table, table.clearBottom > table.clearTop {
+      let area = table.visibleArea(naturalTop: frame.minY, hostTop: hostTop)
+      if let order = table.items.firstIndex(where: { $0.id == id }) {
+        new = table.placements(visibleTop: area.top, visibleBottom: area.bottom)[order]
+          .map { ContStickyState(edge: $0.edge, part: $0.part, order: order) }
+      }
+    }
+    if new != state { state = new }
+  }
+}
+
+final class ContStickyVisible {
+  var hostTop: CGFloat?
+  var table: ContStickyTable?
+}
+
+/// A table with the item and the top of the view that reads it, to send into a geometry closure.
+struct ContStickyKeyed: @unchecked Sendable {
+  let table: ContStickyTable
+  let id: AnyHashable
+  let naturalTop: CGFloat
+
+  func placement(_ proxy: GeometryProxy) -> ContStickyPlacement? {
+    table.placement(of: id, proxy: proxy, naturalTop: naturalTop)
+  }
+
+  func offset(_ part: ContStickyPart, _ proxy: GeometryProxy) -> CGFloat {
+    table.offset(of: id, part: part, naturalTop: naturalTop, proxy: proxy)
+  }
+}
+
+// MARK: - Section title
+
+/// The sticky item a section is in, for its header's tap (a stuck title scrolls to its section). The section's own
+/// body runs where its stack resolves it, outside the item, so its title, inside, keeps this up to date.
+@MainActor
+final class ContStickyBox {
+  var context: ContStickyContext?
+}
+
+/// A section's title in a sticky item: it reports its place, moves while stuck alone, and floats on a card of its
+/// own then.
+struct ContStickyTitleModifier: ViewModifier {
+  let box: ContStickyBox
+  /// The title's card reaches this far below it (the card's padding under an open section's title).
+  let extra: CGFloat
+  let cornerRadius: CGFloat
+  let plain: Bool
+  @State private var frame: CGRect?
+  @Environment(\.contStickyTable) private var table
+  @Environment(\.contStickyContext) private var context
+
+  func body(content: Content) -> some View {
+    let _ = box.context = context
+    if let context, let table {
+      let keyed = ContStickyKeyed(
+        table: table, id: context.id, naturalTop: table.item(context.id)?.titleTop ?? 0)
+      content
+        .background(alignment: .top) {
+          if let state = context.state, state.part == .title {
+            ContStuckGround(cornerRadius: cornerRadius, plain: plain, edge: state.edge, gap: table.spacing)
+              .padding(.bottom, -extra)
+              .transition(.opacity)
+          }
+        }
+        .visualEffect { effect, proxy in
+          effect.offset(y: keyed.offset(.title, proxy))
+        }
+        // Outside the offset, in the item's space: the item may be moving too.
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(ContStickyTable.itemSpace)) } action: { frame = $0 }
+        .preference(
+          key: ContStickyTitlesKey.self,
+          value: frame.map { [ContStickyTitle(id: context.id, top: $0.minY, height: $0.height + extra)] } ?? [])
+        .zIndex(1)
+        // What a click on the stuck title scrolls to (an id outside the stack's subview is never found).
+        .id(ContStickyScrollID(value: context.id))
+    } else {
+      content
+    }
+  }
+}
+
+/// A section card's ground: the card, or while it is stuck whole, the stuck card.
+struct ContStickyCardGround: View {
+  var cornerRadius: CGFloat
+  @Environment(\.contStickyContext) private var context
+  @Environment(\.contStickyTable) private var table
+
+  var body: some View {
+    if let state = context?.state, state.part == .content {
+      ContStuckGround(cornerRadius: cornerRadius, edge: state.edge, gap: table?.spacing ?? 0)
+    } else {
+      SurfaceShape(surface: .card, cornerRadius: cornerRadius)
+    }
+  }
+}
+
+/// A stuck card's ground: the card, opaque over the sidebar, with the float shadow, on the sidebar's ground out to
+/// the next card of its stack (the gap toward the bar), so the rows scrolling under don't show between stuck cards.
+/// A plain section's title gets the sidebar's ground alone.
+struct ContStuckGround: View {
+  var cornerRadius: CGFloat
+  var plain = false
+  var edge: ContStickyEdge
+  var gap: CGFloat
+  @Environment(\.colorScheme) private var scheme
+
+  var body: some View {
+    if plain {
+      Rectangle().fill(.kitSidebar)
+    } else {
+      SurfaceShape(surface: .card, cornerRadius: cornerRadius)
+        .environment(\.contBarGround, KitColor.sidebar)
+        .shadow(color: .black.opacity(scheme == .dark ? 0.5 : 0.16), radius: 16, y: 12)
+        .background {
+          Rectangle().fill(.kitSidebar)
+            .padding(edge == .bottom ? .bottom : .top, -gap)
+        }
+    }
+  }
+}
