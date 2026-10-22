@@ -1216,6 +1216,8 @@ struct SheetsPage: View {
   }
 
   @State private var choosing = false
+  @State private var noticing = false
+  @State private var reporting = false
   @State private var url = "https://github.com/v57/Component.git"
   @State private var cloning = catalogOpenSheet == "clone"
   @State private var confirming = false
@@ -1362,6 +1364,30 @@ struct SheetsPage: View {
                 KitConfirmationButton("Delete Local and Remote", role: .destructive) { deleted += 1 },
                 KitConfirmationButton("Force Delete", role: .destructive, isDefault: true) { deleted += 1 },
               ])
+        }
+      }
+      SpecimenSection("Notice", note: "Nothing to decide: an error or what a job did, with OK (and more ways out before it), in place of an alert.") {
+        Specimen(
+          "kitNotice",
+          code: """
+            .kitNotice("Couldn't scan system folders", isPresented: hasError, message: error)
+            .kitNotice("Moved 4.2 GB to the Trash", isPresented: $reporting, message: "12 items from 3 categories.",
+                       systemImage: "trash", hue: .green,
+                       buttons: [KitConfirmationButton("Open Trash") { openTrash() }])
+            """
+        ) {
+          Flow(spacing: 10) {
+            Button("Scan…") { noticing = true }
+              .buttonStyle(.kit)
+              .kitNotice(
+                "Couldn't scan system folders", isPresented: $noticing,
+                message: "Dev needs Full Disk Access to read /Library/Developer.")
+            Button("Clean…") { reporting = true }
+              .buttonStyle(.kit)
+              .kitNotice(
+                "Moved 4.2 GB to the Trash", isPresented: $reporting, message: "12 items from 3 categories.",
+                systemImage: "trash", hue: .green, buttons: [KitConfirmationButton("Open Trash") {}])
+          }
         }
       }
     }
