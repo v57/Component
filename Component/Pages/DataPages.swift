@@ -918,6 +918,33 @@ struct MetersPage: View {
           }
         }
       }
+      SpecimenSection("Stat cards", note: "A number that sums something up: the overview row of a page (Hub's APIs, Devices, Requests / s).") {
+        SpecimenGrid(minWidth: 220) {
+          Specimen("KitStatCard", ground: .panel, code: "KitStatCard(\"APIs\", value: \"21\", systemImage: \"hexagon\", hue: .blue, detail: \"3 running · 2 waiting\")") {
+            KitStatCard("APIs", value: "21", systemImage: "hexagon", hue: .blue, detail: "3 running · 2 waiting")
+          }
+          Specimen("With a delta and a sparkline", ground: .panel, code: "KitStatCard(\"Requests / s\", value: \"1,204\", systemImage: \"waveform.path.ecg\", hue: .purple, delta: \"+8%\", sparkline: rates)") {
+            KitStatCard("Requests / s", value: "1,204", systemImage: "waveform.path.ecg", hue: .purple, delta: "+8%", sparkline: [3, 5, 4, 7, 6, 9, 8, 11, 10, 12])
+          }
+        }
+      }
+      SpecimenSection("Packed cards", note: "Cards of any height in columns of one unit; a card may span two. A wider window adds columns (Hub's All Hubs).") {
+        Specimen("KitPackedGrid", ground: .panel, code: "KitPackedGrid(unit: 180) {\n  ForEach(hubs) { HubCard($0).kitGridSpan($0.isBusy ? 2 : 1) }\n}") {
+          KitPackedGrid(unit: 180) {
+            ForEach(Array(["Home", "Lab", "Studio", "Office", "Frankfurt", "Garage Pi"].enumerated()), id: \.offset) { index, name in
+              VStack(alignment: .leading, spacing: 8) {
+                RichHeader(name, meta: ["\(12 * (index + 1)) services"], systemImage: "hexagon", hue: Hue.lane(index))
+                ForEach(0..<[3, 1, 2, 1, 2, 0][index], id: \.self) { _ in
+                  RoundedRectangle(cornerRadius: 8).fill(.kitFill).frame(height: 28)
+                }
+              }
+              .padding(8)
+              .kitSurface(.card)
+              .kitGridSpan(index == 0 || index == 2 ? 2 : 1)
+            }
+          }
+        }
+      }
       SpecimenSection("Lanes", note: "Board columns: cards like a sidebar's sections, their tasks as rows.") {
         Specimen(
           "Lane and LaneItem",
