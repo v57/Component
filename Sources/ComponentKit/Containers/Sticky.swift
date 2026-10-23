@@ -640,15 +640,10 @@ struct ContStuckGround: View {
       Rectangle().fill(.kitSidebar)
         .opacity(isStuck ? 1 : 0)
     } else {
-      ZStack {
-        SurfaceShape(surface: .card, cornerRadius: cornerRadius)
-          .shadow(color: .black.opacity(scheme == .dark ? 0.5 : 0.16), radius: 16, y: 12)
-          .opacity(isStuck ? 1 : 0)
-          .animation(.kit, value: isStuck)
-        SurfaceShape(surface: .card, cornerRadius: cornerRadius)
-          .opacity(isStuck ? 1 : 0)
-      }
-      .environment(\.contBarGround, KitColor.sidebar)
+      SurfaceShape(surface: .card, cornerRadius: cornerRadius)
+        .opacity(isStuck ? 1 : 0)
+        .animation(.kit, value: isStuck)
+        .environment(\.contBarGround, KitColor.sidebar)
     }
   }
 }
