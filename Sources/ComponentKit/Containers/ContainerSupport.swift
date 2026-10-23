@@ -188,7 +188,7 @@ struct ContEdgeFade: View {
 struct ContGroundFade: ShapeStyle {
   var ground: KitColor
   var edge: VerticalEdge
-  var opacity = 0.4
+  var opacity = 0.8
 
   func resolve(in environment: EnvironmentValues) -> LinearGradient {
     let color = ground.resolve(in: environment)
