@@ -133,6 +133,9 @@ private struct ContLazyStack<Content: View>: View {
       }
       .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .top))
       .onAppear { model.setItems(ids, pinned: pinned, spacing: spacing, parent: parent) }
+      // Views that come with an animated change (a group opening) are built under its animation, so the views below
+      // slide down as they come in instead of jumping.
+      .transaction(value: ids) { model.insertionAnimation = $0.disablesAnimations ? nil : $0.animation }
       .onChange(of: ids) { model.setItems(ids, pinned: pinned, spacing: spacing, parent: parent) }
       .onChange(of: pinned) { model.setItems(ids, pinned: pinned, spacing: spacing, parent: parent) }
     }
@@ -260,6 +263,10 @@ final class ContLazyModel {
   @ObservationIgnored private var measuredCount = 0
   /// The estimate the far placeholders last took: they follow it only when it moves a quarter from there.
   @ObservationIgnored private var placedEstimate: CGFloat?
+  /// The animation of the change that last set the items, for the views it added (`setItems`).
+  @ObservationIgnored var insertionAnimation: Animation?
+  /// Views the last `setItems` added under `insertionAnimation`: built under it rather than without animation.
+  @ObservationIgnored private var inserted: Set<AnyHashable> = []
 
   /// Past this many views a stack is a `LazyVStack`: planning and laying out every item cost each frame of a scroll.
   static let rowLimit = 1000
@@ -287,6 +294,15 @@ final class ContLazyModel {
   }
 
   func setItems(_ ids: [AnyHashable], pinned: Set<AnyHashable> = [], spacing: CGFloat, parent: ContLazyParent?) {
+    if insertionAnimation != nil, !slots.isEmpty {
+      // The stack made slots for the new views as it drew them: new is what the last items didn't have.
+      let previous = Set(slots.map(\.id))
+      inserted = Set(ids.filter { !previous.contains($0) })
+    }
+    defer {
+      inserted = []
+      insertionAnimation = nil
+    }
     slots = ids.map(slot)
     for slot in slots { slot.isPinned = pinned.contains(slot.id) }
     self.spacing = spacing
@@ -463,7 +479,12 @@ final class ContLazyModel {
       slot.hasDrawn = false
     }
     withTransaction(transaction) {
-      for slot in missing { slot.flag.isBuilt = true }
+      for slot in missing where !inserted.contains(slot.id) || insertionAnimation == nil { slot.flag.isBuilt = true }
+    }
+    if let insertionAnimation {
+      withAnimation(insertionAnimation) {
+        for slot in missing where inserted.contains(slot.id) { slot.flag.isBuilt = true }
+      }
     }
     // Said again once this update is over: SwiftUI sometimes drops a change made while it builds the page's first
     // frame (in an `onAppear` or `onGeometryChange` action), and the item stays a blank placeholder.
