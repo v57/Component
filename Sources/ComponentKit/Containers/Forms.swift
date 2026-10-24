@@ -77,6 +77,7 @@ public struct FormRow<Control: View, Field: View>: View {
   @FocusState private var fieldFocused: Bool
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.isEnabled) private var isEnabled
+  @Environment(\.kitFormHelpWhileEditing) private var helpWhileEditing
 
   init(
     title: String, help: String?, systemImage: String, hue: Hue, error: String?, status: WorkStatus,
@@ -94,6 +95,9 @@ public struct FormRow<Control: View, Field: View>: View {
 
   private var hasField: Bool { Field.self != EmptyView.self }
 
+  /// The help line shows, unless the form keeps it for while its field is being edited
+  private var showsHelp: Bool { !helpWhileEditing || !hasField || fieldFocused }
+
   public var body: some View {
     let tile: CGFloat = idiom.size(24, touch: 30)
     VStack(alignment: .leading, spacing: 0) {
@@ -104,8 +108,9 @@ public struct FormRow<Control: View, Field: View>: View {
           if let error {
             Text(error).kitFont(.caption).foregroundStyle(Hue.red.text)
               .transition(.opacity)
-          } else if let help {
+          } else if let help, showsHelp {
             Text(help).kitFont(.caption)
+              .transition(.opacity)
           }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -136,7 +141,29 @@ public struct FormRow<Control: View, Field: View>: View {
     }
     .opacity(isEnabled ? 1 : 0.5)
     .animation(.kit, value: error)
+    .animation(.kit, value: showsHelp)
     .accessibilityElement(children: .contain)
+  }
+}
+
+extension EnvironmentValues {
+  @Entry var kitFormHelpWhileEditing: Bool = false
+}
+
+extension View {
+  /// The form rows inside show a field's help only while that field is being edited, fading in under its title; an
+  /// error still shows at all times, and rows without a field keep their help. For short forms whose fields explain
+  /// themselves until someone starts typing.
+  ///
+  /// ```swift
+  /// FormCard {
+  ///   FormRow("Address", help: "mac.local or 192.168.1.5:1997", systemImage: "network",
+  ///           field: TextField("Address", text: $address))
+  /// }
+  /// .kitFormHelpWhileEditing()
+  /// ```
+  public func kitFormHelpWhileEditing(_ enabled: Bool = true) -> some View {
+    environment(\.kitFormHelpWhileEditing, enabled)
   }
 }
 
