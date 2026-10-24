@@ -2,13 +2,15 @@ import SwiftUI
 
 // Sheets, dialogs and popovers (the Sheets and dialogs board, pick C): the panel ground with 20pt corners, so the cards
 // inside read as raised; the header is the rich title, still; the fields' cards sit 8pt in from the edge; the footer is
-// a raised card bar whose live icon and status line lead and whose filled buttons trail.
+// a raised card bar whose live icon and status line lead and whose filled buttons trail; with no status it is as wide
+// as its buttons, at the trailing side, like a window's status bar.
 
 /// A sheet's content: the still rich header (an icon tile, the title, one line of meta that wraps), the body's cards
 /// 8pt in from the edges, and the footer as a card bar. Buttons in the footer are filled and borderless; give the
 /// primary one `.buttonStyle(.kitPrimary)` and `.keyboardShortcut(.defaultAction)` (Return), Cancel
 /// `.keyboardShortcut(.cancelAction)` (Escape). Lead the footer with a `SheetStatus` to show the sheet's own state
-/// (the arc while input is checked, red when wrong, a check when ready).
+/// (the arc while input is checked, red when wrong, a check when ready); the bar then spans the sheet. Without one it
+/// is as wide as its buttons, at the trailing side: no `Spacer()` before them, which would stretch it again.
 ///
 /// Present it with `.kitSheet(isPresented:)`: on the Mac and iPad it is a card over the dimmed window, `width` wide
 /// (80pt wider on iPad), its body scrolling when the window is too short for it; on iPhone it is the system sheet,
@@ -146,10 +148,11 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
       .buttonStyle(ContSheetButtonStyle())
       .controlSize(.small)
       .environment(\.kitInSheetFooter, true)
-      .frame(maxWidth: .infinity, alignment: .trailing)
       .padding(4)
       .frame(minHeight: idiom.size(36, pad: 44, phone: 52))
       .kitSurface(.card, cornerRadius: idiom == .phone ? 18 : idiom == .pad ? KitMetrics.radiusXL : KitMetrics.radiusCard)
+      // The card fits what it holds and trails; a SheetStatus fills the row and takes the card with it
+      .frame(maxWidth: .infinity, alignment: .trailing)
       .padding(KitMetrics.gutter)
   }
 }
