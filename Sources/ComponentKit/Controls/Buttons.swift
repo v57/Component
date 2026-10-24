@@ -46,6 +46,7 @@ struct KitButton: View {
   @Environment(\.controlSize) private var controlSize
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.colorScheme) private var scheme
+  @Environment(\.kitInSheetFooter) private var inFooter
   @State private var isHovered = false
   #if os(tvOS)
     @Environment(\.isFocused) private var isFocused
@@ -60,7 +61,7 @@ struct KitButton: View {
   var body: some View {
     let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
     configuration.label
-      .kitFont(kind == .primary ? .headline : .body)
+      .kitFont(inFooter ? SheetFooterButton.font(idiom) : kind == .primary ? .headline : .body)
       .fontWeight(kind == .primary ? .semibold : .medium)
       .labelStyle(KitButtonLabelStyle(iconOnly: kind == .icon, spacing: 6 * idiom.scale))
       .lineLimit(1)
@@ -88,6 +89,8 @@ struct KitButton: View {
 
   private var height: CGFloat {
     if kind == .icon { return idiom.size(24, touch: 32) }
+    // In a sheet's footer: Cancel's height, whatever the control size
+    if inFooter { return SheetFooterButton.height(idiom) }
     let base: CGFloat =
       switch controlSize {
       case .mini, .small: KitMetrics.controlSmall
@@ -99,11 +102,14 @@ struct KitButton: View {
 
   private var radius: CGFloat {
     if kind == .icon { return 6 * idiom.scale }
+    if inFooter { return SheetFooterButton.radius(idiom) }
     let height = height / idiom.scale
     return (height <= 28 ? 7 : height <= 30 ? 8 : 9) * idiom.scale
   }
 
-  private var horizontalPadding: CGFloat { (kind == .plain ? 8 : 12) * idiom.scale }
+  private var horizontalPadding: CGFloat {
+    inFooter ? SheetFooterButton.padding(idiom) : (kind == .plain ? 8 : 12) * idiom.scale
+  }
 
   private var foreground: AnyShapeStyle {
     if isDestructive {
@@ -127,6 +133,9 @@ struct KitButton: View {
         // Destructive primaries take red; white text needs the hue darkened to 85% for 4.5:1.
         shape.fill(isDestructive ? Hue.red.fill : Hue.accent.fill)
           .overlay(shape.fill(Color.black.opacity(0.08)))
+      } else if inFooter {
+        // Grey like the footer's Cancel beside it, not a white card
+        shape.fill(SheetFooterButton.fill(scheme))
       } else {
         shape.fill(.kitRaised).opacity(scheme == .dark ? 0.55 : 1)
       }

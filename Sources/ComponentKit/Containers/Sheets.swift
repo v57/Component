@@ -145,6 +145,7 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
     HStack(spacing: 6) { footer }
       .buttonStyle(ContSheetButtonStyle())
       .controlSize(.small)
+      .environment(\.kitInSheetFooter, true)
       .frame(maxWidth: .infinity, alignment: .trailing)
       .padding(4)
       .frame(minHeight: idiom.size(36, pad: 44, phone: 52))
@@ -223,6 +224,24 @@ struct ContSheetButtonStyle: ButtonStyle {
   }
 }
 
+/// The footer bar's button size, shared with a `.kitPrimary` (or any kit button) placed in it, so Cancel and the
+/// confirming button are one height, corner and type size.
+enum SheetFooterButton {
+  static func height(_ idiom: KitIdiom) -> CGFloat { idiom.size(28, pad: 36, phone: 44) }
+  static func radius(_ idiom: KitIdiom) -> CGFloat {
+    idiom == .phone ? 14 : idiom == .pad ? KitMetrics.radiusLarge : KitMetrics.radius
+  }
+  static func font(_ idiom: KitIdiom) -> KitFont { idiom.isTouch ? .body : .callout }
+  static func padding(_ idiom: KitIdiom) -> CGFloat { idiom.size(12, touch: 16) }
+  /// A footer button's ground, and a disabled primary's
+  static func fill(_ scheme: ColorScheme) -> KitColor { scheme == .dark ? KitColor.raised : KitColor.fill }
+}
+
+extension EnvironmentValues {
+  /// True inside a sheet's footer bar: kit buttons there take the footer's size.
+  @Entry var kitInSheetFooter: Bool = false
+}
+
 private struct ContSheetButton: View {
   let configuration: ButtonStyleConfiguration
   @Environment(\.colorScheme) private var scheme
@@ -231,16 +250,15 @@ private struct ContSheetButton: View {
   @State private var isHovered = false
 
   var body: some View {
-    let radius: CGFloat = idiom == .phone ? 14 : idiom == .pad ? KitMetrics.radiusLarge : KitMetrics.radius
-    let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+    let shape = RoundedRectangle(cornerRadius: SheetFooterButton.radius(idiom), style: .continuous)
     configuration.label
-      .kitFont(idiom.isTouch ? .body : .callout)
+      .kitFont(SheetFooterButton.font(idiom))
       .fontWeight(.medium)
       .lineLimit(1)
       .foregroundStyle(configuration.role == .destructive ? AnyShapeStyle(Hue.red.text) : AnyShapeStyle(.kitLabel))
-      .padding(.horizontal, idiom.size(12, touch: 16))
-      .frame(minHeight: idiom.size(28, pad: 36, phone: 44))
-      .background { shape.fill(scheme == .dark ? KitColor.raised : KitColor.fill) }
+      .padding(.horizontal, SheetFooterButton.padding(idiom))
+      .frame(minHeight: SheetFooterButton.height(idiom))
+      .background { shape.fill(SheetFooterButton.fill(scheme)) }
       .overlay {
         shape.fill(configuration.isPressed ? AnyShapeStyle(.kitPress) : isHovered && isEnabled ? AnyShapeStyle(.kitHover) : AnyShapeStyle(Color.clear))
       }
