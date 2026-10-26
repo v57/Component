@@ -1237,9 +1237,9 @@ struct SheetsPage: View {
       #endif
       SpecimenSection(
         "Over the window",
-        note: "On the Mac and iPad a kit sheet dims the whole window, from wherever it is presented, and floats on the "
-          + "palette's card; on iPhone it is the system sheet. Return confirms; Escape, Cancel and a click on the dim "
-          + "close it; focus moves into the card and Tab stays there."
+        note: "A kit sheet dims the whole window, from wherever it is presented, and floats on the palette's card: in "
+          + "the middle on the Mac and iPad, at the bottom on iPhone. Return confirms; Escape, Cancel and a click on "
+          + "the dim close it; focus moves into the card and Tab stays there."
       ) {
         Specimen(
           "kitSheet and kitConfirmation",
@@ -1294,6 +1294,23 @@ struct SheetsPage: View {
             .kitSheet(isPresented: $hosts) { HostsSheet(removing: catalogOpenSheet == "stacked" ? "atlas-db" : nil) }
         }
       }
+      SpecimenSection(
+        "On iPhone",
+        note: "The same card floats at the bottom, 10pt inside the screen's edges, its corners concentric with the "
+          + "display's and a grabber on top. It is as tall as its content up to the safe area's top (the body scrolls "
+          + "past that), rides above the keyboard, and a swipe down or a tap on the dim closes it "
+          + "(not with kitSheetDismissDisabled). Confirmations are the same card; overlays stack."
+      ) {
+        Specimen(
+          "kitSheet on iPhone",
+          note: "Drawn here at the iPhone's size; the buttons above present it for real when the catalog runs on an iPhone.",
+          code: """
+            .kitSheet(isPresented: $cloning) { CloneSheet() }   // the same call: no iPhone code
+            """
+        ) {
+          PhoneSheetSpecimen { cloneSheet(dismiss: {}) }
+        }
+      }
       SpecimenSection("Inline", note: "The same sheets drawn in place, in their states.") {
         SpecimenGrid(minWidth: 470) {
           cloneSheet(status: .done, text: "Ready · 12 MB", dismiss: {})
@@ -1322,7 +1339,7 @@ struct SheetsPage: View {
           }
           """)
       }
-      SpecimenSection("Dialog", note: "Centred over the window on the Mac and iPad (the kit's overlay), over the screen on iPhone, with what the decision needs.") {
+      SpecimenSection("Dialog", note: "Centred over the window (the kit's overlay), on iPhone too, with what the decision needs.") {
         Specimen(
           "kitDialog",
           code: """
@@ -1411,6 +1428,47 @@ struct SheetsPage: View {
       Button("Clone", action: dismiss).buttonStyle(.kitPrimary).keyboardShortcut(.defaultAction)
         .disabled(status != .done)
     }
+  }
+}
+
+/// An iPhone's screen with a kit sheet over it, as the overlay draws it there (the Mac's catalog can't present one at
+/// that idiom): rows behind the dim, the card at the bottom with its grabber.
+private struct PhoneSheetSpecimen<Sheet: View>: View {
+  @ViewBuilder var sheet: Sheet
+
+  var body: some View {
+    let screen = RoundedRectangle(cornerRadius: 52, style: .continuous)
+    let card = RoundedRectangle(cornerRadius: 36, style: .continuous)
+    ZStack(alignment: .bottom) {
+      VStack(spacing: KitMetrics.gutter) {
+        KitSection("Repositories", meta: "3 repositories", systemImage: "books.vertical") {
+          SidebarRow("Component", systemImage: "square.stack.3d.up", hue: .accent)
+          SidebarRow("Hub", systemImage: "point.3.connected.trianglepath.dotted", hue: .teal)
+          SidebarRow("Shell", systemImage: "terminal", hue: .gray)
+        }
+        Spacer()
+      }
+      .padding(.top, 54)
+      .padding(.horizontal, KitMetrics.gutter)
+      Rectangle().fill(.kitScrim)
+      sheet
+        // As tall as its content, as the overlay sizes it.
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.top, 8)
+        .overlay(alignment: .top) {
+          Capsule().fill(.kitTertiary).opacity(0.45).frame(width: 36, height: 5).padding(.top, 7)
+        }
+        .background(card.fill(.kitPanel))
+        .clipShape(card)
+        .shadow(color: .black.opacity(0.16), radius: 16, y: 12)
+        .padding(10)
+    }
+    .environment(\.kitIdiom, .phone)
+    .frame(maxWidth: 393)
+    .frame(height: 700)
+    .background(.kitWindow)
+    .clipShape(screen)
+    .overlay(screen.strokeBorder(.kitSeparator, lineWidth: 0.5))
   }
 }
 

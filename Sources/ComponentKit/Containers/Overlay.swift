@@ -6,19 +6,21 @@ import SwiftUI
   import UIKit
 #endif
 
-// Overlays (the Overlays board: "Sheet over the window", "Command palette"): sheets, confirmations, dialogs and the
-// palette float over the whole window on the Mac and iPad, never in a system sheet. The window dims (`kitScrim`), the
-// card sits on the panel ground with 20pt corners and the float shadow, centred (sheets, dialogs) or at the top
-// (the palette). The root modifier hosts them, so a presenter anywhere in the window (a button deep in a sidebar, a
-// toolbar's view, a card inside another overlay) covers the whole window, and overlays stack. On iPhone a sheet stays
-// the system's sheet with the same content.
+// Overlays (the Overlays board: "Sheet over the window", "Command palette"; the Hub board's iPhone sheets): sheets,
+// confirmations, dialogs and the palette float over the whole window, never in a system sheet. The window dims
+// (`kitScrim`), the card sits on the panel ground with the float shadow: centred with 20pt corners on the Mac and
+// iPad (sheets, dialogs), at the top (the palette), and on iPhone a sheet floats at the bottom, 10pt inside the
+// screen's edges, its corners concentric with the display's and a grabber on top. The root modifier hosts them, so a
+// presenter anywhere in the window (a button deep in a sidebar, a toolbar's view, a card inside another overlay)
+// covers the whole window, and overlays stack.
 
 // MARK: - Presenters
 
 extension View {
-  /// Shows `content` over the whole window while `isPresented`, as the kit's sheet: on the Mac and iPad the window
-  /// dims and the content floats on a card in the middle (put a `KitSheet` in it); on iPhone it is the system sheet.
-  /// The same bindings as `.sheet`, so moving to it is a rename. Escape, a click on the dim and the content's own
+  /// Shows `content` over the whole window while `isPresented`, as the kit's sheet: the window dims and the content
+  /// floats on a card (put a `KitSheet` in it), in the middle on the Mac and iPad, at the bottom on iPhone (as tall
+  /// as its content, up to the top of the safe area, above the keyboard; a swipe down closes it). The same bindings
+  /// as `.sheet`, so moving to it is a rename. Escape, a click on the dim and the content's own
   /// Cancel close it; focus moves into the card (its first field on the Mac), and Tab stays inside it. Close it from
   /// inside with `@Environment(\.kitDismiss)` (SwiftUI's `dismiss` doesn't reach a kit overlay), or keep it open
   /// on a click on the dim with `.kitSheetDismissDisabled()`. The content gets the presenting view's environment.
@@ -39,7 +41,7 @@ extension View {
   ) -> some View {
     modifier(
       KitOverlayPresenter(
-        isPresented: isPresented, style: .sheet, onDismiss: onDismiss, systemSheetOnPhone: true, content: content))
+        isPresented: isPresented, style: .sheet, onDismiss: onDismiss, content: content))
   }
 
   /// Shows `content` for `item` over the whole window while it isn't nil (`.sheet(item:)` as a kit overlay). A new
@@ -54,8 +56,8 @@ extension View {
     modifier(KitOverlayItemPresenter(item: item, onDismiss: onDismiss, content: content))
   }
 
-  /// Keeps a kit sheet open on a click on the dim (a form with unsaved input); Escape and the sheet's own buttons
-  /// still close it. On iPhone it is `interactiveDismissDisabled`.
+  /// Keeps a kit sheet open on a click on the dim or a swipe down (a form with unsaved input); Escape and the sheet's
+  /// own buttons still close it.
   ///
   /// ```swift
   /// KitSheet(…) { … }.kitSheetDismissDisabled(hasChanges)
@@ -67,7 +69,7 @@ extension View {
 }
 
 /// Closes the kit sheet, confirmation or dialog the view is in (the kit's `dismiss`): set by every kit presenter,
-/// on the overlay and in the iPhone's system sheet alike. Outside one it does nothing.
+/// on the overlay and in a system sheet (a view outside `componentKit()`) alike. Outside one it does nothing.
 ///
 /// ```swift
 /// @Environment(\.kitDismiss) private var dismiss
@@ -100,9 +102,11 @@ struct KitOverlayDismissDisabled: PreferenceKey {
 
 // MARK: - Host
 
-/// How an overlay sits: a sheet or dialog in the middle on the kit's card, the palette at the top drawing its own.
+/// How an overlay sits: a sheet in the middle on the kit's card (at the bottom on iPhone), a dialog in the middle
+/// everywhere, the palette at the top drawing its own.
 enum KitOverlayStyle: Hashable, Sendable {
   case sheet
+  case dialog
   case palette(width: CGFloat)
 
   var isTop: Bool { if case .palette = self { true } else { false } }
@@ -237,13 +241,17 @@ private struct KitOverlayLayer: View {
 }
 
 /// One overlay: the dim and the card. Both fade in (the card also grows a little) when it appears, and out while it
-/// closes.
+/// closes; on iPhone a sheet's card slides up from the bottom instead, and back down.
 private struct KitOverlayEntryView: View {
   let entry: KitOverlayHost.Entry
   let isTop: Bool
   @State private var hasAppeared = false
   @State private var isDismissDisabled = false
+  /// How far a swipe has pulled the iPhone's card down.
+  @State private var drag: CGFloat = 0
   @Environment(\.kitIdiom) private var idiom
+
+  private var isBottomSheet: Bool { idiom == .phone && entry.style == .sheet }
 
   var body: some View {
     let isShown = hasAppeared && !entry.isClosing
@@ -257,13 +265,23 @@ private struct KitOverlayEntryView: View {
         .accessibilityLabel("Close")
         .accessibilityHidden(isDismissDisabled)
         .opacity(isShown ? 1 : 0)
-      card
-        .opacity(isShown ? 1 : 0)
-        .scaleEffect(isShown ? 1 : entry.style.isTop ? 0.98 : 0.96, anchor: entry.style.isTop ? .top : .center)
+      if isBottomSheet {
+        let offset = isDismissDisabled || drag < 0 ? drag / 5 : drag
+        card
+          // Off the bottom of the screen until shown: the card's height and the 10pt under it, with its shadow.
+          .visualEffect { content, proxy in content.offset(y: isShown ? offset : proxy.size.height + 60) }
+          .animation(isShown ? .kit : .kitFast, value: isShown)
+      } else {
+        card
+          .opacity(isShown ? 1 : 0)
+          .scaleEffect(isShown ? 1 : entry.style.isTop ? 0.98 : 0.96, anchor: entry.style.isTop ? .top : .center)
+      }
     }
     .allowsHitTesting(isTop)
     .animation(.kitFast, value: isShown)
     .onAppear { hasAppeared = true }
+    // Presented again while closing from a swipe: back in place.
+    .onChange(of: entry.isClosing) { _, closing in if !closing { drag = 0 } }
   }
 
   @ViewBuilder
@@ -275,6 +293,7 @@ private struct KitOverlayEntryView: View {
       }
       .modifier(KitOverlayFocus(isTop: isTop, dismiss: entry.dismiss))
       .accessibilityAddTraits(.isModal)
+      .accessibilityAction(.escape) { if !isDismissDisabled { entry.dismiss() } }
     switch entry.style {
     case .palette(let width):
       body
@@ -282,12 +301,52 @@ private struct KitOverlayEntryView: View {
         .padding(.horizontal, KitMetrics.gutter)
         .padding(.top, idiom.isTouch ? 16 : KitMetrics.gutter)
         .frame(maxHeight: .infinity, alignment: .top)
-    case .sheet:
+    case .sheet where idiom == .phone:
+      // As tall as its content up to the top of the safe area (a KitSheet's body scrolls past that), 10pt inside
+      // the screen's edges and above the keyboard.
+      body
+        .padding(.top, 8)
+        .frame(maxWidth: .infinity)
+        .overlay(alignment: .top) { KitOverlayGrabber().padding(.top, 7) }
+        .kitOverlayCard(concentric: true)
+        .gesture(swipe)
+        .frame(maxWidth: 600)
+        .padding([.horizontal, .bottom], 10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .ignoresSafeArea(.container, edges: .bottom)
+    case .sheet, .dialog:
       body
         .kitOverlayCard()
         .padding(idiom.isTouch ? 24 : 20)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+  }
+
+  /// Pulls the iPhone's card down; let go far or fast enough and it closes. With `kitSheetDismissDisabled` (or
+  /// pulled up) it only gives a little and springs back.
+  private var swipe: some Gesture {
+    DragGesture(minimumDistance: 10, coordinateSpace: .global)
+      .onChanged { value in drag = value.translation.height }
+      .onEnded { value in
+        let flung = value.predictedEndTranslation.height - value.translation.height > 160
+        if !isDismissDisabled, value.translation.height > 120 || (value.translation.height > 20 && flung) {
+          // The card slides on down from where it was let go.
+          entry.dismiss()
+        } else {
+          withAnimation(.kit) { drag = 0 }
+        }
+      }
+  }
+}
+
+/// The small bar at the top of the iPhone's sheet card that says it can be swiped down.
+private struct KitOverlayGrabber: View {
+  var body: some View {
+    Capsule()
+      .fill(.kitTertiary)
+      .opacity(0.45)
+      .frame(width: 36, height: 5)
+      .accessibilityHidden(true)
   }
 }
 
@@ -309,24 +368,65 @@ private struct KitOverlayBody: View {
 
 extension View {
   /// The overlays' card: the panel ground with 20pt corners, a hairline and the float shadow (sheets, dialogs, the
-  /// palette). The content is clipped to it.
-  func kitOverlayCard() -> some View {
-    let shape = RoundedRectangle(cornerRadius: KitMetrics.radiusOverlay, style: .continuous)
-    return
+  /// palette). The content is clipped to it. `concentric`: the iPhone's sheet card, its corners concentric with the
+  /// display's (36pt before iOS 26).
+  @ViewBuilder
+  func kitOverlayCard(concentric: Bool = false) -> some View {
+    if concentric {
+      let shape = KitOverlayCardGround.concentricShape
       self
-      .clipShape(shape)
-      .overlay(shape.strokeBorder(.kitBorder, lineWidth: 0.5))
-      .background { KitOverlayCardGround() }
+        .clipShape(shape)
+        .overlay(shape.stroke(.kitBorder, lineWidth: 1).clipShape(shape))
+        .background { KitOverlayCardGround(shape: shape) }
+    } else {
+      let shape = RoundedRectangle(cornerRadius: KitMetrics.radiusOverlay, style: .continuous)
+      self
+        .clipShape(shape)
+        .overlay(shape.strokeBorder(.kitBorder, lineWidth: 0.5))
+        .background { KitOverlayCardGround() }
+    }
   }
 }
 
 /// The card's ground and shadow, under content that clips itself (the palette).
 struct KitOverlayCardGround: View {
+  /// Another shape than the 20pt rounded rectangle (the iPhone's sheet card).
+  var shape: AnyShape? = nil
+  @Environment(\.colorScheme) private var scheme
+
+  /// The iPhone's sheet card: all four corners concentric with the display's, 10pt in (36pt before iOS 26).
+  static var concentricShape: AnyShape {
+    if #available(iOS 26, macOS 26, tvOS 26, *) {
+      AnyShape(ConcentricRectangle(corners: .concentric(minimum: .fixed(24)), isUniform: true))
+    } else {
+      AnyShape(RoundedRectangle(cornerRadius: 36, style: .continuous))
+    }
+  }
+
+  /// A bar at the bottom of the iPhone's sheet card (`KitSheet`'s footer, 8pt in): its bottom corners concentric with
+  /// the card's, the top ones `radius`.
+  static func concentricBottomShape(radius: CGFloat) -> AnyShape {
+    if #available(iOS 26, macOS 26, tvOS 26, *) {
+      AnyShape(ConcentricRectangle(corners: .concentric(minimum: .fixed(radius)), isUniform: false))
+    } else {
+      AnyShape(
+        UnevenRoundedRectangle(
+          topLeadingRadius: radius, bottomLeadingRadius: 28, bottomTrailingRadius: 28, topTrailingRadius: radius,
+          style: .continuous))
+    }
+  }
+
   var body: some View {
-    let shape = RoundedRectangle(cornerRadius: KitMetrics.radiusOverlay, style: .continuous)
-    SurfaceShape(surface: .floating, cornerRadius: KitMetrics.radiusOverlay)
-      .overlay(shape.fill(.kitPanel))
-      .overlay(shape.strokeBorder(.kitBorder, lineWidth: 0.5))
+    if let shape {
+      shape.fill(.kitPanel)
+        .overlay(shape.stroke(.kitBorder, lineWidth: 1).clipShape(shape))
+        .kitFloatShadow(scheme)
+    } else {
+      let shape = RoundedRectangle(cornerRadius: KitMetrics.radiusOverlay, style: .continuous)
+      SurfaceShape(surface: .floating, cornerRadius: KitMetrics.radiusOverlay)
+        .overlay(shape.fill(.kitPanel))
+        .overlay(shape.strokeBorder(.kitBorder, lineWidth: 0.5))
+    }
   }
 }
 
@@ -336,26 +436,16 @@ struct KitOverlayPresenter<Overlay: View>: ViewModifier {
   @Binding var isPresented: Bool
   var style: KitOverlayStyle
   var onDismiss: (() -> Void)?
-  /// On iPhone, a system sheet instead (sheets and confirmations; the palette is an overlay everywhere).
-  var systemSheetOnPhone: Bool
   var identity: AnyHashable? = nil
   var content: () -> Overlay
   @Environment(\.kitOverlayHost) private var host
   @Environment(\.self) private var environment
-  @Environment(\.kitIdiom) private var idiom
   @State private var id = UUID()
   @State private var overlay = KitOverlayContent()
 
-  private var usesSystemSheet: Bool {
-    #if os(iOS)
-      host == nil || (systemSheetOnPhone && idiom == .phone)
-    #else
-      host == nil
-    #endif
-  }
-
   func body(content view: Content) -> some View {
-    if usesSystemSheet {
+    // Outside `componentKit()` there is no host: the system's sheet.
+    if host == nil {
       view.sheet(isPresented: $isPresented, onDismiss: onDismiss) {
         content()
           .environment(\.kitDismiss, dismissAction)
@@ -414,18 +504,9 @@ struct KitOverlayItemPresenter<Item: Identifiable, Overlay: View>: ViewModifier 
   var onDismiss: (() -> Void)?
   var content: (Item) -> Overlay
   @Environment(\.kitOverlayHost) private var host
-  @Environment(\.kitIdiom) private var idiom
-
-  private var usesSystemSheet: Bool {
-    #if os(iOS)
-      host == nil || idiom == .phone
-    #else
-      host == nil
-    #endif
-  }
 
   func body(content view: Content) -> some View {
-    if usesSystemSheet {
+    if host == nil {
       view.sheet(item: $item, onDismiss: onDismiss) { item in
         let binding = $item
         content(item)
@@ -438,7 +519,7 @@ struct KitOverlayItemPresenter<Item: Identifiable, Overlay: View>: ViewModifier 
       view.modifier(
         KitOverlayPresenter(
           isPresented: Binding(get: { binding.wrappedValue != nil }, set: { if !$0 { binding.wrappedValue = nil } }),
-          style: .sheet, onDismiss: onDismiss, systemSheetOnPhone: false,
+          style: .sheet, onDismiss: onDismiss,
           identity: item.map { AnyHashable($0.id) },
           content: { KitOverlayItemContent(item: binding.wrappedValue, content: content) }))
     }

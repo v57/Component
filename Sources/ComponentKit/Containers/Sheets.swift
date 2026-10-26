@@ -12,9 +12,9 @@ import SwiftUI
 /// (the arc while input is checked, red when wrong, a check when ready); the bar then spans the sheet. Without one it
 /// is as wide as its buttons, at the trailing side: no `Spacer()` before them, which would stretch it again.
 ///
-/// Present it with `.kitSheet(isPresented:)`: on the Mac and iPad it is a card over the dimmed window, `width` wide
-/// (80pt wider on iPad), its body scrolling when the window is too short for it; on iPhone it is the system sheet,
-/// taking the height it's given, with its body scrolling between the header and the footer.
+/// Present it with `.kitSheet(isPresented:)`: a card over the dimmed window, `width` wide on the Mac (80pt wider on
+/// iPad, the screen's width less 10pt each side on iPhone, at the bottom), as tall as its content, its body scrolling
+/// between the header and the footer when the window is too short for it.
 ///
 /// ```swift
 /// .kitSheet(isPresented: $cloning) {
@@ -63,14 +63,7 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
     VStack(alignment: .leading, spacing: 0) {
       header
       if Content.self != EmptyView.self {
-        if idiom == .phone {
-          ScrollView {
-            sheetBody
-              .padding(.bottom, Footer.self == EmptyView.self ? 0 : 4)
-          }
-          .scrollBounceBehavior(.basedOnSize)
-          .frame(maxHeight: .infinity, alignment: .top)
-        } else if presentation == .overlay {
+        if presentation == .overlay {
           // Over the window the card is as tall as its content, and its body scrolls when the window is shorter.
           ScrollView {
             sheetBody.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { bodyHeight = $0 }
@@ -78,6 +71,13 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
           .scrollBounceBehavior(.basedOnSize)
           .scrollIndicators(.automatic)
           .frame(maxHeight: bodyHeight)
+        } else if idiom == .phone {
+          ScrollView {
+            sheetBody
+              .padding(.bottom, Footer.self == EmptyView.self ? 0 : 4)
+          }
+          .scrollBounceBehavior(.basedOnSize)
+          .frame(maxHeight: .infinity, alignment: .top)
         } else {
           sheetBody
         }
@@ -150,7 +150,14 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
       .environment(\.kitInSheetFooter, true)
       .padding(4)
       .frame(minHeight: idiom.size(36, pad: 44, phone: 52))
-      .kitSurface(.card, cornerRadius: idiom == .phone ? 18 : idiom == .pad ? KitMetrics.radiusXL : KitMetrics.radiusCard)
+      .background {
+        // At the bottom of the iPhone's floating card its lower corners follow the card's.
+        if idiom == .phone, presentation == .overlay {
+          SurfaceCardShape(shape: KitOverlayCardGround.concentricBottomShape(radius: 18))
+        } else {
+          SurfaceShape(surface: .card, cornerRadius: idiom == .pad ? KitMetrics.radiusXL : idiom == .phone ? 18 : KitMetrics.radiusCard)
+        }
+      }
       // The card fits what it holds and trails; a SheetStatus fills the row and takes the card with it
       .frame(maxWidth: .infinity, alignment: .trailing)
       .padding(KitMetrics.gutter)
@@ -275,8 +282,8 @@ private struct ContSheetButton: View {
 // MARK: - Confirmation
 
 extension View {
-  /// Asks before an action, as a kit sheet (over the window on the Mac and iPad, a system sheet on iPhone; it stacks
-  /// over a sheet it is asked from): the still header (a red tile for a destructive action) with the message
+  /// Asks before an action, as a kit sheet (over the window, at the bottom on iPhone; it stacks over a sheet it is
+  /// asked from): the still header (a red tile for a destructive action) with the message
   /// wrapping under the title, and a footer bar with Cancel and the confirming button (filled red when destructive).
   /// Return confirms and Escape cancels.
   ///

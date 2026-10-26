@@ -82,7 +82,7 @@ struct SurfaceShape: View {
           shape.strokeBorder(dark ? Color.white.opacity(0.1) : Color.black.opacity(0.14), lineWidth: 0.5)
         }
         .overlay { if dark { TopHighlight(shape: shape, opacity: 0.12) } }
-        .shadow(color: .black.opacity(dark ? 0.5 : 0.16), radius: dark ? 20 : 16, y: dark ? 16 : 12)
+        .kitFloatShadow(scheme)
     case .field:
       shape.fill(KitColor.field.overBarGround(barGround))
         .overlay { if more { shape.strokeBorder(.kitBorder, lineWidth: 1) } }
@@ -92,15 +92,47 @@ struct SurfaceShape: View {
   }
 }
 
+extension View {
+  /// The floating surface's shadow (menus, popovers, overlay cards).
+  func kitFloatShadow(_ scheme: ColorScheme) -> some View {
+    let dark = scheme == .dark
+    return shadow(color: .black.opacity(dark ? 0.5 : 0.16), radius: dark ? 20 : 16, y: dark ? 16 : 12)
+  }
+}
+
 /// Dark mode's resting edge: a 0.5pt highlight along the top of a shape instead of a shadow.
 struct TopHighlight<S: InsettableShape>: View {
   let shape: S
   let opacity: Double
 
   var body: some View {
-    shape.strokeBorder(
-      LinearGradient(
-        colors: [.white.opacity(opacity), .white.opacity(0)], startPoint: .top, endPoint: .init(x: 0.5, y: 0.12)),
-      lineWidth: 0.5)
+    shape.strokeBorder(Self.gradient(opacity), lineWidth: 0.5)
+  }
+
+  static func gradient(_ opacity: Double) -> LinearGradient {
+    LinearGradient(
+      colors: [.white.opacity(opacity), .white.opacity(0)], startPoint: .top, endPoint: .init(x: 0.5, y: 0.12))
+  }
+}
+
+/// The card ground in any shape (a footer bar concentric with the iPhone's sheet card): `.card`'s fill, hairline
+/// (top highlight in dark) and shadow, the edges drawn inside the shape.
+struct SurfaceCardShape: View {
+  let shape: AnyShape
+  @Environment(\.colorScheme) private var scheme
+  @Environment(\.kitMoreContrast) private var moreContrast
+  @Environment(\.contBarGround) private var barGround
+
+  var body: some View {
+    let dark = scheme == .dark
+    shape.fill(KitColor.card.overBarGround(barGround))
+      .overlay {
+        if dark {
+          shape.stroke(TopHighlight<Rectangle>.gradient(0.08), lineWidth: 1).clipShape(shape)
+        } else {
+          shape.stroke(Color.black.opacity(moreContrast ? 0.32 : 0.1), lineWidth: moreContrast ? 2 : 1).clipShape(shape)
+        }
+      }
+      .shadow(color: .black.opacity(dark ? 0 : 0.06), radius: 1.5, y: 1)
   }
 }

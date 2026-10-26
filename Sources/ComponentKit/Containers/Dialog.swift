@@ -4,9 +4,9 @@ import SwiftUI
 
 extension View {
   /// Asks before an action in a centered card over the screen, alert-style: the icon, the title and message centered,
-  /// whatever the decision needs (a safety code to compare), then Cancel and the confirming button. On the Mac and iPad
-  /// it is the kit's overlay (the window dims, a click on the dim cancels; it stacks over a sheet it is asked from);
-  /// on iPhone it covers the screen with a dimmed backdrop (a tap on it cancels). Return confirms and Escape cancels. For a plain yes/no, `kitConfirmation` is the sheet with the same buttons.
+  /// whatever the decision needs (a safety code to compare), then Cancel and the confirming button. It is the kit's
+  /// overlay, in the middle on iPhone too (the window dims, a click on the dim cancels; it stacks over a sheet it is
+  /// asked from). Return confirms and Escape cancels. For a plain yes/no, `kitConfirmation` is the sheet with the same buttons.
   ///
   /// ```swift
   /// .kitDialog("Approve ThinkPad X1?", isPresented: $approving, message: "Windows · wants to join Home Hub",
@@ -89,12 +89,12 @@ struct KitDialogCard: View {
 struct KitDialogModifier: ViewModifier {
   @Binding var isPresented: Bool
   let card: KitDialogCard
-  @Environment(\.kitIdiom) private var idiom
   @Environment(\.kitOverlayHost) private var host
 
   func body(content: Content) -> some View {
     #if os(iOS)
-      if idiom == .phone || host == nil {
+      // Outside `componentKit()`: a cover with its own dim.
+      if host == nil {
         content
           .fullScreenCover(isPresented: $isPresented) {
             KitDialogCover(card: card) { confirmed in
@@ -115,7 +115,7 @@ struct KitDialogModifier: ViewModifier {
     #endif
   }
 
-  /// On the Mac and iPad, the kit's overlay: the card over the dimmed window, stacking over a sheet it is asked from.
+  /// The kit's overlay: the card over the dimmed window, stacking over a sheet it is asked from.
   private func overlay(_ content: Content) -> some View {
     let binding = $isPresented
     var card = card
@@ -125,7 +125,7 @@ struct KitDialogModifier: ViewModifier {
     }
     return content.modifier(
       KitOverlayPresenter(
-        isPresented: binding, style: .sheet, onDismiss: nil, systemSheetOnPhone: false,
+        isPresented: binding, style: .dialog, onDismiss: nil,
         content: { [card] in KitDialogSheetGround(card: card) }))
   }
 }

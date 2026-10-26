@@ -434,7 +434,7 @@ private struct DataPalettePresenter<Palette: View>: ViewModifier {
     } else {
       content.modifier(
         KitOverlayPresenter(
-          isPresented: $isPresented, style: .palette(width: width), onDismiss: nil, systemSheetOnPhone: false,
+          isPresented: $isPresented, style: .palette(width: width), onDismiss: nil,
           content: palette))
     }
   }
