@@ -142,3 +142,40 @@ private func gitTable(atlasRows: CGFloat = 100) -> ContStickyTable {
   #expect(live?.table.items[1].minY == 306 && live?.table.items[1].maxY == 510)
   #expect(live?.table.placements(visibleTop: -2, visibleBottom: 606)[1] == nil)
 }
+
+@Test func stickyPausedTableKeepsEveryItemInPlace() {
+  var table = gitTable()
+  table.isPaused = true
+  #expect(table.placements(visibleTop: 2100, visibleBottom: 3000).allSatisfy { $0 == nil })
+}
+
+@available(macOS 15.0, iOS 18.0, *)
+@Test @MainActor func stickyPauseLastsHalfASecondPastTheScroll() async throws {
+  let pause = ContStickyPause()
+  pause.scrolled(.interacting)
+  #expect(pause.isPaused)
+  // A held scroll stays paused however long it lasts.
+  try await Task.sleep(for: .milliseconds(700))
+  #expect(pause.isPaused)
+  pause.scrolled(.idle)
+  try await Task.sleep(for: .milliseconds(300))
+  #expect(pause.isPaused)
+  try await Task.sleep(for: .milliseconds(400))
+  #expect(!pause.isPaused)
+
+  // Wheel steps (moves outside a phase) keep it paused until half a second after the last.
+  pause.moved()
+  try await Task.sleep(for: .milliseconds(300))
+  pause.moved()
+  try await Task.sleep(for: .milliseconds(300))
+  #expect(pause.isPaused)
+  try await Task.sleep(for: .milliseconds(400))
+  #expect(!pause.isPaused)
+
+  // The kit's own scroll doesn't count; a row drag does.
+  pause.scrollsItself()
+  pause.moved()
+  #expect(!pause.isPaused)
+  pause.dragged(true)
+  #expect(pause.isPaused)
+}

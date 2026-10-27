@@ -7,8 +7,9 @@ import SwiftUI
 // scrolls), the section reports its title, and the host (the sidebar) puts them in one table in the environment.
 // Each frame, every sticky view works out from the table and its own place in the scroll view where it shows, in a
 // `visualEffect`: scrolling changes no state. Only whether a view is stuck is state (its z-order and its stuck card),
-// and that changes as it sticks or comes free. Before macOS 15 and iOS 18 the stack is a `LazyVStack` and nothing
-// sticks.
+// and that changes as it sticks or comes free. While the user scrolls or drags a row, and for half a second after,
+// nothing sticks: the sections scroll in place (and the views skip the work), and the stuck ones come back once the
+// list holds still. Before macOS 15 and iOS 18 the stack is a `LazyVStack` and nothing sticks.
 
 /// What a sticky section keeps in view once it has scrolled up past the visible area (`.kitSticky(top:bottom:)`).
 public enum KitStickyTop: Hashable, Sendable {
@@ -143,6 +144,8 @@ struct ContStickyTable: Equatable, @unchecked Sendable {
   /// The gaps from the clear area's ends: the stack's own padding there.
   var topGap: CGFloat = 2
   var bottomGap: CGFloat = 0
+  /// The user is scrolling or dragging (or was half a second ago): every item stays in place.
+  var isPaused = false
 
   /// The share of the visible height the bottom stack may take before `.content` falls back to the title.
   static let bottomShare: CGFloat = 0.4
@@ -161,6 +164,7 @@ struct ContStickyTable: Equatable, @unchecked Sendable {
   ///   item in place stops the stack, as the items before it end above it.
   func placements(visibleTop: CGFloat, visibleBottom: CGFloat) -> [ContStickyPlacement?] {
     var result = [ContStickyPlacement?](repeating: nil, count: items.count)
+    guard !isPaused else { return result }
     let top = visibleTop + topGap
     let bottom = visibleBottom - bottomGap
     var cursor = top
@@ -237,7 +241,7 @@ struct ContStickyTable: Equatable, @unchecked Sendable {
   /// How far `part` of the item `id` moves from its place this frame. `naturalTop` is the top of the view the proxy
   /// measures, in the stack's space: the visible area follows from it.
   func offset(of id: AnyHashable, part: ContStickyPart, naturalTop: CGFloat, proxy: GeometryProxy) -> CGFloat {
-    guard let (table, index) = live(id, part: part, at: naturalTop), clearBottom > clearTop else { return 0 }
+    guard !isPaused, let (table, index) = live(id, part: part, at: naturalTop), clearBottom > clearTop else { return 0 }
     let visible = visibleArea(naturalTop: naturalTop, hostTop: proxy.frame(in: .named(Self.hostSpace)).minY)
     guard let placement = table.placements(visibleTop: visible.top, visibleBottom: visible.bottom)[index],
       placement.part == part
@@ -340,7 +344,7 @@ extension View {
     spacing: CGFloat, topGap: CGFloat, bottomGap: CGFloat, scroll: @escaping @MainActor (AnyHashable) -> Void
   ) -> some View {
     modifier(
-      ContStickyHost(spacing: spacing, topGap: topGap, bottomGap: bottomGap, scroll: ContStickyScroll(action: scroll)))
+      ContStickyHost(spacing: spacing, topGap: topGap, bottomGap: bottomGap, scroll: scroll))
   }
 
   /// The stack of a sticky host's scroll view: the frames the sticky views report are in its space.
@@ -353,17 +357,21 @@ private struct ContStickyHost: ViewModifier {
   let spacing: CGFloat
   let topGap: CGFloat
   let bottomGap: CGFloat
-  let scroll: ContStickyScroll
+  let scroll: @MainActor (AnyHashable) -> Void
   @State private var registry = ContStickyRegistry()
   @State private var clear = ContStickyClear()
   @State private var revision = 0
+  @State private var pause = ContStickyPause()
 
   func body(content: Content) -> some View {
     let _ = revision
     if #available(macOS 15.0, iOS 18.0, *) {
       content
         .environment(\.contStickyTable, table)
-        .environment(\.contStickyScroll, scroll)
+        .environment(\.contStickyScroll, ContStickyScroll { [pause] id in
+          pause.scrollsItself()
+          scroll(id)
+        })
         .environment(\.contStickyRegistry, registry)
         .onAppear {
           registry.onChange = { revision &+= 1 }
@@ -376,6 +384,20 @@ private struct ContStickyHost: ViewModifier {
         } action: { _, new in
           clear = new
         }
+        // The user's scroll or a row drag lets go of the stuck sections until half a second after it ends. A
+        // programmatic scroll (a click on a stuck title) keeps them.
+        .onScrollPhaseChange { _, phase in
+          pause.scrolled(phase)
+        }
+        .onChange(of: ContDragActivity.shared.isDragging, initial: true) { _, dragging in
+          pause.dragged(dragging)
+        }
+        #if os(macOS)
+          // A mouse wheel scrolls without a phase: the content moving while idle is one.
+          .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y } action: { _, _ in
+            pause.moved()
+          }
+        #endif
         .coordinateSpace(.named(ContStickyTable.hostSpace))
     } else {
       content
@@ -392,7 +414,70 @@ private struct ContStickyHost: ViewModifier {
     }
     return ContStickyTable(
       items: sorted, clearTop: clear.top, clearBottom: clear.bottom, spacing: spacing, topGap: topGap,
-      bottomGap: bottomGap)
+      bottomGap: bottomGap, isPaused: pause.isPaused)
+  }
+}
+
+/// Whether the stuck sections are let go: from the start of a scroll or a row drag until `delay` after its end.
+@MainActor @Observable
+final class ContStickyPause {
+  static let delay: Duration = .milliseconds(500)
+
+  private(set) var isPaused = false
+  @ObservationIgnored private var isScrolling = false
+  @ObservationIgnored private var isDragging = false
+  /// The kit scrolls the host itself (a click on a stuck title): its move isn't the user's.
+  @ObservationIgnored private var isScrollingItself = false
+  /// The end of the last scroll or drag, or the last wheel step.
+  @ObservationIgnored private var lastActivity = ContinuousClock.now
+  @ObservationIgnored private var resume: Task<Void, Never>?
+
+  @available(macOS 15.0, iOS 18.0, *)
+  func scrolled(_ phase: ScrollPhase) {
+    isScrolling = phase == .interacting || phase == .decelerating
+    update()
+  }
+
+  func dragged(_ dragging: Bool) {
+    isDragging = dragging
+    update()
+  }
+
+  /// The content moved. Only a move outside a scroll phase counts (a mouse wheel's step on the Mac).
+  func moved() {
+    guard !isScrolling, !isScrollingItself else { return }
+    update(moved: true)
+  }
+
+  func scrollsItself() {
+    isScrollingItself = true
+    Task { @MainActor [weak self] in
+      try? await Task.sleep(for: .milliseconds(200))
+      self?.isScrollingItself = false
+    }
+  }
+
+  private func update(moved: Bool = false) {
+    let isActive = isScrolling || isDragging
+    if (isActive || moved) && !isPaused { withAnimation(.kit) { isPaused = true } }
+    if isActive {
+      resume?.cancel()
+      resume = nil
+      return
+    }
+    guard isPaused else { return }
+    lastActivity = .now
+    guard resume == nil else { return }
+    // One wait for any number of wheel steps: each moves its end on.
+    resume = Task { @MainActor [weak self] in
+      while let due = self.map({ $0.lastActivity + Self.delay }), ContinuousClock.now < due {
+        try? await Task.sleep(until: due)
+        if Task.isCancelled { return }
+      }
+      guard let self else { return }
+      resume = nil
+      withAnimation(.kit) { isPaused = false }
+    }
   }
 }
 
@@ -485,7 +570,7 @@ extension ContStickyItemModifier {
   private func update() {
     var new: ContStickyState?
     if let hostTop = visible.hostTop, let frame = visible.frame, let table = visible.table,
-      table.clearBottom > table.clearTop
+      !table.isPaused, table.clearBottom > table.clearTop
     {
       let area = table.visibleArea(naturalTop: frame.minY, hostTop: hostTop)
       if let (live, order) = table.live(id, part: .content, at: frame.minY) {
@@ -509,6 +594,8 @@ extension ContStickyItemModifier {
     let moved = frame != visible.frame
     visible.frame = frame
     visible.hostTop = hostTop
+    // Paused, nothing sticks: a scrolled frame has nothing to check.
+    if !moved, state == nil, visible.table?.isPaused == true { return }
     Task { @MainActor in
       if moved { report() }
       update()
