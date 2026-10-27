@@ -1,5 +1,9 @@
 import SwiftUI
 
+#if canImport(AppKit)
+  import AppKit
+#endif
+
 /// The kit's type scale (13pt body on the Mac, 17pt on iPad and iPhone), each style with its weight, tracking and
 /// default colour. Apply it with `.kitFont(_:)`; on touch idioms it follows Dynamic Type.
 public enum KitFont: Hashable, Sendable {
@@ -122,5 +126,41 @@ struct KitFontModifier: ViewModifier {
     case .accessibility5: return 3.1
     @unknown default: return 1
     }
+  }
+}
+
+extension KitFont {
+  /// The installed fixed-pitch font families, by name (a code editor's font choices): AppKit's font manager on the
+  /// Mac, fontconfig's (`fc-list :spacing=mono`) on Linux, Windows' own on Windows, none on iPhone and iPad.
+  public static func monospacedFamilies() -> [String] {
+    #if canImport(AppKit)
+      let manager = NSFontManager.shared
+      return manager.availableFontFamilies.filter { family in
+        guard let members = manager.availableMembers(ofFontFamily: family),
+          let name = members.first?.first as? String,
+          let font = NSFont(name: name, size: 12)
+        else { return false }
+        return font.isFixedPitch
+      }
+    #elseif os(Windows)
+      return ["Cascadia Code", "Cascadia Mono", "Consolas", "Courier New", "Lucida Console"]
+    #elseif os(Linux)
+      let process = Process()
+      process.executableURL = URL(fileURLWithPath: "/usr/bin/fc-list")
+      process.arguments = [":spacing=mono", "family"]
+      let pipe = Pipe()
+      process.standardOutput = pipe
+      process.standardError = FileHandle.nullDevice
+      guard (try? process.run()) != nil else { return [] }
+      let data = pipe.fileHandleForReading.readDataToEndOfFile()
+      process.waitUntilExit()
+      // One family per line; a family with localized names lists them after commas.
+      let families = String(decoding: data, as: UTF8.self).split(separator: "\n").compactMap {
+        $0.split(separator: ",").first.map { $0.trimmingCharacters(in: .whitespaces) }
+      }
+      return Array(Set(families.filter { !$0.isEmpty })).sorted()
+    #else
+      return []
+    #endif
   }
 }
