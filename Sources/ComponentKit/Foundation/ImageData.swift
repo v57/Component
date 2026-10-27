@@ -23,10 +23,23 @@ extension Image {
       guard let image = DecodedImages.image(for: data, decode: UIImage.init(data:)) else { return nil }
       self.init(uiImage: image)
     #else
-      return nil
+      // Decoded by v57/SwiftUI's backend (GdkPixbuf on Linux), on the main thread where views are built.
+      guard Thread.isMainThread,
+        let box = DecodedImages.image(
+          for: data, decode: { data in MainActor.assumeIsolated { Image(_platformData: data).map(ImageBox.init) } })
+      else { return nil }
+      self = box.image
     #endif
   }
 }
+
+#if !canImport(AppKit) && !canImport(UIKit)
+  /// A decoded image as a cache entry.
+  private final class ImageBox: @unchecked Sendable {
+    let image: Image
+    init(_ image: Image) { self.image = image }
+  }
+#endif
 
 /// Decoded pictures by their bytes (`NSData` compares contents); the cache drops them under memory pressure.
 private enum DecodedImages {
