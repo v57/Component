@@ -126,6 +126,20 @@ public struct Keycaps: View {
     #endif
   }
 
+  /// A shortcut as one string, as this platform writes it: "⌘↩" on the Mac, "Ctrl+Enter" on Windows and Linux (a
+  /// hint inside a button, where caps would be too much).
+  ///
+  /// ```swift
+  /// Text(Keycaps.label("⌘↩"))
+  /// ```
+  nonisolated public static func label(_ keys: String) -> String {
+    #if os(Windows) || os(Linux)
+      ordered(split(keys)).map(displayed).joined(separator: "+")
+    #else
+      keys
+    #endif
+  }
+
   /// How VoiceOver reads a key or a shortcut: "Shift Command F".
   nonisolated static func spoken(_ key: String) -> String {
     if let name = names[key.lowercased()] { return name }
