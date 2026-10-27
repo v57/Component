@@ -30,5 +30,17 @@ package.targets.append(
       .enableUpcomingFeature("MemberImportVisibility"),
     ]))
 package.products.append(.library(name: "ComponentWinUI", type: .dynamic, targets: ["ComponentCatalog"]))
+#elseif os(Linux)
+// On Linux the catalog is an executable on SwiftUI's GTK backend (SwiftUI's Linux/scripts/build-app stages it with a
+// .desktop file).
+package.targets.append(
+  .executableTarget(
+    name: "ComponentCatalog", dependencies: ["ComponentKit", .product(name: "SwiftUI", package: "SwiftUI")],
+    path: "Component",
+    swiftSettings: [
+      .enableUpcomingFeature("ApproachableConcurrency"), .defaultIsolation(MainActor.self),
+      .enableUpcomingFeature("MemberImportVisibility"),
+    ]))
+package.products.append(.executable(name: "Component", targets: ["ComponentCatalog"]))
 #endif
 #endif
