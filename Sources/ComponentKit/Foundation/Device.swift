@@ -25,6 +25,12 @@ public enum KitDevice {
     #endif
   }
 
+  /// The name inside a sentence ("on this \(KitDevice.nameInSentence)"): the brand names keep their capitals, the
+  /// generic "computer" (Linux) doesn't.
+  @MainActor public static var nameInSentence: String {
+    name == "Computer" ? "computer" : name
+  }
+
   /// The SF Symbol for the device.
   @MainActor public static var systemImage: String {
     #if os(macOS)
