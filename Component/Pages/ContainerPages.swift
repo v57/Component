@@ -193,6 +193,11 @@ struct SidebarPage: View {
   @State private var opened: String?
   @State private var todayNotes = [10, 11, 12]
   @State private var schemaOpen = false
+  @State private var accountID = "personal"
+  @State private var compactAccountID = "acme"
+  private let accounts = [
+    KitAccount(id: "personal", name: "Personal", hue: .blue), KitAccount(id: "acme", name: "Acme Studio", hue: .orange),
+  ]
 
   var body: some View {
     CatalogPage(page: .sidebar, maxWidth: 1100) {
@@ -262,6 +267,39 @@ struct SidebarPage: View {
                 Labeled("Inactive window") { selectionSample.frame(width: 220).environment(\.kitWindowIsActive, false) }
               }
             }
+          }
+        }
+      }
+      SpecimenSection(
+        "Accounts",
+        note: "Each window shows one account, a vault of its own. The picker is the sidebar's first row and hides while there is only one account. ⌃⌘1…⌃⌘9 switch."
+      ) {
+        Flow(spacing: 24, alignment: .top) {
+          Specimen("KitAccountPicker", code: "KitAccountPicker(accounts: accounts, selection: $accountID, meta: \"9 projects\", newAccount: { … }, manage: { … })") {
+            WindowFrame(height: 300) {
+              KitSidebar(selection: $selection) {
+                KitAccountPicker(
+                  accounts: accounts, selection: $accountID, meta: accountID == "personal" ? "9 projects · 6 hosts" : "3 projects",
+                  openInNewWindow: { _ in }, newAccount: {}, manage: {})
+                KitSection("Projects", meta: [accountID == "personal" ? "9 projects" : "3 projects"], systemImage: "folder", hue: .blue) {
+                  ForEach(accountID == "personal" ? ["Dev", "Markdown", "Shell"] : ["Fieldwork", "Acme Site"], id: \.self) { name in
+                    SidebarRow(value: name, name) {
+                      Tile(letters: String(name.prefix(1)), hue: StableHue.pick(name), size: 18)
+                    }
+                  }
+                }
+              } bottomBar: {
+                Button("New Project", systemImage: "plus") {}
+              }
+            }
+            .frame(width: 280)
+          }
+          Specimen("Compact, in a device chooser", code: "KitAccountPicker(accounts: accounts, selection: $accountID, style: .compact)") {
+            HStack {
+              RichHeader("Open from Device", meta: ["Devices on this account's Hub"], systemImage: "display.2", hue: .indigo)
+              KitAccountPicker(accounts: accounts, selection: $compactAccountID, style: .compact)
+            }
+            .frame(width: 440)
           }
         }
       }
