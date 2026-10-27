@@ -221,6 +221,8 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
       }
     }
     .background { Rectangle().fill(.kitSidebar).ignoresSafeArea() }
+    // iPadOS 26 would float the column as a glass card inside the screen's edges.
+    .contFlushSidebarColumn()
     // Its own floor on the Mac: a split view's column minimum gives way under a full toolbar. Not on iPad, where
     // the split view fixes the column's width (about 200pt in a three-column portrait, an app's own 220pt):
     // held wider than the column, the cards ran past both of its edges, with no gutter at the screen's edge.

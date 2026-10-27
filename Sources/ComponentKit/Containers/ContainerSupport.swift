@@ -649,3 +649,51 @@ struct ContWindowTitleHidden: View {
     }
   }
 #endif
+
+// MARK: - Flush sidebar column
+
+extension View {
+  /// Takes the split view's sidebar column flush to the screen's edges on iPad. iPadOS 26 floats the column as a glass
+  /// card, 10pt inside the screen's edge and under the status bar, with the detail running on beneath it; the kit's
+  /// sidebar draws its own ground, as on iPadOS 27 and the Mac. Only the split's primary column: a sidebar shown inside
+  /// a page leaves the app's own sidebar alone.
+  func contFlushSidebarColumn() -> some View {
+    #if os(iOS)
+      background { ContFlushSidebarColumn().allowsHitTesting(false) }
+    #else
+      self
+    #endif
+  }
+}
+
+#if os(iOS)
+  private struct ContFlushSidebarColumn: UIViewRepresentable {
+    func makeUIView(context: Context) -> Anchor { Anchor() }
+    func updateUIView(_ view: Anchor, context: Context) { view.apply() }
+
+    final class Anchor: UIView {
+      override func didMoveToWindow() {
+        super.didMoveToWindow()
+        apply()
+        // The responder chain may reach the split view only once the column's controllers are in place.
+        DispatchQueue.main.async { [weak self] in self?.apply() }
+      }
+
+      func apply() {
+        guard window != nil else { return }
+        var column: UIViewController?
+        var responder = next
+        while let current = responder {
+          if let split = current as? UISplitViewController {
+            if let column, column === split.viewController(for: .primary), split.primaryBackgroundStyle != .none {
+              split.primaryBackgroundStyle = .none
+            }
+            return
+          }
+          if let controller = current as? UIViewController { column = controller }
+          responder = current.next
+        }
+      }
+    }
+  }
+#endif
