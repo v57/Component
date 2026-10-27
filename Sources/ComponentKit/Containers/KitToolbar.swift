@@ -1,5 +1,9 @@
 import SwiftUI
 
+#if os(iOS)
+  import UIKit
+#endif
+
 // The kit's own toolbar: drawn by the kit in the window's title bar area instead of the system toolbar, so it keeps the
 // kit's look and compacts by the kit's rule (labelled → icon-only → folded by priority into "…") rather than the
 // system's overflow chevron, which hides every item at once. The system toolbar stays only for the title bar's height
@@ -567,6 +571,25 @@ private struct ContWindowDragArea: View {
     #endif
   }
 }
+
+#if os(iOS)
+  /// A pushed view's bar draws the kit's Back (apps hide the system one with `.navigationBarBackButtonHidden`), which
+  /// also turns off the swipe from the edge (and from anywhere on iOS 26) that pops it. Every navigation controller
+  /// takes the pop gestures' delegate back, so a swipe pops whenever there is something to pop.
+  extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
+    override open func viewDidLoad() {
+      super.viewDidLoad()
+      interactivePopGestureRecognizer?.delegate = self
+      if #available(iOS 26.0, *) {
+        interactiveContentPopGestureRecognizer?.delegate = self
+      }
+    }
+
+    public func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+      viewControllers.count > 1
+    }
+  }
+#endif
 
 #Preview("Kit toolbar") {
   VStack(spacing: 16) {
