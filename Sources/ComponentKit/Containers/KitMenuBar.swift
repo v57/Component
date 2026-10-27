@@ -1,7 +1,7 @@
-#if os(Windows)
+#if os(Windows) || os(Linux)
   import SwiftUI
 
-  // The window's menu bar drawn by the kit, on Windows: the app's menus (its `.commands` in File, Edit, View, its own,
+  // The window's menu bar drawn by the kit, on Windows and Linux: the app's menus (its `.commands` in File, Edit, View, its own,
   // Window, Help; v57/SwiftUI's `windowMenuBar`) as tools at the leading end of the kit's bar in the title bar row,
   // each opening the kit's menu, so the menus look like the toolbar beside them. The Mac's menus are the system's, at
   // the top of the screen. Their keyboard shortcuts work through SwiftUI either way.

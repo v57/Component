@@ -85,7 +85,7 @@ public struct KitToolbar<Title: View>: View {
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.contShowSidebar) private var showSidebar
   @Environment(\.contFullScreen) private var isFullScreen
-  #if os(Windows)
+  #if os(Windows) || os(Linux)
     /// The title bar row the bar sits in (v57/SwiftUI): its height, the menu bar before it, the caption buttons after.
     @Environment(\.windowTitleBarArea) private var titleBarArea
     /// The app's menus, which the bar draws at its leading end (`ContMenuBar`).
@@ -114,7 +114,7 @@ public struct KitToolbar<Title: View>: View {
             .transition(.opacity)
           }
         #endif
-        #if os(Windows)
+        #if os(Windows) || os(Linux)
           // The window's menus, drawn by the kit at the start of the bar (the row's own menu bar steps aside).
           if let menus, !menus.isEmpty {
             ContMenuBar(menus: menus)
@@ -155,7 +155,7 @@ public struct KitToolbar<Title: View>: View {
   private var leadingInset: CGFloat {
     #if os(macOS)
       showSidebar != nil && !isFullScreen ? ContMetrics.windowControlsWidth + ContMetrics.showSidebarItemWidth + 8 : 16
-    #elseif os(Windows)
+    #elseif os(Windows) || os(Linux)
       // After the menu bar in the title bar row.
       max(16, (titleBarArea?.leading ?? 0) + 8)
     #else
@@ -165,7 +165,7 @@ public struct KitToolbar<Title: View>: View {
 
   /// 10pt on the Mac (16 on touch); on Windows clear of the caption buttons (and the system toolbar) at the row's end.
   private var trailingInset: CGFloat {
-    #if os(Windows)
+    #if os(Windows) || os(Linux)
       (titleBarArea?.trailing ?? 0) + 10
     #else
       idiom == .mac ? 10 : 16
@@ -174,7 +174,7 @@ public struct KitToolbar<Title: View>: View {
 
   /// The title bar's height on the Mac (52), the row's on Windows (its caption buttons' height), 60 on iPad, 56 on iPhone.
   private var barHeight: CGFloat {
-    #if os(Windows)
+    #if os(Windows) || os(Linux)
       titleBarArea?.height ?? ContMetrics.toolbarHeight(idiom)
     #else
       ContMetrics.toolbarHeight(idiom)
@@ -317,7 +317,7 @@ private struct ContSystemToolbarAway: ViewModifier {
         .background {
           ContTitlebarClear(isFullScreen: $isFullScreen).frame(width: 0, height: 0).accessibilityHidden(true)
         }
-    #elseif os(Windows)
+    #elseif os(Windows) || os(Linux)
       // As on the Mac: the content runs up into the title bar row (no toolbar background), which shows no title or
       // menu bar of its own; the bar takes the row up to the caption buttons and draws the menus (`ContMenuBar`).
       content
