@@ -68,9 +68,9 @@ public struct KitPalette<Scope: View, Content: View>: View {
     .environment(nav)
     .environment(\.dataPaletteQuery, query)
     .onPreferenceChange(DataNavItemsKey.self) { ids in
-      MainActor.assumeIsolated { nav.update(ids: ids) }
+      MainActor.assumeIsolated { nav.update(ids: ids, isLazy: !flat) }
     }
-    .onChange(of: query) { nav.selected = nav.ids.first }
+    .onChange(of: query) { nav.selectFirst() }
     .onAppear { if focusesOnAppear { isFocused = true } }
   }
 
@@ -109,25 +109,33 @@ public struct KitPalette<Scope: View, Content: View>: View {
     .animation(.kitFast, value: isFocused)
   }
 
+  /// Lazy in the scroll view: a palette with hundreds of results (Shell's ⌘R in a workspace of 47 schemes) built them
+  /// all before its first frame. Keyboard navigation follows the built rows, and the next ones are built as the
+  /// selection scrolls to them. Only the keyboard and a new query scroll it: as a scroll drops the selected row, the
+  /// selection follows the first built one without pulling the scroll back.
   @ViewBuilder
   private var results: some View {
-    let stack = VStack(spacing: KitMetrics.gutter) { content }
     if flat {
-      stack
+      VStack(spacing: KitMetrics.gutter) { content }
     } else {
       ScrollViewReader { proxy in
         ScrollView {
-          stack.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+          LazyVStack(spacing: KitMetrics.gutter) { content }
+            .id(Self.top)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
         }
         .scrollIndicators(.never)
         .frame(height: min(contentHeight, maxHeight))
-        .onChange(of: nav.selected) { _, id in
-          guard let id else { return }
-          withKitAnimation(.kitFast) { proxy.scrollTo(id) }
+        .onChange(of: nav.moves) {
+          guard let id = nav.selected else { return }
+          withKitAnimation(.kitFast) { proxy.scrollTo(id, anchor: nav.moveAnchor) }
         }
+        .onChange(of: query) { proxy.scrollTo(Self.top, anchor: .top) }
       }
     }
   }
+
+  private static var top: String { "kit.palette.top" }
 
   private var footer: some View {
     HStack(spacing: 14) {

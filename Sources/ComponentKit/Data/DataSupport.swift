@@ -110,23 +110,59 @@ struct DataNavItemsKey: PreferenceKey {
   /// Bumped when Return (or a click) opens `activated`; items watch it and run their own action.
   private(set) var activation = 0
   private(set) var activated: String?
+  /// Whether the selection was picked with the keyboard or a click, rather than given to the first row.
+  private(set) var isPicked = false
+  /// Bumped when the keyboard moves the selection, for the container to scroll to it.
+  private(set) var moves = 0
+  /// Where the container scrolls the selection after a move: nil for the least scroll; the centre when the move
+  /// went past a lazy stack's built rows, so the scroll builds the next ones.
+  private(set) var moveAnchor: UnitPoint?
+  /// Whether `ids` are only the rows a lazy stack built (it drops them as they scroll away).
+  private var isLazy = false
+  /// A move past the built rows, made when the next update lists the rows the scroll built.
+  private var pendingMove = 0
 
   /// Keeps the selection on an item that exists: the first one when it went away.
   /// The rows now listed; the selection moves to the first when its row went away (or stays empty without
-  /// `selectsFirst`, on iPhone, where no keyboard opens the selected row).
-  func update(ids: [String], selectsFirst: Bool = true) {
+  /// `selectsFirst`, on iPhone, where no keyboard opens the selected row). In a lazy stack (`isLazy`) a picked
+  /// selection stays while its row is scrolled away.
+  func update(ids: [String], selectsFirst: Bool = true, isLazy: Bool = false) {
     self.ids = ids
-    if let selected, ids.contains(selected) { return }
+    self.isLazy = isLazy
+    let offset = pendingMove
+    pendingMove = 0
+    if let selected, ids.contains(selected) {
+      if offset != 0, case let next = DataNav.moved(selected, by: offset, in: ids), next != selected {
+        self.selected = next
+        moveAnchor = nil
+        moves += 1
+      }
+      return
+    }
+    if selected != nil, isLazy, isPicked { return }
     selected = selectsFirst ? ids.first : nil
+    isPicked = false
+  }
+
+  /// The first row, no longer picked (a new query lists other rows).
+  func selectFirst() {
+    selected = ids.first
+    isPicked = false
   }
 
   func move(by offset: Int) {
-    selected = DataNav.moved(selected, by: offset, in: ids)
+    let next = DataNav.moved(selected, by: offset, in: ids)
+    pendingMove = isLazy && next == selected ? offset : 0
+    moveAnchor = pendingMove == 0 ? nil : .center
+    selected = next
+    isPicked = true
+    moves += 1
   }
 
   func activate(_ id: String? = nil) {
     guard let id = id ?? selected else { return }
     selected = id
+    isPicked = true
     activated = id
     activation += 1
   }
