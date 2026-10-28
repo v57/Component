@@ -65,9 +65,12 @@ public struct RichHeader<Icon: View, Meta: View, Accessory: View>: View {
       accessory
         .buttonStyle(.kitIcon)
     }
-    .padding(.leading, size == .section ? 6 : 0)
-    .padding(.trailing, size == .section ? 2 : 0)
-    .padding(.vertical, size == .section ? 4 : 0)
+    .padding(
+      EdgeInsets(
+        top: size == .section ? 4 : 0,
+        leading: size == .section ? 6 : 0,
+        bottom: size == .section ? 4 : 0,
+        trailing: size == .section ? 2 : 0))
     .frame(minHeight: size == .section ? (idiom.size(40, touch: 48)) : nil)
   }
 }

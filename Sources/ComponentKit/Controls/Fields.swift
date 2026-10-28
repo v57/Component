@@ -99,9 +99,12 @@ struct CtlFieldModifier<Trailing: View>: ViewModifier {
           .transition(.opacity.combined(with: .scale(scale: 0.8)))
       }
     }
-    .padding(.leading, idiom.size(10, touch: 12))
-    .padding(.trailing, hasIcon ? (height - icon) / 2 : idiom.size(10, touch: 12))
-    .padding(.vertical, 6)
+    .padding(
+      EdgeInsets(
+        top: 6,
+        leading: idiom.size(10, touch: 12),
+        bottom: 6,
+        trailing: hasIcon ? (height - icon) / 2 : idiom.size(10, touch: 12)))
     .frame(minHeight: height)
     .background {
       shape.fill(isFocused ? AnyShapeStyle(KitColor.control) : AnyShapeStyle(.kitField))

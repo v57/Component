@@ -247,8 +247,7 @@ public struct FilterToken: View {
       .accessibilityLabel("Remove")
     }
     .foregroundStyle(BadgeInk(hue: hue))
-    .padding(.leading, idiom.size(8, touch: 10))
-    .padding(.trailing, 3)
+    .padding(EdgeInsets(top: 0, leading: idiom.size(8, touch: 10), bottom: 0, trailing: 3))
     .frame(height: height)
     .background(BadgeTint(hue: hue), in: RoundedRectangle(cornerRadius: radius, style: .continuous))
     .opacity(isEnabled ? 1 : 0.45)

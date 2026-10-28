@@ -145,8 +145,7 @@ public struct TextConflict: View {
       .font(.system(size: idiom.size(12, touch: 14), design: .monospaced))
       .textSelection(.enabled)
     }
-    .padding(.horizontal, 10)
-    .padding(.vertical, 8)
+    .padding(EdgeInsets(horizontal: 10, vertical: 8))
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.kitFillSoft, in: shape)
     .overlay(shape.strokeBorder(.kitSeparator, lineWidth: 0.5))

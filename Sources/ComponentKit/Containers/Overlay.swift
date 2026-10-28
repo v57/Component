@@ -282,8 +282,12 @@ private struct KitOverlayEntryView: View {
     case .palette(let width):
       body
         .frame(maxWidth: width)
-        .padding(.horizontal, KitMetrics.gutter)
-        .padding(.top, idiom.isTouch ? 16 : KitMetrics.gutter)
+        .padding(
+          EdgeInsets(
+            top: idiom.isTouch ? 16 : KitMetrics.gutter,
+            leading: KitMetrics.gutter,
+            bottom: 0,
+            trailing: KitMetrics.gutter))
         .frame(maxHeight: .infinity, alignment: .top)
     case .sheet, .dialog:
       // The screen's width less 16pt each side on iPhone; on the Mac and iPad the content sets it.

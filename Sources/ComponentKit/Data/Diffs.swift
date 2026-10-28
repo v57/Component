@@ -218,9 +218,7 @@ public struct HunkCard: View {
       } else if let summary {
         Text(summary)
           .kitFont(.caption)
-          .padding(.leading, 30)
-          .padding(.trailing, 12)
-          .padding(.top, -6)
+          .padding(EdgeInsets(top: -6, leading: 30, bottom: 0, trailing: 12))
           .padding(.bottom, 4)
       }
     }
@@ -249,8 +247,7 @@ public struct HunkCard: View {
       }
       .padding(.bottom, 6)
     }
-    .padding(.leading, 10)
-    .padding(.trailing, 6)
+    .padding(EdgeInsets(top: 0, leading: 10, bottom: 0, trailing: 6))
   }
 
   @ViewBuilder private var headerTitle: some View {
@@ -391,8 +388,7 @@ public struct HunkCard: View {
         .foregroundStyle(signStyle(line))
         .frame(width: 18)
       code(line)
-        .padding(.leading, 4)
-        .padding(.trailing, 10)
+        .padding(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 10))
         .frame(maxWidth: .infinity, alignment: .leading)
     }
     .font(.system(size: 12, design: .monospaced))
@@ -844,8 +840,7 @@ public struct ConflictCard: View {
       },
       meta: { MetaLine(choice.map { resolvedMeta($0) } ?? meta) },
       accessory: accessory)
-    .padding(.horizontal, 6)
-    .padding(.vertical, 2)
+    .padding(EdgeInsets(horizontal: 6, vertical: 2))
   }
 
   private var actions: some View {
@@ -889,9 +884,7 @@ public struct ConflictCard: View {
       .padding(.leading, 10)
       .frame(height: 30)
       codeLines(side)
-        .padding(.horizontal, 10)
-        .padding(.top, 2)
-        .padding(.bottom, 8)
+        .padding(EdgeInsets(top: 2, leading: 10, bottom: 8, trailing: 10))
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(hue.soft(0.08), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
@@ -899,9 +892,7 @@ public struct ConflictCard: View {
 
   private func resultBlock(_ side: ConflictSide, hue: Hue) -> some View {
     codeLines(side)
-      .padding(.horizontal, 10)
-      .padding(.top, 4)
-      .padding(.bottom, 6)
+      .padding(EdgeInsets(top: 4, leading: 10, bottom: 6, trailing: 10))
       .frame(maxWidth: .infinity, alignment: .leading)
       .background(hue.soft(0.08), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
   }

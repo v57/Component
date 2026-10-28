@@ -52,13 +52,11 @@ struct CardSliceModifier: ViewModifier {
   func body(content: Content) -> some View {
     let pad = KitMetrics.cardPadding
     content
-      .padding(.horizontal, pad)
-      .padding(.top, slice.hasTop ? pad : 0)
-      .padding(.bottom, slice.hasBottom ? pad : 0)
+      .padding(EdgeInsets(top: slice.hasTop ? pad : 0, leading: pad, bottom: slice.hasBottom ? pad : 0, trailing: pad))
       .background {
         background
-          .padding(.top, slice.hasTop ? 0 : -bleed)
-          .padding(.bottom, slice.hasBottom ? 0 : -bleed)
+          .padding(
+            EdgeInsets(top: slice.hasTop ? 0 : -bleed, leading: 0, bottom: slice.hasBottom ? 0 : -bleed, trailing: 0))
       }
   }
 
@@ -67,8 +65,12 @@ struct CardSliceModifier: ViewModifier {
     // they belong. Cut by a rectangle clip rather than a mask: a mask is a layer of its own and an offscreen pass for
     // every row on screen.
     SurfaceShape(surface: .card, cornerRadius: cornerRadius)
-      .padding(.top, slice.hasTop ? 0 : -(cornerRadius + 4))
-      .padding(.bottom, slice.hasBottom ? 0 : -(cornerRadius + 4))
+      .padding(
+        EdgeInsets(
+          top: slice.hasTop ? 0 : -(cornerRadius + 4),
+          leading: 0,
+          bottom: slice.hasBottom ? 0 : -(cornerRadius + 4),
+          trailing: 0))
       .clipShape(CardSliceClip(top: slice.hasTop ? 4 : 0, bottom: slice.hasBottom ? 4 : 0))
   }
 }

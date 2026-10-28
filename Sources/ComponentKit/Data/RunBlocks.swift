@@ -85,9 +85,7 @@ public struct RunBlock: View {
       header
       if isExpanded, !output.isEmpty {
         RunOutputText(output: output)
-          .padding(.leading, 34)
-          .padding(.trailing, 10)
-          .padding(.bottom, 8)
+          .padding(EdgeInsets(top: 0, leading: 34, bottom: 8, trailing: 10))
           .frame(maxWidth: .infinity, alignment: .leading)
           .transition(.opacity)
       }
@@ -125,8 +123,7 @@ public struct RunBlock: View {
           .controlSize(.small)
       }
     }
-    .padding(.leading, 8)
-    .padding(.trailing, 6)
+    .padding(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 6))
     .frame(height: idiom.size(30, touch: 40))
     .contentShape(Rectangle())
     .onTapGesture {

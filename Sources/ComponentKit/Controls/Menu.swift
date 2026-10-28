@@ -737,9 +737,7 @@ public struct KitMenuFooter: View {
         }
       }
     }
-    .padding(.horizontal, 8)
-    .padding(.top, 8)
-    .padding(.bottom, 6)
+    .padding(EdgeInsets(top: 8, leading: 8, bottom: 6, trailing: 8))
     .accessibilityElement(children: .combine)
   }
 }
@@ -780,10 +778,12 @@ struct KitMenuSectionHeader: View {
       .font(.system(size: metrics.hintFont, weight: .semibold))
       .foregroundStyle(.kitSecondary)
       .lineLimit(1)
-      .padding(.leading, metrics.rowPadding + CGFloat(columns) * (metrics.icon + metrics.iconGap))
-      .padding(.trailing, metrics.rowPadding)
-      .padding(.top, idiom.size(4, touch: 10))
-      .padding(.bottom, idiom.size(1, touch: 4))
+      .padding(
+        EdgeInsets(
+          top: idiom.size(4, touch: 10),
+          leading: metrics.rowPadding + CGFloat(columns) * (metrics.icon + metrics.iconGap),
+          bottom: idiom.size(1, touch: 4),
+          trailing: metrics.rowPadding))
       .frame(maxWidth: .infinity, alignment: .leading)
       .accessibilityAddTraits(.isHeader)
   }

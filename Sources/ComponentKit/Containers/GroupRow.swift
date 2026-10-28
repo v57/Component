@@ -61,8 +61,7 @@ public struct GroupRow<Label: View, Trailing: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
       trailing
     }
-    .padding(.horizontal, idiom.isTouch && !isCompact ? 14 : 12)
-    .padding(.vertical, isCompact ? 2 : 6)
+    .padding(EdgeInsets(horizontal: idiom.isTouch && !isCompact ? 14 : 12, vertical: isCompact ? 2 : 6))
     .frame(minHeight: isCompact ? 28 : idiom.isTouch ? 44 : 40)
     .contentShape(.rect)
   }

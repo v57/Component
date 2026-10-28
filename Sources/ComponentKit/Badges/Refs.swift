@@ -130,15 +130,13 @@ public struct RefChip: View {
       nameText(ink)
         .lineLimit(1)
         .truncationMode(.middle)
-        .padding(.leading, m.gap + 1)
-        .padding(.trailing, ref.hasUpstream ? 0 : m.padding)
+        .padding(EdgeInsets(top: 0, leading: m.gap + 1, bottom: 0, trailing: ref.hasUpstream ? 0 : m.padding))
       if ref.hasUpstream {
         Image(systemName: "cloud")
           .font(.system(size: m.glyph, weight: .semibold))
           .imageScale(.small)
           .opacity(0.62)
-          .padding(.leading, 4)
-          .padding(.trailing, m.padding)
+          .padding(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: m.padding))
       }
     }
     .font(.system(size: m.fontSize, weight: .semibold))
@@ -372,8 +370,7 @@ struct RefsCardRow: View {
             .fixedSize()
         }
       }
-      .padding(.leading, touch ? 8 : 5)
-      .padding(.trailing, touch ? 10 : 6)
+      .padding(EdgeInsets(top: 0, leading: touch ? 8 : 5, bottom: 0, trailing: touch ? 10 : 6))
       .frame(height: touch ? 40 : 28)
       .background(
         isHovered ? AnyShapeStyle(.kitHover) : AnyShapeStyle(Color.clear),

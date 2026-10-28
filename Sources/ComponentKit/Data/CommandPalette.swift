@@ -98,8 +98,7 @@ public struct KitPalette<Scope: View, Content: View>: View {
       LiveIcon(systemImage: "magnifyingglass", status: status, size: 20)
         .padding(.trailing, 4)
     }
-    .padding(.leading, 8)
-    .padding(.trailing, 6)
+    .padding(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 6))
     .frame(height: idiom.size(44, touch: 52))
     .background {
       let shape = RoundedRectangle(cornerRadius: KitMetrics.radiusCard, style: .continuous)
@@ -362,8 +361,7 @@ public struct PaletteItem: View {
         Text(returnLabel).font(.system(size: 11)).foregroundStyle(.kitSecondary)
       }
     }
-    .padding(.horizontal, 8)
-    .padding(.vertical, subtitle == nil ? 0 : 3)
+    .padding(EdgeInsets(horizontal: 8, vertical: subtitle == nil ? 0 : 3))
     .frame(minHeight: subtitle == nil ? (idiom.size(36, touch: 44)) : KitMetrics.twoLineRow(idiom))
     .background {
       if isSelected {
@@ -468,8 +466,12 @@ private struct DataPaletteOverlay<Palette: View>: View {
           .transition(.opacity)
         palette()
           .frame(maxWidth: width)
-          .padding(.horizontal, KitMetrics.gutter)
-          .padding(.top, idiom.isTouch ? 16 : KitMetrics.gutter)
+          .padding(
+            EdgeInsets(
+              top: idiom.isTouch ? 16 : KitMetrics.gutter,
+              leading: KitMetrics.gutter,
+              bottom: 0,
+              trailing: KitMetrics.gutter))
           .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
       }
     }

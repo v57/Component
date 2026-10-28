@@ -84,8 +84,12 @@ public struct KitSearchField<Scope: KitOption>: View {
           .transition(.opacity.combined(with: .scale(scale: 0.8)))
       }
     }
-    .padding(.leading, scope == nil ? metrics.leading : (metrics.height - metrics.scope) / 2)
-    .padding(.trailing, status != .idle ? (metrics.height - metrics.icon) / 2 : metrics.trailing)
+    .padding(
+      EdgeInsets(
+        top: 0,
+        leading: scope == nil ? metrics.leading : (metrics.height - metrics.scope) / 2,
+        bottom: 0,
+        trailing: status != .idle ? (metrics.height - metrics.icon) / 2 : metrics.trailing))
     .frame(height: metrics.height)
     .background {
       shape.fill(isFocused ? AnyShapeStyle(KitColor.control) : AnyShapeStyle(.kitField))
@@ -145,8 +149,7 @@ struct CtlScopeMenu<Scope: KitOption>: View {
           .foregroundStyle(.kitSecondary)
       }
       .lineLimit(1)
-      .padding(.leading, metrics.scope * 0.32)
-      .padding(.trailing, metrics.scope * 0.27)
+      .padding(EdgeInsets(top: 0, leading: metrics.scope * 0.32, bottom: 0, trailing: metrics.scope * 0.27))
       .frame(height: metrics.scope)
       .background { CtlRaisedCard(cornerRadius: metrics.scope * 0.27) }
       .contentShape(Rectangle())
@@ -225,8 +228,7 @@ public struct SidebarSearchButton: View {
             }
           CtlSearchCloseButton(size: idiom.size(22, touch: 28), action: close)
         }
-        .padding(.leading, 12)
-        .padding(.trailing, 6)
+        .padding(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 6))
         .frame(maxWidth: .infinity)
         .frame(height: size)
         .background {

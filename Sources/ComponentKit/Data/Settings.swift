@@ -82,9 +82,7 @@ public struct KitSettings<Content: View>: View {
         if !section.isEmpty {
           Text(section)
             .kitFont(.sectionHeader)
-            .padding(.leading, 10)
-            .padding(.top, 14)
-            .padding(.bottom, 4)
+            .padding(EdgeInsets(top: 14, leading: 10, bottom: 4, trailing: 0))
         }
         ForEach(panes.filter { $0.section == section }) { pane in
           SettingsSidebarRow(pane: pane, isSelected: pane.id == current?.id) {
@@ -94,8 +92,7 @@ public struct KitSettings<Content: View>: View {
       }
       Spacer(minLength: 0)
     }
-    .padding(.horizontal, KitMetrics.gutter)
-    .padding(.top, topInset)
+    .padding(EdgeInsets(top: topInset, leading: KitMetrics.gutter, bottom: 0, trailing: KitMetrics.gutter))
     .frame(maxHeight: .infinity, alignment: .topLeading)
     .background(.kitSidebar)
     .focusable()
@@ -141,9 +138,7 @@ public struct KitSettings<Content: View>: View {
           .kitSurface(.card)
         }
       }
-      .padding(.horizontal, KitMetrics.gutter + 4)
-      .padding(.top, 4)
-      .padding(.bottom, 24)
+      .padding(EdgeInsets(top: 4, leading: KitMetrics.gutter + 4, bottom: 24, trailing: KitMetrics.gutter + 4))
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .background(.kitWindow)
@@ -332,9 +327,12 @@ public struct SettingsPane<Content: View>: View {
     ZStack(alignment: .topLeading) {
       if selection == info.id {
         let stack = VStack(alignment: .leading, spacing: 18) { content }
-          .padding(.horizontal, idiom == .phone ? KitMetrics.gutter + 4 : 24)
-          .padding(.top, 4)
-          .padding(.bottom, 24)
+          .padding(
+            EdgeInsets(
+              top: 4,
+              leading: idiom == .phone ? KitMetrics.gutter + 4 : 24,
+              bottom: 24,
+              trailing: idiom == .phone ? KitMetrics.gutter + 4 : 24))
           .frame(maxWidth: .infinity, alignment: .topLeading)
         Group {
           if flat { stack } else { ScrollView { stack } }

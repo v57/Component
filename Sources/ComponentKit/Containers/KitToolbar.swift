@@ -132,8 +132,7 @@ public struct KitToolbar<Title: View>: View {
         .modifier(ContGroundGlow())
       ContToolbarTools(slots: slots)
     }
-    .padding(.leading, leadingInset)
-    .padding(.trailing, trailingInset)
+    .padding(EdgeInsets(top: 0, leading: leadingInset, bottom: 0, trailing: trailingInset))
     .frame(height: height)
     .frame(maxWidth: .infinity)
     .background { ContWindowDragArea() }

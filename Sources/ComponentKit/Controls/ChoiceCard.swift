@@ -103,8 +103,7 @@ struct CtlChoiceCardBody<Content: View>: View {
       style == .tall
       ? AnyLayout(VStackLayout(alignment: .center, spacing: 8)) : AnyLayout(HStackLayout(spacing: 10))
     layout { content }
-      .padding(.horizontal, 10)
-      .padding(.vertical, style == .tall ? 10 : 0)
+      .padding(EdgeInsets(horizontal: 10, vertical: style == .tall ? 10 : 0))
       .frame(maxWidth: .infinity, minHeight: style == .tall ? nil : height, alignment: style == .tall ? .center : .leading)
       .background {
         if isOn {

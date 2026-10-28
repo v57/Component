@@ -125,8 +125,7 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
         .padding(.bottom, count > 0 ? 4 : 0)
         .modifier(CardSliceModifier(slice: KitCardSlice(0, of: count + 1), cornerRadius: radius, bleed: 1))
         .kitHover { isHovered = $0 }
-        .padding(.top, gap)
-        .padding(.bottom, count > 0 ? 0 : gap)
+        .padding(EdgeInsets(top: gap, leading: 0, bottom: count > 0 ? 0 : gap, trailing: 0))
       if expanded {
         ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
           row
@@ -149,8 +148,12 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
       header
         .contentShape(Rectangle())
         .onTapGesture(perform: toggle)
-        .padding([.horizontal, .top], KitMetrics.cardPadding)
-        .padding(.bottom, expanded ? 0 : KitMetrics.cardPadding)
+        .padding(
+          EdgeInsets(
+            top: KitMetrics.cardPadding,
+            leading: KitMetrics.cardPadding,
+            bottom: expanded ? 0 : KitMetrics.cardPadding,
+            trailing: KitMetrics.cardPadding))
         .modifier(SectionHeaderAccessibility(title: title, expanded: expanded, toggle: toggle))
         // Sticky (`.kitSticky`): the title alone stays in view, on a card of its own.
         .modifier(
@@ -161,8 +164,12 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
           // Lazy: in a long sidebar the rows come a few at a time as the card nears the screen.
           KitLazyStack(alignment: .leading, spacing: 2) { content }
             .environment(\.contStickyContext, nil)
-            .padding(.top, 2)
-            .padding([.horizontal, .bottom], KitMetrics.cardPadding)
+            .padding(
+              EdgeInsets(
+                top: 2,
+                leading: KitMetrics.cardPadding,
+                bottom: KitMetrics.cardPadding,
+                trailing: KitMetrics.cardPadding))
             .transition(.opacity)
         }
       }
@@ -221,8 +228,7 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
           .controlSize(.small)
           .opacity(isHovered || idiom.isTouch ? 1 : 0)
       }
-      .padding(.leading, 4)
-      .padding(.trailing, 2)
+      .padding(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 2))
       .frame(minHeight: idiom.size(22, touch: 34))
       .contentShape(Rectangle())
       .onTapGesture(perform: toggle)
@@ -243,8 +249,7 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
         meta
           .kitFont(.caption)
           .lineLimit(1)
-          .padding(.leading, 20)
-          .padding(.bottom, 4)
+          .padding(EdgeInsets(top: 0, leading: 20, bottom: 4, trailing: 0))
           .transition(.opacity)
       }
     }

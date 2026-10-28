@@ -319,8 +319,7 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
           header(widths: widths)
         }
       }
-      .padding(.horizontal, inset)
-      .padding(.bottom, inset)
+      .padding(EdgeInsets(top: 0, leading: inset, bottom: inset, trailing: inset))
     }
     .background(.kitField, in: RoundedRectangle(cornerRadius: KitMetrics.radiusCard, style: .continuous))
     .clipShape(RoundedRectangle(cornerRadius: KitMetrics.radiusCard, style: .continuous))
@@ -455,8 +454,7 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
           }
           cellContent(row, column: column, state: state)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, heightMode == .automatic ? 6 : 0)
+        .padding(EdgeInsets(horizontal: 8, vertical: heightMode == .automatic ? 6 : 0))
       }
     }
     .frame(width: width, alignment: column.frameAlignment)

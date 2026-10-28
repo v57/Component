@@ -164,8 +164,7 @@ private struct ContToastHost: ViewModifier {
         if let current {
           ToastView(toast: current, dismiss: { dismiss(current.id) })
             .kitHover { isHovered = $0 }
-            .padding(.bottom, 16)
-            .padding(.horizontal, 16)
+            .padding(EdgeInsets(top: 0, leading: 16, bottom: 16, trailing: 16))
             .id(current.id)
             .transition(.asymmetric(insertion: .offset(y: 12).combined(with: .opacity), removal: .opacity))
             .task(id: TimerKey(id: current.id, isHovered: isHovered)) {
@@ -240,8 +239,7 @@ public struct ToastView: View {
         .buttonStyle(.kitIcon)
         .padding(.leading, -4)
     }
-    .padding(.leading, toast.systemImage == nil ? 14 : 8)
-    .padding(.trailing, 6)
+    .padding(EdgeInsets(top: 0, leading: toast.systemImage == nil ? 14 : 8, bottom: 0, trailing: 6))
     .frame(height: idiom.size(44, touch: 52))
     .background { SurfaceShape(surface: .floating, cornerRadius: KitMetrics.radiusCard) }
     .accessibilityElement(children: .contain)

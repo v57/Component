@@ -72,8 +72,7 @@ public struct KitPicker<Value: Hashable>: View {
         .font(.system(size: metrics.chevron, weight: .semibold))
         .foregroundStyle(.kitSecondary)
     }
-    .padding(.leading, metrics.leading)
-    .padding(.trailing, metrics.trailing)
+    .padding(EdgeInsets(top: 0, leading: metrics.leading, bottom: 0, trailing: metrics.trailing))
     .frame(minWidth: metrics.minWidth, minHeight: metrics.height)
     .background {
       shape.fill(.kitField)

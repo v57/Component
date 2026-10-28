@@ -161,8 +161,7 @@ public struct StatusBar<Content: View>: View {
     }
     .kitFont(idiom.isTouch ? .callout : .caption)
     .lineLimit(1)
-    .padding(.leading, systemImage == nil ? 10 : 4)
-    .padding(.trailing, 10)
+    .padding(EdgeInsets(top: 0, leading: systemImage == nil ? 10 : 4, bottom: 0, trailing: 10))
     .frame(height: idiom.size(30, touch: 38))
     .kitSurface(.card)
     // Opaque: content may run on under it.
@@ -345,8 +344,7 @@ public struct ResizableSplit<Main: View, Pane: View>: View {
             .fontWeight(.semibold)
             .foregroundStyle(.kitLabel)
             .monospacedDigit()
-            .padding(.horizontal, 7)
-            .padding(.vertical, 2)
+            .padding(EdgeInsets(horizontal: 7, vertical: 2))
             .background { SurfaceShape(surface: .floating, cornerRadius: KitMetrics.radiusXS) }
             .fixedSize()
             .padding(vertical ? .leading : .top, 10)

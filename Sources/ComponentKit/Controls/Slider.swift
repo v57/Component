@@ -100,8 +100,7 @@ public struct KitSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloa
             .kitFont(.caption)
             .fontWeight(.semibold)
             .monospacedDigit()
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
+            .padding(EdgeInsets(horizontal: 6, vertical: 2))
             .background {
               CtlRaisedCard(cornerRadius: 6)
                 .shadow(color: .black.opacity(0.12), radius: 3, y: 2)

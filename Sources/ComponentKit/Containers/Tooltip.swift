@@ -113,9 +113,7 @@ struct ContTooltipCard: View {
       .padding(.trailing, shortcut == nil ? 4 : 6)
       if let shortcut { ContKeycaps(shortcut: shortcut) }
     }
-    .padding(.leading, systemImage == nil ? 10 : 7)
-    .padding(.trailing, 8)
-    .padding(.vertical, 7)
+    .padding(EdgeInsets(top: 7, leading: systemImage == nil ? 10 : 7, bottom: 7, trailing: 8))
     .frame(minHeight: idiom.size(42, touch: 48))
     .background { SurfaceShape(surface: .floating, cornerRadius: idiom.isTouch ? KitMetrics.radiusXL : KitMetrics.radiusCard) }
   }

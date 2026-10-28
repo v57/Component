@@ -104,8 +104,12 @@ public struct KitAccountPicker: View {
         .font(.system(size: idiom.size(9, touch: 11), weight: .semibold))
         .foregroundStyle(.kitSecondary)
     }
-    .padding(.leading, compact ? 4 : idiom.size(8, touch: 10))
-    .padding(.trailing, compact ? 6 : idiom.size(10, touch: 14))
+    .padding(
+      EdgeInsets(
+        top: 0,
+        leading: compact ? 4 : idiom.size(8, touch: 10),
+        bottom: 0,
+        trailing: compact ? 6 : idiom.size(10, touch: 14)))
     .frame(height: height)
     .frame(maxWidth: compact ? nil : .infinity)
     .background {

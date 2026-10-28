@@ -35,9 +35,7 @@ public struct KitInspector<Content: View>: View {
     let inset: CGFloat = idiom.size(10, pad: 12, phone: 16)
     ContEdgeScroll {
       VStack(alignment: .leading, spacing: idiom.size(10, pad: 12, phone: 16)) { content }
-        .padding(.top, idiom.size(14, touch: 16))
-        .padding(.horizontal, inset)
-        .padding(.bottom, inset)
+        .padding(EdgeInsets(top: idiom.size(14, touch: 16), leading: inset, bottom: inset, trailing: inset))
         .frame(maxWidth: .infinity, alignment: .leading)
     }
     .frame(width: width.map { idiom == .pad && $0 == KitMetrics.inspectorWidth ? 340 : $0 })
@@ -92,8 +90,7 @@ public struct InspectorHeader<Tags: View>: View {
       }
       .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .padding(.horizontal, 6)
-    .padding(.bottom, 4)
+    .padding(EdgeInsets(top: 0, leading: 6, bottom: 4, trailing: 6))
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(.isHeader)
   }
@@ -158,8 +155,7 @@ public struct InspectorRow<Value: View>: View {
         .padding(.trailing, -2)
       }
     }
-    .padding(.horizontal, idiom.size(6, touch: 10))
-    .padding(.vertical, idiom.size(4, touch: 6))
+    .padding(EdgeInsets(horizontal: idiom.size(6, touch: 10), vertical: idiom.size(4, touch: 6)))
     .frame(minHeight: idiom.size(30, pad: 40, phone: 44))
     .background {
       if isHovered, !idiom.isTouch {

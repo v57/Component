@@ -248,8 +248,12 @@ struct CtlTabView<ID: Hashable>: View {
     .fontWeight(.regular)
     .lineLimit(1)
     .foregroundStyle(isSelected || isHovered ? .kitLabel : .kitSecondary)
-    .padding(.leading, idiom.size(10, touch: 12))
-    .padding(.trailing, close != nil || tab.isEdited ? (idiom.size(5, touch: 6)) : (idiom.size(10, touch: 12)))
+    .padding(
+      EdgeInsets(
+        top: 0,
+        leading: idiom.size(10, touch: 12),
+        bottom: 0,
+        trailing: close != nil || tab.isEdited ? (idiom.size(5, touch: 6)) : (idiom.size(10, touch: 12))))
     .frame(maxWidth: idiom.size(200, touch: 240))
     .frame(height: idiom.size(28, touch: 36))
     .background {

@@ -52,3 +52,11 @@ public enum KitMetrics {
   public static let inspectorWidth: CGFloat = 320 * scale
   public static let titlebarHeight: CGFloat = 52 * scale
 }
+
+extension EdgeInsets {
+  /// `horizontal` on the leading and trailing edges, `vertical` on the top and bottom: one `padding(_:)` where a
+  /// `.padding(.horizontal, …).padding(.vertical, …)` chain would add a layout (and its code) per edge set.
+  init(horizontal: CGFloat, vertical: CGFloat) {
+    self.init(top: vertical, leading: horizontal, bottom: vertical, trailing: horizontal)
+  }
+}

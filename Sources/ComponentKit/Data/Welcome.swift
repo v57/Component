@@ -267,19 +267,21 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
         .foregroundStyle(.kitSecondary)
         .padding(.top, 2)
       VStack(spacing: 2) { actions }
-        .padding(.horizontal, isWindow ? (idiom == .phone ? 16 : 40) : 0)
-        .padding(.top, 18)
+        .padding(
+          EdgeInsets(
+            top: 18,
+            leading: isWindow ? (idiom == .phone ? 16 : 40) : 0,
+            bottom: 0,
+            trailing: isWindow ? (idiom == .phone ? 16 : 40) : 0))
     }
-    .padding(.top, isWindow ? 36 : idiom == .phone ? 16 : 0)
-    .padding(.bottom, isWindow ? 14 : 18)
+    .padding(
+      EdgeInsets(top: isWindow ? 36 : idiom == .phone ? 16 : 0, leading: 0, bottom: isWindow ? 14 : 18, trailing: 0))
     .frame(maxWidth: .infinity)
   }
 
   private var list: some View {
     listContent
-      .padding(.horizontal, idiom == .phone ? 8 : 16)
-      .padding(.top, 14)
-      .padding(.bottom, 18)
+      .padding(EdgeInsets(top: 14, leading: idiom == .phone ? 8 : 16, bottom: 18, trailing: idiom == .phone ? 8 : 16))
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
       .background(.kitPanel)
       .overlay(alignment: .top) { Rectangle().fill(.kitSeparator).frame(height: 0.5) }
@@ -288,9 +290,7 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
   /// The pane's list: a card on the pane's ground.
   private var listCard: some View {
     listContent
-      .padding(.horizontal, KitMetrics.gutter)
-      .padding(.top, 10)
-      .padding(.bottom, 12)
+      .padding(EdgeInsets(top: 10, leading: KitMetrics.gutter, bottom: 12, trailing: KitMetrics.gutter))
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
       .kitSurface(.card, cornerRadius: idiom.isTouch ? KitMetrics.radiusXL : KitMetrics.radiusOverlay)
   }
@@ -317,15 +317,13 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
         VStack(alignment: .leading, spacing: 6) { optionsView }
           .toggleStyle(.kitCheckbox)
           .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(.horizontal, 8)
-          .padding(.top, 4)
+          .padding(EdgeInsets(top: 4, leading: 8, bottom: 0, trailing: 8))
       }
       if let showAtLaunch {
         Toggle("Show this window when \(appName) opens", isOn: showAtLaunch)
           .toggleStyle(.kitCheckbox)
           .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(.horizontal, 8)
-          .padding(.top, 4)
+          .padding(EdgeInsets(top: 4, leading: 8, bottom: 0, trailing: 8))
       }
     }
   }

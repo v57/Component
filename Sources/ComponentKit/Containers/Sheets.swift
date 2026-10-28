@@ -154,8 +154,7 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
         .accessibilityLabel("Close")
       }
     }
-    .padding([.horizontal, .top], 16)
-    .padding(.bottom, 12)
+    .padding(EdgeInsets(top: 16, leading: 16, bottom: 12, trailing: 16))
   }
 
   private var footerBar: some View {

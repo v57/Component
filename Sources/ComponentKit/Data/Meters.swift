@@ -294,8 +294,7 @@ public struct LaneItem<Leading: View>: View {
       }
       Spacer(minLength: 0)
     }
-    .padding(.horizontal, 6)
-    .padding(.vertical, 6)
+    .padding(EdgeInsets(horizontal: 6, vertical: 6))
     .background {
       if isSelected, isActive {
         SurfaceShape(surface: .raised, cornerRadius: KitMetrics.radius)

@@ -130,8 +130,7 @@ public struct ChangeRow<Change: View>: View {
       }
       .padding(.vertical, 4)
     }
-    .padding(.leading, 8)
-    .padding(.trailing, 2)
+    .padding(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 2))
     .frame(minHeight: KitMetrics.tableRow(idiom))
     .background {
       RoundedRectangle(cornerRadius: KitMetrics.radius, style: .continuous)

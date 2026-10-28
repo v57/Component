@@ -167,8 +167,7 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
       .contStickyStack()
       .padding(.horizontal, inset)
       // The ends' gaps are padding, not safe area, so the bars' fades end at the bars.
-      .padding(.top, 2)
-      .padding(.bottom, inset)
+      .padding(EdgeInsets(top: 2, leading: 0, bottom: inset, trailing: 0))
     }
     // Stuck sections stack under the title bar and over the bottom bar; a stuck title scrolls to its section.
     // The bottom bar keeps its own gap above its cards.
@@ -537,9 +536,12 @@ struct ContSidebarBar<Actions: View>: View {
     }
     // On the Mac the card sits 10pt from the bar's top and the window's bottom, as from the sidebar's edge (52pt, the
     // title bar's height).
-    .padding(.top, idiom.size(10, pad: 8, phone: 10))
-    .padding(.horizontal, idiom.size(10, pad: 12, phone: 20))
-    .padding(.bottom, idiom.size(10, pad: 14, phone: 10))
+    .padding(
+      EdgeInsets(
+        top: idiom.size(10, pad: 8, phone: 10),
+        leading: idiom.size(10, pad: 12, phone: 20),
+        bottom: idiom.size(10, pad: 14, phone: 10),
+        trailing: idiom.size(10, pad: 12, phone: 20)))
   }
 }
 
@@ -805,8 +807,7 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
         }
         if let progress {
           KitProgressBar(value: progress, secondary: secondaryProgress, hue: progressStatus.hue ?? .accent)
-            .padding(.top, compact ? 2 : 4)
-            .padding(.bottom, compact ? 1 : 2)
+            .padding(EdgeInsets(top: compact ? 2 : 4, leading: 0, bottom: compact ? 1 : 2, trailing: 0))
             .transition(.opacity)
         }
       }
@@ -816,9 +817,13 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
         .monospacedDigit()
     }
     .environment(\.contRowState, ContRowState(isSelected: isSelected, isEmphasized: isEmphasized))
-    .padding(.vertical, compact ? 1 : idiom == .phone ? 6 : 4)
-    .padding(.leading, (idiom.size(6, touch: 10)) + CGFloat(indent) * ContMetrics.rowIndent(idiom) - (disclosure != nil ? 4 : 0))
-    .padding(.trailing, idiom.size(6, touch: 10))
+    .padding(
+      EdgeInsets(
+        top: compact ? 1 : idiom == .phone ? 6 : 4,
+        leading: idiom.size(6, touch: 10) + CGFloat(indent) * ContMetrics.rowIndent(idiom)
+          - (disclosure != nil ? 4 : 0),
+        bottom: compact ? 1 : idiom == .phone ? 6 : 4,
+        trailing: idiom.size(6, touch: 10)))
     .frame(minHeight: compact ? 24 : KitMetrics.row(idiom))
     .background { background(isSelected: isSelected, isEmphasized: isEmphasized, isRenaming: isRenaming) }
     .contentShape(Rectangle())

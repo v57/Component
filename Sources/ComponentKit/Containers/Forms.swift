@@ -127,12 +127,10 @@ public struct FormRow<Control: View, Field: View>: View {
             .kitFont(.body)
             .focused($fieldFocused)
         }
-        .padding(.top, 2)
-        .padding(.bottom, 4)
+        .padding(EdgeInsets(top: 2, leading: 0, bottom: 4, trailing: 0))
       }
     }
-    .padding(.horizontal, 12)
-    .padding(.vertical, 6)
+    .padding(EdgeInsets(horizontal: 12, vertical: 6))
     .overlay(alignment: .top) {
       Rectangle()
         .fill(.kitSeparator)

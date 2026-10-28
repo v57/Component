@@ -771,9 +771,7 @@ struct ContStuckFade: View {
       Rectangle().fill(.kitSidebar).opacity(opacity)
       if top { Rectangle().fill(ContGroundFade(ground: .kitSidebar, edge: .top, opacity: opacity)).frame(height: tail) }
     }
-    .padding(.top, -(top ? reach : tail))
-    .padding(.bottom, -(top ? tail : reach))
-    .padding(.horizontal, -reach)
+    .padding(EdgeInsets(top: -(top ? reach : tail), leading: -reach, bottom: -(top ? tail : reach), trailing: -reach))
     .allowsHitTesting(false)
     .accessibilityHidden(true)
   }
