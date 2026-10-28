@@ -201,7 +201,14 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     .overlay(alignment: .top) {
       GeometryReader { geometry in
         let top = geometry.safeAreaInsets.top
-        ContEdgeFade(edge: .top, ground: .kitSidebar).frame(height: top)
+        // The reader starts under the inset, so the fade sits above it, the inset's height. `ContEdgeFade` here,
+        // `top` high, also reached into the inset: it ran from the window's top to twice the inset, over the rows.
+        Rectangle()
+          .fill(ContGroundFade(ground: .kitSidebar, edge: .top))
+          .frame(height: top)
+          .offset(y: -top)
+          .allowsHitTesting(false)
+          .accessibilityHidden(true)
         #if os(macOS)
           // The Mac's hide button sits at the sidebar's top right, centered on the traffic lights, as the system's
           // does. A sidebar with no title bar over it (one shown inside a page) has nowhere to put it: drawn
