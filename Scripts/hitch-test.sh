@@ -8,12 +8,14 @@
 #
 # Environment: HITCH_SPEED (pt/s, 1500), HITCH_SETTLE (s, 1.0), HITCH_TIMEOUT (s, 900),
 # HITCH_OUT (where the report is copied, .build-hitch/hitch-<platform>.txt), HITCH_NO_BUILD=1 (reuse the last build),
-# HITCH_EXTRA (more launch arguments, e.g. --hitch-direct).
+# HITCH_EXTRA (more launch arguments, e.g. --hitch-direct), HITCH_DERIVED (the DerivedData folder, .build-hitch),
+# HITCH_RELEASE_LINK=1 (link as the Mac release scripts do: LTO, ld-archive-prelink — HITCH_LINKER for another copy —
+# and their Swift flags, plus HITCH_LDFLAGS), so the test runs the code the apps ship.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 platform=${1:-}
-derived=.build-hitch
+derived=${HITCH_DERIVED:-.build-hitch}
 bundle=dev.v57.component
 timeout=${HITCH_TIMEOUT:-900}
 
@@ -39,10 +41,17 @@ if [[ $platform == ios ]]; then
   xcrun simctl boot "$udid" 2>/dev/null || true
 fi
 
+settings=()
+if [[ -n ${HITCH_RELEASE_LINK:-} ]]; then
+  settings=(SWIFT_LTO=YES "ALTERNATE_LINKER_PATH=${HITCH_LINKER:-$HOME/Developer/v57/Dev/Dev/Release/ld-archive-prelink}"
+    'OTHER_SWIFT_FLAGS=$(inherited) -Xfrontend -internalize-at-link -Xfrontend -conditional-runtime-records'
+    "OTHER_LDFLAGS=\$(inherited) ${HITCH_LDFLAGS:-}")
+fi
+
 if [[ -z ${HITCH_NO_BUILD:-} ]]; then
   echo "Building Release (DEBUG launch arguments) for $platform…" >&2
   xcodebuild -project Component.xcodeproj -scheme Component -configuration Release -destination "$destination" \
-    -derivedDataPath "$derived" SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG build -quiet >&2
+    -derivedDataPath "$derived" SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG ${settings[@]+"${settings[@]}"} build -quiet >&2
 fi
 
 # Waits for the report's DONE line, while the app runs (`alive`) and for at most HITCH_TIMEOUT seconds.
@@ -73,8 +82,8 @@ if [[ $platform == ios ]]; then
   wait_for_report "$report" || status=1
   xcrun simctl terminate "$udid" "$bundle" 2>/dev/null || true
 else
-  app="$PWD/$derived/Build/Products/Release/Component.app"
-  report="$PWD/$derived/hitch-report-mac.txt"
+  app="$(cd "$derived" && pwd)/Build/Products/Release/Component.app"
+  report="$(cd "$derived" && pwd)/hitch-report-mac.txt"
   rm -f "$report"
   # The window must show (macOS throttles an occluded window's display link): take turns with other captures.
   until mkdir /tmp/v57-screenshot-capture.lock 2>/dev/null; do sleep 10; done
