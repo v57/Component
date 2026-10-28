@@ -6,7 +6,12 @@ let package = Package(
   name: "Component", platforms: [.macOS(.v14), .iOS(.v17), .tvOS(.v18), .visionOS(.v2)],
   products: [.library(name: "ComponentKit", targets: ["ComponentKit"])],
   targets: [
-    .target(name: "ComponentKit"),
+    .target(
+      name: "ComponentKit",
+      // Release builds leave out Swift 6's dynamic actor-isolation checks: a runtime call (swift_task_isCurrentExecutor)
+      // at the start of each MainActor closure handed to SwiftUI, about 1,000 of them, 7% of the kit's code. Debug
+      // keeps them, so a closure that runs off the main thread still traps there.
+      swiftSettings: [.unsafeFlags(["-Xfrontend", "-disable-dynamic-actor-isolation"], .when(configuration: .release))]),
     .testTarget(name: "ComponentKitTests", dependencies: ["ComponentKit"]),
   ])
 
