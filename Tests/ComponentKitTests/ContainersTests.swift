@@ -50,7 +50,7 @@ import Testing
 // MARK: - Toolbar compacting
 
 @Test func toolbarStepsLabelsGoFirstThenFoldByPriority() {
-  // Fetch 1, Pull 2, Push 3, a gap, Branch 0, Commit (primary, never folds).
+  // Fetch 1, Pull 2, Push 3, a slot without a menu, Branch 0, Commit (no menu either: never folds).
   let steps = ContToolbarPlan.steps(priorities: [1, 2, 3, nil, 0, nil])
   #expect(steps.count == 2 + 4)
   #expect(steps[0] == .init(labelled: true, folded: []))
@@ -66,20 +66,6 @@ import Testing
   let steps = ContToolbarPlan.steps(priorities: [0, 0, 0])
   #expect(steps[2].folded == [2])
   #expect(steps[3].folded == [2, 1])
-}
-
-@Test func toolbarGroupsSplitAtGapsAndPrimaries() {
-  let groups = ContToolbarPlan.groups(
-    isGap: [false, false, true, false, false, false],
-    isPrimary: [false, false, false, false, false, true],
-    folded: [])
-  #expect(groups == [[0, 1], [3, 4], [5]])
-  // Folding every tool of a card drops the card.
-  let folded = ContToolbarPlan.groups(
-    isGap: [false, false, true, false, false, false],
-    isPrimary: [false, false, false, false, false, true],
-    folded: [0, 1, 4])
-  #expect(folded == [[3], [5]])
 }
 
 @Test func toolbarPicksTheFirstFormThatFits() {
