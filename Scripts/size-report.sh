@@ -9,6 +9,7 @@
 #     -n  plain Release archive, without the release scripts' size settings (LTO + ld-archive-prelink)
 #
 #   SIZE_SWIFT_FLAGS="…"  appended to OTHER_SWIFT_FLAGS of every target (packages too)
+#   SIZE_LDFLAGS="…"      appended to OTHER_LDFLAGS (the final link: LTO code generation, e.g. -Wl,-mllvm,<llvm option>)
 #   SIZE_SETTINGS="A=1 B=2" more build settings on the xcodebuild line
 #   SIZE_LINKER=<path>    another ld-archive-prelink (default: Dev's canonical copy)
 #   SIZE_SLOTS=<n>        archives that may run at once on this Mac, across sessions (default 2)
@@ -120,6 +121,7 @@ for app in $apps; do
     flags+=' -Xfrontend -internalize-at-link -Xfrontend -conditional-runtime-records' }
   flags+=" ${SIZE_SWIFT_FLAGS:-}"
   settings+=("OTHER_SWIFT_FLAGS=$flags" ${=SIZE_SETTINGS:-})
+  [[ -n ${SIZE_LDFLAGS:-} ]] && settings+=("OTHER_LDFLAGS=\$(inherited) $SIZE_LDFLAGS")
   take_slot
   print -u2 "$(date +%T) $app: archiving (slot $slot, $dd)"
   start=$SECONDS
