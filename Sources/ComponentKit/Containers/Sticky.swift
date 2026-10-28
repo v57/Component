@@ -107,6 +107,8 @@ struct ContStickyState: Hashable, Sendable {
   var part: ContStickyPart
   /// Its place among the sticky views.
   var order = 0
+  /// The last stuck view on its edge, the farthest from it: the fade past the stack runs from it.
+  var isLast = false
 
   /// Stuck views draw over the rest; in the top stack the first over the next (whose card scrolls on under it), in
   /// the bottom stack the last; the bottom stack over the top one, whose rows scroll on under it.
@@ -574,7 +576,13 @@ extension ContStickyItemModifier {
     {
       let area = table.visibleArea(naturalTop: frame.minY, hostTop: hostTop)
       if let (live, order) = table.live(id, part: .content, at: frame.minY) {
-        new = live.placements(visibleTop: area.top, visibleBottom: area.bottom)[order].map { ContStickyState(edge: $0.edge, part: $0.part, order: order) }
+        let placements = live.placements(visibleTop: area.top, visibleBottom: area.bottom)
+        if let placement = placements[order] {
+          let farther = placement.edge == .top ? placements[(order + 1)...] : placements[..<order]
+          new = ContStickyState(
+            edge: placement.edge, part: placement.part, order: order,
+            isLast: !farther.contains { $0?.edge == placement.edge })
+        }
       }
     }
     if new != state {
@@ -709,12 +717,13 @@ struct ContStickyCardGround: View {
   }
 }
 
-/// A stuck card's ground: the card, opaque over the sidebar, with the float shadow. Around it nothing: the rows run
-/// on under the gaps between stuck cards and under the bars, as they do while nothing is stuck. A plain section's
-/// title gets the sidebar's ground alone.
+/// A stuck card's ground: the card, opaque over the sidebar, with light mode's card shadow in dark mode too (a card's
+/// resting edge there is a top highlight, and a stuck card over cards of the same step didn't stand out). Behind the
+/// stack the sidebar's ground fades the rows scrolling under it (`ContStuckFade`). A plain section's title gets the
+/// sidebar's ground alone.
 ///
 /// It stays in place while the view is in a sticky item, `state` `nil` while the view isn't stuck: the ground comes
-/// and goes at once (the view sticks and comes free where it is, on its own card) and the shadow fades.
+/// and goes at once (the view sticks and comes free where it is, on its own card) and the shadow and the fade fade.
 struct ContStuckGround: View {
   var cornerRadius: CGFloat
   var plain = false
@@ -723,14 +732,49 @@ struct ContStuckGround: View {
 
   var body: some View {
     let isStuck = state != nil
-    if plain {
-      Rectangle().fill(.kitSidebar)
-        .opacity(isStuck ? 1 : 0)
-    } else {
-      SurfaceShape(surface: .card, cornerRadius: cornerRadius)
-        .opacity(isStuck ? 1 : 0)
-        .animation(.kit, value: isStuck)
-        .environment(\.contBarGround, KitColor.sidebar)
+    Group {
+      if plain {
+        Rectangle().fill(.kitSidebar)
+          .opacity(isStuck ? 1 : 0)
+      } else {
+        SurfaceShape(surface: .card, cornerRadius: cornerRadius)
+          .shadow(color: .black.opacity(scheme == .dark ? 0.06 : 0), radius: 1.5, y: 1)
+          .opacity(isStuck ? 1 : 0)
+          .animation(.kit, value: isStuck)
+          .environment(\.contBarGround, KitColor.sidebar)
+      }
     }
+    .background {
+      ZStack {
+        if let state, state.isLast { ContStuckFade(edge: state.edge).transition(.opacity) }
+      }
+      .animation(.kit, value: state)
+    }
+  }
+}
+
+/// Behind the last stuck view on an edge, the sidebar's ground over the rows scrolling under the stack: from the edge
+/// to the view, across the sidebar, then fading out past it, as under the bars. The stuck views then stand on the
+/// sidebar's ground more than on the rows. It reaches past the sidebar's scroll view, which clips it, and runs on
+/// under the views nearer the edge, which draw over it: one fade for the stack (each view's own doubled it up).
+struct ContStuckFade: View {
+  var edge: ContStickyEdge
+  @Environment(\.kitIdiom) private var idiom
+  private let opacity = 0.6
+
+  var body: some View {
+    let reach: CGFloat = 1000
+    let tail = idiom.size(24, touch: 32)
+    let top = edge == .top
+    VStack(spacing: 0) {
+      if !top { Rectangle().fill(ContGroundFade(ground: .kitSidebar, edge: .bottom, opacity: opacity)).frame(height: tail) }
+      Rectangle().fill(.kitSidebar).opacity(opacity)
+      if top { Rectangle().fill(ContGroundFade(ground: .kitSidebar, edge: .top, opacity: opacity)).frame(height: tail) }
+    }
+    .padding(.top, -(top ? reach : tail))
+    .padding(.bottom, -(top ? tail : reach))
+    .padding(.horizontal, -reach)
+    .allowsHitTesting(false)
+    .accessibilityHidden(true)
   }
 }
