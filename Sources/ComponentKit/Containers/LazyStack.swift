@@ -607,17 +607,7 @@ final class ContLazyScheduler {
     loop = Task { [weak self] in
       var span = Self.batchSpan
       let clock = ContinuousClock()
-      while let self, let next = self.jobs.min(by: { $0.value.priority < $1.value.priority }) {
-        // With it, the same stack's views within `span` of it: each change lays the page out again, so a few small
-        // views at once cost less than one at a time.
-        let batch = self.jobs.filter {
-          $0.key.model == next.key.model && $0.value.priority <= next.value.priority + span
-        }
-        let start = clock.now
-        for (key, job) in batch {
-          self.jobs[key] = nil
-          job.model?.perform(job.item, release: job.release)
-        }
+      while let self, let start = self.buildBatch(span: span, clock: clock) {
         // A batch a frame: the next waits for this one's frame to go out.
         await kitSleep(for: .milliseconds(17))
         // What the frame took past the wait is what the batch cost. A heavy one (a frame missed) makes the next a
@@ -633,5 +623,22 @@ final class ContLazyScheduler {
       }
       self?.loop = nil
     }
+  }
+
+  /// Builds the most wanted job and, with it, the same stack's views within `span` of it: each change lays the page
+  /// out again, so a few small views at once cost less than one at a time. Returns when the building started, or nil
+  /// with no job left. Out of line, so the loop's waits don't each get a copy of it.
+  @inline(never)
+  private func buildBatch(span: CGFloat, clock: ContinuousClock) -> ContinuousClock.Instant? {
+    guard let next = jobs.min(by: { $0.value.priority < $1.value.priority }) else { return nil }
+    let batch = jobs.filter {
+      $0.key.model == next.key.model && $0.value.priority <= next.value.priority + span
+    }
+    let start = clock.now
+    for (key, job) in batch {
+      jobs[key] = nil
+      job.model?.perform(job.item, release: job.release)
+    }
+    return start
   }
 }
