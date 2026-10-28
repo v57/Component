@@ -7,6 +7,8 @@
 #         named Component: Xcode overrides a package by the folder's name.
 #     -o  where archives, logs and size.tsv go (default: ~/Developer/Builds/size/<checkout name>/<time>)
 #     -n  plain Release archive, without the release scripts' size settings (LTO + ld-archive-prelink)
+#     -s  signed as Xcode signs the app (automatic signing, its entitlements), so it runs with its keychain and
+#         app group; by default archives are unsigned
 #
 #   SIZE_SWIFT_FLAGS="…"  appended to OTHER_SWIFT_FLAGS of every target (packages too)
 #   SIZE_LDFLAGS="…"      appended to OTHER_LDFLAGS (the final link: LTO code generation, e.g. -Wl,-mllvm,<llvm option>)
@@ -24,11 +26,13 @@ here=${0:A:h}
 component=${here:h}
 out=
 plain=0
-while getopts c:o:n opt; do
+signed=0
+while getopts c:o:ns opt; do
   case $opt in
     c) component=${OPTARG:A} ;;
     o) out=$OPTARG ;;
     n) plain=1 ;;
+    s) signed=1 ;;
     *) exit 64 ;;
   esac
 done
@@ -114,8 +118,8 @@ for app in $apps; do
   [[ -n $dir ]] || { print -u2 "unknown app $app"; continue }
   ws=$(workspace $dir $app)
   dd=$(derived $dir $app) || { print -u2 "no DerivedData for $app"; continue }
-  settings=(-configuration Release -destination generic/platform=macOS ARCHS=arm64 CODE_SIGNING_ALLOWED=NO
-    COMPILER_INDEX_STORE_ENABLE=NO)
+  settings=(-configuration Release -destination generic/platform=macOS ARCHS=arm64 COMPILER_INDEX_STORE_ENABLE=NO)
+  (( signed )) || settings+=(CODE_SIGNING_ALLOWED=NO)
   flags='$(inherited)'
   (( plain )) || { settings+=(SWIFT_LTO=YES ALTERNATE_LINKER_PATH=$linker)
     flags+=' -Xfrontend -internalize-at-link -Xfrontend -conditional-runtime-records' }
