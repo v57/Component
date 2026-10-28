@@ -781,44 +781,6 @@ struct ToolbarPage: View {
           }
         }
       }
-      SpecimenSection(
-        "Compacting toolbar",
-        note: "Labelled → icon-only (labels go all at once) → folded into … by priority. The primary action never folds. Drag the width."
-      ) {
-        Specimen(
-          "CompactingToolbar", ground: .window,
-          code: """
-            CompactingToolbar {
-              KitTool("Fetch", systemImage: "arrow.down.circle", priority: 1) { fetch() }
-              KitTool("Pull", systemImage: "arrow.down", priority: 2) { pull() }
-              KitTool("Push", systemImage: "arrow.up", count: 2, priority: 3) { push() }
-              KitTool.gap
-              KitTool("Stash", systemImage: "tray.and.arrow.down") { stash() }
-              KitTool("Commit", systemImage: "checkmark", role: .primary) { commit() }
-            }
-            """
-        ) {
-          VStack(alignment: .leading, spacing: 14) {
-            HStack {
-              Text("Width").kitFont(.callout)
-              KitSlider("Width", value: $width, in: 140...760, valueBubble: .automatic) { "\(Int($0)) pt" }
-                .frame(maxWidth: 260)
-              Text("\(Int(width)) pt").kitFont(.mono).foregroundStyle(.kitSecondary)
-            }
-            SideScroll {
-              toolbar
-                .frame(width: width, alignment: .trailing)
-                .padding(6)
-                .background(Hue.accent.soft(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
-            ForEach([560.0, 380, 260, 180], id: \.self) { fixed in
-              Labeled("\(Int(fixed)) pt") {
-                SideScroll { toolbar.frame(width: fixed, alignment: .trailing) }
-              }
-            }
-          }
-        }
-      }
     }
     .onAppear(perform: fitPhone)
   }
@@ -858,19 +820,6 @@ struct ToolbarPage: View {
         Toggle("Filter", isOn: $filterOn)
       }
       Button("Commit", systemImage: "checkmark") { log.append("Commit") }.buttonStyle(.kitPrimary)
-    }
-  }
-
-  private var toolbar: some View {
-    CompactingToolbar {
-      KitTool("Fetch", systemImage: "arrow.clockwise", priority: 1) { log.append("Fetch") }
-      KitTool("Pull", systemImage: "arrow.down", priority: 2) { log.append("Pull") }
-      KitTool("Push", systemImage: "arrow.up", count: 2, priority: 3) { log.append("Push") }
-      KitTool.gap
-      KitTool("Filter", systemImage: "line.3.horizontal.decrease", priority: 0, isOn: filterOn) { filterOn.toggle() }
-      KitTool("Branch", systemImage: "arrow.triangle.branch") { log.append("Branch") }
-      KitTool("Stash", systemImage: "tray.and.arrow.down", isDisabled: true) {}
-      KitTool("Commit", systemImage: "checkmark", role: .primary) { log.append("Commit") }
     }
   }
 }

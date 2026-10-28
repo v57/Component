@@ -729,8 +729,6 @@ struct WelcomePage: View {
           KitWelcome(emptyTitle: "Waiting for Your Keys", …) { … } recents: { … }
             .listTitle("Already in your vault")                       // in place of "Recent"
             .emptyState(systemImage: "key", status: .working)         // a live icon over the empty list
-
-          // The old window (showAtLaunch:, close:) is deprecated: drop both arguments and the Window scene.
           """)
       }
       SpecimenSection("The app's icon", note: "For an app's own welcome in a pane or an About box: the artwork fills the size on the Mac too.") {

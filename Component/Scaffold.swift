@@ -538,7 +538,7 @@ struct WindowFrame<Content: View>: View {
   }
 }
 
-/// An app icon drawn by the kit (an app avatar), as an image for views that take one (the welcome window).
+/// An app icon drawn by the kit (an app avatar), as an image for views that take one (the welcome).
 enum AppIcon {
   static func image(systemImage: String, hue: Hue) -> Image {
     // Edge to edge, as an iOS icon (the kit gives a passed icon its shadow); clipped so the avatar's own shadow

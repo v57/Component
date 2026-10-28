@@ -226,7 +226,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     case .sections: "Card sections and the rich header"
     case .sidebar: "Card sections, gliding selection, reorder, rename, search"
     case .stickySections: "Sections that stay in view above or below a long sidebar"
-    case .toolbar: "The rich title, tool groups and the compacting toolbar"
+    case .toolbar: "The rich title, tool groups and the kit's compacting toolbar"
     case .window: "Panes on their grounds, the split and the status bar"
     case .inspector: "The sidebar mirrored: header, sections, rows, actions"
     case .forms: "Rich rows in cards, with fields under them"

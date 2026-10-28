@@ -140,7 +140,7 @@ struct GitScenarioPage: View {
 
         ResizableSplit("inspector", pane: .trailing, width: 300, range: 260...420) {
           VStack(spacing: 0) {
-            HStack { KitTitle("History", meta: ["main", "2 to push"], systemImage: "clock", status: fetch); CompactingToolbar { … } }
+            KitToolbar("History", meta: ["main", "2 to push"], systemImage: "clock", status: fetch) { ToolbarSlot(priority: 1) { … } menu: { … } }
             ScrollView { ForEach(commits) { CommitRow($0) } }       // Avatar, RefChips, Diffstat
           }
           .kitPane(.content)
@@ -199,21 +199,25 @@ struct GitScenarioPage: View {
 
   private var history: some View {
     VStack(spacing: 0) {
-      HStack(spacing: 12) {
-        // The tools compact first; only then does the title give way (an iPhone's width).
-        KitTitle("History", meta: ["main", fetch.status == .idle ? "2 commits to push" : fetch.label], systemImage: "clock", status: fetch.status)
-          .layoutPriority(1)
-        CompactingToolbar {
-          KitTool("Fetch", systemImage: "arrow.clockwise", priority: 1) { fetch.start(duration: 2) }
-          KitTool("Pull", systemImage: "arrow.down", priority: 2) { showToast("Already up to date", systemImage: "checkmark") }
-          KitTool("Push", systemImage: "arrow.up", count: 2, priority: 3) { showToast("Pushed 2 commits", systemImage: "arrow.up") }
-          KitTool.gap
-          KitTool("Commit", systemImage: "checkmark", role: .primary) {}
+      // The kit's toolbar as the pane's title bar: the tools compact first; only then does the title give way (an
+      // iPhone's width).
+      KitToolbar(
+        "History", meta: ["main", fetch.status == .idle ? "2 commits to push" : fetch.label], systemImage: "clock",
+        status: fetch.status
+      ) {
+        ToolbarSlot(priority: 1) {
+          ToolGroup {
+            Button("Fetch", systemImage: "arrow.clockwise") { fetch.start(duration: 2) }
+            Button("Pull", systemImage: "arrow.down") { showToast("Already up to date", systemImage: "checkmark") }
+            Button("Push", systemImage: "arrow.up") { showToast("Pushed 2 commits", systemImage: "arrow.up") }
+          }
+        } menu: {
+          Button("Fetch", systemImage: "arrow.clockwise") { fetch.start(duration: 2) }
+          Button("Pull", systemImage: "arrow.down") { showToast("Already up to date", systemImage: "checkmark") }
+          Button("Push", systemImage: "arrow.up") { showToast("Pushed 2 commits", systemImage: "arrow.up") }
         }
-        .frame(maxWidth: .infinity, alignment: .trailing)
+        Button("Commit", systemImage: "checkmark") {}.buttonStyle(.kitPrimary)
       }
-      .padding(.horizontal, 14)
-      .frame(height: KitMetrics.titlebarHeight)
       ScrollView {
         VStack(spacing: 2) {
           ForEach(sampleCommits) { item in

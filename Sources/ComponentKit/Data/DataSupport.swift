@@ -96,7 +96,7 @@ struct DataScroll<Content: View>: View {
 
 // MARK: - Keyboard navigation
 
-/// The order of the selectable items in a container (a palette, the welcome window's recents), collected from the
+/// The order of the selectable items in a container (a palette, the welcome's recents), collected from the
 /// items themselves so the container can move a selection through views it only knows as a `@ViewBuilder`.
 struct DataNavItemsKey: PreferenceKey {
   static let defaultValue: [String] = []
@@ -202,7 +202,7 @@ private struct DataNavItem: ViewModifier {
 
 // MARK: - Platform
 
-/// What the kit reads from the platform for the welcome window and About: the app's icon, name and version.
+/// What the kit reads from the platform for the welcome and About: the app's icon, name and version.
 enum DataPlatform {
   @MainActor static var appIcon: Image? {
     #if os(macOS)
@@ -236,59 +236,6 @@ enum DataPlatform {
     Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
   }
 }
-
-// MARK: - Window buttons
-
-/// Hides the window's own close, minimize and zoom buttons while the view it backs fills the window (the welcome
-/// window draws its own close button where they would sit), and shows them again when it goes. A view inside a
-/// bigger window leaves them alone. Nothing on other platforms.
-struct DataWindowButtonsHidden: View {
-  var body: some View {
-    #if os(macOS)
-      DataWindowButtonsHiddenView().accessibilityHidden(true)
-    #else
-      Color.clear
-    #endif
-  }
-}
-
-#if os(macOS)
-  private struct DataWindowButtonsHiddenView: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { DataWindowButtonsView() }
-    func updateNSView(_ nsView: NSView, context: Context) {}
-  }
-
-  private final class DataWindowButtonsView: NSView {
-    private weak var hiddenIn: NSWindow?
-
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
-
-    override func viewDidMoveToWindow() {
-      super.viewDidMoveToWindow()
-      if window !== hiddenIn { setButtons(in: hiddenIn, hidden: false) }
-      update()
-    }
-
-    override func layout() {
-      super.layout()
-      update()
-    }
-
-    private func update() {
-      guard let window, let content = window.contentView else { return }
-      let fills = abs(bounds.width - content.bounds.width) < 2 && abs(bounds.height - content.bounds.height) < 2
-      setButtons(in: window, hidden: fills)
-    }
-
-    private func setButtons(in window: NSWindow?, hidden: Bool) {
-      guard let window else { return }
-      for kind in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
-        window.standardWindowButton(kind)?.isHidden = hidden
-      }
-      hiddenIn = hidden ? window : nil
-    }
-  }
-#endif
 
 // MARK: - Shapes
 
