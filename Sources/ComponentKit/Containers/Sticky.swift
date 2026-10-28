@@ -454,7 +454,7 @@ final class ContStickyPause {
   func scrollsItself() {
     isScrollingItself = true
     Task { @MainActor [weak self] in
-      try? await Task.sleep(for: .milliseconds(200))
+      await kitSleep(for: .milliseconds(200))
       self?.isScrollingItself = false
     }
   }
@@ -473,7 +473,7 @@ final class ContStickyPause {
     // One wait for any number of wheel steps: each moves its end on.
     resume = Task { @MainActor [weak self] in
       while let due = self.map({ $0.lastActivity + Self.delay }), ContinuousClock.now < due {
-        try? await Task.sleep(until: due)
+        await kitSleep(until: due)
         if Task.isCancelled { return }
       }
       guard let self else { return }

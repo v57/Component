@@ -146,7 +146,7 @@ final class KitOverlayHost {
     }
     entries[index].isClosing = true
     Task { @MainActor in
-      try? await Task.sleep(for: Self.fadeOut)
+      await kitSleep(for: Self.fadeOut)
       entries.removeAll { $0.id == id && $0.isClosing }
     }
   }

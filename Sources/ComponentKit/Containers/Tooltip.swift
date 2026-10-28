@@ -74,7 +74,7 @@ private struct ContHelpModifier: ViewModifier {
         isShown = true
       } else {
         pending = Task { @MainActor in
-          try? await Task.sleep(for: ContTooltipClock.delay)
+          await kitSleep(for: ContTooltipClock.delay)
           guard !Task.isCancelled else { return }
           withAnimation(.kitFast) { isShown = true }
         }

@@ -34,3 +34,16 @@ extension View {
 public func withKitAnimation<Result>(_ animation: Animation = .kit, _ body: () throws -> Result) rethrows -> Result {
   try withAnimation(animation, body)
 }
+
+/// `try? await Task.sleep(for:)`, kept out of line: the sleep's clock and continuation code is emitted once here
+/// instead of in every task that waits.
+@inline(never)
+func kitSleep(for duration: Duration) async {
+  try? await Task.sleep(for: duration)
+}
+
+/// `try? await Task.sleep(until:)` on the continuous clock, kept out of line like `kitSleep(for:)`.
+@inline(never)
+func kitSleep(until deadline: ContinuousClock.Instant) async {
+  try? await Task.sleep(until: deadline)
+}

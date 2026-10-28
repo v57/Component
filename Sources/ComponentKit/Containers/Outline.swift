@@ -237,7 +237,7 @@ struct ContRowKeyboard: ViewModifier {
     let select = select
     Task { @MainActor in
       for _ in 0..<6 {
-        try? await Task.sleep(for: .milliseconds(34))
+        await kitSleep(for: .milliseconds(34))
         let plain = rows.wrappedValue.map { (value: $0.value, indent: $0.indent, isOpen: $0.isOpen) }
         if case .select(let value) = ContRowNav.move(current, by: offset, in: plain) {
           select(value)

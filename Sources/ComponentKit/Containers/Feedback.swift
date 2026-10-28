@@ -170,7 +170,7 @@ private struct ContToastHost: ViewModifier {
             .transition(.asymmetric(insertion: .offset(y: 12).combined(with: .opacity), removal: .opacity))
             .task(id: TimerKey(id: current.id, isHovered: isHovered)) {
               guard !isHovered else { return }
-              try? await Task.sleep(for: current.duration)
+              await kitSleep(for: current.duration)
               guard !Task.isCancelled else { return }
               dismiss(current.id)
             }

@@ -264,14 +264,14 @@ public struct RefChips: View {
     if hoverChips || hoverCard {
       guard !isOpen else { return }
       hoverTask = Task { @MainActor in
-        try? await Task.sleep(for: .milliseconds(500))
+        await kitSleep(for: .milliseconds(500))
         guard !Task.isCancelled, hoverChips else { return }
         openedByHover = true
         isOpen = true
       }
     } else if isOpen, openedByHover {
       hoverTask = Task { @MainActor in
-        try? await Task.sleep(for: .milliseconds(300))
+        await kitSleep(for: .milliseconds(300))
         guard !Task.isCancelled, !hoverChips, !hoverCard else { return }
         isOpen = false
       }

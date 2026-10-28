@@ -578,7 +578,7 @@ final class ContLazyScheduler {
     if !ContLazyScrolling.shared.isScrolling { ContLazyScrolling.shared.isScrolling = true }
     restTask?.cancel()
     restTask = Task { [weak self] in
-      try? await Task.sleep(for: .milliseconds(150))
+      await kitSleep(for: .milliseconds(150))
       guard !Task.isCancelled, let self else { return }
       self.isResting = true
       ContLazyScrolling.shared.isScrolling = false
@@ -619,14 +619,14 @@ final class ContLazyScheduler {
           job.model?.perform(job.item, release: job.release)
         }
         // A batch a frame: the next waits for this one's frame to go out.
-        try? await Task.sleep(for: .milliseconds(17))
+        await kitSleep(for: .milliseconds(17))
         // What the frame took past the wait is what the batch cost. A heavy one (a frame missed) makes the next a
         // single view and rests as long as it took, so building never holds the main thread more than half the
         // time while a page scrolls; light ones let the batch grow back.
         let cost = (clock.now - start) - .milliseconds(17)
         if cost > .milliseconds(8) {
           span = 0
-          try? await Task.sleep(for: min(cost, .milliseconds(100)))
+          await kitSleep(for: min(cost, .milliseconds(100)))
         } else {
           span = min(span + 100, Self.batchSpan)
         }

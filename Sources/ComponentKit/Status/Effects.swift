@@ -115,7 +115,7 @@ struct EffectModifier<V: Equatable>: ViewModifier {
     .onChange(of: trigger) { play() }
     .task(id: start) {
       guard start != nil else { return }
-      try? await Task.sleep(for: .seconds(duration))
+      await kitSleep(for: .seconds(duration))
       if !Task.isCancelled { start = nil }
     }
   }

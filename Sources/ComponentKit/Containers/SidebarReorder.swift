@@ -131,7 +131,7 @@ final class ContReorderState {
       instant.disablesAnimations = true
       withTransaction(instant) { settle = shown }
       Task { @MainActor [weak self] in
-        try? await Task.sleep(for: .milliseconds(20))
+        await kitSleep(for: .milliseconds(20))
         guard let self, self.settle?.index == shown.index, self.settle?.list == shown.list else { return }
         withAnimation(.kit) { self.settle = nil }
       }
@@ -139,7 +139,7 @@ final class ContReorderState {
     if hasLanded, let list, let receiver {
       withAnimation(.kitSpring) { bounce = (list, receiver) }
       Task { @MainActor [weak self] in
-        try? await Task.sleep(for: .milliseconds(150))
+        await kitSleep(for: .milliseconds(150))
         withAnimation(.kitSpring) { self?.bounce = nil }
       }
     }
@@ -206,9 +206,9 @@ final class ContReorderState {
     let drag = drags
     Task { @MainActor [weak self] in
       while let self, self.drags == drag, self.list != nil {
-        try? await Task.sleep(for: .milliseconds(200))
+        await kitSleep(for: .milliseconds(200))
         guard ContPlatform.isPointerUp else { continue }
-        try? await Task.sleep(for: .milliseconds(1500))
+        await kitSleep(for: .milliseconds(1500))
         if self.drags == drag, self.list != nil, !self.hasLanded { withAnimation(.kit) { self.end() } }
         return
       }
@@ -221,7 +221,7 @@ final class ContReorderState {
   func endAfterLanding() {
     let drag = drags
     Task { @MainActor [weak self] in
-      if #available(macOS 26.0, iOS 27.0, visionOS 27.0, *) { try? await Task.sleep(for: .milliseconds(600)) }
+      if #available(macOS 26.0, iOS 27.0, visionOS 27.0, *) { await kitSleep(for: .milliseconds(600)) }
       guard let self, self.drags == drag, self.list != nil else { return }
       withAnimation(.kit) { self.end() }
     }
@@ -349,7 +349,7 @@ final class ContReorderState {
     hover += 1
     let hover = hover
     Task { @MainActor [weak self] in
-      try? await Task.sleep(for: .milliseconds(120))
+      await kitSleep(for: .milliseconds(120))
       guard let self, self.hover == hover, self.list == list, self.target != nil else { return }
       self.slid = .now
       withAnimation(.kit) {

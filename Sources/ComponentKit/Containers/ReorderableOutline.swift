@@ -122,7 +122,7 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
         // Held over, a closed folder opens.
         .task(id: entry.isFolder && !entry.isOpen && state.isInto(list, at: entry.index)) {
           guard entry.isFolder, !entry.isOpen, state.isInto(list, at: entry.index) else { return }
-          try? await Task.sleep(for: .milliseconds(600))
+          await kitSleep(for: .milliseconds(600))
           guard !Task.isCancelled, state.isInto(list, at: entry.index) else { return }
           springOpen(entry.id, in: open, state: state)
         }

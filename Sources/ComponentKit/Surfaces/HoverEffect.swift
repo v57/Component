@@ -206,7 +206,7 @@ private struct KitHoverEffect<S: InsettableShape>: ViewModifier {
           lightOn = true
         } else {
           // Long enough for the light to spread and fade (the 0.5 s spring of a hover ending).
-          try? await Task.sleep(for: .seconds(0.7))
+          await kitSleep(for: .seconds(0.7))
           if !Task.isCancelled { lightOn = false }
         }
       }

@@ -38,7 +38,7 @@ public enum KitPasteboard {
       board.setString("", forType: transient)
       let count = board.changeCount
       Task { @MainActor in
-        try? await Task.sleep(for: .seconds(expiry))
+        await kitSleep(for: .seconds(expiry))
         if board.changeCount == count { board.clearContents() }
       }
     #elseif os(tvOS)
