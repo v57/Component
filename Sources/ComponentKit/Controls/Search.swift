@@ -260,7 +260,10 @@ public struct SidebarSearchButton: View {
     .kitFont(.body)
   }
 
+  /// Focus leaves the field first, then it closes: a field that went away while focused dropped focus on its own, and
+  /// on iPhone the keyboard then went down out of step with the bar.
   private func close() {
+    isFocused = false
     withKitAnimation {
       text = ""
       isSearching = false
