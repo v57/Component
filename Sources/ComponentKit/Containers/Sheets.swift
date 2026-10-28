@@ -41,6 +41,11 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.kitPresentation) private var presentation
   @State private var bodyHeight: CGFloat = 0
+  /// The body's ends in its scroll view, which fades an edge the body runs on past.
+  @State private var bodyTop: CGFloat = 0
+  @State private var bodyBottom: CGFloat = 0
+  @State private var scrollSpace = UUID()
+  @State private var viewport: CGFloat = 0
 
   /// A sheet with any icon (a thing's own tile, an avatar). `width` applies on the Mac (and 80pt wider on iPad, over
   /// the window); `onClose` adds the round close button at the header's end (for panels without a Cancel button).
@@ -64,13 +69,23 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
       header
       if Content.self != EmptyView.self {
         if presentation == .overlay {
-          // Over the window the card is as tall as its content, and its body scrolls when the window is shorter.
+          // Over the window the card is as tall as its content, and its body scrolls when the window is shorter,
+          // fading out under the header and over the footer instead of a flat cut at them.
+          let space = scrollSpace
           ScrollView {
-            sheetBody.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { bodyHeight = $0 }
+            sheetBody
+              .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(space)) } action: { frame in
+                bodyHeight = frame.height
+                bodyTop = frame.minY
+                bodyBottom = frame.maxY
+              }
           }
+          .coordinateSpace(.named(space))
           .scrollBounceBehavior(.basedOnSize)
           .scrollIndicators(.automatic)
           .frame(maxHeight: bodyHeight)
+          .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { viewport = $0 }
+          .contScrollEdges(top: bodyTop < -0.5, bottom: bodyBottom > viewport + 0.5, length: idiom.size(24, touch: 32))
         } else if idiom == .phone {
           ScrollView {
             sheetBody

@@ -202,14 +202,23 @@ extension View {
   /// Fades the bottom `length` points out (clear for the last 6), so a rounded card that runs on under a bar or the
   /// window's edge never ends in a flat cut. Off while nothing is under the edge.
   func contScrollEdge(_ isActive: Bool, length: CGFloat = 32) -> some View {
+    contScrollEdges(top: false, bottom: isActive, length: length)
+  }
+
+  /// `contScrollEdge` at both ends: each fades while content runs on past it.
+  func contScrollEdges(top: Bool, bottom: Bool, length: CGFloat = 32) -> some View {
     mask {
       VStack(spacing: 0) {
-        Rectangle()
-        LinearGradient(colors: [.black, isActive ? .clear : .black], startPoint: .top, endPoint: .bottom)
+        Rectangle().opacity(top ? 0 : 1).frame(height: 6)
+        LinearGradient(colors: [top ? .clear : .black, .black], startPoint: .top, endPoint: .bottom)
           .frame(height: length - 6)
-        Rectangle().opacity(isActive ? 0 : 1).frame(height: 6)
+        Rectangle()
+        LinearGradient(colors: [.black, bottom ? .clear : .black], startPoint: .top, endPoint: .bottom)
+          .frame(height: length - 6)
+        Rectangle().opacity(bottom ? 0 : 1).frame(height: 6)
       }
-      .animation(.kitFast, value: isActive)
+      .animation(.kitFast, value: top)
+      .animation(.kitFast, value: bottom)
     }
   }
 }
