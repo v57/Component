@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The running app's own icon at a size, as the welcome window draws it: on the Mac its artwork (not Apple's grid
+/// The running app's own icon at a size, as the welcome draws it: on the Mac its artwork (not Apple's grid
 /// margin around it) fills `size`; iOS masks it to the rounded square. Without an icon (a test host, Windows) it is
 /// the app name's first letter on an accent tile. For an app's own welcome in a pane, an About box or an empty
 /// window.

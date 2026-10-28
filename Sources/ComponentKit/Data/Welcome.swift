@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Which list the welcome window shows.
+/// Which list the welcome shows.
 public enum WelcomeSource: String, Hashable, Sendable, CaseIterable {
   case recent = "Recent"
   case projects = "Projects"
@@ -32,17 +32,12 @@ public enum WelcomeSource: String, Hashable, Sendable, CaseIterable {
 ///   }
 /// }
 /// ```
-///
-/// The initializers with `showAtLaunch:` and `close:` draw the old welcome window (480pt, a round close button,
-/// "Show this window when … opens"); they are deprecated: drop both arguments and show the welcome in the detail pane.
 public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
   var appName: String
   var version: String
   var icon: Image?
-  var showAtLaunch: Binding<Bool>?
   var emptyTitle: String
   var emptyMessage: String
-  var close: (() -> Void)?
   var onDrop: (([URL]) -> Bool)?
   var actions: Actions
   var recents: Recents
@@ -53,8 +48,6 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
   var optionsView: AnyView?
   var listTitle = "Recent"
   var emptyIcon: (systemImage: String, status: WorkStatus)?
-  /// The old compact window (the initializers with `showAtLaunch:` and `close:`).
-  var isWindow = false
   @State private var identityHeight: CGFloat = 320
   @State private var ownSource = WelcomeSource.recent
   @State private var nav = DataNavModel()
@@ -90,47 +83,14 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
     self.projects = projects()
   }
 
-  /// The old welcome window with Recent | Projects.
-  ///
-  /// - Parameters:
-  ///   - close: draws the round close button; on the Mac the window's own buttons are hidden then, so they don't
-  ///     sit over it in a window without a title bar.
-  @available(
-    *, deprecated,
-    message: "The welcome is the main screen's empty state: drop showAtLaunch: and close:, and show it in the detail pane when nothing is selected."
-  )
-  public init(
-    appName: String? = nil, version: String? = nil, icon: Image? = nil, showAtLaunch: Binding<Bool>? = nil,
-    emptyTitle: String = "No Recent Items", emptyMessage: String = "What you open appears here.",
-    source: Binding<WelcomeSource>? = nil, searchText: Binding<String>? = nil, searchPrompt: String = "Search",
-    close: (() -> Void)? = nil, onDrop: (([URL]) -> Bool)? = nil, @ViewBuilder actions: () -> Actions,
-    @ViewBuilder recents: () -> Recents, @ViewBuilder projects: () -> Projects
-  ) {
-    self.sourceBinding = source
-    self.searchText = searchText
-    self.searchPrompt = searchPrompt
-    self.appName = appName ?? DataPlatform.appName
-    self.version = version ?? "Version \(DataPlatform.version)"
-    self.icon = icon
-    self.showAtLaunch = showAtLaunch
-    self.emptyTitle = emptyTitle
-    self.emptyMessage = emptyMessage
-    self.close = close
-    self.onDrop = onDrop
-    self.actions = actions()
-    self.recents = recents()
-    self.projects = projects()
-    self.isWindow = true
-  }
-
   private var hasProjects: Bool { Projects.self != EmptyView.self }
   private var source: WelcomeSource { sourceBinding?.wrappedValue ?? ownSource }
   private var sourceSelection: Binding<WelcomeSource> { sourceBinding ?? $ownSource }
 
-  /// Puts more options above "Show this window when … opens": checkboxes, a pop-up ("Open at launch: …").
+  /// Puts more options under the list: checkboxes, a pop-up ("Open at launch: …").
   ///
   /// ```swift
-  /// KitWelcome(showAtLaunch: $show) { … } recents: { … }
+  /// KitWelcome { … } recents: { … }
   ///   .options { Toggle("Reopen last project", isOn: $reopen).toggleStyle(.kitCheckbox) }
   /// ```
   public func options<Options: View>(@ViewBuilder _ content: () -> Options) -> Self {
@@ -142,7 +102,7 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
   /// Names the list when it isn't recent items ("Already in your vault": what other apps saved).
   ///
   /// ```swift
-  /// KitWelcome(showAtLaunch: $show) { … } recents: { … }.listTitle("Already in your vault")
+  /// KitWelcome { … } recents: { … }.listTitle("Already in your vault")
   /// ```
   public func listTitle(_ title: String) -> Self {
     var welcome = self
@@ -164,34 +124,15 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
   }
 
   public var body: some View {
-    Group {
-      if isWindow { window } else { inline }
-    }
+    inline
     .overlay { if isDropTargeted { DropRing(title: "Open in \(appName)") } }
     .modifier(WelcomeDrop(onDrop: onDrop, isTargeted: $isDropTargeted))
     .environment(nav)
     .onPreferenceChange(DataNavItemsKey.self) { ids in
-      // The window starts with its first item selected (Return opens it); the pane waits for the list's focus.
-      MainActor.assumeIsolated { nav.update(ids: ids, selectsFirst: isWindow && idiom != .phone) }
+      // Nothing is selected until the list takes focus.
+      MainActor.assumeIsolated { nav.update(ids: ids, selectsFirst: false) }
     }
     .animation(.kit, value: isDropTargeted)
-  }
-
-  private var window: some View {
-    VStack(spacing: 0) {
-      identity
-      list
-    }
-    .frame(width: idiom == .phone ? nil : 480)
-    .frame(maxWidth: idiom == .phone ? .infinity : nil)
-    .background(.kitWindow)
-    .overlay(alignment: .topLeading) {
-      if let close { CloseButton(action: close).padding(16) }
-    }
-    .background {
-      // The round close button replaces the window's own buttons when the welcome fills its window.
-      if close != nil { DataWindowButtonsHidden().ignoresSafeArea() }
-    }
   }
 
   /// The main screen's empty state: on the pane's own ground, the identity and actions over the list's card in one
@@ -267,22 +208,11 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
         .foregroundStyle(.kitSecondary)
         .padding(.top, 2)
       VStack(spacing: 2) { actions }
-        .padding(.horizontal, isWindow ? (idiom == .phone ? 16 : 40) : 0)
         .padding(.top, 18)
     }
-    .padding(.top, isWindow ? 36 : idiom == .phone ? 16 : 0)
-    .padding(.bottom, isWindow ? 14 : 18)
+    .padding(.top, idiom == .phone ? 16 : 0)
+    .padding(.bottom, 18)
     .frame(maxWidth: .infinity)
-  }
-
-  private var list: some View {
-    listContent
-      .padding(.horizontal, idiom == .phone ? 8 : 16)
-      .padding(.top, 14)
-      .padding(.bottom, 18)
-      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-      .background(.kitPanel)
-      .overlay(alignment: .top) { Rectangle().fill(.kitSeparator).frame(height: 0.5) }
   }
 
   /// The pane's list: a card on the pane's ground.
@@ -320,13 +250,6 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
           .padding(.horizontal, 8)
           .padding(.top, 4)
       }
-      if let showAtLaunch {
-        Toggle("Show this window when \(appName) opens", isOn: showAtLaunch)
-          .toggleStyle(.kitCheckbox)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(.horizontal, 8)
-          .padding(.top, 4)
-      }
     }
   }
 
@@ -357,7 +280,7 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
             LiveIcon(systemImage: emptyIcon.systemImage, status: emptyIcon.status, size: 56).padding(.bottom, 8)
           }
           Text(emptyTitle).kitFont(.headline)
-          Text(onDrop == nil ? emptyMessage : "\(emptyMessage) Or drop a folder \(isWindow ? "on this window" : "here").")
+          Text(onDrop == nil ? emptyMessage : "\(emptyMessage) Or drop a folder here.")
             .kitFont(.callout)
             .foregroundStyle(.kitSecondary)
             .multilineTextAlignment(.center)
@@ -381,7 +304,6 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
       nav.activate()
       return .handled
     }
-    .onAppear { if isWindow { isListFocused = true } }
     .onChange(of: source) { nav.selected = nil }
   }
 }
@@ -399,24 +321,6 @@ extension KitWelcome where Projects == EmptyView {
       appName: appName, version: version, icon: icon, emptyTitle: emptyTitle, emptyMessage: emptyMessage,
       searchText: searchText, searchPrompt: searchPrompt, onDrop: onDrop, actions: actions, recents: recents,
       projects: { EmptyView() })
-  }
-
-  /// The old welcome window with one list.
-  @available(
-    *, deprecated,
-    message: "The welcome is the main screen's empty state: drop showAtLaunch: and close:, and show it in the detail pane when nothing is selected."
-  )
-  public init(
-    appName: String? = nil, version: String? = nil, icon: Image? = nil, showAtLaunch: Binding<Bool>? = nil,
-    emptyTitle: String = "No Recent Items", emptyMessage: String = "What you open appears here.",
-    searchText: Binding<String>? = nil, searchPrompt: String = "Search",
-    close: (() -> Void)? = nil, onDrop: (([URL]) -> Bool)? = nil, @ViewBuilder actions: () -> Actions,
-    @ViewBuilder recents: () -> Recents
-  ) {
-    self.init(
-      appName: appName, version: version, icon: icon, showAtLaunch: showAtLaunch, emptyTitle: emptyTitle,
-      emptyMessage: emptyMessage, searchText: searchText, searchPrompt: searchPrompt, close: close, onDrop: onDrop,
-      actions: actions, recents: recents, projects: { EmptyView() })
   }
 }
 
@@ -441,7 +345,7 @@ enum WelcomeLayout {
   }
 }
 
-/// Folders dropped on the window.
+/// Folders dropped on the welcome.
 private struct WelcomeDrop: ViewModifier {
   let onDrop: (([URL]) -> Bool)?
   @Binding var isTargeted: Bool
@@ -479,28 +383,9 @@ private struct DropRing: View {
   }
 }
 
-/// The welcome window's close button: a raised circle with an ✕.
-private struct CloseButton: View {
-  let action: () -> Void
-
-  var body: some View {
-    Button(action: action) {
-      Image(systemName: "xmark")
-        .font(.system(size: 11, weight: .semibold))
-        .foregroundStyle(.kitLabel)
-        .frame(width: 28, height: 28)
-        .background { SurfaceShape(surface: .raised, cornerRadius: 14) }
-        .contentShape(Circle())
-    }
-    .buttonStyle(.plain)
-    .accessibilityLabel("Close")
-    .keyboardShortcut(.cancelAction)
-  }
-}
-
 // MARK: - Actions and items
 
-/// One of the welcome window's actions: an accent glyph on a soft tile, the title and a line of help.
+/// One of the welcome's actions: an accent glyph on a soft tile, the title and a line of help.
 ///
 /// ```swift
 /// WelcomeAction("New Note", detail: "Start writing", systemImage: "square.and.pencil") { newNote() }
