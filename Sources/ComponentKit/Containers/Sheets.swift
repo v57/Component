@@ -12,8 +12,8 @@ import SwiftUI
 /// (the arc while input is checked, red when wrong, a check when ready); the bar then spans the sheet. Without one it
 /// is as wide as its buttons, at the trailing side: no `Spacer()` before them, which would stretch it again.
 ///
-/// Present it with `.kitSheet(isPresented:)`: a card over the dimmed window, `width` wide on the Mac (80pt wider on
-/// iPad, the screen's width less 10pt each side on iPhone, at the bottom), as tall as its content, its body scrolling
+/// Present it with `.kitSheet(isPresented:)`: a card in the middle of the dimmed window, `width` wide on the Mac (80pt
+/// wider on iPad, the screen's width less 16pt each side on iPhone), as tall as its content, its body scrolling
 /// between the header and the footer when the window is too short for it.
 ///
 /// ```swift
@@ -151,12 +151,7 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
       .padding(4)
       .frame(minHeight: idiom.size(36, pad: 44, phone: 52))
       .background {
-        // At the bottom of the iPhone's floating card its lower corners follow the card's.
-        if idiom == .phone, presentation == .overlay {
-          SurfaceCardShape(shape: KitOverlayCardGround.concentricBottomShape(radius: 18))
-        } else {
-          SurfaceShape(surface: .card, cornerRadius: idiom == .pad ? KitMetrics.radiusXL : idiom == .phone ? 18 : KitMetrics.radiusCard)
-        }
+        SurfaceShape(surface: .card, cornerRadius: idiom == .pad ? KitMetrics.radiusXL : idiom == .phone ? 18 : KitMetrics.radiusCard)
       }
       // The card fits what it holds and trails; a SheetStatus fills the row and takes the card with it
       .frame(maxWidth: .infinity, alignment: .trailing)

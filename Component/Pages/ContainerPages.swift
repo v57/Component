@@ -1334,10 +1334,9 @@ struct SheetsPage: View {
       }
       SpecimenSection(
         "On iPhone",
-        note: "The same card floats at the bottom, 10pt inside the screen's edges, its corners concentric with the "
-          + "display's and a grabber on top. It is as tall as its content up to the safe area's top (the body scrolls "
-          + "past that), rides above the keyboard, and a swipe down or a tap on the dim closes it "
-          + "(not with kitSheetDismissDisabled). Confirmations are the same card; overlays stack."
+        note: "The Mac's card in the middle of the screen, 16pt inside its edges, with 20pt corners. It is as tall as "
+          + "its content up to the safe area (the body scrolls past that), stays above the keyboard, and a tap on the "
+          + "dim closes it (not with kitSheetDismissDisabled). Confirmations are the same card; overlays stack."
       ) {
         Specimen(
           "kitSheet on iPhone",
@@ -1470,14 +1469,14 @@ struct SheetsPage: View {
 }
 
 /// An iPhone's screen with a kit sheet over it, as the overlay draws it there (the Mac's catalog can't present one at
-/// that idiom): rows behind the dim, the card at the bottom with its grabber.
+/// that idiom): rows behind the dim, the card in the middle.
 private struct PhoneSheetSpecimen<Sheet: View>: View {
   @ViewBuilder var sheet: Sheet
 
   var body: some View {
     let screen = RoundedRectangle(cornerRadius: 52, style: .continuous)
-    let card = RoundedRectangle(cornerRadius: 36, style: .continuous)
-    ZStack(alignment: .bottom) {
+    let card = RoundedRectangle(cornerRadius: KitMetrics.radiusOverlay, style: .continuous)
+    ZStack {
       VStack(spacing: KitMetrics.gutter) {
         KitSection("Repositories", meta: "3 repositories", systemImage: "books.vertical") {
           SidebarRow("Component", systemImage: "square.stack.3d.up", hue: .accent)
@@ -1492,14 +1491,11 @@ private struct PhoneSheetSpecimen<Sheet: View>: View {
       sheet
         // As tall as its content, as the overlay sizes it.
         .fixedSize(horizontal: false, vertical: true)
-        .padding(.top, 8)
-        .overlay(alignment: .top) {
-          Capsule().fill(.kitTertiary).opacity(0.45).frame(width: 36, height: 5).padding(.top, 7)
-        }
         .background(card.fill(.kitPanel))
         .clipShape(card)
+        .overlay(card.strokeBorder(.kitBorder, lineWidth: 0.5))
         .shadow(color: .black.opacity(0.16), radius: 16, y: 12)
-        .padding(10)
+        .padding(16)
     }
     .environment(\.kitIdiom, .phone)
     .frame(maxWidth: 393)
