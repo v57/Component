@@ -62,8 +62,9 @@ public struct KitStepper<V: Strideable>: View {
     .opacity(isEnabled ? 1 : 0.45)
     .fixedSize()
     .focusEffectDisabled()
-    .onKeyPress(keys: [.upArrow, .rightArrow]) { _ in stepped(up: true) }
-    .onKeyPress(keys: [.downArrow, .leftArrow]) { _ in stepped(up: false) }
+    .onKeyPress(keys: [.upArrow, .rightArrow, .downArrow, .leftArrow]) { press in
+      stepped(up: press.key == .upArrow || press.key == .rightArrow)
+    }
     .animation(.kitFast, value: CtlNumberText.string(value))
     #if os(tvOS)
     // No system stepper on Apple TV: the kit's takes VoiceOver's swipes itself.

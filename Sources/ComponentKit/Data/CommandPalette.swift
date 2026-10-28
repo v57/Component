@@ -82,17 +82,13 @@ public struct KitPalette<Scope: View, Content: View>: View {
         .font(.system(size: idiom.size(17, touch: 20)))
         .focused($isFocused)
         .onSubmit { nav.activate() }
-        .onKeyPress(.upArrow) {
-          nav.move(by: -1)
-          return .handled
-        }
-        .onKeyPress(.downArrow) {
-          nav.move(by: 1)
-          return .handled
-        }
-        .onKeyPress(.escape) {
-          guard let dismiss else { return .ignored }
-          dismiss()
+        .onKeyPress(keys: [.upArrow, .downArrow, .escape]) { press in
+          if press.key == .escape {
+            guard let dismiss else { return .ignored }
+            dismiss()
+          } else {
+            nav.move(by: press.key == .upArrow ? -1 : 1)
+          }
           return .handled
         }
       LiveIcon(systemImage: "magnifyingglass", status: status, size: 20)

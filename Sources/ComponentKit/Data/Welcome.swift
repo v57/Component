@@ -367,16 +367,8 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
     .focusable()
     .focused($isListFocused)
     .focusEffectDisabled()
-    .onKeyPress(.upArrow) {
-      nav.move(by: -1)
-      return .handled
-    }
-    .onKeyPress(.downArrow) {
-      nav.move(by: 1)
-      return .handled
-    }
-    .onKeyPress(.return) {
-      nav.activate()
+    .onKeyPress(keys: [.upArrow, .downArrow, .return]) { press in
+      if press.key == .return { nav.activate() } else { nav.move(by: press.key == .upArrow ? -1 : 1) }
       return .handled
     }
     .onAppear { if isWindow { isListFocused = true } }

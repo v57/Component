@@ -128,8 +128,7 @@ public struct KitTabStrip<ID: Hashable>: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding([.horizontal, .bottom], KitMetrics.gutter)
     .focusEffectDisabled()
-    .onKeyPress(.leftArrow) { moveFocus(-1) }
-    .onKeyPress(.rightArrow) { moveFocus(1) }
+    .onKeyPress(keys: [.leftArrow, .rightArrow]) { press in moveFocus(press.key == .leftArrow ? -1 : 1) }
     .animation(.kit, value: selection)
   }
 

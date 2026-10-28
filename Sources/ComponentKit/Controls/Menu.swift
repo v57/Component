@@ -1124,12 +1124,17 @@ struct KitMenuOverlay<Content: View>: View {
     .focusable()
     .focused($isFocused)
     .focusEffectDisabled()
-    .onKeyPress(.escape) { model.dismiss(); return .handled }
-    .onKeyPress(.upArrow) { model.move(by: -1); return .handled }
-    .onKeyPress(.downArrow) { model.move(by: 1); return .handled }
-    .onKeyPress(.rightArrow) { model.openHighlightedSubmenu(true); return .handled }
-    .onKeyPress(.leftArrow) { model.openHighlightedSubmenu(false); return .handled }
-    .onKeyPress(.return) { model.activate(); return .handled }
+    .onKeyPress(keys: [.escape, .upArrow, .downArrow, .rightArrow, .leftArrow, .return]) { press in
+      switch press.key {
+      case .escape: model.dismiss()
+      case .upArrow: model.move(by: -1)
+      case .downArrow: model.move(by: 1)
+      case .rightArrow: model.openHighlightedSubmenu(true)
+      case .leftArrow: model.openHighlightedSubmenu(false)
+      default: model.activate()
+      }
+      return .handled
+    }
     .onAppear {
       model.anchor = anchor
       isFocused = model.takesKeys

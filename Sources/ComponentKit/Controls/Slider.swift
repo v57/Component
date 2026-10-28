@@ -138,8 +138,9 @@ public struct KitSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloa
     .focusable(isEnabled, interactions: .activate)
     .focused($isFocused)
     .focusEffectDisabled()
-    .onKeyPress(keys: [.rightArrow, .upArrow]) { _ in nudge(1) }
-    .onKeyPress(keys: [.leftArrow, .downArrow]) { _ in nudge(-1) }
+    .onKeyPress(keys: [.rightArrow, .upArrow, .leftArrow, .downArrow]) { press in
+      nudge(press.key == .rightArrow || press.key == .upArrow ? 1 : -1)
+    }
     .animation(.kitFast, value: showsBubble)
     .animation(.kitFast, value: isHovered)
     #if os(tvOS)
