@@ -1676,6 +1676,13 @@ struct DragDropPage: View {
   @State private var openFolders: Set<String> = ["Sources", "AtlasCore"]
   @State private var docs = sampleDocsTree
   @State private var openDocs: Set<String> = ["Guides"]
+  @State private var outside = [
+    SampleNode(name: "Clients", children: [SampleNode(name: "Atlas")]), SampleNode(name: "Notes.md"),
+  ]
+  @State private var openOutside: Set<String> = ["Clients"]
+  @State private var outsidePinned = ["Inbox", "Today"]
+  @State private var isOutsideTargeted = false
+  @State private var outsideDrop = "Nothing dropped yet"
 
   var body: some View {
     CatalogPage(page: .dragDrop) {
@@ -1931,7 +1938,58 @@ struct DragDropPage: View {
           }
         }
       }
+      SpecimenSection(
+        "Files from outside",
+        note: "Drag files or folders from Finder: on a folder row they go into it, on a file row beside it, and anywhere else in the box (the rows' gaps, the space below) to the top level. The Pinned rows take no files of their own: dropped on them, files go to the box. The rows still reorder."
+      ) {
+        Specimen(
+          "acceptsDrops and kitFileDrop", ground: .sidebar,
+          code: """
+            ReorderableOutline(projects, children: \\.children, move: …) { … }
+              .acceptsDrops(of: [.fileURL]) { providers, parent, index in
+                KitDroppedFiles.load(providers) { add($0, into: parent, at: index) }
+              }
+            // Around it: drops over its rows that they don't take come here too.
+            .kitFileDrop(isTargeted: $isTargeted) { add($0, into: nil, at: projects.count) }
+            """
+        ) {
+          VStack(alignment: .leading, spacing: 2) {
+            ReorderableOutline(
+              outside, children: \.children, expanded: $openOutside,
+              move: { id, parent, index in outside.moveNode(id, into: parent, at: index) }
+            ) { node in
+              SidebarRow(
+                node.name, systemImage: node.children == nil ? "doc" : "folder",
+                hue: node.children == nil ? .gray : .teal)
+            }
+            .acceptsDrops(of: [.fileURL]) { providers, parent, index in
+              KitDroppedFiles.load(providers) { addOutside($0, into: parent, at: index) }
+            }
+            Text("Pinned").kitFont(.sectionHeader).padding(.leading, 6).padding(.top, 10)
+            ReorderableSection(outsidePinned, id: \.self, move: { outsidePinned.move(fromOffsets: $0, toOffset: $1) }) {
+              SidebarRow($0, systemImage: "pin")
+            }
+            Text(outsideDrop).kitFont(.caption).foregroundStyle(.kitSecondary).padding(.leading, 6).padding(.top, 6)
+          }
+          .frame(minHeight: 260, alignment: .top)
+          .frame(width: 260)
+          .padding(4)
+          .contentShape(Rectangle())
+          .kitDropTarget(isOutsideTargeted, cornerRadius: KitMetrics.radiusCard)
+          .kitFileDrop(isTargeted: $isOutsideTargeted) { addOutside($0, into: nil, at: outside.count) }
+        }
+      }
     }
+  }
+
+  /// Files dropped on the outside specimen, as rows (a folder as an empty folder).
+  private func addOutside(_ urls: [URL], into parent: String?, at index: Int) {
+    for (offset, url) in urls.enumerated() {
+      let node = SampleNode(name: url.lastPathComponent, children: url.hasDirectoryPath ? [] : nil)
+      _ = outside.takeNode(node.name)
+      _ = outside.insertNode(node, into: parent, at: index + offset)
+    }
+    outsideDrop = "\(urls.map(\.lastPathComponent).formatted()) → \(parent ?? "top level")"
   }
 }
 

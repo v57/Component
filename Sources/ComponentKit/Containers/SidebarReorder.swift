@@ -1015,6 +1015,7 @@ struct ContReorderRow: ViewModifier {
   var item: AnyHashable? = nil
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.contOuterReorder) private var outer
+  @Environment(\.contOuterDrop) private var outerDrop
   @State private var isTargeted = false
   /// The row's frame in global coordinates, where it is laid out (its slide while a drag passes doesn't move it): the
   /// drop targets place a drag from their list's frames. In a box rather than in state: it changes on every frame of
@@ -1030,7 +1031,7 @@ struct ContReorderRow: ViewModifier {
     let delegate = ContReorderDropDelegate(
       list: list, index: index, count: count, move: move, state: state, accepts: accepts, perform: perform,
       receive: receive, isTargeted: $isTargeted, outer: outer, geometry: geometry, nests: nests, nest: nest,
-      levels: levels, axis: axis)
+      levels: levels, axis: axis, outerDrop: outerDrop)
     content
       // Reorderable rows inside this one (a group's sub-rows) share its drag and pass its rows' drags to it.
       .environment(\.contReorderState, state)
@@ -1044,7 +1045,7 @@ struct ContReorderRow: ViewModifier {
       // reaches over the gaps between rows (a drag resting in one got no updates: moving across there changed
       // nothing); the layout is padded back.
       .padding(axis == .vertical ? .vertical : .horizontal, ContReorderDropDelegate.reach)
-      .onDrop(of: [ContReorderState.contentType] + accepts, delegate: delegate)
+      .onDrop(of: [ContReorderState.contentType] + accepts + (outerDrop?.types ?? []), delegate: delegate)
       .padding(axis == .vertical ? .vertical : .horizontal, -ContReorderDropDelegate.reach)
       .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { [geometry] in geometry.frame = $0 }
       .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
@@ -1302,6 +1303,8 @@ struct ContReorderDropDelegate: DropDelegate {
   var levels: ContReorderLevels? = nil
   /// The direction the list runs: the target reaches `reach` past the row's ends that way.
   var axis: Axis = .vertical
+  /// The drop target around the list (`kitDropDestination`), which takes the drops the row doesn't.
+  var outerDrop: ContOuterDrop? = nil
 
   /// How far a row's drop target reaches past it along the list, over half the gap to its neighbour and a little more.
   static let reach: CGFloat = 1.5
@@ -1337,6 +1340,13 @@ struct ContReorderDropDelegate: DropDelegate {
     perform != nil && !isRow(info) && (info.hasItemsConforming(to: accepts) || ContDragPasteboard.has(accepts))
   }
 
+  /// A drop the row doesn't take but the target around the list does (a folder from Finder over a row that takes no
+  /// files): SwiftUI gives a drop to the innermost target only, so the row passes it on.
+  private func isOuter(_ info: DropInfo) -> Bool {
+    guard let outerDrop, !isRow(info), !isOther(info) else { return false }
+    return outerDrop.accepts(info)
+  }
+
   /// The outer target, when the dragged row belongs to its list rather than this one.
   private func forwarded(_ info: DropInfo) -> ContReorderDropDelegate? {
     guard let source = state.list, source != list, isRow(info) else { return nil }
@@ -1350,7 +1360,7 @@ struct ContReorderDropDelegate: DropDelegate {
 
   func validateDrop(info: DropInfo) -> Bool {
     if let outer = forwarded(info) { return outer.validateDrop(info: info) }
-    if isOther(info) { return true }
+    if isOther(info) || isOuter(info) { return true }
     // Rows dragged together stay in their list, unless they count as one.
     let single = state.count <= 1 || state.list == list || state.movesAsOne
     return isRow(info) && single && ContReorder.accepts(from: state.list, into: list, receives: receive != nil)
@@ -1362,7 +1372,7 @@ struct ContReorderDropDelegate: DropDelegate {
 
   private func updated(_ info: DropInfo, at pointer: CGPoint, throughSubRow: Bool = false) -> DropProposal? {
     if let outer = forwarded(info) { return outer.updated(info, at: pointer, throughSubRow: true) }
-    if isOther(info) { return DropProposal(operation: .copy) }
+    if isOther(info) || isOuter(info) { return DropProposal(operation: .copy) }
     let isValid = validateDrop(info: info)
     if isValid {
       state.retarget(list, count: rows, pointer: pointer, throughSubRow: throughSubRow, nests: nests, levels: levels)
@@ -1376,6 +1386,7 @@ struct ContReorderDropDelegate: DropDelegate {
       withAnimation(.kitFast) { isTargeted?.wrappedValue = true }
       return
     }
+    if isOuter(info) { return outerDrop?.setTargeted(true) ?? () }
     guard isRow(info), let from = state.index, let fromList = state.list else { return }
     if fromList != list {
       // A row from another list: the app moves it here, then it reorders here.
@@ -1395,6 +1406,7 @@ struct ContReorderDropDelegate: DropDelegate {
   func dropExited(info: DropInfo) {
     if let outer = forwarded(info) { return outer.dropExited(info: info) }
     if isTargeted?.wrappedValue == true { withAnimation(.kitFast) { isTargeted?.wrappedValue = false } }
+    if isOuter(info) { outerDrop?.setTargeted(false) }
     if state.list == list { state.leave(list, at: pointer(info)) }
   }
 
@@ -1406,11 +1418,129 @@ struct ContReorderDropDelegate: DropDelegate {
       let pasted = ContDragPasteboard.providers(for: accepts)
       return perform(pasted.isEmpty ? info.itemProviders(for: accepts) : pasted)
     }
+    if isOuter(info), let outerDrop { return outerDrop.performDrop(info: info) }
     guard isRow(info) else { return false }
     state.land(in: list, count: rows, move: move, nest: nest)
     state.endAfterLanding()
     return true
   }
+}
+
+// MARK: - The drop around the rows
+
+extension View {
+  /// Takes drops of `types` (files, URLs, text) anywhere on the view, over the kit's reorderable rows inside it too:
+  /// SwiftUI gives a drop to the innermost target only, so with its own `onDrop` or `dropDestination` a drop over a
+  /// reorderable row is refused, while the rows pass this one the drops they don't take themselves (a row that
+  /// `alsoAccepts` the type keeps it). `perform` gets one provider per dragged item.
+  ///
+  /// ```swift
+  /// KitSidebar(selection: $selection) { … }
+  ///   .kitDropTarget(isTargeted, cornerRadius: KitMetrics.radiusCard)
+  ///   .kitDropDestination(of: [.fileURL], isTargeted: $isTargeted) { providers in add(providers) }
+  /// ```
+  public func kitDropDestination(
+    of types: [UTType], isTargeted: Binding<Bool>? = nil, perform: @escaping ([NSItemProvider]) -> Bool
+  ) -> some View {
+    modifier(ContOuterDropModifier(types: types, isTargeted: isTargeted, perform: perform))
+  }
+
+  /// `kitDropDestination(of:)` for files: `perform` gets the dropped files' URLs once they have loaded, in the drag's
+  /// order.
+  ///
+  /// ```swift
+  /// KitSidebar(selection: $selection) { … }
+  ///   .kitFileDrop(isTargeted: $isTargeted) { urls in add(urls) }
+  /// ```
+  public func kitFileDrop(isTargeted: Binding<Bool>? = nil, perform: @escaping @MainActor ([URL]) -> Void) -> some View
+  {
+    kitDropDestination(of: [.fileURL], isTargeted: isTargeted) { KitDroppedFiles.load($0, then: perform) }
+  }
+}
+
+/// The files of a drop.
+public enum KitDroppedFiles {
+  /// Loads the file URLs `providers` carry and calls `done` with them (in order, on the main actor) once they have
+  /// loaded. False when none carries one, for a drop target to refuse the drop.
+  @MainActor @discardableResult
+  public static func load(_ providers: [NSItemProvider], then done: @escaping @MainActor ([URL]) -> Void) -> Bool {
+    let carrying = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
+    guard !carrying.isEmpty else { return false }
+    Task { @MainActor in
+      var urls: [URL] = []
+      for provider in carrying {
+        if let url = await url(from: provider) { urls.append(url) }
+      }
+      if !urls.isEmpty { done(urls) }
+    }
+    return true
+  }
+
+  @MainActor private static func url(from provider: NSItemProvider) async -> URL? {
+    await withCheckedContinuation { continuation in
+      _ = provider.loadDataRepresentation(forTypeIdentifier: UTType.fileURL.identifier) { data, _ in
+        let url = data.flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
+        #if canImport(ObjectiveC)
+          // Finder's drags carry file reference URLs (file:///.file/id=…): the path is the file's own.
+          continuation.resume(returning: url.map { ($0 as NSURL).filePathURL ?? $0 })
+        #else
+          continuation.resume(returning: url)
+        #endif
+      }
+    }
+  }
+}
+
+/// The drop target around reorderable rows (`kitDropDestination`), which they pass the drops they don't take.
+@MainActor final class ContOuterDrop {
+  var types: [UTType] = []
+  var isTargeted: Binding<Bool>?
+  var perform: ([NSItemProvider]) -> Bool = { _ in false }
+
+  /// Whether the drag carries one of its types (read from the drag pasteboard too, as `ContDragPasteboard` says).
+  func accepts(_ info: DropInfo) -> Bool { info.hasItemsConforming(to: types) || ContDragPasteboard.has(types) }
+
+  func setTargeted(_ isOn: Bool) {
+    guard let isTargeted, isTargeted.wrappedValue != isOn else { return }
+    withAnimation(.kitFast) { isTargeted.wrappedValue = isOn }
+  }
+
+  func performDrop(info: DropInfo) -> Bool {
+    setTargeted(false)
+    let pasted = ContDragPasteboard.providers(for: types)
+    return perform(pasted.isEmpty ? info.itemProviders(for: types) : pasted)
+  }
+}
+
+extension EnvironmentValues {
+  @Entry var contOuterDrop: ContOuterDrop? = nil
+}
+
+private struct ContOuterDropModifier: ViewModifier {
+  let types: [UTType]
+  let isTargeted: Binding<Bool>?
+  let perform: ([NSItemProvider]) -> Bool
+  /// One box for the view's life: a new one in the environment would draw every row again.
+  @State private var drop = ContOuterDrop()
+
+  func body(content: Content) -> some View {
+    drop.types = types
+    drop.isTargeted = isTargeted
+    drop.perform = perform
+    return content
+      .environment(\.contOuterDrop, drop)
+      .onDrop(of: types, delegate: ContOuterDropDelegate(drop: drop))
+  }
+}
+
+private struct ContOuterDropDelegate: DropDelegate {
+  let drop: ContOuterDrop
+
+  func validateDrop(info: DropInfo) -> Bool { drop.accepts(info) }
+  func dropEntered(info: DropInfo) { drop.setTargeted(true) }
+  func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .copy) }
+  func dropExited(info: DropInfo) { drop.setTargeted(false) }
+  func performDrop(info: DropInfo) -> Bool { drop.performDrop(info: info) }
 }
 
 // MARK: - The drag pasteboard

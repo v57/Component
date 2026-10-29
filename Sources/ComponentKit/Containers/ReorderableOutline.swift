@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 // A tree whose rows drag: `KitOutline`'s rows on `ReorderableSection`'s reordering. The tree is drawn as one flat list
 // of the rows on screen (an open folder's rows follow it), so a drag slides the rows as in any list. A dragged folder
@@ -31,6 +32,8 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
   private var exportURL: ((Element) -> URL?)?
   private var together: Set<Element.ID> = []
   private var moveTogether: (([Element.ID], Element.ID?, Int) -> Void)?
+  private var dropTypes: [UTType] = []
+  private var drop: (([NSItemProvider], Element.ID?, Int) -> Bool)?
   @State private var ownExpanded: Set<Element.ID> = []
   @State private var ownList = UUID()
   /// The folders the drag opened, which close again when it moves back above them, and where the drag image's
@@ -109,7 +112,7 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
           ContReorderRow(
             list: list, index: entry.index,
             move: { rows.move($0, to: $1, level: state.level, move, together: moveTogether) }, state: state,
-            receive: receiving,
+            accepts: drop == nil ? [] : dropTypes, perform: drop.map { dropped(entry, drop: $0) }, receive: receiving,
             group: isTogether
               ? selected : entry.end > entry.index + 1 ? IndexSet(integersIn: entry.index..<entry.end) : nil,
             exportURL: exportURL.map { url in { url(entry.element) } }, count: rows.entries.count,
@@ -185,6 +188,35 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
     return outline
   }
 
+  /// Takes drops of `types` from outside the outline (files from Finder, links) on its rows: one dropped on a folder
+  /// row goes into that folder, at its end; one on any other row goes in beside it, after it. `perform` gets the
+  /// drag's providers (one per item), the parent (`nil`: the top level) and the place among its children, as `move`
+  /// counts it. The row under the drag wears the drop target. Rows still reorder as before.
+  ///
+  /// ```swift
+  /// ReorderableOutline(projects, children: \.children, move: move) { … }
+  ///   .acceptsDrops(of: [.fileURL]) { providers, parent, index in add(providers, into: parent, at: index) }
+  /// ```
+  public func acceptsDrops(
+    of types: [UTType],
+    perform: @escaping (_ providers: [NSItemProvider], _ parent: Element.ID?, _ index: Int) -> Bool
+  ) -> Self {
+    var outline = self
+    outline.dropTypes = types
+    outline.drop = perform
+    return outline
+  }
+
+  /// A drop on `entry`'s row: into it when it is a folder, else after it.
+  private func dropped(
+    _ entry: ContOutlineRows<Element>.Entry, drop: @escaping ([NSItemProvider], Element.ID?, Int) -> Bool
+  ) -> ([NSItemProvider]) -> Bool {
+    { providers in
+      entry.isFolder
+        ? drop(providers, entry.id, entry.childCount ?? 0) : drop(providers, entry.parent, entry.place + 1)
+    }
+  }
+
   /// The outline's list: its name, or its own.
   private var list: AnyHashable { listName ?? AnyHashable(ownList) }
 
@@ -257,15 +289,17 @@ private struct ContOutlineEmptyDrop: View {
   let receive: (AnyHashable, Int, Int) -> Void
   @State private var geometry = ContRowGeometry()
   @Environment(\.kitIdiom) private var idiom
+  @Environment(\.contOuterDrop) private var outerDrop
 
   var body: some View {
     Color.clear
       .frame(maxWidth: .infinity, minHeight: KitMetrics.row(idiom))
       .contentShape(Rectangle())
       .onDrop(
-        of: [ContReorderState.contentType],
+        of: [ContReorderState.contentType] + (outerDrop?.types ?? []),
         delegate: ContReorderDropDelegate(
-          list: list, index: 0, count: 0, move: { _, _ in }, state: state, receive: receive, geometry: geometry))
+          list: list, index: 0, count: 0, move: { _, _ in }, state: state, receive: receive, geometry: geometry,
+          outerDrop: outerDrop))
       .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { [geometry] in geometry.frame = $0 }
       .accessibilityHidden(true)
   }
