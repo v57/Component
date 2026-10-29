@@ -312,12 +312,40 @@ final class KitMenuModel {
     dismiss()
   }
 
-  /// Highlights a row (the pointer is over it): a submenu row opens its submenu, another row closes it.
+  /// How long the press that opened the menu, still held and dragged through it, rests on a submenu row before it
+  /// opens: passing over it on the way to another row leaves the rows under where it would open free.
+  static var submenuDelay: Duration { KitMenuSession.isTouch ? .milliseconds(400) : .milliseconds(200) }
+  @ObservationIgnored private var pendingSubmenu: Task<Void, Never>?
+  /// The press that opened the menu is still held (set by the menu's window; a submenu asks its parent).
+  @ObservationIgnored var isPressed: () -> Bool = { false }
+  var isTracking: Bool { parent?.isTracking ?? isPressed() }
+
+  /// Highlights a row (the pointer is over it): a submenu row opens its submenu (once the press that opened the
+  /// menu rests on it; at once on hover), another row closes it.
   func highlight(_ id: UUID) {
     guard rows[id]?.isEnabled == true else { return }
     highlighted = id
-    openSubmenu = rows[id]?.isSubmenu == true ? id : nil
+    pendingSubmenu?.cancel()
+    pendingSubmenu = nil
+    guard rows[id]?.isSubmenu == true else {
+      openSubmenu = nil
+      return
+    }
+    guard openSubmenu != id else { return }
+    guard isTracking else {
+      openSubmenu = id
+      return
+    }
+    pendingSubmenu = Task { [weak self] in
+      try? await Task.sleep(for: Self.submenuDelay)
+      guard !Task.isCancelled, let self, self.highlighted == id else { return }
+      self.openSubmenu = id
+    }
   }
+
+  /// Whether an open submenu stacks over this menu (touch, with no room beside it) rather than sitting beside its
+  /// row: then the menu's other rows fade behind it.
+  var stacksSubmenu = false
 
   /// The row under `point`, in this menu or its open submenu (which lies on top).
   func row(at point: CGPoint) -> (menu: KitMenuModel, id: UUID)? {
@@ -379,7 +407,10 @@ struct KitMenuRow<Label: View>: View {
   @State private var hasIcon = false
 
   private var id: UUID { rowID ?? ownID }
-  private var isHighlighted: Bool { isEnabled && (forced || model?.highlighted == id) }
+  /// Under the pointer, or a submenu row whose submenu is open (a tap opens it without highlighting it).
+  private var isHighlighted: Bool {
+    isEnabled && (forced || model?.highlighted == id || (isSubmenu && model?.openSubmenu == id))
+  }
 
   var body: some View {
     let metrics = KitMenuMetrics(idiom)
@@ -433,7 +464,7 @@ struct KitMenuRow<Label: View>: View {
     .accessibilityAddTraits(checked == true ? [.isButton, .isSelected] : .isButton)
     .accessibilityAction { if isEnabled { trigger() } }
     // On touch an open submenu covers its menu, whose other rows fade behind it.
-    .opacity(idiom.isTouch && model?.openSubmenu != nil && model?.openSubmenu != id ? 0.3 : 1)
+    .opacity(model?.stacksSubmenu == true && model?.openSubmenu != nil && model?.openSubmenu != id ? 0.3 : 1)
     .zIndex(model?.openSubmenu == id ? 1 : 0)
   }
 
@@ -650,13 +681,28 @@ public struct KitSubmenu<Content: View>: View {
     // Drawn by the card the row is in, over the card (a scrolling card would clip it).
     .anchorPreference(key: KitSubmenuCards.self, value: .bounds) { row in
       guard isOpen else { return [] }
-      return [KitSubmenuCards.Card(id: rowID, row: row, offset: offset, view: AnyView(card(metrics)))]
+      let stacks = stacks
+      return [KitSubmenuCards.Card(id: rowID, row: row, offset: offset(stacks), view: AnyView(card(metrics, stacks)))]
     }
+    .onChange(of: isOpen) { if isOpen { model?.stacksSubmenu = stacks } }
   }
 
-  private func card(_ metrics: KitMenuMetrics) -> some View {
-    KitMenuCard(model: child, minWidth: idiom.isTouch ? rowGeometry.frame.width + 2 * metrics.cardPadding + 8 : nil) {
-      if idiom.isTouch {
+  /// On touch, the submenu stacks over its menu when the window has no room beside it (an iPhone, a narrow iPad
+  /// window: nothing draws outside the window); with room it sits beside its row, as on the Mac.
+  private var stacks: Bool {
+    guard idiom.isTouch else { return false }
+    guard let bounds else { return true }
+    let metrics = KitMenuMetrics(idiom)
+    let row = rowGeometry.frame
+    // As wide as this menu, or as it measured when last open.
+    let width = max(childSize.width, row.width + 2 * metrics.cardPadding)
+    let gap = metrics.cardPadding + 2
+    return row.maxX + gap + width > bounds.width - 8 && row.minX - gap - width < 8
+  }
+
+  private func card(_ metrics: KitMenuMetrics, _ stacks: Bool) -> some View {
+    KitMenuCard(model: child, minWidth: stacks ? rowGeometry.frame.width + 2 * metrics.cardPadding + 8 : nil) {
+      if stacks {
         // As iOS: the submenu stacks over its menu from this row, headed by its title, which folds it.
         KitMenuRow(isHeader: true, trigger: { model?.openSubmenu = nil }) {
           if let systemImage { Label(title, systemImage: systemImage) } else { Text(title) }
@@ -677,10 +723,10 @@ public struct KitSubmenu<Content: View>: View {
   }
 
   /// Beside the row, its first row level with this one: on the trailing side, or the leading side when the
-  /// trailing one has no room; on touch, over the menu from this row, a little wider. Lifted to stay on screen.
-  private var offset: CGSize {
+  /// trailing one has no room; stacked (touch), over the menu from this row, a little wider. Lifted to stay on screen.
+  private func offset(_ stacks: Bool) -> CGSize {
     let metrics = KitMenuMetrics(idiom)
-    if idiom.isTouch {
+    if stacks {
       var x = -metrics.cardPadding - 4
       var y = -metrics.cardPadding - 4
       if let bounds {
@@ -1062,7 +1108,8 @@ final class KitMenuSession {
     guard let model, let point = point(local) else { return }
     if let start, hypot(local.x - start.x, local.y - start.y) < 4, model.trigger.contains(point) { return }
     if let hit = model.row(at: point), let row = hit.menu.rows[hit.id], row.isEnabled {
-      if !row.isSubmenu { row.trigger() }
+      // A submenu row's trigger opens it at once.
+      row.trigger()
     } else if model.isContext && Self.isTouch {
       // A finger lifted off a context menu leaves it open, as the system's does.
     } else if !model.trigger.contains(point), !model.cardFrames.contains(where: { $0.contains(point) }) {
@@ -1270,6 +1317,7 @@ struct KitMenuOverlay<Content: View>: View {
       guard let window = view.window, let screen = window.screen ?? NSScreen.main else { return }
       let model = self.model ?? KitMenuModel()
       model.dismiss = { [weak self] in self?.dismiss() }
+      model.isPressed = { [weak self] in self?.isTracking() == true }
       self.model = model
       let screenFrame = screen.frame
       let rect = window.convertToScreen(view.convert(view.bounds, to: nil))
@@ -1560,7 +1608,7 @@ struct KitMenuOverlay<Content: View>: View {
       let controller = session.controller
       let session = session
       let presented = $isPresented
-      view.onLongPress = isContext ? { phase, point in session.context(phase, at: point, isPresented: presented) } : nil
+      view.onContext = isContext ? { phase, point in session.context(phase, at: point, isPresented: presented) } : nil
       controller.close = { isPresented = false }
       controller.menu = menu
       // A menu that starts open waits for the view to land in its window.
@@ -1589,30 +1637,37 @@ struct KitMenuOverlay<Content: View>: View {
   final class KitMenuAnchorView: UIView, UIGestureRecognizerDelegate {
     var movedToWindow: () -> Void = {}
     var onDismantle: () -> Void = {}
-    /// A context menu's long press: set, the view's window gets a long-press recognizer for touches on this view.
-    var onLongPress: ((KitContextPhase, CGPoint) -> Void)? {
-      didSet { installLongPress() }
+    /// A context menu's long press and secondary click: set, the view's window gets recognizers for presses on this
+    /// view.
+    var onContext: ((KitContextPhase, CGPoint) -> Void)? {
+      didSet { installRecognizers() }
     }
     private var longPress: UILongPressGestureRecognizer?
+    /// A pointer's secondary click (a mouse's right button, a two-finger trackpad click).
+    private var secondaryClick: UITapGestureRecognizer?
+    /// Every context menu's anchor, to find the innermost under a press.
+    private static let all = NSHashTable<KitMenuAnchorView>.weakObjects()
 
     override func didMoveToWindow() {
       super.didMoveToWindow()
-      installLongPress()
+      installRecognizers()
       if window != nil { DispatchQueue.main.async { [weak self] in self?.movedToWindow() } }
     }
 
     func dismantled() {
       onDismantle()
-      onLongPress = nil
+      onContext = nil
     }
 
-    /// The press lives on the window (this view sits behind the content and takes no touches), and only begins for
-    /// touches inside this view; once it's recognized, the touch is the menu's (the content's own gestures cancel).
-    private func installLongPress() {
-      let wanted = onLongPress != nil ? window : nil
+    /// The presses live on the window (this view sits behind the content and takes no touches), and only begin for
+    /// touches inside this view; once one is recognized, the touch is the menu's (the content's own gestures cancel).
+    private func installRecognizers() {
+      let wanted = onContext != nil ? window : nil
+      if wanted != nil { Self.all.add(self) } else { Self.all.remove(self) }
       if longPress?.view === wanted, longPress != nil || wanted == nil { return }
-      if let longPress { longPress.view?.removeGestureRecognizer(longPress) }
+      for recognizer in [longPress, secondaryClick].compactMap({ $0 }) { recognizer.view?.removeGestureRecognizer(recognizer) }
       longPress = nil
+      secondaryClick = nil
       guard let wanted else { return }
       let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(pressed(_:)))
       // Ahead of a drag interaction's lift (about 0.45 s in a list), so this press decides that the two share the
@@ -1621,6 +1676,21 @@ struct KitMenuOverlay<Content: View>: View {
       recognizer.delegate = self
       wanted.addGestureRecognizer(recognizer)
       longPress = recognizer
+      // A pointer's right-click opens the menu at the pointer. UIKit hands the secondary button only to a recognizer
+      // that requires it, and only a tap can, so the menu opens as the button comes up.
+      let click = UITapGestureRecognizer(target: self, action: #selector(clicked(_:)))
+      click.buttonMaskRequired = .secondary
+      click.delegate = self
+      wanted.addGestureRecognizer(click)
+      secondaryClick = click
+    }
+
+    @objc private func clicked(_ recognizer: UITapGestureRecognizer) {
+      guard recognizer.state == .ended else { return }
+      let point = recognizer.location(in: self)
+      // Opened, then no press left to track: the menu stays open for a click on a row.
+      onContext?(.began, point)
+      onContext?(.cancelled, point)
     }
 
     @objc private func pressed(_ recognizer: UILongPressGestureRecognizer) {
@@ -1631,22 +1701,22 @@ struct KitMenuOverlay<Content: View>: View {
           UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         #endif
         start = point
-        onLongPress?(.began, point)
+        onContext?(.began, point)
       case .changed:
         // Held and dragged on a view that lifted for a drag (a reorderable row, a `.draggable`): the drag goes on,
         // the menu goes, as the system's context menu does.
         if isLifted, hypot(point.x - start.x, point.y - start.y) > 10 {
           lifts.removeAll()
-          onLongPress?(.dragged, point)
+          onContext?(.dragged, point)
         } else {
-          onLongPress?(.changed, point)
+          onContext?(.changed, point)
         }
-      case .ended: onLongPress?(.ended, point)
+      case .ended: onContext?(.ended, point)
       case .cancelled, .failed:
         // Cancelled as a drag began (the finger moved off with a lifted view): the menu goes. A list's drag
         // interaction also cancels the press as its lift settles, with the finger still: the menu stays.
         let moved = hypot(point.x - start.x, point.y - start.y) > 8
-        onLongPress?(isLifted && moved ? .dragged : .cancelled, point)
+        onContext?(isLifted && moved ? .dragged : .cancelled, point)
       default: break
       }
       if recognizer.state == .ended || recognizer.state == .cancelled || recognizer.state == .failed {
@@ -1665,8 +1735,45 @@ struct KitMenuOverlay<Content: View>: View {
       lifts.contains { $0.recognizer.map { $0.state == .began || $0.state == .changed } ?? false }
     }
 
+    /// A press goes to the innermost context menu under it, as with `.contextMenu`: a modifier on a view of several
+    /// rows has an anchor around the rows' own, and every anchor's recognizers sit on the same window.
     func gestureRecognizer(_ recognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-      window != nil && !isHiddenInTree && bounds.contains(touch.location(in: self))
+      guard let window, !isHiddenInTree, bounds.contains(touch.location(in: self)) else { return false }
+      return innermost(at: touch.location(in: window), among: Self.all.allObjects) === self
+    }
+
+    /// A held right button is the secondary click's, not a long press (a press's first event decides; a release
+    /// has no buttons down).
+    func gestureRecognizer(_ recognizer: UIGestureRecognizer, shouldReceive event: UIEvent) -> Bool {
+      guard recognizer === longPress, event.type == .touches, recognizer.numberOfTouches == 0 else { return true }
+      return !event.buttonMask.contains(.secondary)
+    }
+
+    /// The anchor a press at `location` (in the window) goes to: the smallest under it, this one or one of `anchors`,
+    /// and on a tie the one drawn above (the modifier nearer the view).
+    func innermost(at location: CGPoint, among anchors: [KitMenuAnchorView]) -> KitMenuAnchorView {
+      var best: KitMenuAnchorView = self
+      for view in anchors where view !== self && view.window === window && view.onContext != nil {
+        guard !view.isHiddenInTree, view.bounds.contains(view.convert(location, from: nil)) else { continue }
+        let area = view.bounds.width * view.bounds.height
+        let bestArea = best.bounds.width * best.bounds.height
+        if area < bestArea - 0.5 || (abs(area - bestArea) <= 0.5 && best.isBelow(view)) { best = view }
+      }
+      return best
+    }
+
+    /// Drawn under `other` (earlier in their common superview's subviews).
+    private func isBelow(_ other: UIView) -> Bool {
+      var ancestors: [UIView] = []
+      var current: UIView? = self
+      while let view = current { ancestors.append(view); current = view.superview }
+      var theirs: UIView = other
+      while let parent = theirs.superview, !ancestors.contains(parent) { theirs = parent }
+      guard let common = theirs.superview, let index = ancestors.firstIndex(of: common), index > 0 else { return false }
+      let mine = ancestors[index - 1]
+      guard mine !== theirs, let a = common.subviews.firstIndex(of: mine), let b = common.subviews.firstIndex(of: theirs)
+      else { return false }
+      return a < b
     }
 
     /// The press shares the touch with a drag interaction's own long press (the lift of a reorderable row or a
@@ -1711,6 +1818,7 @@ struct KitMenuOverlay<Content: View>: View {
       guard let scene = view.window?.windowScene else { return }
       let model = self.model ?? KitMenuModel()
       model.dismiss = { [weak self] in self?.dismiss() }
+      model.isPressed = { [weak self] in self?.isTracking() == true }
       self.model = model
       let window = self.window ?? UIWindow(windowScene: scene)
       // The view in the menu window's coordinates; a context menu's anchor is the point on it.
