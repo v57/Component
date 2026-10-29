@@ -1677,7 +1677,8 @@ struct DragDropPage: View {
   @State private var docs = sampleDocsTree
   @State private var openDocs: Set<String> = ["Guides"]
   @State private var outside = [
-    SampleNode(name: "Clients", children: [SampleNode(name: "Atlas")]), SampleNode(name: "Notes.md"),
+    SampleNode(name: "Clients", children: [SampleNode(name: "Atlas")]),
+    SampleNode(name: "Archive", children: [SampleNode(name: "2025"), SampleNode(name: "2024")]), SampleNode(name: "Notes.md"),
   ]
   @State private var openOutside: Set<String> = ["Clients"]
   @State private var outsidePinned = ["Inbox", "Today"]
@@ -1940,7 +1941,7 @@ struct DragDropPage: View {
       }
       SpecimenSection(
         "Files from outside",
-        note: "Drag files or folders from Finder: on a folder row they go into it, on a file row beside it, and anywhere else in the box (the rows' gaps, the space below) to the top level. The Pinned rows take no files of their own: dropped on them, files go to the box. The rows still reorder."
+        note: "Drag files or folders from Finder over the tree: the rows make room where they'd land, as for a row of its own; over the middle of a closed folder they go into it, and held there it opens; after a folder's last row, move left or right to land inside it or beside it. The Pinned rows take no files of their own: dropped on them, or on the space below, files go to the box's top level."
       ) {
         Specimen(
           "acceptsDrops and kitFileDrop", ground: .sidebar,

@@ -153,6 +153,7 @@ final class ContReorderState {
     receiver = nil
     hint = nil
     isMoving = false
+    isOutside = false
     if ContDragActivity.shared.isDragging { ContDragActivity.shared.isDragging = false }
   }
 
@@ -197,18 +198,57 @@ final class ContReorderState {
   /// Names the drop's destination from now on (`ContReorderLevels.title`), though it's the folder the rows are in.
   func armHint() { hintArmed = true }
 
+  // MARK: Drags from outside
+
+  /// The drag in progress came from outside the list's rows (files from Finder): it is a row of `length` after the
+  /// list's last (`ContOutsideSlot` draws it), so the list's rows make room for it and its folders open under it as for
+  /// one of their own. It stays the list's, with its room, until the drop or the button is let go: views moving under a
+  /// resting pointer (the rows below the list as the slot row came or went) left SwiftUI delivering the drop to none.
+  private(set) var isOutside = false
+
+  /// Whether an outside drag is over `list` (its slot row is in it).
+  func isOutside(_ list: AnyHashable) -> Bool { isOutside && self.list == list }
+
+  /// An outside drag came over `list`, which has `count` rows; `level`: the level of the row it came over first, its
+  /// own level as it moves across.
+  func enterOutside(_ list: AnyHashable, count: Int, length: CGFloat, level: Int) {
+    guard !isOutside(list) else { return }
+    if self.list != nil { end() }
+    start(list, at: count, axis: .vertical, collapsedLength: length)
+    isOutside = true
+    isMoving = true
+    // The pointer holds the slot by its middle, and the slot starts at the row it came over's level.
+    grab = length / 2
+    cardLevel = level
+    // Its slot row is laid out only after the rows first slide: they slide again once it is.
+    isStale = true
+    // Dropped elsewhere or cancelled, there's no session end to hear of.
+    sourceLeft(after: .milliseconds(300))
+  }
+
+  /// Where an outside drag would drop on `list`, and ends it (the folder it goes into bounces): its place among the
+  /// rows, the folder row it goes into, and the level of the tree it lands at.
+  func landOutside(_ list: AnyHashable) -> (target: Int, into: Int?, level: Int?)? {
+    guard isOutside(list), let target else { return nil }
+    let place = (target, into, level)
+    hasLanded = true
+    if into != nil { receiver = into }
+    withAnimation(.kit) { end() }
+    return place
+  }
+
   /// Whether the dragged rows count as one (a group or a folder with its open rows), so they may move to another list.
   var movesAsOne: Bool { collapsedLength != nil }
 
   /// The dragged row moved into another list, so its drag source (and the session's end) is gone: on the Mac, once
   /// the button is up and no drop has landed a moment later (dropped outside any list, or cancelled), the drag ends.
-  func sourceLeft() {
+  func sourceLeft(after delay: Duration = .milliseconds(1500)) {
     let drag = drags
     Task { @MainActor [weak self] in
       while let self, self.drags == drag, self.list != nil {
         await kitSleep(for: .milliseconds(200))
         guard ContPlatform.isPointerUp else { continue }
-        await kitSleep(for: .milliseconds(1500))
+        await kitSleep(for: delay)
         if self.drags == drag, self.list != nil, !self.hasLanded { withAnimation(.kit) { self.end() } }
         return
       }
@@ -1013,6 +1053,8 @@ struct ContReorderRow: ViewModifier {
   var levels: ContReorderLevels? = nil
   /// What the row shows, for a list the drag moves into (`ContReorderState.item`).
   var item: AnyHashable? = nil
+  /// The list takes drags from outside as rows of its own (`ReorderableOutline.acceptsDrops`).
+  var outside: ContOutsideDrop? = nil
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.contOuterReorder) private var outer
   @Environment(\.contOuterDrop) private var outerDrop
@@ -1031,7 +1073,8 @@ struct ContReorderRow: ViewModifier {
     let delegate = ContReorderDropDelegate(
       list: list, index: index, count: count, move: move, state: state, accepts: accepts, perform: perform,
       receive: receive, isTargeted: $isTargeted, outer: outer, geometry: geometry, nests: nests, nest: nest,
-      levels: levels, axis: axis, outerDrop: outerDrop)
+      levels: levels, axis: axis, outerDrop: outerDrop, outside: outside)
+    let types: [UTType] = [ContReorderState.contentType] + accepts + (outside?.types ?? []) + (outerDrop?.types ?? [])
     content
       // Reorderable rows inside this one (a group's sub-rows) share its drag and pass its rows' drags to it.
       .environment(\.contReorderState, state)
@@ -1045,7 +1088,7 @@ struct ContReorderRow: ViewModifier {
       // reaches over the gaps between rows (a drag resting in one got no updates: moving across there changed
       // nothing); the layout is padded back.
       .padding(axis == .vertical ? .vertical : .horizontal, ContReorderDropDelegate.reach)
-      .onDrop(of: [ContReorderState.contentType] + accepts + (outerDrop?.types ?? []), delegate: delegate)
+      .onDrop(of: types, delegate: delegate)
       .padding(axis == .vertical ? .vertical : .horizontal, -ContReorderDropDelegate.reach)
       .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { [geometry] in geometry.frame = $0 }
       .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
@@ -1117,6 +1160,62 @@ private struct ContRowDragSource<Preview: View>: ViewModifier {
   private func drag(_ url: () -> URL?) -> ContRowDrag {
     begin()
     return ContRowDrag(url: url())
+  }
+}
+
+/// How a list takes drags from outside (`ReorderableOutline.acceptsDrops`): their types, how long their slot is, the
+/// level of the row they come over (where the slot starts), and the drop at a place (`ContReorderState.landOutside`).
+struct ContOutsideDrop {
+  var types: [UTType]
+  var length: CGFloat
+  var level = 0
+  var perform: ([NSItemProvider], (target: Int, into: Int?, level: Int?)) -> Bool
+}
+
+/// The row an outside drag is while it passes over its list (`ContReorderState.isOutside`): after the list's last, a
+/// slot the reorder slides to where the drop would land, and a drop target where it is laid out.
+struct ContOutsideSlot: View {
+  let list: AnyHashable
+  let index: Int
+  let state: ContReorderState
+  let delegate: ContReorderDropDelegate
+  @State private var geometry = ContRowGeometry()
+  @Environment(\.kitIdiom) private var idiom
+
+  var body: some View {
+    let length = delegate.outside?.length ?? KitMetrics.row(idiom)
+    Color.clear
+      .frame(maxWidth: .infinity)
+      .frame(height: length)
+      .background(alignment: .top) {
+        if state.target != nil {
+          RoundedRectangle(cornerRadius: ContMetrics.rowRadius(idiom), style: .continuous).fill(.kitField)
+            .padding(.leading, CGFloat(state.level ?? 0) * state.levelStep)
+            .transition(.opacity)
+        }
+      }
+      .offset(y: state.offset(list, at: index))
+      .preference(
+        key: ContDropHintKey.self,
+        value: state.hint.map {
+          ContDropHintValue(title: $0, lift: state.hintLift, pointer: ContPlatform.hasPointer ? nil : state.pointer)
+        })
+      .padding(.vertical, ContReorderDropDelegate.reach)
+      .contentShape(Rectangle())
+      .onDrop(of: delegate.outside?.types ?? [], delegate: target)
+      .padding(.vertical, -ContReorderDropDelegate.reach)
+      .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { [geometry] in geometry.frame = $0 }
+      .onAppear { state.register(geometry, in: list, at: index) }
+      .onChange(of: index) { state.register(geometry, in: list, at: index) }
+      .onDisappear { state.unregister(geometry) }
+      .accessibilityHidden(true)
+  }
+
+  /// The list's target, where the slot is laid out.
+  private var target: ContReorderDropDelegate {
+    var target = delegate
+    target.geometry = geometry
+    return target
   }
 }
 
@@ -1305,6 +1404,8 @@ struct ContReorderDropDelegate: DropDelegate {
   var axis: Axis = .vertical
   /// The drop target around the list (`kitDropDestination`), which takes the drops the row doesn't.
   var outerDrop: ContOuterDrop? = nil
+  /// The list takes drags from outside as rows of its own (`ContOutsideDrop`).
+  var outside: ContOutsideDrop? = nil
 
   /// How far a row's drop target reaches past it along the list, over half the gap to its neighbour and a little more.
   static let reach: CGFloat = 1.5
@@ -1340,10 +1441,25 @@ struct ContReorderDropDelegate: DropDelegate {
     perform != nil && !isRow(info) && (info.hasItemsConforming(to: accepts) || ContDragPasteboard.has(accepts))
   }
 
+  /// A drag from outside (files) that the list takes as a row of its own.
+  private func isOutside(_ info: DropInfo) -> Bool {
+    guard let outside, !isRow(info) else { return false }
+    return info.hasItemsConforming(to: outside.types) || ContDragPasteboard.has(outside.types)
+  }
+
+  /// Places an outside drag at the pointer, as the list's row after its last.
+  private func placeOutside(_ info: DropInfo) {
+    guard let outside else { return }
+    // A late update arrives as the drag image lands, after the drop (the button is up by then): no new drag.
+    if !state.isOutside(list), ContPlatform.isPointerUp { return }
+    state.enterOutside(list, count: rows, length: outside.length, level: outside.level)
+    state.retarget(list, count: rows + 1, pointer: pointer(info), nests: nests, levels: levels)
+  }
+
   /// A drop the row doesn't take but the target around the list does (a folder from Finder over a row that takes no
   /// files): SwiftUI gives a drop to the innermost target only, so the row passes it on.
   private func isOuter(_ info: DropInfo) -> Bool {
-    guard let outerDrop, !isRow(info), !isOther(info) else { return false }
+    guard let outerDrop, !isRow(info), !isOther(info), !isOutside(info) else { return false }
     return outerDrop.accepts(info)
   }
 
@@ -1360,7 +1476,7 @@ struct ContReorderDropDelegate: DropDelegate {
 
   func validateDrop(info: DropInfo) -> Bool {
     if let outer = forwarded(info) { return outer.validateDrop(info: info) }
-    if isOther(info) || isOuter(info) { return true }
+    if isOutside(info) || isOther(info) || isOuter(info) { return true }
     // Rows dragged together stay in their list, unless they count as one.
     let single = state.count <= 1 || state.list == list || state.movesAsOne
     return isRow(info) && single && ContReorder.accepts(from: state.list, into: list, receives: receive != nil)
@@ -1372,6 +1488,10 @@ struct ContReorderDropDelegate: DropDelegate {
 
   private func updated(_ info: DropInfo, at pointer: CGPoint, throughSubRow: Bool = false) -> DropProposal? {
     if let outer = forwarded(info) { return outer.updated(info, at: pointer, throughSubRow: true) }
+    if isOutside(info) {
+      placeOutside(info)
+      return DropProposal(operation: .copy)
+    }
     if isOther(info) || isOuter(info) { return DropProposal(operation: .copy) }
     let isValid = validateDrop(info: info)
     if isValid {
@@ -1382,6 +1502,7 @@ struct ContReorderDropDelegate: DropDelegate {
 
   private func entered(_ info: DropInfo, at pointer: CGPoint, throughSubRow: Bool = false) {
     if let outer = forwarded(info) { return outer.entered(info, at: pointer, throughSubRow: true) }
+    if isOutside(info) { return placeOutside(info) }
     if isOther(info) {
       withAnimation(.kitFast) { isTargeted?.wrappedValue = true }
       return
@@ -1412,6 +1533,16 @@ struct ContReorderDropDelegate: DropDelegate {
 
   func performDrop(info: DropInfo) -> Bool {
     if let outer = forwarded(info) { return outer.performDrop(info: info) }
+    if isOutside(info), let outside {
+      // Dropped where it has no place yet (the slot row, with no room, as the drag came back from elsewhere): placed
+      // there first.
+      if state.isOutside(list), state.target == nil { placeOutside(info) }
+      guard let place = state.landOutside(list) else {
+        return outerDrop?.accepts(info) == true ? outerDrop?.performDrop(info: info) ?? false : false
+      }
+      let pasted = ContDragPasteboard.providers(for: outside.types)
+      return outside.perform(pasted.isEmpty ? info.itemProviders(for: outside.types) : pasted, place)
+    }
     if isOther(info), let perform {
       isTargeted?.wrappedValue = false
       // One provider per dragged item, read from the drag pasteboard where it has them (macOS); else SwiftUI's.
@@ -1591,3 +1722,4 @@ enum ContDragPasteboard {
     #endif
   }
 }
+

@@ -563,6 +563,45 @@ private let tree = [
   state.end()
 }
 
+@MainActor @Test func reorderOutsideDragMakesRoomWhereItWouldLand() {
+  let state = ContReorderState()
+  for (index, y) in [0.0, 22, 44].enumerated() {
+    let geometry = ContRowGeometry()
+    geometry.frame = CGRect(x: 0, y: y, width: 100, height: 20)
+    state.register(geometry, in: "tree", at: index)
+  }
+  // Files from Finder come over row 1: a slot row after the last, placed by the pointer.
+  state.enterOutside("tree", count: 3, length: 20, level: 0)
+  #expect(state.isOutside("tree") && !state.isOutside("other") && state.index == 3)
+  state.retarget("tree", count: 4, pointer: CGPoint(x: 10, y: 26))
+  // Above row 1's middle: before it, and rows 1 and 2 slide down a slot.
+  #expect(state.target == 1)
+  #expect(state.offsets[1] == 22 && state.offsets[2] == 22 && state.offsets[0] == nil)
+  // Over the middle of a folder (row 2, closed, drawn a slot lower at 66): into it.
+  state.retarget("tree", count: 4, pointer: CGPoint(x: 10, y: 76), nests: { $0 == 2 })
+  #expect(state.into == 2)
+  let place = state.landOutside("tree")
+  #expect(place?.into == 2)
+  #expect(!state.isOutside("tree") && state.list == nil)
+}
+
+@MainActor @Test func reorderOutsideDragStaysUntilTheButtonIsUp() async {
+  let state = ContReorderState()
+  for (index, y) in [0.0, 22].enumerated() {
+    let geometry = ContRowGeometry()
+    geometry.frame = CGRect(x: 0, y: y, width: 100, height: 20)
+    state.register(geometry, in: "tree", at: index)
+  }
+  state.enterOutside("tree", count: 2, length: 20, level: 0)
+  state.retarget("tree", count: 3, pointer: CGPoint(x: 10, y: 4))
+  #expect(state.target == 0)
+  // Off the list: the rows slide back, and the slot row stays (no room) while the drag goes on.
+  state.leave("tree", at: CGPoint(x: 10, y: 200))
+  // The button is up (no buttons are down in a test) with nothing dropped: it ends. Waited for, as tests run at once.
+  for _ in 0..<40 where state.list != nil { try? await Task.sleep(for: .milliseconds(50)) }
+  #expect(state.target == nil && !state.isOutside("tree") && state.list == nil)
+}
+
 @MainActor @Test func reorderPointerBetweenRowsStaysOnTheList() async {
   let state = ContReorderState()
   for (index, y) in [0.0, 22, 44].enumerated() {

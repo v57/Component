@@ -42,6 +42,7 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
   @State private var passedAbove: [Element.ID: CGFloat] = [:]
   @Environment(\.contRowIndent) private var baseIndent
   @Environment(\.contReorderState) private var shared
+  @Environment(\.contOuterDrop) private var outerDrop
   @Environment(\.kitIdiom) private var idiom
 
   /// An outline of `items` (`children` is `nil` for a leaf); `expanded` keeps the ids of the open folders, else the
@@ -66,12 +67,14 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
     let state = shared ?? .app
     let list = self.list
     let levels = ContReorderLevels(
-      range: { rows.levels(for: $0, at: $1) }, home: { $0.first.map { rows.entries[$0].depth } ?? 0 },
+      // An outside drag's slot row is past the rows (`ContOutsideSlot`).
+      range: { rows.levels(for: $0, at: $1) },
+      home: { $0.first.flatMap { rows.entries.indices.contains($0) ? rows.entries[$0].depth : nil } ?? 0 },
       receiver: { rows.receiver(of: $0, at: $1, level: $2) },
       moved: { springClose(above: $0, in: open, state: state) },
       title: title.map { title in { receiver in receiver.map { title(rows.entries[$0].element) } ?? rootTitle } },
       isOrigin: { dragged, receiver in
-        guard let first = dragged.first else { return false }
+        guard let first = dragged.first, rows.entries.indices.contains(first) else { return false }
         return rows.entries[first].parent == receiver.map { rows.entries[$0].id }
       },
       step: ContMetrics.rowIndent(idiom))
@@ -112,7 +115,7 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
           ContReorderRow(
             list: list, index: entry.index,
             move: { rows.move($0, to: $1, level: state.level, move, together: moveTogether) }, state: state,
-            accepts: drop == nil ? [] : dropTypes, perform: drop.map { dropped(entry, drop: $0) }, receive: receiving,
+            receive: receiving,
             group: isTogether
               ? selected : entry.end > entry.index + 1 ? IndexSet(integersIn: entry.index..<entry.end) : nil,
             exportURL: exportURL.map { url in { url(entry.element) } }, count: rows.entries.count,
@@ -121,7 +124,7 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
             // Into closed folders only: an open one's rows show where the drop goes, as its slot.
             nests: { rows.entries[$0].isFolder && !rows.entries[$0].isOpen },
             nest: { rows.nest($0, into: $1, move, together: moveTogether) }, levels: levels,
-            item: AnyHashable(entry.id)))
+            item: AnyHashable(entry.id), outside: outside(rows, level: entry.depth)))
         // Held over, a closed folder opens.
         .task(id: entry.isFolder && !entry.isOpen && state.isInto(list, at: entry.index)) {
           guard entry.isFolder, !entry.isOpen, state.isInto(list, at: entry.index) else { return }
@@ -136,6 +139,27 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
             passedAbove = [:]
           }
         }
+    }
+    if let outside = outside(rows, level: 0), state.isOutside(list) {
+      ContOutsideSlot(
+        list: list, index: rows.entries.count, state: state,
+        delegate: ContReorderDropDelegate(
+          list: list, index: rows.entries.count, count: rows.entries.count, move: { _, _ in }, state: state,
+          nests: { rows.entries[$0].isFolder && !rows.entries[$0].isOpen }, levels: levels, outerDrop: outerDrop,
+          outside: outside))
+    }
+  }
+
+  /// How the rows take drags from outside (`acceptsDrops`); `level`: the row's.
+  private func outside(_ rows: ContOutlineRows<Element>, level: Int) -> ContOutsideDrop? {
+    guard let drop else { return nil }
+    return ContOutsideDrop(types: dropTypes, length: KitMetrics.row(idiom), level: level) { providers, place in
+      if let into = place.into, rows.entries.indices.contains(into) {
+        let folder = rows.entries[into]
+        return drop(providers, folder.id, folder.childCount ?? 0)
+      }
+      let (parent, index) = rows.destination(of: [], before: place.target, level: place.level)
+      return drop(providers, parent, index)
     }
   }
 
@@ -188,10 +212,11 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
     return outline
   }
 
-  /// Takes drops of `types` from outside the outline (files from Finder, links) on its rows: one dropped on a folder
-  /// row goes into that folder, at its end; one on any other row goes in beside it, after it. `perform` gets the
-  /// drag's providers (one per item), the parent (`nil`: the top level) and the place among its children, as `move`
-  /// counts it. The row under the drag wears the drop target. Rows still reorder as before.
+  /// Takes drops of `types` from outside the outline (files from Finder, links) as it takes its own rows: the rows
+  /// slide to show where the drop lands, over the middle of a closed folder it goes into it (held there, the folder
+  /// opens), and after a folder's last row moving across picks inside or beside it. `perform` gets the drag's
+  /// providers (one per item), the parent (`nil`: the top level) and the place among its children, as `move` counts
+  /// it.
   ///
   /// ```swift
   /// ReorderableOutline(projects, children: \.children, move: move) { … }
@@ -205,16 +230,6 @@ public struct ReorderableOutline<Element: Identifiable, RowContent: View>: View 
     outline.dropTypes = types
     outline.drop = perform
     return outline
-  }
-
-  /// A drop on `entry`'s row: into it when it is a folder, else after it.
-  private func dropped(
-    _ entry: ContOutlineRows<Element>.Entry, drop: @escaping ([NSItemProvider], Element.ID?, Int) -> Bool
-  ) -> ([NSItemProvider]) -> Bool {
-    { providers in
-      entry.isFolder
-        ? drop(providers, entry.id, entry.childCount ?? 0) : drop(providers, entry.parent, entry.place + 1)
-    }
   }
 
   /// The outline's list: its name, or its own.
