@@ -13,7 +13,7 @@
 #   SIZE_SWIFT_FLAGS="…"  appended to OTHER_SWIFT_FLAGS of every target (packages too)
 #   SIZE_LDFLAGS="…"      appended to OTHER_LDFLAGS (the final link: LTO code generation, e.g. -Wl,-mllvm,<llvm option>)
 #   SIZE_SETTINGS="A=1 B=2" more build settings on the xcodebuild line
-#   SIZE_LINKER=<path>    another ld-archive-prelink (default: Dev's canonical copy)
+#   SIZE_LINKER=<path>    another ld-archive-prelink (default: Code's, in Sources/CodeActions/Release)
 #   SIZE_SLOTS=<n>        archives that may run at once on this Mac, across sessions (default 2)
 #
 # Each app archives through a copy of its <App>-Local.xcworkspace with absolute paths (and ../Component swapped
@@ -49,7 +49,7 @@ apps=($@)
 key=${${component:h}//\//-}
 out=${out:-$HOME/Developer/Builds/size/${component:h:t}/$(date +%m%d-%H%M%S)}
 mkdir -p $out
-linker=${SIZE_LINKER:-$v57/Dev/Dev/Release/ld-archive-prelink}
+linker=${SIZE_LINKER:-$v57/Code/Sources/CodeActions/Release/ld-archive-prelink}
 slots=${SIZE_SLOTS:-2}
 lockroot=/tmp/v57-size-report.slots
 mkdir -p $lockroot

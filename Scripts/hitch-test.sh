@@ -43,7 +43,7 @@ fi
 
 settings=()
 if [[ -n ${HITCH_RELEASE_LINK:-} ]]; then
-  settings=(SWIFT_LTO=YES "ALTERNATE_LINKER_PATH=${HITCH_LINKER:-$HOME/Developer/v57/Dev/Dev/Release/ld-archive-prelink}"
+  settings=(SWIFT_LTO=YES "ALTERNATE_LINKER_PATH=${HITCH_LINKER:-$HOME/Developer/v57/Code/Sources/CodeActions/Release/ld-archive-prelink}"
     'OTHER_SWIFT_FLAGS=$(inherited) -Xfrontend -internalize-at-link -Xfrontend -conditional-runtime-records'
     "OTHER_LDFLAGS=\$(inherited) ${HITCH_LDFLAGS:-}")
 fi
