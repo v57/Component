@@ -1,12 +1,14 @@
 import ComponentKit
 import SwiftUI
 
-/// The ComponentKit catalog: every component in every state, light and dark, with the code to use it.
-@main
-struct ComponentApp: App {
+/// The ComponentKit catalog: every component in every state, light and dark, with the code to use it. All of the app
+/// but its entry point (App/Sources/Component/ComponentMain.swift).
+public struct ComponentApp: App {
   @State private var model = CatalogModel()
 
-  var body: some Scene {
+  public init() {}
+
+  public var body: some Scene {
     WindowGroup("Component") {
       CatalogView()
         .environment(model)

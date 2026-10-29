@@ -1,6 +1,6 @@
 {
   "build": { "scheme": "Component", "project": "Component.xcodeproj" },
-  "watch": ["Component", "Sources"],
+  "watch": ["App", "Sources"],
   "mac": { "window": [1440, 900] },
   "scenes": [
     { "id": "01-colours", "arguments": ["--page", "colours", "--light"], "delay": 2 },

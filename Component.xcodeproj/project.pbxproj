@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		267577EF3037555800FB9989 /* ComponentKit in Frameworks */ = {isa = PBXBuildFile; productRef = 267577EE3037555800FB9989 /* ComponentKit */; };
+		267577EF3037555800FB9989 /* ComponentApp in Frameworks */ = {isa = PBXBuildFile; productRef = 267577EE3037555800FB9989 /* ComponentApp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -17,7 +17,8 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		000000000000000000000010 /* Component */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Component;
+			name = Component;
+			path = App/Sources/Component;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -26,7 +27,7 @@
 		000000000000000130000000 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
-				267577EF3037555800FB9989 /* ComponentKit in Frameworks */,
+				267577EF3037555800FB9989 /* ComponentApp in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -66,7 +67,7 @@
 			);
 			name = Component;
 			packageProductDependencies = (
-				267577EE3037555800FB9989 /* ComponentKit */,
+				267577EE3037555800FB9989 /* ComponentApp */,
 			);
 			productName = MyApp;
 			productReference = 000000000000000000000120 /* Component.app */;
@@ -97,6 +98,7 @@
 			mainGroup = 000000000000000000000001;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				267577F03037555800FB9989 /* XCLocalSwiftPackageReference "App" */,
 				267577ED3037555800FB9989 /* XCLocalSwiftPackageReference "." */,
 			);
 			preferredProjectObjectVersion = 90;
@@ -371,6 +373,10 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
+		267577F03037555800FB9989 /* XCLocalSwiftPackageReference "App" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = App;
+		};
 		267577ED3037555800FB9989 /* XCLocalSwiftPackageReference "." */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = .;
@@ -378,9 +384,9 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		267577EE3037555800FB9989 /* ComponentKit */ = {
+		267577EE3037555800FB9989 /* ComponentApp */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = ComponentKit;
+			productName = ComponentApp;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

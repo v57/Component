@@ -24,7 +24,11 @@ port=$swiftui/Ports/Component
 pkg=$HOME/Developer/Builds/size/swiftui-check/${${component:h}//\//-}
 mkdir -p $pkg/src
 ln -sfn $component/Sources $pkg/src/Sources
-ln -sfn $component/Component $pkg/src/Component
+# The port builds the catalog as one module, src/Component: the ComponentApp library's files and the entry point
+# without its `import ComponentApp`.
+rm -rf "${pkg:?}/src/Component" && mkdir -p $pkg/src/Component
+for f in $component/App/Sources/ComponentApp/*; do ln -sfn $f $pkg/src/Component/${f:t}; done
+grep -vx 'import ComponentApp' $component/App/Sources/Component/ComponentMain.swift > $pkg/src/Component/ComponentMain.swift
 ln -sfn $port/Tests $pkg/Tests
 sed "s|path: \"../..\"|path: \"$swiftui\"|" $port/Package.swift > $pkg/Package.swift
 [[ -f $port/Package.resolved ]] && cp $port/Package.resolved $pkg/
