@@ -49,7 +49,10 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
   @ViewBuilder var content: Content
   @ViewBuilder var accessory: Accessory
   var titleAccessory: AnyView?
-  @State private var ownExpanded = true
+  /// Whether the section is drawn open: its own, or `isExpanded`'s followed. Drawn from state even when the app owns
+  /// the open state, since a change to an `@AppStorage` binding inside `withAnimation` didn't animate (the section
+  /// opened at once).
+  @State private var ownExpanded: Bool
   @State private var isHovered = false
   @Environment(\.kitSectionStyle) private var style
   @Environment(\.kitIdiom) private var idiom
@@ -64,13 +67,14 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
   ) {
     self.title = title
     self.isExpanded = isExpanded
+    _ownExpanded = State(initialValue: isExpanded?.wrappedValue ?? true)
     self.content = content()
     self.icon = icon()
     self.meta = meta()
     self.accessory = accessory()
   }
 
-  private var expanded: Bool { isExpanded?.wrappedValue ?? ownExpanded }
+  private var expanded: Bool { ownExpanded }
 
   /// Sets a small view right after the section's title: a chip ("Production"), a dot, a count.
   ///
@@ -89,20 +93,25 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
       withKitAnimation { scroll.action(context.id) }
       return
     }
-    withKitAnimation {
-      if let isExpanded { isExpanded.wrappedValue.toggle() } else { ownExpanded.toggle() }
-    }
+    withKitAnimation { ownExpanded.toggle() }
+    isExpanded?.wrappedValue = ownExpanded
   }
 
   public var body: some View {
-    switch style {
-    case .card:
-      if inList, #available(macOS 15.0, iOS 18.0, *) {
-        listCard
-      } else {
-        card
+    Group {
+      switch style {
+      case .card:
+        if inList, #available(macOS 15.0, iOS 18.0, *) {
+          listCard
+        } else {
+          card
+        }
+      case .plain: plain
       }
-    case .plain: plain
+    }
+    // The app opened or closed it (or its stored state arrived): follow, animated.
+    .onChange(of: isExpanded?.wrappedValue) { _, open in
+      if let open, open != ownExpanded { withKitAnimation { ownExpanded = open } }
     }
   }
 
