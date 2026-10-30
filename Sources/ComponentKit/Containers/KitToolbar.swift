@@ -385,7 +385,9 @@ private struct ContSystemToolbarAway: ViewModifier {
     }
   }
 
-  private struct ContToolbarBackgroundHidden: ViewModifier {
+  /// Hides the system toolbar's background, so the window's toolbar row takes clicks only on its items and the kit's
+  /// views drawn in that row get the rest (`.kitToolbar`, `KitSidebar`'s hide button).
+  struct ContToolbarBackgroundHidden: ViewModifier {
     func body(content: Content) -> some View {
       if #available(macOS 15.0, *) {
         content.toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
