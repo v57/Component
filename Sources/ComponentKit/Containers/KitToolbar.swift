@@ -223,6 +223,52 @@ extension View {
   ) -> some View {
     kitToolbar(title, title: { KitTitle(title, meta: meta, systemImage: systemImage, hue: hue, status: status) }, tools: tools)
   }
+
+  /// The kit's toolbar only while `isPresented`: a column whose pages bring their own toolbar for some content (a
+  /// database page) and take this one otherwise. Off, the view is left as it is, so a `kitToolbar` inside it is the
+  /// window's. Switching rebuilds the content (as an `if` around the modifier does): tie it to what changes the page.
+  ///
+  /// ```swift
+  /// Detail()
+  ///   .kitToolbar(page.title, isPresented: !showsDatabase, title: { page.titleView }) { pageTools }
+  /// ```
+  public func kitToolbar<Title: View>(
+    _ windowTitle: String, isPresented: Bool, @ViewBuilder title: () -> Title,
+    @ToolbarSlotBuilder tools: () -> [ToolbarSlot]
+  ) -> some View {
+    modifier(
+      ContOptionalKitToolbar(
+        isPresented: isPresented, windowTitle: windowTitle, bar: KitToolbar(title: title, tools: tools)))
+  }
+
+  /// The kit's toolbar named by the rich title, only while `isPresented`.
+  ///
+  /// ```swift
+  /// Detail().kitToolbar("History", isPresented: !isEmbedded, systemImage: "clock") { … }
+  /// ```
+  public func kitToolbar(
+    _ title: String, isPresented: Bool, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, @ToolbarSlotBuilder tools: () -> [ToolbarSlot]
+  ) -> some View {
+    kitToolbar(
+      title, isPresented: isPresented,
+      title: { KitTitle(title, meta: meta, systemImage: systemImage, hue: hue, status: status) }, tools: tools)
+  }
+}
+
+/// `kitToolbar(isPresented:)`: the bar while on, nothing of it while off.
+private struct ContOptionalKitToolbar<Title: View>: ViewModifier {
+  let isPresented: Bool
+  let windowTitle: String
+  let bar: KitToolbar<Title>
+
+  func body(content: Content) -> some View {
+    if isPresented {
+      content.modifier(ContKitToolbar(windowTitle: windowTitle, bar: bar))
+    } else {
+      content
+    }
+  }
 }
 
 /// Places the bar: a top bar the content scrolls under, over the title bar on the Mac and in place
