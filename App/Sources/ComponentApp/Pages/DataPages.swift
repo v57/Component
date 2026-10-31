@@ -117,7 +117,26 @@ let sampleKeys = [
   SampleKey(name: "config", type: "string", value: "A comment long enough to wrap onto a second line when the rows grow with their cells"),
 ]
 
+struct SampleFileRow: Identifiable, Hashable {
+  var id: String { name }
+  var name: String
+  var isFolder = false
+  var size = "—"
+  var modified = "Today 09:41"
+}
+
+private let sampleFileRows = [
+  SampleFileRow(name: "Sources", isFolder: true), SampleFileRow(name: "Tests", isFolder: true),
+  SampleFileRow(name: "Package.swift", size: "1 KB"), SampleFileRow(name: "README.md", size: "4 KB"),
+  SampleFileRow(name: "notes.txt", size: "312 bytes", modified: "Yesterday 18:02"),
+  SampleFileRow(name: "icon.png", size: "88 KB", modified: "2 Oct 2026"),
+]
+
 struct GridPage: View {
+  @State private var files = sampleFileRows
+  @State private var fileSelection: Set<String> = ["README.md"]
+  @State private var fileEvent = "Double-click a row to open it, Return to rename"
+  @State private var fileDropTargeted = false
   @State private var model = OrdersModel()
   @State private var selection: Set<Int> = [10234]
   @State private var sort: KitGridSort? = KitGridSort("id", ascending: false)
@@ -218,7 +237,70 @@ struct GridPage: View {
             """)
         }
       }
+      SpecimenSection(
+        "A file browser",
+        note: "interaction(.rows): a click selects the row (⌘ adds, ⇧ extends), a double click or ⌘↓ opens, Return renames. Drag a selection out as one (to Finder, a terminal, a folder row here); folders take drops, the rest go to the kitFileDrop around the grid."
+      ) {
+        VStack(alignment: .leading, spacing: KitMetrics.gutter) {
+          fileGrid
+            .frame(height: 300)
+          Text(fileEvent).kitFont(.caption)
+          CodeSnippet(
+            """
+            KitGrid(files, columns: columns, selection: $selection, primaryAction: { open($0) })
+              .interaction(.rows)                                     // double click opens, Return renames
+              .rowDrag { name in file(named: name) }                  // a selection drags as one, any Transferable
+              .rowDropDestination(for: ShellFile.self, isEnabled: \\.isFolder) { files, folder in
+                move(files, into: folder)
+              }
+              .rowContextMenu { names in Button("Move to Trash", role: .destructive) { trash(names) } }
+              .kitFileDrop { urls in copyHere(urls) }                 // drops beside the folders
+
+            KitGridColumn<File>("Name", width: 260, value: { $0.name }, edit: { rename($0, to: $1) }) { file in
+              KitFileCell(file.name, isFolder: file.isFolder)
+            }
+            """)
+        }
+      }
     }
+  }
+
+  private var fileGrid: some View {
+    KitGrid(
+      files,
+      columns: [
+        KitGridColumn<SampleFileRow>("Name", width: 240, value: { $0.name }, edit: { file, name in rename(file, to: name) }) { file in
+          KitFileCell(file.name, isFolder: file.isFolder)
+        },
+        KitGridColumn<SampleFileRow>("Size", width: 100, alignment: .trailing) { $0.size },
+        KitGridColumn<SampleFileRow>("Modified") { $0.modified },
+      ],
+      selection: $fileSelection,
+      primaryAction: { names in fileEvent = "Opened \(names.sorted().joined(separator: ", "))" }
+    )
+    .interaction(.rows)
+    .rowDrag { name in name }
+    .rowDropDestination(for: String.self, isEnabled: \.isFolder) { names, folder in
+      let moved = Set(names).subtracting([folder.name])
+      withKitAnimation { files.removeAll { moved.contains($0.name) } }
+      fileEvent = "Moved \(moved.sorted().joined(separator: ", ")) into \(folder.name)"
+    }
+    .rowContextMenu { names in
+      Button("Open") { fileEvent = "Opened \(names.sorted().joined(separator: ", "))" }
+      Button("Move to Trash", role: .destructive) { withKitAnimation { files.removeAll { names.contains($0.name) } } }
+    }
+    .kitDropTarget(fileDropTargeted, cornerRadius: KitMetrics.radiusCard)
+    .kitFileDrop(isTargeted: $fileDropTargeted) { urls in
+      fileEvent = "Copied \(urls.map(\.lastPathComponent).joined(separator: ", ")) here"
+    }
+  }
+
+  private func rename(_ file: SampleFileRow, to name: String) {
+    let name = name.trimmingCharacters(in: .whitespaces)
+    guard !name.isEmpty, name != file.name, let index = files.firstIndex(of: file) else { return }
+    files[index].name = name
+    fileSelection = [name]
+    fileEvent = "Renamed \(file.name) to \(name)"
   }
 
   @ViewBuilder private var gridButtons: some View {

@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - Columns
 
@@ -163,6 +164,45 @@ public enum KitGridRowHeight: Hashable, Sendable {
   case automatic
 }
 
+/// How a grid's clicks and keys work.
+public enum KitGridInteraction: Hashable, Sendable {
+  /// A sheet of values (Database's tables): a click focuses a cell, ← → and Tab move it, Return or a double click
+  /// on an editable cell edits it.
+  case cells
+  /// A list of items (a file browser): a click selects the row and no cell is focused; a double click or ⌘↓ runs
+  /// `primaryAction` (open), Return edits the row's first editable column (rename), Escape cancels.
+  case rows
+}
+
+/// The payload a grid row drags: the app's item, carried with the row's id so a selection drags as one container.
+struct KitGridDragItem<ID: Hashable & Sendable, Item: Transferable>: Transferable {
+  let id: ID
+  let item: Item
+
+  static var transferRepresentation: some TransferRepresentation {
+    ProxyRepresentation(exporting: { $0.item })
+  }
+}
+
+/// What a grid's rows drag (`KitGrid.rowDrag`), type-erased: the row's drag source and the container that drags a
+/// selection together.
+struct KitGridDragSource<ID: Hashable> {
+  let row: (AnyView, ID) -> AnyView
+  let container: (AnyView, @escaping () -> [ID]) -> AnyView
+}
+
+/// Which rows take drops and what a drop does (`KitGrid.rowDropDestination`).
+struct KitGridDropSpec<Row> {
+  let types: [UTType]
+  let isEnabled: (Row) -> Bool
+  let perform: ([NSItemProvider], Row) -> Bool
+}
+
+/// The rows of the grid's own drag in flight, so they don't take it themselves.
+@MainActor final class KitGridDragState<ID: Hashable> {
+  var dragging: Set<ID> = []
+}
+
 // MARK: - Layout and navigation (pure, tested)
 
 enum KitGridLayout {
@@ -228,7 +268,13 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
   var heightMode: KitGridRowHeight
   var primaryAction: ((Set<Row.ID>) -> Void)?
   var menu: ((Set<Row.ID>) -> AnyView)?
+  var interaction: KitGridInteraction = .cells
+  var dragSource: KitGridDragSource<Row.ID>?
+  var dropSpec: KitGridDropSpec<Row>?
 
+  @State private var dragState = KitGridDragState<Row.ID>()
+  @State private var dropRow: Row.ID?
+  @Environment(\.contOuterDrop) private var outerDrop
   @State private var ownExpanded: Set<Row.ID> = []
   @State private var resized: [String: CGFloat] = [:]
   @State private var available: CGFloat = 0
@@ -285,6 +331,114 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
     return grid
   }
 
+  /// How clicks and keys work: `.rows` for a list of items, as a file browser (a double click opens, Return renames).
+  ///
+  /// ```swift
+  /// KitGrid(files, columns: columns, selection: $selection, primaryAction: open).interaction(.rows)
+  /// ```
+  public func interaction(_ interaction: KitGridInteraction) -> Self {
+    var grid = self
+    grid.interaction = interaction
+    return grid
+  }
+
+  /// Rows drag out as `payload(id)` (a file to Finder or a terminal, any `Transferable`); dragging a selected row
+  /// drags the whole selection, one item per row (macOS 26, iOS 27; before, the dragged row alone). A `nil` payload
+  /// leaves that row out.
+  ///
+  /// ```swift
+  /// KitGrid(files, columns: columns, selection: $selection)
+  ///   .rowDrag { name in ShellFile(url: directory.appending(path: name), isDirectory: isFolder(name)) }
+  /// ```
+  public func rowDrag<Item: Transferable>(_ payload: @escaping (Row.ID) -> Item?) -> Self where Row.ID: Sendable {
+    var grid = self
+    let state = dragState
+    grid.dragSource = KitGridDragSource(
+      row: { content, id in
+        #if os(tvOS)
+          content
+        #else
+          if #available(macOS 26.0, iOS 27.0, visionOS 27.0, *) {
+            AnyView(content.draggable(containerItemID: id))
+          } else {
+            AnyView(
+              content.onDrag {
+                let provider = NSItemProvider()
+                if let item = payload(id) { provider.register(item) }
+                return provider
+              })
+          }
+        #endif
+      },
+      container: { content, selection in
+        #if os(tvOS)
+          content
+        #else
+          if #available(macOS 26.0, iOS 27.0, visionOS 27.0, *) {
+            AnyView(
+              content
+                .dragContainer(for: KitGridDragItem<Row.ID, Item>.self, itemID: \.id) { ids in
+                  MainActor.assumeIsolated { state.dragging = Set(ids) }
+                  return ids.compactMap { id in payload(id).map { KitGridDragItem(id: id, item: $0) } }
+                }
+                .dragContainerSelection(selection())
+                .onDragSessionUpdated { session in
+                  if case .ended = session.phase { state.dragging = [] }
+                })
+          } else {
+            content
+          }
+        #endif
+      })
+    return grid
+  }
+
+  /// Rows that take drops of `types` (a folder row taking files): `perform` gets one provider per dropped item and
+  /// the row, and says whether it took them. Only rows `isEnabled` passes are targets, and never a row of the grid's
+  /// own drag; the rows hand the drops they don't take to a `kitDropDestination`/`kitFileDrop` around the grid.
+  ///
+  /// ```swift
+  /// KitGrid(files, columns: columns, selection: $selection)
+  ///   .rowDropDestination(of: [.fileURL], isEnabled: \.isFolder) { providers, folder in move(providers, into: folder) }
+  ///   .kitFileDrop { urls in copyHere(urls) }
+  /// ```
+  public func rowDropDestination(
+    of types: [UTType], isEnabled: @escaping (Row) -> Bool = { _ in true },
+    perform: @escaping ([NSItemProvider], Row) -> Bool
+  ) -> Self {
+    var grid = self
+    grid.dropSpec = KitGridDropSpec(types: types, isEnabled: isEnabled, perform: perform)
+    return grid
+  }
+
+  /// `rowDropDestination(of:)` for a `Transferable`: `perform` gets the dropped items once they have loaded (in the
+  /// drag's order, on the main actor) and the row they landed on.
+  ///
+  /// ```swift
+  /// KitGrid(files, columns: columns, selection: $selection)
+  ///   .rowDropDestination(for: ShellFile.self, isEnabled: \.isDirectory) { files, folder in move(files, into: folder) }
+  /// ```
+  public func rowDropDestination<Item: Transferable>(
+    for type: Item.Type, isEnabled: @escaping (Row) -> Bool = { _ in true },
+    perform: @escaping @MainActor ([Item], Row) -> Void
+  ) -> Self {
+    nonisolated(unsafe) let perform = perform
+    // The item's own types (macOS 15.2, iOS 18.2; before, the rows take nothing).
+    var types: [UTType] = []
+    if #available(macOS 15.2, iOS 18.2, tvOS 18.2, visionOS 2.2, *) { types = Item.importedContentTypes() }
+    return rowDropDestination(of: types, isEnabled: isEnabled) { providers, row in
+      nonisolated(unsafe) let row = row
+      Task { @MainActor in
+        var items: [Item] = []
+        for provider in providers {
+          if let item = await KitGridDropLoader.load(Item.self, from: provider) { items.append(item) }
+        }
+        if !items.isEmpty { perform(items, row) }
+      }
+      return true
+    }
+  }
+
   private var expanded: Binding<Set<Row.ID>> { expandedBinding ?? $ownExpanded }
 
   /// The rows shown, in order, with their depth in an outline.
@@ -319,6 +473,7 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
           header(widths: widths)
         }
       }
+      .modifier(GridDragContainer(source: dragSource) { [selection] in visible.map(\.row.id).filter(selection.contains) })
       .padding(EdgeInsets(top: 0, leading: inset, bottom: inset, trailing: inset))
     }
     .background(.kitField, in: RoundedRectangle(cornerRadius: KitMetrics.radiusCard, style: .continuous))
@@ -411,7 +566,10 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
         selected: selected, striped: index % 2 == 1, hovered: hovered == row.id, state: state,
         mergeTop: selected && previousSelected, mergeBottom: selected && nextSelected, active: isActive)
     }
+    .kitDropTarget(dropRow == row.id, cornerRadius: KitMetrics.radiusSmall)
     .kitHover { hovered = $0 ? row.id : (hovered == row.id ? nil : hovered) }
+    .modifier(GridRowDrag(id: row.id, source: dragSource))
+    .modifier(rowDrop(row))
     .modifier(GridRowMenu(ids: selected ? selection : [row.id], menu: menu))
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(selected ? .isSelected : [])
@@ -422,7 +580,7 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
     _ row: Row, column: KitGridColumn<Row>, index: Int, width: CGFloat, state: KitGridRowState?,
     outline: (depth: Int, hasChildren: Bool)?
   ) -> some View {
-    let focused = focusRow == row.id && focusColumn == index
+    let focused = focusRow == row.id && focusColumn == index && (interaction == .cells || editing)
     return ZStack(alignment: column.frameAlignment) {
       if focused {
         RoundedRectangle(cornerRadius: KitMetrics.radiusSmall, style: .continuous)
@@ -462,13 +620,13 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
     .contentShape(Rectangle())
     .onTapGesture(count: 2) {
       focus(row, column: index, extending: false)
-      if column.edit != nil {
+      if column.edit != nil, interaction == .cells {
         beginEditing(row, column)
       } else {
         primaryAction?(selection)
       }
     }
-    .simultaneousGesture(TapGesture().onEnded { focus(row, column: index, extending: false) })
+    .simultaneousGesture(TapGesture().onEnded { click(row, column: index) })
   }
 
   @ViewBuilder
@@ -531,19 +689,53 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
 
   // MARK: Focus, selection, editing
 
-  private func focus(_ row: Row, column: Int, extending: Bool) {
+  private func focus(_ row: Row, column: Int?, extending: Bool) {
     if editing { cancelEditing() }
     isFocused = true
     focusRow = row.id
-    focusColumn = column
-    selection = KitGridLayout.selection(rows.map(\.id), anchor: anchor, target: row.id, extending: extending)
+    focusColumn = interaction == .cells ? column : nil
+    selection = KitGridLayout.selection(visible.map(\.row.id), anchor: anchor, target: row.id, extending: extending)
     if !extending { anchor = row.id }
+  }
+
+  /// A click on a cell: ⇧ extends the selection from the anchor, ⌘ adds or removes the row, else it selects the row.
+  private func click(_ row: Row, column: Int) {
+    let flags = GridModifierKeys.current
+    guard flags.command else { return focus(row, column: column, extending: flags.shift) }
+    if editing { cancelEditing() }
+    isFocused = true
+    focusRow = row.id
+    focusColumn = interaction == .cells ? column : nil
+    anchor = row.id
+    if selection.contains(row.id) { selection.remove(row.id) } else { selection.insert(row.id) }
+  }
+
+  /// The row's drop target, when the grid takes drops on rows and this row is one.
+  private func rowDrop(_ row: Row) -> GridRowDrop {
+    guard let dropSpec, dropSpec.isEnabled(row) else { return GridRowDrop(delegate: nil, types: []) }
+    let id = row.id
+    let state = dragState
+    let delegate = GridRowDropDelegate(
+      types: dropSpec.types, outer: outerDrop,
+      takesOwn: { !state.dragging.contains(id) },
+      isGridDrag: { !state.dragging.isEmpty },
+      targeted: { isOn in
+        if isOn { dropRow = id } else if dropRow == id { dropRow = nil }
+      },
+      perform: { dropSpec.perform($0, row) })
+    return GridRowDrop(delegate: delegate, types: dropSpec.types + (outerDrop?.types ?? []))
   }
 
   private func handle(_ press: KeyPress, visible: [(row: Row, depth: Int, hasChildren: Bool)]) -> KeyPress.Result {
     let shown = visible.map(\.row)
     let ids = shown.map(\.id)
     switch press.key {
+    case .downArrow where interaction == .rows && press.modifiers.contains(.command):
+      guard let primaryAction, !selection.isEmpty else { return .ignored }
+      primaryAction(selection)
+      return .handled
+    case .upArrow where interaction == .rows && press.modifiers.contains(.command):
+      return .ignored
     case .upArrow, .downArrow:
       let offset = press.key == .upArrow ? -1 : 1
       let current = focusRow.flatMap { ids.firstIndex(of: $0) }
@@ -557,7 +749,9 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
       guard let id = focusRow, let index = ids.firstIndex(of: id) else { return .ignored }
       let isOpen = expanded.wrappedValue.contains(id)
       if press.key == .rightArrow {
-        guard visible[index].hasChildren, !isOpen else { return moveColumn(press, ids: ids) }
+        guard visible[index].hasChildren, !isOpen else {
+          return interaction == .rows ? .ignored : moveColumn(press, ids: ids)
+        }
         withKitAnimation { toggle(id) }
       } else if visible[index].hasChildren && isOpen {
         withKitAnimation { toggle(id) }
@@ -567,10 +761,20 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
         return .ignored
       }
       return .handled
+    case .leftArrow, .rightArrow, .tab where interaction == .rows:
+      return .ignored
     case .leftArrow, .rightArrow, .tab:
       let back = press.key == .leftArrow || (press.key == .tab && press.modifiers.contains(.shift))
       focusColumn = KitGridLayout.column(focusColumn, by: back ? -1 : 1, count: columns.count)
       if focusRow == nil { focusRow = ids.first }
+      return .handled
+    case .return where interaction == .rows:
+      // Return renames: the focused row's first editable column.
+      guard let id = focusRow, selection.contains(id), let row = shown.first(where: { $0.id == id }),
+        let index = columns.firstIndex(where: { $0.edit != nil && $0.value != nil })
+      else { return .ignored }
+      focusColumn = index
+      beginEditing(row, columns[index])
       return .handled
     case .return:
       guard let id = focusRow, let row = shown.first(where: { $0.id == id }) else { return .ignored }
@@ -611,6 +815,7 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
   }
 
   private func cancelEditing() {
+    if interaction == .rows { focusColumn = nil }
     editing = false
     isFieldFocused = false
     isFocused = true
@@ -642,6 +847,99 @@ private struct GridRowMenu<ID: Hashable>: ViewModifier {
       content.kitContextMenu { menu(ids) }
     } else {
       content
+    }
+  }
+}
+
+/// The modifier keys held during a click (⇧ extends a selection, ⌘ toggles a row); none on touch.
+private enum GridModifierKeys {
+  @MainActor static var current: (shift: Bool, command: Bool) {
+    #if canImport(AppKit)
+      let flags = NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags
+      return (flags.contains(.shift), flags.contains(.command))
+    #else
+      return (false, false)
+    #endif
+  }
+}
+
+/// A row's drag source, when the grid's rows drag (`rowDrag`).
+private struct GridRowDrag<ID: Hashable>: ViewModifier {
+  let id: ID
+  let source: KitGridDragSource<ID>?
+
+  func body(content: Content) -> some View {
+    if let source { source.row(AnyView(content), id) } else { content }
+  }
+}
+
+/// The rows' container, which drags a selection as one (`rowDrag`).
+private struct GridDragContainer<ID: Hashable>: ViewModifier {
+  let source: KitGridDragSource<ID>?
+  let selection: () -> [ID]
+
+  func body(content: Content) -> some View {
+    if let source { source.container(AnyView(content), selection) } else { content }
+  }
+}
+
+/// A row's drop target (`rowDropDestination`), or nothing.
+private struct GridRowDrop: ViewModifier {
+  let delegate: GridRowDropDelegate?
+  let types: [UTType]
+
+  func body(content: Content) -> some View {
+    if let delegate { content.onDrop(of: types, delegate: delegate) } else { content }
+  }
+}
+
+/// A row that takes drops: its own types, unless the drag is the grid's own from this row; anything else goes to the
+/// `kitDropDestination` around the grid (SwiftUI gives a drop to the innermost target only).
+private struct GridRowDropDelegate: DropDelegate {
+  let types: [UTType]
+  let outer: ContOuterDrop?
+  let takesOwn: @MainActor () -> Bool
+  let isGridDrag: @MainActor () -> Bool
+  let targeted: @MainActor (Bool) -> Void
+  let perform: @MainActor ([NSItemProvider]) -> Bool
+
+  private func takes(_ info: DropInfo) -> Bool {
+    takesOwn() && (info.hasItemsConforming(to: types) || ContDragPasteboard.has(types))
+  }
+
+  func validateDrop(info: DropInfo) -> Bool { takes(info) || outer?.accepts(info) == true }
+
+  func dropEntered(info: DropInfo) {
+    if takes(info) { targeted(true) } else { outer?.setTargeted(true) }
+  }
+
+  func dropUpdated(info: DropInfo) -> DropProposal? {
+    DropProposal(operation: takes(info) && isGridDrag() ? .move : .copy)
+  }
+
+  func dropExited(info: DropInfo) {
+    targeted(false)
+    outer?.setTargeted(false)
+  }
+
+  func performDrop(info: DropInfo) -> Bool {
+    targeted(false)
+    guard takes(info) else {
+      guard let outer, outer.accepts(info) else { return false }
+      return outer.performDrop(info: info)
+    }
+    let pasted = ContDragPasteboard.providers(for: types)
+    return perform(pasted.isEmpty ? info.itemProviders(for: types) : pasted)
+  }
+}
+
+/// Loads a dropped item's `Transferable`.
+enum KitGridDropLoader {
+  @MainActor static func load<Item: Transferable>(_ type: Item.Type, from provider: NSItemProvider) async -> Item? {
+    await withCheckedContinuation { continuation in
+      _ = provider.loadTransferable(type: Item.self) { result in
+        continuation.resume(returning: try? result.get())
+      }
     }
   }
 }
