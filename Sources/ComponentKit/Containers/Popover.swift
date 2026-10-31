@@ -12,6 +12,10 @@ extension View {
   /// it wraps text, and a `ScrollView` when it can run long (the card is never taller than the room it has). On a tool
   /// in a `kitToolbar` slot it opens once, under the tool you see (the bar's hidden measuring copies don't present).
   ///
+  /// `takesFocus: false` is for suggestions while the user types (mentions, completions): focus stays in the field,
+  /// the window stays enabled and takes its clicks and keys (the app moves a highlight with ↑↓ and picks with Return
+  /// or Tab), and only the app closes it, through the binding. It is beside the view on iPhone too.
+  ///
   /// ```swift
   /// Button("Add Filter", systemImage: "plus") { addingFilter = true }
   ///   .buttonStyle(.kit)
@@ -19,11 +23,16 @@ extension View {
   ///     AddFilterView { filter in addingFilter = false; add(filter) }
   ///       .frame(width: 320)
   ///   }
+  /// TextField("Message", text: $text)
+  ///   .kitPopover(isPresented: .constant(!mentions.isEmpty), edge: .top, takesFocus: false) {
+  ///     MentionList(mentions, highlighted: highlighted, pick: complete)
+  ///   }
   /// ```
   public func kitPopover<Content: View>(
-    isPresented: Binding<Bool>, edge: VerticalEdge = .bottom, @ViewBuilder content: @escaping () -> Content
+    isPresented: Binding<Bool>, edge: VerticalEdge = .bottom, takesFocus: Bool = true,
+    @ViewBuilder content: @escaping () -> Content
   ) -> some View {
-    modifier(KitPopoverPresenter(isPresented: isPresented, edge: edge, popover: content))
+    modifier(KitPopoverPresenter(isPresented: isPresented, edge: edge, takesFocus: takesFocus, popover: content))
   }
 }
 
@@ -37,6 +46,7 @@ final class ContPopoverAnchor {
 struct KitPopoverPresenter<Popover: View>: ViewModifier {
   @Binding var isPresented: Bool
   let edge: VerticalEdge
+  var takesFocus = true
   let popover: () -> Popover
   @State private var anchor = ContPopoverAnchor()
   @Environment(\.kitOverlayHost) private var host
@@ -52,12 +62,14 @@ struct KitPopoverPresenter<Popover: View>: ViewModifier {
       content.popover(isPresented: $isPresented, arrowEdge: edge == .bottom ? .bottom : .top) { popover() }
     } else {
       let anchor = anchor
-      let style: KitOverlayStyle = idiom == .phone ? .sheet : .popover(anchor: anchor, edge: edge)
+      let style: KitOverlayStyle = idiom == .phone && takesFocus ? .sheet : .popover(anchor: anchor, edge: edge)
       content
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
           if anchor.frame != frame { anchor.frame = frame }
         }
-        .modifier(KitOverlayPresenter(isPresented: $isPresented, style: style, onDismiss: nil, content: popover))
+        .modifier(
+          KitOverlayPresenter(
+            isPresented: $isPresented, style: style, onDismiss: nil, isPassive: !takesFocus, content: popover))
     }
   }
 }

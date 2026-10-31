@@ -133,6 +133,9 @@ final class KitOverlayHost {
     var dismiss: @MainActor () -> Void
     /// Fading out; gone once `KitOverlayHost.fadeOut` has passed.
     var isClosing = false
+    /// Leaves focus, keys and clicks where they are (`kitPopover(takesFocus: false)`): the window behind stays
+    /// enabled, nothing catches a click beside it, and it is never the top overlay.
+    var isPassive = false
   }
 
   /// How long a closing overlay stays, fading out.
@@ -163,8 +166,8 @@ final class KitOverlayHost {
     }
   }
 
-  /// The overlay that takes clicks and keys: the last one that isn't closing.
-  var top: UUID? { entries.last { !$0.isClosing }?.id }
+  /// The overlay that takes clicks and keys: the last one that isn't closing (or passive).
+  var top: UUID? { entries.last { !$0.isClosing && !$0.isPassive }?.id }
 
   /// Whether any overlay shows (the window behind leaves VoiceOver).
   var isShowing: Bool { top != nil }
@@ -243,8 +246,11 @@ private struct KitOverlayLayer: View {
   var body: some View {
     ZStack {
       ForEach(Array(host.entries.enumerated()), id: \.element.id) { index, entry in
-        KitOverlayEntryView(entry: entry, isTop: entry.id == host.top)
-          .zIndex(Double(index))
+        KitOverlayEntryView(
+          entry: entry, isTop: entry.id == host.top,
+          isInteractive: entry.id == host.top || (entry.isPassive && host.top == nil)
+        )
+        .zIndex(Double(index))
       }
     }
   }
@@ -255,6 +261,8 @@ private struct KitOverlayLayer: View {
 private struct KitOverlayEntryView: View {
   let entry: KitOverlayHost.Entry
   let isTop: Bool
+  /// Takes clicks: the top overlay, or a passive one while nothing else shows.
+  let isInteractive: Bool
   @State private var hasAppeared = false
   @State private var isDismissDisabled = false
   @Environment(\.kitIdiom) private var idiom
@@ -262,21 +270,24 @@ private struct KitOverlayEntryView: View {
   var body: some View {
     let isShown = hasAppeared && !entry.isClosing
     ZStack(alignment: entry.style.isTop ? .top : .center) {
-      // A popover dims nothing; a click beside it still closes it (and goes no further, as a menu's).
-      Rectangle()
-        .fill(entry.style.isPopover ? AnyShapeStyle(Color.clear) : AnyShapeStyle(.kitScrim))
-        .ignoresSafeArea()
-        .contentShape(Rectangle())
-        .onTapGesture { if !isDismissDisabled { entry.dismiss() } }
-        .accessibilityAddTraits(.isButton)
-        .accessibilityLabel("Close")
-        .accessibilityHidden(isDismissDisabled)
-        .opacity(isShown ? 1 : 0)
+      // A popover dims nothing; a click beside it still closes it (and goes no further, as a menu's). A passive one
+      // leaves clicks beside it to the window.
+      if !entry.isPassive {
+        Rectangle()
+          .fill(entry.style.isPopover ? AnyShapeStyle(Color.clear) : AnyShapeStyle(.kitScrim))
+          .ignoresSafeArea()
+          .contentShape(Rectangle())
+          .onTapGesture { if !isDismissDisabled { entry.dismiss() } }
+          .accessibilityAddTraits(.isButton)
+          .accessibilityLabel("Close")
+          .accessibilityHidden(isDismissDisabled)
+          .opacity(isShown ? 1 : 0)
+      }
       card
         .opacity(isShown ? 1 : 0)
         .scaleEffect(isShown ? 1 : entry.style.isTop ? 0.98 : 0.96, anchor: scaleAnchor)
     }
-    .allowsHitTesting(isTop)
+    .allowsHitTesting(isInteractive)
     .animation(.kitFast, value: isShown)
     .onAppear { hasAppeared = true }
   }
@@ -292,12 +303,12 @@ private struct KitOverlayEntryView: View {
   @ViewBuilder
   private var card: some View {
     // A card under another is disabled as the window is.
-    let body = KitOverlayBody(content: entry.content, isEnabled: isTop)
+    let body = KitOverlayBody(content: entry.content, isEnabled: isInteractive)
       .onPreferenceChange(KitOverlayDismissDisabled.self) { value in
         MainActor.assumeIsolated { isDismissDisabled = value }
       }
       .modifier(KitOverlayFocus(isTop: isTop, dismiss: entry.dismiss))
-      .accessibilityAddTraits(.isModal)
+      .accessibilityAddTraits(entry.isPassive ? [] : .isModal)
       .accessibilityAction(.escape) { if !isDismissDisabled { entry.dismiss() } }
     switch entry.style {
     case .palette(let width):
@@ -380,6 +391,8 @@ struct KitOverlayPresenter<Overlay: View>: ViewModifier {
   var style: KitOverlayStyle
   var onDismiss: (() -> Void)?
   var identity: AnyHashable? = nil
+  /// The overlay leaves focus and the window alone (`KitOverlayHost.Entry.isPassive`).
+  var isPassive = false
   var content: () -> Overlay
   @Environment(\.kitOverlayHost) private var host
   @Environment(\.contMeasuringCopy) private var isMeasuringCopy
@@ -442,7 +455,7 @@ struct KitOverlayPresenter<Overlay: View>: ViewModifier {
     guard let host else { return }
     overlay.set(make)
     let dismiss = dismissAction
-    host.present(.init(id: id, style: style, content: overlay, dismiss: { dismiss() }))
+    host.present(.init(id: id, style: style, content: overlay, dismiss: { dismiss() }, isPassive: isPassive))
   }
 }
 
@@ -503,6 +516,8 @@ private struct KitOverlayFocus: ViewModifier {
           return .handled
         }
         .onAppear {
+          // A passive overlay (never the top one) leaves the keyboard to the field behind.
+          guard isTop else { return }
           UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         }
     #else

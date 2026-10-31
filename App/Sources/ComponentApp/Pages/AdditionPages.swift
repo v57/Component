@@ -21,6 +21,8 @@ struct SheetAdditionSections: View {
   @State private var renamed: String?
   @State private var unlocking = false
   @State private var renamingKey = catalogOpenSheet == "prompt-mono"
+  @State private var message = catalogOpenSheet == "mention" ? "Ask @ma" : ""
+  @State private var highlighted = 0
   @State private var key = "session:7f3a:user"
   @State private var password = ""
   @State private var addingFilter = catalogOpenSheet == "popover"
@@ -140,6 +142,42 @@ struct SheetAdditionSections: View {
         }
       }
       Specimen(
+        "Suggestions while typing", note: "takesFocus: false: the field keeps focus, ↑↓ and Return stay the app's",
+        code: """
+          TextField("Message", text: $text)
+            .onKeyPress(keys: [.upArrow, .downArrow, .return]) { press in moveOrPick(press) }
+            .kitPopover(isPresented: .constant(!mentions.isEmpty), edge: .top, takesFocus: false) {
+              MentionList(mentions, highlighted: highlighted, pick: complete)
+            }
+          """
+      ) {
+        TextField("Message — type @ and a name", text: $message)
+          .kitField()
+          .frame(maxWidth: 360)
+          .onChange(of: message) { highlighted = 0 }
+          .onKeyPress(keys: [.upArrow, .downArrow, .return, .tab]) { press in
+            let names = mentionMatches
+            guard !names.isEmpty else { return .ignored }
+            switch press.key {
+            case .upArrow: highlighted = max(0, highlighted - 1)
+            case .downArrow: highlighted = min(names.count - 1, highlighted + 1)
+            default: complete(names[min(highlighted, names.count - 1)])
+            }
+            return .handled
+          }
+          .kitPopover(isPresented: .constant(!mentionMatches.isEmpty), edge: .top, takesFocus: false) {
+            VStack(spacing: 2) {
+              ForEach(Array(mentionMatches.enumerated()), id: \.element) { index, name in
+                SidebarRow(name, systemImage: "person.crop.circle") {}
+                  .isCurrent(index == highlighted)
+                  .action { complete(name) }
+              }
+            }
+            .padding(6)
+            .frame(width: 240)
+          }
+      }
+      Specimen(
         "kitOverlayCard",
         note: "The overlays' card for a floating panel of your own.",
         ground: .window,
@@ -162,6 +200,21 @@ struct SheetAdditionSections: View {
         .padding(KitMetrics.gutter)
       }
     }
+  }
+
+  /// The names matching the word after the last “@”, while one is being typed.
+  private var mentionMatches: [String] {
+    guard let at = message.lastIndex(of: "@") else { return [] }
+    let typed = message[message.index(after: at)...]
+    guard !typed.contains(" ") else { return [] }
+    return ["Maya Okafor", "Mateo Ruiz", "Marta Lind", "Noah Berg"].filter {
+      typed.isEmpty || $0.lowercased().hasPrefix(typed.lowercased())
+    }
+  }
+
+  private func complete(_ name: String) {
+    guard let at = message.lastIndex(of: "@") else { return }
+    message = String(message[..<at]) + "@" + name + " "
   }
 
   private var addFilter: some View {
