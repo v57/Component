@@ -319,6 +319,49 @@ public struct ToolGroup<Content: View>: View {
   }
 }
 
+/// A mark between two tools of one `ToolGroup`: a small chevron for a path that reads left to right (Scheme ›
+/// Destination), or a short hairline between tools that belong apart. Hidden from VoiceOver.
+///
+/// ```swift
+/// ToolGroup {
+///   Button { pickScheme() } label: { Label(scheme.name, systemImage: "swift") }
+///   ToolSeparator()
+///   Button { pickDestination() } label: { Label(destination.name, systemImage: "iphone") }
+/// }
+/// ```
+public struct ToolSeparator: View {
+  /// How the separator draws.
+  public enum Style: Hashable, Sendable {
+    /// A small chevron: the second tool goes on from the first (a scheme and where it runs).
+    case chevron
+    /// A short vertical hairline.
+    case line
+  }
+
+  var style: Style
+  @Environment(\.kitIdiom) private var idiom
+
+  public init(_ style: Style = .chevron) { self.style = style }
+
+  public var body: some View {
+    Group {
+      switch style {
+      case .chevron:
+        Image(systemName: "chevron.right")
+          .font(.system(size: idiom.size(9, touch: 11), weight: .semibold))
+          .foregroundStyle(.kitTertiary)
+          .padding(.horizontal, 1)
+      case .line:
+        Rectangle()
+          .fill(.kitSeparator)
+          .frame(width: 1, height: idiom.size(14, touch: 20))
+          .padding(.horizontal, 3)
+      }
+    }
+    .accessibilityHidden(true)
+  }
+}
+
 /// A tool's icon and title, 6pt apart; icon-only keeps just the icon.
 struct ContToolLabelStyle: LabelStyle {
   var iconOnly: Bool
