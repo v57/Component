@@ -24,6 +24,13 @@ import Testing
   #expect(RGBA(hex: "zzzzzz") == nil)
 }
 
+@Test func hexColoursWriteBack() {
+  #expect(RGBA(0xff3b30).hex == "#FF3B30")
+  #expect(RGBA(0x000000, 128.0 / 255).hex == "#00000080")
+  #expect(RGBA(hex: Color(rgb: 0x0a84ff).hex())?.hex == "#0A84FF")
+  #expect(Color(rgb: 0x5856d6).hex() == "#5856D6")
+}
+
 @Test func datesReadNextToNow() {
   let now = Date(timeIntervalSince1970: 1_800_000_000)
   #expect(now.addingTimeInterval(-20).kitFormatted(.ago, relativeTo: now) == "just now")

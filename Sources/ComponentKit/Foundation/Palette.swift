@@ -343,6 +343,17 @@ extension Color {
     self = rgba.color
   }
 
+  /// The colour as CSS hex text, the inverse of `Color(hex:)`: `#RRGGBB` in sRGB, `#RRGGBBAA` when it isn't opaque,
+  /// resolved in `environment` (a dynamic colour's light value by default).
+  ///
+  /// ```swift
+  /// ColorPicker("Background", selection: Binding(
+  ///   get: { Color(hex: settings.background) ?? .black }, set: { settings.background = $0.hex() }))
+  /// ```
+  public func hex(in environment: EnvironmentValues = EnvironmentValues()) -> String {
+    resolve(in: environment).rgba.hex
+  }
+
   /// The red the Hub family's apps (Get, Player) take as their accent: sRGB #FF3B30.
   ///
   /// ```swift
@@ -352,6 +363,17 @@ extension Color {
 }
 
 extension RGBA {
+  /// `#RRGGBB`, or `#RRGGBBAA` when it isn't opaque (the components rounded to bytes).
+  var hex: String {
+    func byte(_ value: Double) -> String {
+      let byte = Int((max(0, min(1, value)) * 255).rounded())
+      let digits = String(byte, radix: 16, uppercase: true)
+      return digits.count == 1 ? "0" + digits : digits
+    }
+    let opaque = Int((max(0, min(1, a)) * 255).rounded()) == 255
+    return "#" + byte(r) + byte(g) + byte(b) + (opaque ? "" : byte(a))
+  }
+
   /// `#RGB`, `#RRGGBB` or `#RRGGBBAA`; nil for anything else.
   init?(hex: String) {
     var digits = Substring(hex.trimmingCharacters(in: .whitespaces))

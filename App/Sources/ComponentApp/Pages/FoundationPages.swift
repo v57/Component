@@ -96,6 +96,26 @@ struct ColoursPage: View {
 
 // MARK: - Hues
 
+/// A deleted row's strikethrough in the hue, and hues written as hex.
+private struct HueColorSample: View {
+  @Environment(\.self) private var environment
+
+  var body: some View {
+    HStack(spacing: 24) {
+      Text("orders_2024_archive").kitFont(.mono)
+        .foregroundStyle(Hue.red.text)
+        .strikethrough(true, color: Hue.red.color(in: environment))
+      Text("draft note").underline(true, color: Hue.accent.color(in: environment))
+      ForEach([Hue.indigo, .teal, .orange], id: \.self) { hue in
+        HStack(spacing: 6) {
+          Circle().fill(hue.fill).frame(width: 14, height: 14)
+          Text(hue.color(in: environment).hex(in: environment)).kitFont(.monoSmall)
+        }
+      }
+    }
+  }
+}
+
 struct HuesPage: View {
   var body: some View {
     CatalogPage(page: .hues) {
@@ -119,6 +139,18 @@ struct HuesPage: View {
           }
         }
         CodeSnippet("Circle().fill(Hue.green.fill)\nText(\"Failed\").foregroundStyle(Hue.red.text)\nRectangle().fill(Hue.orange.soft())")
+      }
+      SpecimenSection(
+        "As a Color",
+        note: "For an API that takes only a Color (a strikethrough, an underline, a shadow): the hue resolved where it's drawn. hex() writes a Color back as the text Color(hex:) reads."
+      ) {
+        HueColorSample()
+        CodeSnippet(
+          """
+          @Environment(\\.self) private var environment
+          Text(row.name).strikethrough(isDeleted, color: Hue.red.color(in: environment))
+          settings.background = pickedColor.hex()        // "#5856D6", read back with Color(hex:)
+          """)
       }
       SpecimenSection("Stable hues", note: "The same name always gets the same colour: avatars, repository tiles.") {
         Flow(spacing: 10) {
