@@ -82,6 +82,28 @@ extension View {
     modifier(KitMenuPresenter(binding: nil, kind: .trigger, matchesWidth: matchesWidth, menu: content))
   }
 
+  /// Opens the kit's menu at `point` (in this view's coordinates) while `isPresented` is true, as a context menu opens
+  /// at the click: its top-left corner just past the point, flipped left or up where it would run off the window.
+  /// For a menu that follows something other than a click on the view: files dropped on it (at the drop's location),
+  /// a shortcut. Its first row starts highlighted, so Return picks it; a row whose hint is one character (a number
+  /// key, `.kitMenuHint("1")`) runs when that key is pressed, in every kit menu.
+  ///
+  /// ```swift
+  /// TerminalView(session)
+  ///   .onDrop(of: [.fileURL], isTargeted: nil) { providers, location in dropPoint = location; …; return true }
+  ///   .kitMenu(isPresented: $showsDropMenu, at: dropPoint) {
+  ///     Button("Upload Here", systemImage: "arrow.up.doc") { upload() }.kitMenuHint("1")
+  ///     Button("Paste Paths", systemImage: "text.insert") { paste() }.kitMenuHint("2")
+  ///     Divider()
+  ///     KitMenuFooter("3 files", subtitle: "Dropped on build-mac", systemImage: "doc.on.doc")
+  ///   }
+  /// ```
+  public func kitMenu<MenuContent: View>(
+    isPresented: Binding<Bool>, at point: CGPoint, @ViewBuilder content: @escaping () -> MenuContent
+  ) -> some View {
+    modifier(KitMenuPresenter(binding: isPresented, kind: .attached, matchesWidth: false, point: point, menu: content))
+  }
+
   /// A trigger whose open state the caller also reads (a pop-up drawn pressed while its menu is open).
   func kitMenuTrigger<MenuContent: View>(
     isPresented: Binding<Bool>, matchesWidth: Bool = false, @ViewBuilder content: @escaping () -> MenuContent
@@ -254,6 +276,8 @@ final class KitMenuModel {
     /// The row has the check column (a toggle, an option).
     var hasCheck = false
     var isSubmenu = false
+    /// The hint at the row's end: a one-character hint (a number) is also the key that picks it.
+    var hint: String?
     var trigger: () -> Void = {}
   }
 
@@ -280,6 +304,9 @@ final class KitMenuModel {
   @ObservationIgnored var trigger: CGRect = .zero
   /// A context menu: it opens at a point (and on touch, over a dim).
   @ObservationIgnored var isContext = false
+  /// Opened at a point from code (`kitMenu(isPresented:at:)`): placed as a context menu, without the touch dim, its
+  /// first row highlighted.
+  @ObservationIgnored var isAtPoint = false
   /// The open submenu's model (a submenu's parent is the menu it opens from).
   @ObservationIgnored var child: KitMenuModel?
   @ObservationIgnored weak var parent: KitMenuModel?
@@ -371,6 +398,19 @@ final class KitMenuModel {
     }
   }
 
+  /// A key typed while the menu is open: picks the enabled row (in the open submenu first) whose one-character hint it
+  /// is. True when one did.
+  func activate(key: String) -> Bool {
+    if openSubmenu != nil, let child, child.activate(key: key) { return true }
+    guard key.count == 1 else { return false }
+    let match = rows.values.first { row in
+      row.isEnabled && row.hint.map { $0.count == 1 && $0.lowercased() == key.lowercased() } == true
+    }
+    guard let match else { return false }
+    match.trigger()
+    return true
+  }
+
   /// Return: picks the highlighted row.
   func activate() {
     guard let highlighted, let row = rows[highlighted], row.isEnabled else { return }
@@ -459,6 +499,7 @@ struct KitMenuRow<Label: View>: View {
     }
     .onChange(of: isEnabled, initial: true) { register() }
     .onChange(of: hasIcon) { register() }
+    .onChange(of: hint) { register() }
     .onDisappear { model?.remove(id) }
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(checked == true ? [.isButton, .isSelected] : .isButton)
@@ -491,7 +532,9 @@ struct KitMenuRow<Label: View>: View {
     let trigger = trigger
     let isSubmenu = isSubmenu
     let hasCheck = checked != nil
+    let hint = hint
     model?.update(id) { row in
+      row.hint = hint
       row.isEnabled = isEnabled
       row.hasIcon = hasIcon
       row.hasCheck = hasCheck
@@ -898,6 +941,8 @@ struct KitMenuPresenter<MenuContent: View>: ViewModifier {
   var binding: Binding<Bool>?
   var kind: KitMenuKind
   var matchesWidth: Bool
+  /// An attached menu opened at a point on the view (`kitMenu(isPresented:at:)`) rather than under it.
+  var point: CGPoint? = nil
   var menu: () -> MenuContent
   @State private var ownIsOpen = false
   @State private var session = KitMenuSession()
@@ -993,6 +1038,7 @@ struct KitMenuPresenter<MenuContent: View>: ViewModifier {
     /// secondary clicks over the view (and nothing else).
     private func anchor(catchesClicks: Bool) -> KitMenuAnchor {
       let session = session
+      if kind == .attached { session.contextPoint = point }
       let isPresented = isPresented
       let isEnabled = isEnabled
       return KitMenuAnchor(
@@ -1007,7 +1053,8 @@ struct KitMenuPresenter<MenuContent: View>: ViewModifier {
   #elseif canImport(UIKit) && !os(tvOS)
     /// The view that finds the window and the frame the menu opens from; on touch a context menu's long press is its.
     private func anchor() -> KitMenuAnchor {
-      KitMenuAnchor(
+      if kind == .attached { session.contextPoint = point }
+      return KitMenuAnchor(
         session: session, isPresented: isPresented, isContext: kind == .context,
         menu: { model, anchor in AnyView(overlay(model, anchor)) })
     }
@@ -1015,7 +1062,10 @@ struct KitMenuPresenter<MenuContent: View>: ViewModifier {
 
   /// The menu's floating root: the anchor's environment carried over, since it lives in its own window.
   private func overlay(_ model: KitMenuModel, _ anchor: CGRect) -> some View {
-    KitMenuOverlay(model: model, anchor: anchor, matchesWidth: matchesWidth) { menu() }
+    // A menu at a point is placed as a context menu but isn't one (no touch dim, no lift beside the view), and its
+    // first row starts highlighted.
+    model.isAtPoint = kind == .attached && point != nil
+    return KitMenuOverlay(model: model, anchor: anchor, matchesWidth: matchesWidth) { menu() }
       .environment(\.colorScheme, colorScheme)
       .environment(\.kitAccent, accent)
       .environment(\.kitIdiom, idiom)
@@ -1152,8 +1202,9 @@ struct KitMenuOverlay<Content: View>: View {
       let place = placement(in: proxy.size)
       ZStack(alignment: .topLeading) {
         // On touch a context menu dims everything but its view, which stays bright as the system's lifts it.
-        KitMenuDim(cutout: model.isContext && idiom.isTouch ? model.trigger : nil)
-          .fill(model.isContext && idiom.isTouch ? AnyShapeStyle(.kitScrim) : AnyShapeStyle(.clear), style: FillStyle(eoFill: true))
+        let touchContext = model.isContext && !model.isAtPoint && idiom.isTouch
+        KitMenuDim(cutout: touchContext ? model.trigger : nil)
+          .fill(touchContext ? AnyShapeStyle(.kitScrim) : AnyShapeStyle(.clear), style: FillStyle(eoFill: true))
           .opacity(shown && !model.isClosing ? 1 : 0)
           .contentShape(Rectangle())
           .onTapGesture { model.dismiss() }
@@ -1182,10 +1233,21 @@ struct KitMenuOverlay<Content: View>: View {
       }
       return .handled
     }
+    .onKeyPress(phases: .down) { press in
+      guard press.modifiers.subtracting(.shift).isEmpty else { return .ignored }
+      return model.activate(key: press.characters) ? .handled : .ignored
+    }
     .onAppear {
       model.anchor = anchor
       isFocused = model.takesKeys
       withAnimation(.smooth(duration: 0.18)) { shown = true }
+      if model.isAtPoint {
+        // Once the rows have registered and measured themselves.
+        Task { @MainActor in
+          await kitSleep(for: .milliseconds(30))
+          if model.highlighted == nil { model.move(by: 1) }
+        }
+      }
     }
     .onChange(of: anchor) { model.anchor = anchor }
   }
@@ -1199,7 +1261,7 @@ struct KitMenuOverlay<Content: View>: View {
 
   private func placement(in bounds: CGSize) -> (origin: CGPoint, above: Bool) {
     let size = size ?? .zero
-    if model.isContext && idiom.isTouch {
+    if model.isContext && !model.isAtPoint && idiom.isTouch {
       // On touch, as the system's: beside the pressed view, not over it (the finger and the view stay clear):
       // under it, starting at the finger, or above it when there's no room below.
       let trigger = model.trigger
@@ -1395,7 +1457,10 @@ struct KitMenuOverlay<Content: View>: View {
       let keys = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
         let keyCode = event.keyCode
         let command = event.modifierFlags.contains(.command)
-        let handled = MainActor.assumeIsolated { self?.handle(keyCode: keyCode, command: command) ?? false }
+        let characters = event.charactersIgnoringModifiers
+        let handled = MainActor.assumeIsolated {
+          self?.handle(keyCode: keyCode, command: command, characters: characters) ?? false
+        }
         return handled ? nil : event
       }
       let clicks: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
@@ -1471,7 +1536,7 @@ struct KitMenuOverlay<Content: View>: View {
     }
 
     /// The menu's keys; ⌘ shortcuts close it and go on to the app, as with a menu.
-    private func handle(keyCode: UInt16, command: Bool) -> Bool {
+    private func handle(keyCode: UInt16, command: Bool, characters: String? = nil) -> Bool {
       guard let model else { return false }
       if command {
         dismiss()
@@ -1484,7 +1549,7 @@ struct KitMenuOverlay<Content: View>: View {
       case 123: model.openHighlightedSubmenu(false)
       case 36, 76, 49: model.activate()
       case 53: dismiss()
-      default: break
+      default: if let characters { _ = model.activate(key: characters) }
       }
       return true
     }
