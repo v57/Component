@@ -75,6 +75,77 @@ public struct KitProgressBar: View {
   }
 }
 
+/// A progress bar with how it is going beside it: the time left while it works ("about 3 min left"), "Paused",
+/// the failure. Pass the app's own estimate line, or when the work started and the kit estimates from its progress
+/// (the time so far over the share done), refreshed every second while it works. "Estimating…" until there is one.
+///
+/// ```swift
+/// KitProgressEstimate(status: run.status, startedAt: run.started)
+/// KitProgressEstimate(status: .working(progress: estimate?.fraction), line: estimate.map { KitDuration.timeLeft($0.remaining) })
+/// ```
+public struct KitProgressEstimate: View {
+  var status: WorkStatus
+  var line: String?
+  var startedAt: Date?
+  var secondary: Double?
+  var hue: Hue
+  @Environment(\.kitIdiom) private var idiom
+
+  /// The bar and `line`, the app's own estimate ("12 of 40 · about 3 min left").
+  public init(status: WorkStatus, line: String?, secondary: Double? = nil, hue: Hue = .accent) {
+    self.status = status
+    self.line = line
+    self.secondary = secondary
+    self.hue = hue
+  }
+
+  /// The bar and the time left, estimated from `startedAt` and the progress.
+  public init(status: WorkStatus, startedAt: Date, secondary: Double? = nil, hue: Hue = .accent) {
+    self.init(status: status, line: nil, secondary: secondary, hue: hue)
+    self.startedAt = startedAt
+  }
+
+  public var body: some View {
+    HStack(spacing: idiom.size(12, touch: 14)) {
+      KitProgressBar(status: status, secondary: secondary, hue: hue)
+      if let startedAt, status.isWorking {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+          label(Self.estimate(status: status, startedAt: startedAt, now: context.date))
+        }
+      } else {
+        label(line ?? Self.fallback(status))
+      }
+    }
+  }
+
+  private func label(_ text: String) -> some View {
+    Text(text)
+      .kitFont(.caption)
+      .monospacedDigit()
+      .lineLimit(1)
+      .fixedSize()
+      .contentTransition(.numericText())
+  }
+
+  /// What the line says without an estimate.
+  nonisolated static func fallback(_ status: WorkStatus) -> String {
+    switch status {
+    case .working: "Estimating…"
+    case .paused: "Paused"
+    case .failed(let message): message ?? "Failed"
+    case .done, .idle: ""
+    }
+  }
+
+  /// The time left: what the work took so far over the share done, less the time so far; "Estimating…" until 2% is
+  /// done.
+  nonisolated static func estimate(status: WorkStatus, startedAt: Date, now: Date) -> String {
+    guard let progress = status.progress, progress >= 0.02, progress < 1 else { return fallback(status) }
+    let elapsed = now.timeIntervalSince(startedAt)
+    return KitDuration.timeLeft(elapsed / progress - elapsed)
+  }
+}
+
 #Preview("Progress bar") {
   VStack(spacing: 14) {
     KitProgressBar(value: 0.4)

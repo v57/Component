@@ -315,6 +315,7 @@ struct LineCountsPage: View {
           .frame(maxWidth: 320)
         }
       }
+      ProgressEstimateSpecimens()
     }
   }
 }

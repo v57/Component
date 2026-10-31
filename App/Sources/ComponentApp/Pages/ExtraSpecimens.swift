@@ -412,3 +412,38 @@ struct HuePickerSpecimens: View {
     }
   }
 }
+
+// MARK: - Progress with the time left (Line Counts & Progress page)
+
+struct ProgressEstimateSpecimens: View {
+  @State private var work = SimulatedWork()
+  @State private var started = Date.now
+
+  var body: some View {
+    SpecimenSection(
+      "Progress and the time left",
+      note: "KitProgressEstimate: the bar and how it is going, from the app's own line or estimated from when the work started."
+    ) {
+      Specimen(
+        "KitProgressEstimate",
+        code: "KitProgressEstimate(status: run.status, startedAt: run.started)\nKitProgressEstimate(status: .working(progress: 0.4), line: \"12 of 30 · about 3 min left\")"
+      ) {
+        VStack(alignment: .leading, spacing: 12) {
+          HStack {
+            Button("Start", systemImage: "play.fill") {
+              started = .now
+              work.start(duration: 20)
+            }
+            .buttonStyle(.kit)
+            Toggle("Fail", isOn: $work.fails).toggleStyle(.kitCheckbox)
+          }
+          KitProgressEstimate(status: work.status, startedAt: started)
+          KitProgressEstimate(status: .working(progress: 0.4), line: "12 of 30 · about 3 min left")
+          KitProgressEstimate(status: .working(progress: 0.01), startedAt: .now)
+          KitProgressEstimate(status: .paused(progress: 0.6), line: nil)
+          KitProgressEstimate(status: .failed("Rate limited"), line: nil)
+        }
+      }
+    }
+  }
+}
