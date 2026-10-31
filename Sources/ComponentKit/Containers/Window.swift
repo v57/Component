@@ -186,6 +186,30 @@ extension View {
       StatusBar(systemImage: systemImage, hue: hue, status: status, alignment: alignment, content: content)
     }
   }
+
+  /// A status bar shown only while `isPresented` (an editor's bar with nothing to say goes away): it fades in and
+  /// out and gives the room back, the content keeping its identity. `systemImage: nil` drops the live icon (only
+  /// the caret position, say).
+  ///
+  /// ```swift
+  /// Editor().kitStatusBar(isPresented: message != nil || document.isText, systemImage: icon, status: work) {
+  ///   if let message { Text(message) }
+  ///   Button(position) { goToLine() }.buttonStyle(.plain)
+  /// }
+  /// ```
+  public func kitStatusBar<Content: View>(
+    isPresented: Bool, systemImage: String? = nil, hue: Hue = .accent, status: WorkStatus = .idle,
+    alignment: HorizontalAlignment = .trailing, @ViewBuilder content: () -> Content
+  ) -> some View {
+    let content = content()
+    return safeAreaInset(edge: .bottom, spacing: 0) {
+      if isPresented {
+        StatusBar(systemImage: systemImage, hue: hue, status: status, alignment: alignment) { content }
+          .transition(.opacity)
+      }
+    }
+    .animation(.kit, value: isPresented)
+  }
 }
 
 // MARK: - Split
