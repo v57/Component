@@ -374,7 +374,8 @@ struct MixedCheckboxSpecimens: View {
         code: "Toggle(\"All\", sources: $items, isOn: \\.self).toggleStyle(.kitCheckbox)\nToggle(\"Group\", isOn: groupBinding).toggleStyle(.kitCheckbox).kitMixed(state == .mixed)"
       ) {
         VStack(alignment: .leading, spacing: 8) {
-          Toggle("All caches", sources: $items, isOn: \.self).toggleStyle(.kitCheckbox)
+          // An array of bindings: v57/SwiftUI's Binding isn't a collection of its elements' bindings.
+          Toggle("All caches", sources: items.indices.map { $items[$0] }, isOn: \.self).toggleStyle(.kitCheckbox)
           ForEach(items.indices, id: \.self) { index in
             Toggle(["Xcode", "Simulators", "SwiftPM"][index], isOn: $items[index]).toggleStyle(.kitCheckbox)
               .padding(.leading, 22)
