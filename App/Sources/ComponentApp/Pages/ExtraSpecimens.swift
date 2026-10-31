@@ -249,3 +249,69 @@ struct DateAndMetaSpecimens: View {
     }
   }
 }
+
+// MARK: - Drop label (Drag & Drop page)
+
+struct DropLabelSpecimens: View {
+  @State private var isTargeted = true
+
+  var body: some View {
+    SpecimenSection(
+      "A window as a drop target",
+      note: "kitDropTarget(_:label:systemImage:) rings the window and floats what a drop will do over its middle. Drag a file over the sample, or flip the toggle."
+    ) {
+      Specimen(
+        "kitDropTarget(_:label:systemImage:)", ground: .window,
+        code: ".kitDropTarget(isTargeted, label: \"Drop to download\", systemImage: \"arrow.down\", cornerRadius: KitMetrics.radiusWindow)\n.onDrop(of: [.fileURL, .url], isTargeted: $isTargeted) { … }"
+      ) {
+        VStack(alignment: .leading, spacing: 10) {
+          Toggle("Targeted", isOn: $isTargeted).toggleStyle(.kitCheckbox)
+          EmptyState(systemImage: "arrow.down.circle", title: "No Downloads", message: "Paste a link or drop a file.")
+            .frame(height: 200)
+            .kitDropTarget(isTargeted, label: "Drop to download", systemImage: "arrow.down", cornerRadius: KitMetrics.radiusCard)
+            .kitFileDrop(isTargeted: $isTargeted) { _ in }
+        }
+      }
+    }
+  }
+}
+
+// MARK: - Status pill (Feedback page)
+
+struct StatusPillSpecimens: View {
+  var body: some View {
+    SpecimenSection(
+      "Status pills",
+      note: "A short status floating over content: a live icon carrying the work and a line, or any content."
+    ) {
+      Specimen(
+        "KitStatusPill",
+        code: "KitStatusPill(\"Waiting for the download\", systemImage: \"arrow.down\", hue: .orange, status: .working)\nKitStatusPill { VStack(alignment: .trailing) { Text(\"60 fps\"); Text(\"12.4 Mbps\") } }"
+      ) {
+        ZStack(alignment: .topLeading) {
+          RoundedRectangle(cornerRadius: KitMetrics.radiusCard, style: .continuous)
+            .fill(Hue.indigo.soft(0.5))
+            .frame(height: 170)
+          KitStatusPill("Waiting for the download", systemImage: "arrow.down", hue: .orange, status: .working)
+            .padding(KitMetrics.gutter * 2)
+          KitStatusPill {
+            VStack(alignment: .trailing, spacing: 2) {
+              Text("60 fps")
+              Text("2560×1440 MetalFX")
+              Text("12.4 Mbps")
+            }
+            .kitFont(.caption)
+            .monospacedDigit()
+          }
+          .padding(KitMetrics.gutter * 2)
+          .frame(maxWidth: .infinity, alignment: .topTrailing)
+          KitStatusPill("Reconnecting…", systemImage: "display", status: .working(progress: 0.4))
+            .environment(\.colorScheme, .dark)
+            .padding(KitMetrics.gutter * 2)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        }
+        .frame(height: 170)
+      }
+    }
+  }
+}

@@ -1611,6 +1611,7 @@ struct FeedbackPage: View {
           }
         }
       }
+      StatusPillSpecimens()
     }
   }
 }
@@ -1980,6 +1981,7 @@ struct DragDropPage: View {
           .kitFileDrop(isTargeted: $isOutsideTargeted) { addOutside($0, into: nil, at: outside.count) }
         }
       }
+      DropLabelSpecimens()
     }
   }
 

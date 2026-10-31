@@ -31,6 +31,54 @@ extension View {
   }
 }
 
+extension View {
+  /// Draws a whole window or pane as a drop target with what a drop will do in its middle: the drop ring, and
+  /// `KitDropLabel(title, systemImage:)` floating over the centre while `isTargeted`. Pass the window's corners
+  /// (`KitMetrics.radiusWindow`) on a window's root.
+  ///
+  /// ```swift
+  /// ContentView()
+  ///   .kitDropTarget(isTargeted, label: "Drop to download", systemImage: "arrow.down", cornerRadius: KitMetrics.radiusWindow)
+  ///   .onDrop(of: [.fileURL, .url], isTargeted: $isTargeted) { providers in … }
+  /// ```
+  public func kitDropTarget(
+    _ isTargeted: Bool, label: String, systemImage: String, cornerRadius: CGFloat = KitMetrics.radius
+  ) -> some View {
+    kitDropTarget(isTargeted, cornerRadius: cornerRadius)
+      .overlay {
+        if isTargeted {
+          KitDropLabel(label, systemImage: systemImage).transition(.opacity)
+        }
+      }
+      .animation(.kit, value: isTargeted)
+  }
+}
+
+/// What a drop will do, on the floating surface: "Drop to download", "Drop to Play". `kitDropTarget(_:label:systemImage:)`
+/// shows it over a target's middle; put it yourself where a drop lands elsewhere. It takes no clicks.
+///
+/// ```swift
+/// .overlay { if isTargeted { KitDropLabel("Drop to Play", systemImage: "play.fill") } }
+/// ```
+public struct KitDropLabel: View {
+  var title: String
+  var systemImage: String
+  @Environment(\.kitIdiom) private var idiom
+
+  public init(_ title: String, systemImage: String) {
+    self.title = title
+    self.systemImage = systemImage
+  }
+
+  public var body: some View {
+    Label(title, systemImage: systemImage)
+      .kitFont(.headline)
+      .padding(EdgeInsets(horizontal: idiom.size(14, touch: 18), vertical: idiom.size(10, touch: 12)))
+      .kitSurface(.floating, cornerRadius: KitMetrics.radiusCard)
+      .allowsHitTesting(false)
+  }
+}
+
 private struct ContLifted: ViewModifier {
   let isLifted: Bool
   let cornerRadius: CGFloat
