@@ -281,6 +281,7 @@ struct SegmentedPage: View {
 struct MenusPage: View {
   @State private var mode = DiffMode.changes
   @State private var indent = 4
+  @State private var sharedWindow = 1
   @State private var matchCase = true
   @State private var wholeWords = false
   @State private var sort = "Name"
@@ -375,6 +376,23 @@ struct MenusPage: View {
                 FormRow("Indent", systemImage: "increase.indent", hue: .blue) {
                   KitPicker("Indent", selection: $indent, options: [("2 spaces", 2), ("4 spaces", 4), ("Tabs", 0)])
                 }
+              }
+            }
+          }
+          Specimen(
+            "kitPickerMaxWidth", note: "A long title is cut; the menu shows the whole names",
+            code: "KitPicker(\"Window\", selection: $window, options: windows)\n  .kitPickerMaxWidth(220)"
+          ) {
+            FormCard {
+              FormRow("Window", systemImage: "macwindow", hue: .orange) {
+                KitPicker(
+                  "Window", selection: $sharedWindow,
+                  options: [
+                    ("The frontmost", 0), ("Safari — Pull request #482: Fix the sidebar's sticky header", 1),
+                    ("Xcode — Component.xcodeproj", 2),
+                  ]
+                )
+                .kitPickerMaxWidth(220)
               }
             }
           }

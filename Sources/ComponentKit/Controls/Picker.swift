@@ -15,6 +15,14 @@ import SwiftUI
 /// ```
 ///
 /// `title` names it for VoiceOver and the menu; it isn't drawn (a form row's label says what it is).
+///
+/// It is as wide as the picked title. `.kitPickerMaxWidth(_:)` caps it: a longer title is cut with "…" (the menu
+/// still shows the whole names; `.truncationMode(.middle)` cuts in the middle instead).
+///
+/// ```swift
+/// KitPicker("Window", selection: $windowID, options: windows.map { ($0.name, $0.id) })
+///   .kitPickerMaxWidth(240)
+/// ```
 public struct KitPicker<Value: Hashable>: View {
   var title: String
   @Binding var selection: Value
@@ -23,6 +31,7 @@ public struct KitPicker<Value: Hashable>: View {
   var sections: [(title: String, segments: [KitSegment<Value>])] = []
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.isEnabled) private var isEnabled
+  @Environment(\.ctlPickerMaxWidth) private var maxWidth
   @FocusState private var isFocused: Bool
   @State private var isHovered = false
   @State private var isOpen = false
@@ -79,7 +88,7 @@ public struct KitPicker<Value: Hashable>: View {
       if (isHovered || isOpen) && isEnabled { shape.fill(.kitHover) }
     }
     .contentShape(shape)
-    .fixedSize(horizontal: true, vertical: false)
+    .ctlIdealWidth(maxWidth)
     .focusable()
     .kitMenuTrigger(isPresented: $isOpen, matchesWidth: true) {
       if sections.isEmpty {
@@ -117,6 +126,51 @@ extension KitPicker where Value: KitOption & CaseIterable {
   /// A picker over every case of a `KitOption` enum.
   public init(_ title: String = "", selection: Binding<Value>) {
     self.init(title, selection: selection, options: Array(Value.allCases))
+  }
+}
+
+extension View {
+  /// The widest the `KitPicker`s in this view grow to with a long title, which is then cut with "…" (`nil`: as wide
+  /// as the title).
+  ///
+  /// ```swift
+  /// FormRow("Window", systemImage: "macwindow") { KitPicker("Window", selection: $window, options: windows) }
+  ///   .kitPickerMaxWidth(240)
+  /// ```
+  public func kitPickerMaxWidth(_ maxWidth: CGFloat?) -> some View {
+    environment(\.ctlPickerMaxWidth, maxWidth)
+  }
+}
+
+extension EnvironmentValues {
+  @Entry var ctlPickerMaxWidth: CGFloat? = nil
+}
+
+extension View {
+  /// The view at its ideal width, up to `maxWidth` (`CtlIdealWidth`).
+  func ctlIdealWidth(_ maxWidth: CGFloat?) -> some View {
+    CtlIdealWidth(maxWidth: maxWidth) { self }
+  }
+}
+
+/// The view at its ideal width (as `fixedSize(horizontal:)`), up to `maxWidth`, where it is proposed that width and
+/// cuts its text.
+struct CtlIdealWidth: Layout {
+  var maxWidth: CGFloat?
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    guard let subview = subviews.first else { return .zero }
+    return subview.sizeThatFits(childProposal(proposal, subview))
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    guard let subview = subviews.first else { return }
+    subview.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
+  }
+
+  private func childProposal(_ proposal: ProposedViewSize, _ subview: LayoutSubview) -> ProposedViewSize {
+    let ideal = subview.sizeThatFits(ProposedViewSize(width: nil, height: proposal.height)).width
+    return ProposedViewSize(width: min(ideal, maxWidth ?? .infinity), height: proposal.height)
   }
 }
 
