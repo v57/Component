@@ -148,6 +148,7 @@ struct HuesPage: View {
         }
         CodeSnippet("Hue.forStatus(\"shipped\")   // .green\nHue.forTypeName(\"INT64\")   // .purple")
       }
+      HuePickerSpecimens()
     }
   }
 }

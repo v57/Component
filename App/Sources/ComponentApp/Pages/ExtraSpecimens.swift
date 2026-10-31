@@ -385,3 +385,30 @@ struct MixedCheckboxSpecimens: View {
     }
   }
 }
+
+// MARK: - Hue picker (Hues page)
+
+struct HuePickerSpecimens: View {
+  @State private var tag: Hue? = .blue
+  @State private var hue: Hue = .green
+
+  var body: some View {
+    SpecimenSection("Picking a hue", note: "KitHuePicker: a row of swatches for a colour tag, with or without \"no colour\".") {
+      SpecimenGrid(minWidth: 360) {
+        Specimen("KitHuePicker(selection: $tag)", note: "optional", code: "FormRow(\"Color\", systemImage: \"paintpalette\", hue: tag ?? .gray) {\n  KitHuePicker(selection: $tag)\n}") {
+          FormCard {
+            FormRow("Color", help: "A dot beside its name in the sidebar", systemImage: "paintpalette", hue: tag ?? .gray) {
+              KitHuePicker(selection: $tag)
+            }
+          }
+        }
+        Specimen("KitHuePicker(selection: $hue, hues:)", code: "KitHuePicker(selection: $project.hue, hues: [.blue, .green, .orange, .purple])") {
+          HStack(spacing: 12) {
+            KitHuePicker(selection: $hue, hues: [.blue, .green, .orange, .purple])
+            Tile(systemImage: "folder", hue: hue, size: 28)
+          }
+        }
+      }
+    }
+  }
+}
