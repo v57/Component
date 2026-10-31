@@ -783,6 +783,7 @@ struct ToolbarPage: View {
         }
       }
       ToolbarAdditionSections()
+      SystemToolbarReproSections()
     }
     .onAppear(perform: fitPhone)
   }

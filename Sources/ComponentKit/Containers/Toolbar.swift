@@ -59,6 +59,8 @@ public struct KitTitle: View {
 /// so on macOS 26 and iOS 26 the toolbar's shared glass stays out from behind them. Before, it's a plain
 /// `ToolbarItem`. A kit menu opens from a kit view here (a `ToolGroup`'s button, a `KitMenuButton`), not from a bare
 /// `Button`: SwiftUI makes that a native bar button and drops the menu's anchor (see `.kitMenu(isPresented:)`).
+/// In an iOS bar the content takes its own width, up to 240pt on iPhone (420 on iPad), so a long `KitTitle`
+/// truncates instead of shrinking to its tile.
 ///
 /// ```swift
 /// .toolbar {
@@ -77,7 +79,38 @@ public struct KitToolbarItem<Content: View>: ToolbarContent {
   }
 
   public var body: some ToolbarContent {
-    ToolbarItem(placement: placement) { content() }.kitToolbarItem()
+    ToolbarItem(placement: placement) { ContToolbarItemWidth(content: content()) }.kitToolbarItem()
+  }
+}
+
+/// A kit view in an iOS bar at its own width, up to 240pt on iPhone (420 on iPad): the bar measures an item at zero
+/// width, where a view whose text is flexible (a `KitTitle`) came back as its tile alone. The Mac's toolbar gives
+/// the room itself.
+struct ContToolbarItemWidth<Content: View>: View {
+  var content: Content
+  @Environment(\.kitIdiom) private var idiom
+
+  var body: some View {
+    #if os(iOS)
+      ContIdealWidthLayout(max: idiom == .phone ? 240 : 420) { content }
+    #else
+      content
+    #endif
+  }
+}
+
+/// One view at its ideal width, capped, whatever width it is offered.
+struct ContIdealWidthLayout: Layout {
+  var max: CGFloat
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    guard let child = subviews.first else { return .zero }
+    let width = Swift.min(child.sizeThatFits(.unspecified).width, max)
+    return child.sizeThatFits(ProposedViewSize(width: width, height: proposal.height))
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
   }
 }
 

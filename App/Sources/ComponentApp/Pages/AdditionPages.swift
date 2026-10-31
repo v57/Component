@@ -315,6 +315,86 @@ struct ToolbarAdditionSections: View {
   }
 }
 
+// MARK: - Toolbar: kit views in a system toolbar (iOS)
+
+/// The cases Agentus reported on iOS: a KitTitle at the navigation placement, a kit menu from a toolbar item, and a
+/// split view's toolbar inside a kit sheet. Each runs in a kit sheet, out of the catalog's own NavigationStack (a
+/// stack inside a stack gets no bar). `--toolbar-repro title|split` opens one at launch.
+struct SystemToolbarReproSections: View {
+  @State private var showsMenu = false
+  @State private var picked = "None"
+  @State private var showsTitle = Self.launchCase == "title"
+  @State private var showsSplit = Self.launchCase == "split"
+
+  static var launchCase: String? {
+    let arguments = CommandLine.arguments
+    guard let index = arguments.firstIndex(of: "--toolbar-repro"), index + 1 < arguments.count else { return nil }
+    return arguments[index + 1]
+  }
+
+  var body: some View {
+    SpecimenSection(
+      "Kit views in a system toolbar",
+      note: "A KitTitle and a kit menu in a NavigationStack's own bar, and a split view with toolbar items in a kit sheet."
+    ) {
+      Specimen(
+        "KitToolbarItem in a NavigationStack", ground: .window,
+        code: """
+          .toolbar {
+            KitToolbarItem(placement: .navigation) { KitTitle("Design review", meta: ["3 agents"], systemImage: "bubble.left") }
+            KitToolbarItem(placement: .primaryAction) {
+              ToolGroup(iconOnly: true) { Button("More", systemImage: "ellipsis") { showsMenu = true }.kitMenu(isPresented: $showsMenu) { … } }
+            }
+          }
+          """
+      ) {
+        HStack {
+          Button("Title in a Sheet…") { showsTitle = true }.buttonStyle(.kit)
+          Button("Split View in a Sheet…") { showsSplit = true }.buttonStyle(.kit)
+          Text("Picked: \(picked)").kitFont(.callout)
+        }
+      }
+    }
+    .kitSheet(isPresented: $showsTitle) {
+      NavigationStack {
+        Text("The title stays readable; the menu opens under its button.")
+          .kitFont(.callout)
+          .padding()
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+          .toolbar {
+            KitToolbarItem(placement: .navigation) {
+              KitTitle("Design review of the new onboarding", meta: ["3 agents working"], systemImage: "bubble.left")
+            }
+            KitToolbarItem(placement: .primaryAction) {
+              ToolGroup(iconOnly: true) {
+                Button("More", systemImage: "ellipsis") { showsMenu = true }
+                  .kitMenu(isPresented: $showsMenu) {
+                    Button("Rename", systemImage: "pencil") { picked = "Rename" }
+                    Button("Archive", systemImage: "archivebox") { picked = "Archive" }
+                  }
+              }
+            }
+          }
+      }
+      .frame(minWidth: 320, minHeight: 260)
+    }
+    .kitSheet(isPresented: $showsSplit) {
+      // Toolbar items go inside a column: on the split view itself, iPhone drops them (in a system sheet too).
+      NavigationSplitView {
+        List(["Account", "Machines", "Server"], id: \.self) { Text($0) }
+          .navigationTitle("Settings")
+          .toolbar {
+            ToolbarItem(placement: .confirmationAction) { Button("Done") { showsSplit = false } }
+          }
+      } detail: {
+        Text("Machines").kitFont(.title2)
+          .navigationTitle("Machines")
+      }
+      .frame(minWidth: 320, minHeight: 420)
+    }
+  }
+}
+
 // MARK: - Window: a status bar that goes when it has nothing to say
 
 struct WindowAdditionSections: View {
