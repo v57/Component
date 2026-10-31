@@ -504,6 +504,33 @@ private struct ContSystemToolbarAway: ViewModifier {
   }
 #endif
 
+extension View {
+  /// Hides the window toolbar's background on the Mac, so the view's own ground shows up through the title bar (a
+  /// welcome that names the app itself, a pane drawn to the window's top). `kitToolbar`, `KitSidebar` and
+  /// `KitSettings` do it themselves; does nothing elsewhere.
+  ///
+  /// ```swift
+  /// WelcomeView().kitPane().kitHidesSystemTitle().kitHidesToolbarBackground()
+  /// ```
+  public func kitHidesToolbarBackground(_ hides: Bool = true) -> some View {
+    #if os(macOS)
+      modifier(ContToolbarBackgroundHiddenIf(hides: hides))
+    #else
+      self
+    #endif
+  }
+}
+
+#if os(macOS)
+  private struct ContToolbarBackgroundHiddenIf: ViewModifier {
+    let hides: Bool
+
+    func body(content: Content) -> some View {
+      if hides { content.modifier(ContToolbarBackgroundHidden()) } else { content }
+    }
+  }
+#endif
+
 /// The kit's Show Sidebar button: in its bar, and as the system toolbar's item (without the glass) elsewhere.
 struct ContShowSidebarButton: View {
   let action: ContShowSidebarAction

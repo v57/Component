@@ -732,6 +732,7 @@ struct ToolbarPage: View {
               }
             Button("Filter", systemImage: "line.3.horizontal.decrease") { … }.buttonStyle(.kitToolIcon).kitToolOn(isFiltered)
             Player().kitHidesSystemTitle(isPlaying)   // the system title out only while true (macOS 14: the window's)
+            Welcome().kitHidesSystemTitle().kitHidesToolbarBackground()   // the pane's ground up through the bar
             """
         ) {
           // The tools go under the title on an iPhone's width.
