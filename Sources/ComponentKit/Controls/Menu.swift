@@ -795,20 +795,24 @@ public struct KitSubmenu<Content: View>: View {
   }
 }
 
-/// What the menu acts on, under a divider at its end: an icon tile, a title and a line.
+/// What the menu acts on, under a divider at its end: an icon tile, a title and a line; `message` adds a note under
+/// them that wraps (why an action is missing, what a drop will do).
 ///
 /// ```swift
 /// Divider()
 /// KitMenuFooter("harbor.png", subtitle: "Dropped on prod-db", systemImage: "doc")
+/// KitMenuFooter("3 files", subtitle: "Dropped on build-mac", message: "Upload needs a folder open.", systemImage: "doc.on.doc")
 /// ```
 public struct KitMenuFooter: View {
   var title: String
   var subtitle: String?
+  var message: String?
   var systemImage: String
 
-  public init(_ title: String, subtitle: String? = nil, systemImage: String) {
+  public init(_ title: String, subtitle: String? = nil, message: String? = nil, systemImage: String) {
     self.title = title
     self.subtitle = subtitle
+    self.message = message
     self.systemImage = systemImage
   }
 
@@ -823,6 +827,13 @@ public struct KitMenuFooter: View {
         Text(title).font(.system(size: 13, weight: .semibold)).lineLimit(1).truncationMode(.middle)
         if let subtitle {
           Text(subtitle).font(.system(size: 11)).foregroundStyle(.kitSecondary).lineLimit(1).truncationMode(.middle)
+        }
+        if let message {
+          Text(message)
+            .font(.system(size: 11))
+            .foregroundStyle(.kitSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, 2)
         }
       }
     }
