@@ -29,6 +29,34 @@ extension View {
   }
 }
 
+extension View {
+  /// Shows the view only once it has been on screen for `delay`, then fades it in: a loading state that a quick load
+  /// never shows (the content replaces it before the delay is up), so nothing flashes. It keeps its room meanwhile.
+  ///
+  /// ```swift
+  /// if let diff { DiffView(diff) } else { EmptyState(systemImage: "doc.text", status: .working).kitAppearDelay() }
+  /// ```
+  public func kitAppearDelay(_ delay: Duration = .milliseconds(300)) -> some View {
+    modifier(KitAppearDelay(delay: delay))
+  }
+}
+
+private struct KitAppearDelay: ViewModifier {
+  let delay: Duration
+  @State private var isShown = false
+
+  func body(content: Content) -> some View {
+    content
+      .opacity(isShown ? 1 : 0)
+      .accessibilityHidden(!isShown)
+      .task {
+        await kitSleep(for: delay)
+        guard !Task.isCancelled else { return }
+        withKitAnimation { isShown = true }
+      }
+  }
+}
+
 /// Runs `body` with the kit's animation: `withKitAnimation { selection = item }`.
 @MainActor
 public func withKitAnimation<Result>(_ animation: Animation = .kit, _ body: () throws -> Result) rethrows -> Result {

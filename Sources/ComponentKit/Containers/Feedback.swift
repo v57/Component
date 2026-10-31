@@ -259,18 +259,38 @@ public struct ToastView: View {
 /// EmptyState(systemImage: "globe", title: "Connecting", message: "Opening the tunnel to atlas…", status: .working)
 /// ```
 ///
+/// A plain loading state needs no title: the live icon says it (with a message when there's more to say). Give it
+/// `.kitAppearDelay()` so a quick load shows nothing at all.
+///
+/// ```swift
+/// EmptyState(systemImage: "doc.text", status: .working).kitAppearDelay()
+/// ```
+///
+/// Content that keeps its own size (a code to compare, a QR code) goes in `detail`, under the message; the actions
+/// under it are small buttons.
+///
+/// ```swift
+/// EmptyState(systemImage: "lock.shield", title: "Pairing", message: "Check that it shows the same code.", status: .working) {
+///   KitSafetyCode(code, groupSize: 3, columns: 2)
+/// } actions: {
+///   Button("Cancel") { … }.buttonStyle(.kit)
+/// }
+/// ```
+///
 /// It takes whatever room its pane has and asks for none: in a pane shorter than it, the message shortens (a pane
 /// root's minimum height is the window's, so a message held at its full height would cut the window's content).
 public struct EmptyState<Actions: View>: View {
   var systemImage: String
-  var title: String
+  var title: String?
   var message: String?
   var status: WorkStatus
+  var detail: AnyView?
   @ViewBuilder var actions: Actions
   @Environment(\.kitWindowIsActive) private var isActive
 
+  /// `title` may be left out for a plain loading state (`status: .working`).
   public init(
-    systemImage: String, title: String, message: String? = nil, status: WorkStatus = .idle,
+    systemImage: String, title: String? = nil, message: String? = nil, status: WorkStatus = .idle,
     @ViewBuilder actions: () -> Actions
   ) {
     self.systemImage = systemImage
@@ -280,20 +300,38 @@ public struct EmptyState<Actions: View>: View {
     self.actions = actions()
   }
 
+  /// An empty state with `detail` under the message at its own size (a pairing code, a QR code), then the actions,
+  /// which are small buttons (`actions: {}` for none).
+  public init<Detail: View>(
+    systemImage: String, title: String? = nil, message: String? = nil, status: WorkStatus = .idle,
+    @ViewBuilder detail: () -> Detail, @ViewBuilder actions: () -> Actions
+  ) {
+    self.init(systemImage: systemImage, title: title, message: message, status: status, actions: actions)
+    self.detail = AnyView(detail())
+  }
+
   public var body: some View {
     VStack(spacing: 6) {
       tile
         .padding(.bottom, 6)
-        .accessibilityHidden(true)
-      Text(title)
-        .kitFont(.title3)
-        .multilineTextAlignment(.center)
+        // Without a title the live icon is what says it (its status).
+        .accessibilityHidden(title != nil)
+      if let title {
+        Text(title)
+          .kitFont(.title3)
+          .multilineTextAlignment(.center)
+      }
       if let message {
         Text(message)
           .kitFont(.callout)
           .foregroundStyle(.kitSecondary)
           .multilineTextAlignment(.center)
           .frame(maxWidth: 300)
+      }
+      if let detail {
+        detail
+          .fixedSize(horizontal: true, vertical: false)
+          .padding(.top, 8)
       }
       if Actions.self != EmptyView.self {
         HStack(spacing: 8) { actions }
@@ -322,7 +360,8 @@ public struct EmptyState<Actions: View>: View {
 }
 
 extension EmptyState where Actions == EmptyView {
-  public init(systemImage: String, title: String, message: String? = nil, status: WorkStatus = .idle) {
+  /// `title` may be left out for a plain loading state: `EmptyState(systemImage: "doc.text", status: .working)`.
+  public init(systemImage: String, title: String? = nil, message: String? = nil, status: WorkStatus = .idle) {
     self.init(systemImage: systemImage, title: title, message: message, status: status) { EmptyView() }
   }
 }

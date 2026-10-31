@@ -1602,6 +1602,35 @@ struct FeedbackPage: View {
           }
         }
       }
+      SpecimenSection(
+        "Loading and details",
+        note: "A plain loading state needs no title, and kitAppearDelay keeps a quick load from flashing it; a detail "
+          + "keeps its own size under the message."
+      ) {
+        SpecimenGrid(minWidth: 320) {
+          Specimen(
+            "Loading, only when slow", note: "No title: the live icon says it. A load quicker than the delay shows nothing.",
+            ground: .window,
+            code: "EmptyState(systemImage: \"doc.text\", status: .working)\n  .kitAppearDelay()   // 300 ms"
+          ) {
+            EmptyStateLoadingSample().frame(height: 240)
+          }
+          Specimen(
+            "With a detail", note: "Content at its own size under the message; the actions stay small.", ground: .window,
+            code: "EmptyState(systemImage: \"lock.shield\", title: \"Pairing\", message: \"…\", status: .working) {\n  KitSafetyCode(code, groupSize: 3, columns: 2)\n} actions: {\n  Button(\"Cancel\") { … }.buttonStyle(.kit)\n}"
+          ) {
+            EmptyState(
+              systemImage: "lock.shield", title: "Pairing with build-mac", message: "Check that it shows the same code.",
+              status: .working
+            ) {
+              KitSafetyCode("482913", groupSize: 3, columns: 2)
+            } actions: {
+              Button("Cancel") {}.buttonStyle(.kit)
+            }
+            .frame(height: 320)
+          }
+        }
+      }
       SpecimenSection("A toast with an action", note: "A follow-up beside Undo: Push after a commit, Publish after a release.") {
         Specimen(
           "Toast(…, action:)",
@@ -2026,3 +2055,38 @@ let sampleHostGroups = [
   SampleHostGroup(name: "atlas-db", sessions: ["psql"]),
   SampleHostGroup(name: "pebble", sessions: ["zsh", "logs", "deploy"]),
 ]
+
+/// A load that takes eight seconds or a tenth of one: the loading state shows for the slow one only.
+private struct EmptyStateLoadingSample: View {
+  @State private var load = 0
+  @State private var isLoading = true
+  @State private var isSlow = true
+
+  var body: some View {
+    VStack(spacing: 8) {
+      ZStack {
+        if isLoading {
+          EmptyState(systemImage: "doc.text", status: .working).kitAppearDelay()
+        } else {
+          Text(isSlow ? "Loaded in 8 s" : "Loaded in 0.1 s").kitFont(.callout)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+      }
+      HStack(spacing: 8) {
+        Button("Slow Load") { start(slow: true) }.buttonStyle(.kit)
+        Button("Quick Load") { start(slow: false) }.buttonStyle(.kit)
+      }
+      .controlSize(.small)
+    }
+    .task(id: load) {
+      try? await Task.sleep(for: isSlow ? .seconds(8) : .milliseconds(100))
+      withKitAnimation { isLoading = false }
+    }
+  }
+
+  private func start(slow: Bool) {
+    isSlow = slow
+    isLoading = true
+    load += 1
+  }
+}
