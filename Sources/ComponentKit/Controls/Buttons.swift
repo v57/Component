@@ -164,6 +164,40 @@ struct KitButtonLabelStyle: LabelStyle {
   }
 }
 
+extension LabelStyle where Self == KitTrailingIconLabelStyle {
+  /// The title, then the icon (small, semibold): a button that leaves the app, as "Continue on GitHub ↗".
+  public static var kitTrailingIcon: KitTrailingIconLabelStyle { KitTrailingIconLabelStyle() }
+}
+
+/// The title, then the icon, 6pt apart, the icon small and semibold as the kit's buttons draw it before the title:
+/// for a button that opens the browser or another app. Put it on the label; the button keeps its style.
+///
+/// ```swift
+/// Button { openGitHub() } label: {
+///   Label("Continue on GitHub", systemImage: "arrow.up.right").labelStyle(.kitTrailingIcon)
+/// }
+/// .buttonStyle(.kitPrimary)
+/// ```
+public struct KitTrailingIconLabelStyle: LabelStyle {
+  public init() {}
+
+  public func makeBody(configuration: Configuration) -> some View {
+    KitTrailingIconLabel(configuration: configuration)
+  }
+}
+
+private struct KitTrailingIconLabel: View {
+  let configuration: LabelStyleConfiguration
+  @Environment(\.kitIdiom) private var idiom
+
+  var body: some View {
+    HStack(spacing: 6 * idiom.scale) {
+      configuration.title
+      configuration.icon.imageScale(.small).fontWeight(.semibold)
+    }
+  }
+}
+
 #if os(tvOS)
   extension View {
     /// A kit button's focus on Apple TV: the hover effect, driven by the button's focus, growing 16% (the canvas's
