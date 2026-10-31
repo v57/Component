@@ -30,10 +30,7 @@ public struct FormCard<Content: View>: View {
   public var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       if let title {
-        Text(title)
-          .kitFont(.headline)
-          .padding(.horizontal, 12)
-          .accessibilityAddTraits(.isHeader)
+        FormHeading(title)
       }
       VStack(alignment: .leading, spacing: 0) { content }
         // Every row draws the hairline above it; the first row's falls under this 1pt mask.
@@ -51,6 +48,28 @@ public struct FormCard<Content: View>: View {
           .fixedSize(horizontal: false, vertical: true)
       }
     }
+  }
+}
+
+/// The title of a group of form rows, set as `FormCard`'s title is: a headline 12pt in from the card's edge. Put it
+/// over a group that isn't a `FormCard` (a grid of choice cards) so it lines up with the form's other titles.
+///
+/// ```swift
+/// VStack(alignment: .leading, spacing: 8) {
+///   FormHeading("Location")
+///   LazyVGrid(columns: columns, spacing: KitMetrics.gutter) { ChoiceCard(…) }
+/// }
+/// ```
+public struct FormHeading: View {
+  var title: String
+
+  public init(_ title: String) { self.title = title }
+
+  public var body: some View {
+    Text(title)
+      .kitFont(.headline)
+      .padding(.horizontal, 12)
+      .accessibilityAddTraits(.isHeader)
   }
 }
 
