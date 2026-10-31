@@ -183,6 +183,18 @@ public enum Hue: String, CaseIterable, Hashable, Sendable {
   /// A soft tinted ground (tiles, chips, banners): the hue at 15% (16% for chips).
   public func soft(_ amount: Double = 0.15) -> HueStyle { HueStyle(hue: self, role: .soft(amount)) }
 
+  /// The fill as a `Color`, resolved where it's drawn (`environment`: the scheme, the app's accent), for an API that
+  /// takes only a `Color` (a strikethrough's or underline's colour, a shadow, a gradient stop).
+  ///
+  /// ```swift
+  /// @Environment(\.self) private var environment
+  /// Text(name).strikethrough(isDeleted, color: Hue.red.color(in: environment))
+  /// ```
+  public func color(in environment: EnvironmentValues) -> Color { fill.resolve(in: environment) }
+
+  /// The text colour as a `Color`, resolved where it's drawn (see `color(in:)`).
+  public func textColor(in environment: EnvironmentValues) -> Color { text.resolve(in: environment) }
+
   var light: RGBA {
     switch self {
     case .accent, .blue: RGBA(0x007aff)
