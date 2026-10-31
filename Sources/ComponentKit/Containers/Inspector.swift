@@ -113,9 +113,18 @@ extension InspectorHeader where Tags == EmptyView {
 /// InspectorRow("created_at", value: "2026-10-08 19:26")
 /// InspectorRow("total") { Text("$128.00").kitFont(.mono) }
 /// ```
+///
+/// `.wraps()` lets a long value run over several lines instead of one cut line (a message, a nested object): the key
+/// stays at the top, at most 40% of the row, and the row is as tall as the value draws, at any width.
+///
+/// ```swift
+/// InspectorRow("summary", value: payload.summary).wraps()
+/// InspectorRow("result") { Text(describe(result)).kitFont(.monoSmall) }.wraps(alignment: .leading)
+/// ```
 public struct InspectorRow<Value: View>: View {
   var key: String
   var copyText: String?
+  var wrapAlignment: HorizontalAlignment?
   @ViewBuilder var value: Value
   @State private var isHovered = false
   @Environment(\.kitIdiom) private var idiom
@@ -127,18 +136,40 @@ public struct InspectorRow<Value: View>: View {
     self.value = value()
   }
 
+  /// Lets the value wrap over as many lines as it needs, `alignment` within its column (`.trailing`, as a one-line
+  /// value sits, or `.leading` for a block of text).
+  public func wraps(alignment: HorizontalAlignment = .trailing) -> Self {
+    var row = self
+    row.wrapAlignment = alignment
+    return row
+  }
+
   public var body: some View {
-    HStack(spacing: 8) {
-      Text(key)
-        .kitFont(.body)
-        .foregroundStyle(.kitSecondary)
-        .lineLimit(1)
-        .layoutPriority(1)
-      Spacer(minLength: 8)
-      value
-        .kitFont(.body)
-        .lineLimit(1)
-        .truncationMode(.middle)
+    HStack(alignment: wrapAlignment == nil ? .center : .top, spacing: 8) {
+      if let wrapAlignment {
+        ContKeyValueLayout(spacing: 12) {
+          Text(key)
+            .kitFont(.body)
+            .foregroundStyle(.kitSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+          value
+            .kitFont(.body)
+            .multilineTextAlignment(wrapAlignment == .leading ? .leading : wrapAlignment == .center ? .center : .trailing)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: Alignment(horizontal: wrapAlignment, vertical: .top))
+        }
+      } else {
+        Text(key)
+          .kitFont(.body)
+          .foregroundStyle(.kitSecondary)
+          .lineLimit(1)
+          .layoutPriority(1)
+        Spacer(minLength: 8)
+        value
+          .kitFont(.body)
+          .lineLimit(1)
+          .truncationMode(.middle)
+      }
       if let copyText, isHovered, !idiom.isTouch {
         Button {
           ContPlatform.copy(copyText)
@@ -167,6 +198,38 @@ public struct InspectorRow<Value: View>: View {
     .animation(.kitFast, value: isHovered)
     .modifier(InspectorCopyMenu(text: copyText))
     .accessibilityElement(children: .combine)
+  }
+}
+
+/// A key and its value side by side: the key as wide as it is (at most 40% of the width), the value wrapping in the
+/// rest. Each is measured at the width it is placed at, so the height asked for is the height drawn (a `Grid`
+/// reported less on a phone's width).
+struct ContKeyValueLayout: Layout {
+  var spacing: CGFloat
+
+  private func widths(_ width: CGFloat?, _ subviews: Subviews) -> (key: CGFloat, value: CGFloat) {
+    guard subviews.count == 2 else { return (0, width ?? 0) }
+    let ideal = subviews[0].sizeThatFits(.unspecified).width
+    guard let width else { return (ideal, subviews[1].sizeThatFits(.unspecified).width) }
+    let key = min(ideal, width * 0.4)
+    return (key, max(0, width - key - spacing))
+  }
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    guard subviews.count == 2 else { return .zero }
+    let (key, value) = widths(proposal.width, subviews)
+    let height = max(
+      subviews[0].sizeThatFits(ProposedViewSize(width: key, height: nil)).height,
+      subviews[1].sizeThatFits(ProposedViewSize(width: value, height: nil)).height)
+    return CGSize(width: proposal.width ?? key + spacing + value, height: height)
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    guard subviews.count == 2 else { return }
+    let (key, value) = widths(bounds.width, subviews)
+    subviews[0].place(at: bounds.origin, proposal: ProposedViewSize(width: key, height: nil))
+    subviews[1].place(
+      at: CGPoint(x: bounds.minX + key + spacing, y: bounds.minY), proposal: ProposedViewSize(width: value, height: nil))
   }
 }
 
