@@ -21,6 +21,14 @@ public enum KitMetrics {
   public static let radiusWindow: CGFloat = 16 * scale
   /// Sheets, popovers, palettes: concentric with a card 8pt inside (12 + 8).
   public static let radiusOverlay: CGFloat = 20 * scale
+  /// A capsule: ends rounded through the whole height, whatever it is (a floating bar above the keyboard, a pill).
+  /// Rounded rectangles clamp a radius to half their height.
+  ///
+  /// ```swift
+  /// HStack { formattingButtons }.padding(.horizontal, 12).frame(height: 52)
+  ///   .kitSurface(.floating, cornerRadius: KitMetrics.radiusCapsule)
+  /// ```
+  public static let radiusCapsule: CGFloat = 10_000
 
   /// The gutter between rounded shapes, and between them and the window edge: rounded views never touch.
   public static let gutter: CGFloat = 8 * scale

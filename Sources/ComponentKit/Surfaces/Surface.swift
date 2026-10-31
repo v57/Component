@@ -16,10 +16,12 @@ public enum Surface: Hashable, Sendable {
 }
 
 extension View {
-  /// Draws `surface` behind the view in a rounded rectangle (and casts its shadow).
+  /// Draws `surface` behind the view in a rounded rectangle (and casts its shadow); `KitMetrics.radiusCapsule` makes
+  /// it a capsule (a floating bar).
   ///
   /// ```swift
   /// VStack { … }.padding(6).kitSurface(.card)
+  /// HStack { tools }.padding(.horizontal, 12).frame(height: 52).kitSurface(.floating, cornerRadius: KitMetrics.radiusCapsule)
   /// ```
   public func kitSurface(_ surface: Surface, cornerRadius: CGFloat? = nil) -> some View {
     background { SurfaceShape(surface: surface, cornerRadius: cornerRadius ?? surface.defaultRadius) }

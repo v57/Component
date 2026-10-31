@@ -394,6 +394,22 @@ struct MetricsPage: View {
           }
         }
         CodeSnippet("RoundedRectangle(cornerRadius: KitMetrics.radiusCard, style: .continuous)")
+        Specimen(
+          "A floating bar: radiusCapsule", ground: .panel,
+          code: "HStack { tools }.padding(.horizontal, 12).frame(height: 52)\n  .kitSurface(.floating, cornerRadius: KitMetrics.radiusCapsule)"
+        ) {
+          HStack(spacing: 0) {
+            ForEach(["textformat", "checklist", "list.bullet", "tablecells", "link", "keyboard.chevron.compact.down"], id: \.self) { symbol in
+              Button(symbol, systemImage: symbol) {}
+            }
+          }
+          .buttonStyle(.kitToolIcon)
+          .labelStyle(.iconOnly)
+          .padding(.horizontal, 12)
+          .frame(height: 52)
+          .kitSurface(.floating, cornerRadius: KitMetrics.radiusCapsule)
+          .padding(KitMetrics.gutter)
+        }
       }
       SpecimenSection("Gutter", note: "8pt between rounded shapes and from the window edge; a card pads its content 6pt.") {
         HStack(spacing: KitMetrics.gutter) {
