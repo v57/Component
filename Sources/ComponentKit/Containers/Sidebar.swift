@@ -226,6 +226,9 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
         #endif
       }
     }
+    // The rows' tooltips over every card and stuck title (a row's own overlay sat under the next card and under its
+    // section's stuck title).
+    .modifier(ContTooltipHost())
     .background { Rectangle().fill(.kitSidebar).ignoresSafeArea() }
     #if os(macOS)
       // With its background, the system toolbar (an app's own items over the page) took every click in its row over

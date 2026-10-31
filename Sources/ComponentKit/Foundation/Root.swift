@@ -131,6 +131,9 @@ private struct ContColorScheme: ViewModifier {
 public enum KitLaunchOptions {
   /// `-KitAppearsActive YES`: every window draws as focused (see `kitAppearsActive`).
   public static let appearsActive = UserDefaults.standard.bool(forKey: "KitAppearsActive")
+  /// `-KitShowsTooltip <title>`: the `kitHelp` tooltip with that title shows as its view appears, without a pointer
+  /// over it (window captures, which can't hover).
+  public static let shownTooltip = UserDefaults.standard.string(forKey: "KitShowsTooltip")
 }
 
 struct ComponentKitRoot: ViewModifier {

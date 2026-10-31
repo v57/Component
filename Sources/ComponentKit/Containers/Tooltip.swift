@@ -11,7 +11,9 @@ extension View {
   ///   .kitHelp("Pull", shortcut: "⇧⌘P", meta: "1 behind origin/main", systemImage: "arrow.down")
   /// ```
   ///
-  /// It draws in the view's overlay, so put it on views whose container doesn't clip (a scroll view clips).
+  /// It draws in the view's overlay, so put it on views whose container doesn't clip (a scroll view clips). In a
+  /// `KitSidebar` the sidebar draws it, over every card and stuck title, kept inside the sidebar (above the row when
+  /// there's no room under it).
   public func kitHelp(
     _ title: String, shortcut: String? = nil, meta: String? = nil, systemImage: String? = nil,
     hue: Hue = .accent, status: WorkStatus = .idle
@@ -39,32 +41,49 @@ private struct ContHelpModifier: ViewModifier {
   let status: WorkStatus
   @State private var isShown = false
   @State private var pending: Task<Void, Never>?
+  @State private var id = UUID()
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.isEnabled) private var isEnabled
+  @Environment(\.contTooltipHost) private var hasHost
 
   func body(content: Content) -> some View {
     if idiom == .phone {
       content.help(title)
+    } else if hasHost {
+      content
+        .kitHover(perform: hover)
+        .simultaneousGesture(TapGesture().onEnded { hide() })
+        // Drawn by the container (`ContTooltipHost`), over every card and title.
+        .anchorPreference(key: ContTooltipKey.self, value: .bounds) { [isShown, card, id] bounds in
+          isShown ? [ContTooltip(id: id, card: card, anchor: bounds)] : []
+        }
+        .accessibilityHint([meta, shortcut].compactMap { $0 }.joined(separator: ", "))
+        .onAppear { if KitLaunchOptions.shownTooltip == title { isShown = true } }
+        .onDisappear { pending?.cancel() }
     } else {
       content
         .kitHover(perform: hover)
         .simultaneousGesture(TapGesture().onEnded { hide() })
         .overlay(alignment: .bottom) {
           if isShown {
-            ContTooltipCard(
-              title: title, shortcut: shortcut, meta: meta, systemImage: systemImage, hue: isEnabled ? hue : .gray,
-              status: status
-            )
-            .fixedSize()
-            .alignmentGuide(.bottom) { $0[.top] - 6 }
-            .allowsHitTesting(false)
-            .transition(.opacity)
+            card
+              .fixedSize()
+              .alignmentGuide(.bottom) { $0[.top] - ContTooltipHost.gap }
+              .allowsHitTesting(false)
+              .transition(.opacity)
           }
         }
         .zIndex(isShown ? 100 : 0)
         .accessibilityHint([meta, shortcut].compactMap { $0 }.joined(separator: ", "))
+        .onAppear { if KitLaunchOptions.shownTooltip == title { isShown = true } }
         .onDisappear { pending?.cancel() }
     }
+  }
+
+  private var card: ContTooltipCard {
+    ContTooltipCard(
+      title: title, shortcut: shortcut, meta: meta, systemImage: systemImage, hue: isEnabled ? hue : .gray,
+      status: status)
   }
 
   private func hover(_ inside: Bool) {
@@ -88,6 +107,69 @@ private struct ContHelpModifier: ViewModifier {
     pending?.cancel()
     if isShown { ContTooltipClock.lastHidden = Date() }
     withAnimation(.kitFast) { isShown = false }
+  }
+}
+
+/// A shown tooltip on its way to its container: its card and the view it explains.
+struct ContTooltip: Identifiable {
+  let id: UUID
+  let card: ContTooltipCard
+  let anchor: Anchor<CGRect>
+}
+
+struct ContTooltipKey: PreferenceKey {
+  static let defaultValue: [ContTooltip] = []
+  static func reduce(value: inout [ContTooltip], nextValue: () -> [ContTooltip]) { value += nextValue() }
+}
+
+extension EnvironmentValues {
+  /// Inside a container that draws its tooltips over itself (`ContTooltipHost`).
+  @Entry var contTooltipHost = false
+}
+
+/// A container's tooltips (`kitHelp`), drawn over everything in it: each under the view it explains, centred on it and
+/// kept 8pt inside the container's edges (no wider than it), or above the view when there's no room under it. Only where the views stay
+/// in one hosting view: a system toolbar item's preferences never reach the window's root, so the root draws none.
+struct ContTooltipHost: ViewModifier {
+  static let gap: CGFloat = 6
+
+  func body(content: Content) -> some View {
+    content
+      .environment(\.contTooltipHost, true)
+      .overlayPreferenceValue(ContTooltipKey.self, alignment: .topLeading) { tooltips in
+        GeometryReader { proxy in
+          ForEach(tooltips) { tooltip in
+            ContTooltipPlacement(anchor: proxy[tooltip.anchor]) { tooltip.card }
+              .allowsHitTesting(false)
+              .transition(.opacity)
+          }
+        }
+      }
+      .transformPreference(ContTooltipKey.self) { $0 = [] }
+  }
+}
+
+/// Lays a tooltip's card out at its own size under (or over) the view it explains, inside the proposed bounds.
+private struct ContTooltipPlacement: Layout {
+  let anchor: CGRect
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    proposal.replacingUnspecifiedDimensions()
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    guard let card = subviews.first else { return }
+    let gutter = KitMetrics.gutter
+    // At its own width while that fits, else as wide as the container allows (its lines wrap): the container may
+    // clip what reaches past it (a split view's sidebar column does).
+    let ideal = card.sizeThatFits(.unspecified)
+    let room = max(0, bounds.width - 2 * gutter)
+    let size = ideal.width <= room ? ideal : card.sizeThatFits(ProposedViewSize(width: room, height: nil))
+    let x = min(max(anchor.midX - size.width / 2, gutter), max(gutter, bounds.width - gutter - size.width))
+    let below = anchor.maxY + ContTooltipHost.gap
+    let y = below + size.height <= bounds.height - gutter || anchor.minY - ContTooltipHost.gap - size.height < gutter
+      ? below : anchor.minY - ContTooltipHost.gap - size.height
+    card.place(at: CGPoint(x: bounds.minX + x, y: bounds.minY + y), proposal: ProposedViewSize(size))
   }
 }
 
