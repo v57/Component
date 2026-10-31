@@ -447,3 +447,30 @@ struct ProgressEstimateSpecimens: View {
     }
   }
 }
+
+// MARK: - A live graph (Meters page)
+
+struct LiveGraphSpecimens: View {
+  private let cpu: [Double] = (0..<240).map { index in
+    let wave = sin(Double(index) / 9) * 18 + sin(Double(index) / 3.7) * 6
+    return min(100, max(0, 38 + wave + Double((index * 37) % 11)))
+  }
+
+  var body: some View {
+    SpecimenSection(
+      "A live graph",
+      note: "KitSparkline with a fixed range, a window of slots filling from the right, and the scale on the trailing edge."
+    ) {
+      Specimen(
+        "KitSparkline(range:capacity:axisLabel:)",
+        code: "KitSparkline(values: cpu, hue: .blue, range: 0...100, capacity: 600) { \"\\(Int($0))%\" }.frame(height: 140)"
+      ) {
+        VStack(alignment: .leading, spacing: 14) {
+          KitSparkline(values: cpu, hue: .blue, range: 0...100, capacity: 600) { "\(Int($0))%" }.frame(height: 140)
+          KitSparkline(values: cpu.suffix(60).map { $0 * 1.8 }, hue: .orange, capacity: 60) { "\(Int($0)) MB/s" }
+            .frame(height: 80)
+        }
+      }
+    }
+  }
+}

@@ -86,18 +86,61 @@ public struct KitStatCard: View {
 /// ```swift
 /// KitSparkline(values: [3, 5, 4, 8, 7, 9], hue: .purple).frame(height: 30)
 /// ```
+///
+/// For a live graph, `range` fixes the scale (a percentage's 0…100), `capacity` keeps a fixed number of slots with the
+/// newest value at the right edge (a ten-minute window filling from the right), and `axisLabel` writes the scale's
+/// top, middle and bottom on the trailing edge, with a hairline across at each.
+///
+/// ```swift
+/// KitSparkline(values: cpu, hue: .blue, range: 0...100, capacity: 600) { "\(Int($0))%" }.frame(height: 140)
+/// ```
 public struct KitSparkline: View {
   var values: [Double]
   var hue: Hue
+  var range: ClosedRange<Double>?
+  var capacity: Int?
+  var axisLabel: ((Double) -> String)?
 
-  public init(values: [Double], hue: Hue = .accent) {
+  public init(
+    values: [Double], hue: Hue = .accent, range: ClosedRange<Double>? = nil, capacity: Int? = nil,
+    axisLabel: ((Double) -> String)? = nil
+  ) {
     self.values = values
     self.hue = hue
+    self.range = range
+    self.capacity = capacity
+    self.axisLabel = axisLabel
   }
 
   public var body: some View {
+    if let axisLabel {
+      let scale = Self.scale(values, range: range)
+      HStack(alignment: .center, spacing: 6) {
+        chart
+          .background {
+            VStack(spacing: 0) {
+              ForEach(0..<3) { index in
+                if index > 0 { Spacer(minLength: 0) }
+                Rectangle().fill(.kitSeparator).frame(height: 1)
+              }
+            }
+          }
+        VStack(alignment: .trailing, spacing: 0) {
+          let marks = [scale.upperBound, (scale.lowerBound + scale.upperBound) / 2, scale.lowerBound]
+          ForEach(0..<3) { index in
+            if index > 0 { Spacer(minLength: 0) }
+            Text(axisLabel(marks[index])).kitFont(.monoSmall).foregroundStyle(.kitTertiary).fixedSize()
+          }
+        }
+      }
+    } else {
+      chart
+    }
+  }
+
+  private var chart: some View {
     GeometryReader { proxy in
-      let points = Self.points(values, in: proxy.size)
+      let points = Self.points(values, in: proxy.size, range: range, capacity: capacity)
       ZStack {
         Path { path in
           guard let first = points.first, let last = points.last else { return }
@@ -118,14 +161,28 @@ public struct KitSparkline: View {
     .accessibilityHidden(true)
   }
 
-  static func points(_ values: [Double], in size: CGSize) -> [CGPoint] {
-    guard values.count > 1, let low = values.min(), let high = values.max() else { return [] }
-    let range = high - low
-    let step = size.width / CGFloat(values.count - 1)
+  /// The values' scale: `range`, or their own lowest to highest.
+  static func scale(_ values: [Double], range: ClosedRange<Double>?) -> ClosedRange<Double> {
+    if let range { return range }
+    guard let low = values.min(), let high = values.max() else { return 0...1 }
+    return low...high
+  }
+
+  static func points(
+    _ values: [Double], in size: CGSize, range: ClosedRange<Double>? = nil, capacity: Int? = nil
+  ) -> [CGPoint] {
+    let values = capacity.map { Array(values.suffix(max($0, 2))) } ?? values
+    guard values.count > 1 else { return [] }
+    let scale = Self.scale(values, range: range)
+    let span = scale.upperBound - scale.lowerBound
+    let slots = max(capacity ?? values.count, values.count)
+    let step = size.width / CGFloat(slots - 1)
+    // With a capacity the newest value sits at the right edge and the window fills from the right.
+    let start = slots - values.count
     return values.enumerated().map { index, value in
-      let y = range > 0 ? (value - low) / range : 0.5
+      let y = span > 0 ? min(max((value - scale.lowerBound) / span, 0), 1) : 0.5
       // A pixel of room at the top and bottom keeps the stroke whole
-      return CGPoint(x: CGFloat(index) * step, y: 1 + (size.height - 2) * (1 - y))
+      return CGPoint(x: CGFloat(start + index) * step, y: 1 + (size.height - 2) * (1 - y))
     }
   }
 }

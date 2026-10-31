@@ -997,6 +997,7 @@ struct MetersPage: View {
           .scrollIndicators(.never)
         }
       }
+      LiveGraphSpecimens()
     }
   }
 }
