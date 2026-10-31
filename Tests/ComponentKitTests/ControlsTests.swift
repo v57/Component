@@ -5,24 +5,24 @@ import Testing
 
 @Test func flowWrapsBeforeTheItemThatWouldOverflow() {
   let sizes = [CGSize(width: 40, height: 24), CGSize(width: 40, height: 24), CGSize(width: 40, height: 20)]
-  let frames = CtlFlow.frames(sizes, maxWidth: 90, spacing: 2, lineSpacing: 6)
+  let frames = KitFlow.frames(sizes, maxWidth: 90, spacing: 2, lineSpacing: 6)
   #expect(frames[0] == CGRect(x: 0, y: 0, width: 40, height: 24))
   #expect(frames[1] == CGRect(x: 42, y: 0, width: 40, height: 24))
   // 42 + 40 + 2 + 40 = 124 > 90: the third item starts a line, centred on its own height.
   #expect(frames[2] == CGRect(x: 0, y: 30, width: 40, height: 20))
-  #expect(CtlFlow.size(of: frames) == CGSize(width: 82, height: 50))
+  #expect(KitFlow.size(of: frames) == CGSize(width: 82, height: 50))
 }
 
 @Test func flowKeepsOneLineWithoutAWidthAndCentresShortItems() {
   let sizes = [CGSize(width: 30, height: 20), CGSize(width: 50, height: 10)]
-  let frames = CtlFlow.frames(sizes, maxWidth: nil, spacing: 14, lineSpacing: 6)
+  let frames = KitFlow.frames(sizes, maxWidth: nil, spacing: 14, lineSpacing: 6)
   #expect(frames[1] == CGRect(x: 44, y: 5, width: 50, height: 10))
-  #expect(CtlFlow.frames([], maxWidth: 100, spacing: 2, lineSpacing: 2).isEmpty)
+  #expect(KitFlow.frames([], maxWidth: 100, spacing: 2, lineSpacing: 2).isEmpty)
 }
 
 @Test func flowNeverLeavesAWideItemAlone() {
   // An item wider than the line still goes on the first line rather than leaving an empty one.
-  let frames = CtlFlow.frames([CGSize(width: 120, height: 10)], maxWidth: 100, spacing: 2, lineSpacing: 2)
+  let frames = KitFlow.frames([CGSize(width: 120, height: 10)], maxWidth: 100, spacing: 2, lineSpacing: 2)
   #expect(frames[0].origin == .zero)
 }
 

@@ -135,15 +135,15 @@ import Testing
 
 @Test func flowWrapsWhenTheNextItemDoesNotFit() {
   let sizes = [CGSize(width: 60, height: 20), CGSize(width: 60, height: 24), CGSize(width: 60, height: 20)]
-  let frames = ContFlow.frames(sizes, maxWidth: 130, spacing: 6, lineSpacing: 4)
+  let frames = KitFlow.frames(sizes, maxWidth: 130, spacing: 6, lineSpacing: 4)
   #expect(frames[0].origin == CGPoint(x: 0, y: 2))
   #expect(frames[1].origin == CGPoint(x: 66, y: 0))
   #expect(frames[2].origin == CGPoint(x: 0, y: 28))
-  #expect(ContFlow.size(of: frames) == CGSize(width: 126, height: 48))
+  #expect(KitFlow.size(of: frames) == CGSize(width: 126, height: 48))
 }
 
 @Test func flowGivesAnOversizedItemItsOwnLine() {
-  let frames = ContFlow.frames(
+  let frames = KitFlow.frames(
     [CGSize(width: 200, height: 10), CGSize(width: 20, height: 10)], maxWidth: 100, spacing: 4, lineSpacing: 4)
   #expect(frames[0].origin == .zero)
   #expect(frames[1].origin == CGPoint(x: 0, y: 14))

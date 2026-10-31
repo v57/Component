@@ -390,6 +390,7 @@ struct MetricsPage: View {
           widthBar("inspectorWidth", KitMetrics.inspectorWidth)
         }
       }
+      FlowLayoutSpecimens()
     }
   }
 

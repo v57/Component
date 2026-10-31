@@ -51,67 +51,6 @@ enum ContMetrics {
   static let ringWidth: CGFloat = 2
 }
 
-// MARK: - Flow layout
-
-/// Lays its views out in lines, wrapping when the next one doesn't fit (tags, action bars).
-struct ContFlowLayout: Layout {
-  var spacing: CGFloat = 6
-  var lineSpacing: CGFloat = 6
-
-  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-    let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
-    return ContFlow.size(of: ContFlow.frames(sizes, maxWidth: proposal.width, spacing: spacing, lineSpacing: lineSpacing))
-  }
-
-  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-    let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
-    let frames = ContFlow.frames(sizes, maxWidth: bounds.width, spacing: spacing, lineSpacing: lineSpacing)
-    for (subview, frame) in zip(subviews, frames) {
-      subview.place(
-        at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY), anchor: .topLeading,
-        proposal: ProposedViewSize(frame.size))
-    }
-  }
-}
-
-/// The flow layout's math, apart from views so it can be tested.
-enum ContFlow {
-  /// Frames for `sizes` in lines no wider than `maxWidth` (`nil`: one line). Each line is as tall as its tallest
-  /// item, and items in a line are centred on it. An item wider than the line gets a line of its own.
-  static func frames(_ sizes: [CGSize], maxWidth: CGFloat?, spacing: CGFloat, lineSpacing: CGFloat) -> [CGRect] {
-    let limit = maxWidth ?? .infinity
-    var frames: [CGRect] = []
-    var lineStart = 0
-    var x: CGFloat = 0
-    var y: CGFloat = 0
-    var lineHeight: CGFloat = 0
-
-    func closeLine(upTo end: Int) {
-      for i in lineStart..<end { frames[i].origin.y = y + (lineHeight - frames[i].height) / 2 }
-    }
-
-    for (i, size) in sizes.enumerated() {
-      if i > lineStart, x + spacing + size.width > limit {
-        closeLine(upTo: i)
-        y += lineHeight + lineSpacing
-        x = 0
-        lineHeight = 0
-        lineStart = i
-      }
-      let originX = i == lineStart ? 0 : x + spacing
-      frames.append(CGRect(origin: CGPoint(x: originX, y: y), size: size))
-      x = originX + size.width
-      lineHeight = max(lineHeight, size.height)
-    }
-    closeLine(upTo: sizes.count)
-    return frames
-  }
-
-  static func size(of frames: [CGRect]) -> CGSize {
-    frames.reduce(.zero) { CGSize(width: max($0.width, $1.maxX), height: max($0.height, $1.maxY)) }
-  }
-}
-
 // MARK: - Bars the content scrolls under
 
 extension EnvironmentValues {

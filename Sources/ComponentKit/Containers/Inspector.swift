@@ -84,7 +84,7 @@ public struct InspectorHeader<Tags: View>: View {
           MetaLine(meta).kitFont(.caption).lineLimit(2)
         }
         if Tags.self != EmptyView.self {
-          ContFlowLayout(spacing: 6, lineSpacing: 6) { tags }
+          KitFlowLayout(spacing: 6, lineSpacing: 6) { tags }
             .padding(.top, 4)
         }
       }
@@ -213,7 +213,7 @@ public struct ActionBar<Content: View>: View {
 
   public var body: some View {
     ContBarCard(labeled: true) {
-      ContFlowLayout(spacing: 2, lineSpacing: 2) {
+      KitFlowLayout(spacing: 2, lineSpacing: 2) {
         if iconOnly {
           content.labelStyle(.iconOnly)
         } else {

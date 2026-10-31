@@ -162,7 +162,7 @@ public struct KeyHints: View {
   }
 
   public var body: some View {
-    CtlFlowLayout(spacing: 14, lineSpacing: 6) {
+    KitFlowLayout(spacing: 14, lineSpacing: 6) {
       ForEach(Array(hints.enumerated()), id: \.offset) { _, hint in
         HStack(spacing: 5) {
           Keycaps(hint.keys)

@@ -164,3 +164,23 @@ struct HexColourSpecimens: View {
     }
   }
 }
+
+// MARK: - Flow layout (Metrics page)
+
+struct FlowLayoutSpecimens: View {
+  var body: some View {
+    SpecimenSection("Flow", note: "KitFlowLayout wraps views into lines; each line leading, centred or trailing in the width.") {
+      SpecimenGrid(minWidth: 300) {
+        ForEach([("leading", HorizontalAlignment.leading), ("center", .center), ("trailing", .trailing)], id: \.0) { name, alignment in
+          Specimen(".\(name)", code: "KitFlowLayout(spacing: 6, alignment: .\(name)) { ForEach(tags) { Chip($0) } }") {
+            KitFlowLayout(spacing: 6, alignment: alignment) {
+              ForEach(["swift", "ios", "macos", "networking", "ssh", "ui", "design system", "tvOS"], id: \.self) { tag in
+                Chip(tag)
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
