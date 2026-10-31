@@ -9,7 +9,8 @@ extension View {
   /// buttons (close it from inside with `@Environment(\.kitDismiss)` or the binding). On the Mac its first field takes
   /// focus and Tab stays in it, and the window behind waits, as under a kit sheet. On iPhone, where there's no room
   /// beside a view, it is a kit sheet in the middle of the screen. The content sizes the card: give it a width when
-  /// it wraps text, and a `ScrollView` when it can run long (the card is never taller than the room it has).
+  /// it wraps text, and a `ScrollView` when it can run long (the card is never taller than the room it has). On a tool
+  /// in a `kitToolbar` slot it opens once, under the tool you see (the bar's hidden measuring copies don't present).
   ///
   /// ```swift
   /// Button("Add Filter", systemImage: "plus") { addingFilter = true }
@@ -40,9 +41,13 @@ struct KitPopoverPresenter<Popover: View>: ViewModifier {
   @State private var anchor = ContPopoverAnchor()
   @Environment(\.kitOverlayHost) private var host
   @Environment(\.kitIdiom) private var idiom
+  @Environment(\.contMeasuringCopy) private var isMeasuringCopy
 
   func body(content: Content) -> some View {
-    if host == nil {
+    if isMeasuringCopy {
+      // A kit toolbar's hidden copy of its tools: the popover anchors to the visible tool alone.
+      content
+    } else if host == nil {
       // Outside `componentKit()`: the system's popover.
       content.popover(isPresented: $isPresented, arrowEdge: edge == .bottom ? .bottom : .top) { popover() }
     } else {

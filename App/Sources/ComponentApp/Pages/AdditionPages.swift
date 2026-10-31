@@ -282,8 +282,52 @@ struct SidebarAdditionSections: View {
 
 struct ToolbarAdditionSections: View {
   @State private var isOn = true
+  @State private var showsFilter = catalogOpenSheet == "toolbar-popover"
+  @State private var filter = "status = open"
 
   var body: some View {
+    SpecimenSection(
+      "A popover from a tool",
+      note: "A tool's kitPopover opens one card under the tool you see, though the bar measures hidden copies of its "
+        + "tools to choose its form (`--open-sheet toolbar-popover`)."
+    ) {
+      Specimen(
+        "kitPopover in a ToolbarSlot", ground: .window,
+        code: """
+          .kitToolbar("Issues", systemImage: "exclamationmark.bubble") {
+            ToolbarSlot(priority: 1) {
+              ToolGroup { Button("Filter", systemImage: "line.3.horizontal.decrease") { showsFilter = true } }
+                .kitPopover(isPresented: $showsFilter) { FilterForm().frame(width: 260) }
+            } menu: { Button("Filter…", systemImage: "line.3.horizontal.decrease") { showsFilter = true } }
+          }
+          """
+      ) {
+        KitToolbar("Issues", meta: ["12 open"], systemImage: "exclamationmark.bubble") {
+          ToolbarSlot(priority: 1) {
+            ToolGroup {
+              Button("Filter", systemImage: "line.3.horizontal.decrease") { showsFilter = true }
+                .kitToolOn(showsFilter)
+            }
+            .kitPopover(isPresented: $showsFilter) {
+              VStack(alignment: .leading, spacing: 10) {
+                Text("Filter").kitFont(.headline)
+                TextField("status = open", text: $filter).kitField()
+              }
+              .padding(14)
+              .frame(width: 260)
+            }
+          } menu: {
+            Button("Filter…", systemImage: "line.3.horizontal.decrease") { showsFilter = true }
+          }
+          Button("New Issue", systemImage: "plus") {}.buttonStyle(.kitPrimary)
+        }
+        .background(Hue.accent.soft(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        #if DEBUG && os(macOS)
+          // `--overlay-test <report>`: counts the cards the tool opened.
+          let _ = OverlayTest.runIfAsked()
+        #endif
+      }
+    }
     SpecimenSection(
       "Only while on",
       note: "A column whose page sometimes brings its own toolbar takes the kit's only while it doesn't; the Show "

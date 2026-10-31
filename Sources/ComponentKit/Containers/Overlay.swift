@@ -382,13 +382,17 @@ struct KitOverlayPresenter<Overlay: View>: ViewModifier {
   var identity: AnyHashable? = nil
   var content: () -> Overlay
   @Environment(\.kitOverlayHost) private var host
+  @Environment(\.contMeasuringCopy) private var isMeasuringCopy
   @Environment(\.self) private var environment
   @State private var id = UUID()
   @State private var overlay = KitOverlayContent()
 
   func body(content view: Content) -> some View {
-    // Outside `componentKit()` there is no host: the system's sheet.
-    if host == nil {
+    if isMeasuringCopy {
+      // A hidden copy for measuring (a kit toolbar's tools): the visible one presents.
+      view
+    } else if host == nil {
+      // Outside `componentKit()` there is no host: the system's sheet.
       view.sheet(isPresented: $isPresented, onDismiss: onDismiss) {
         content()
           .environment(\.kitDismiss, dismissAction)

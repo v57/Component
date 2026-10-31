@@ -954,10 +954,21 @@ struct KitMenuPresenter<MenuContent: View>: ViewModifier {
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @Environment(\.locale) private var locale
   @Environment(\.isEnabled) private var isEnabled
+  @Environment(\.contMeasuringCopy) private var isMeasuringCopy
 
   private var isPresented: Binding<Bool> { binding ?? $ownIsOpen }
 
   func body(content: Content) -> some View {
+    if isMeasuringCopy {
+      // A kit toolbar's hidden copy of its tools: a menu bound to the app's state opens from the visible tool alone.
+      content
+    } else {
+      presenting(content)
+    }
+  }
+
+  @ViewBuilder
+  private func presenting(_ content: Content) -> some View {
     #if canImport(AppKit)
       if kind == .context {
         // On the Mac the anchor of a context menu is also the view over it that takes secondary clicks: one view

@@ -476,6 +476,9 @@ extension EnvironmentValues {
   @Entry var contShowSidebar: ContShowSidebarAction? = nil
   /// Whether the Mac window is in full screen, where the system toolbar is hidden and the traffic lights are away.
   @Entry var contFullScreen = false
+  /// A hidden copy of views laid out only to be measured (the kit toolbar's forms): overlays and menus bound to the
+  /// same state don't present from it, so the visible copy presents once.
+  @Entry var contMeasuringCopy = false
 }
 
 // MARK: - Layout
@@ -568,6 +571,8 @@ private struct ContToolbarTools: View {
         .hidden()
         .accessibilityHidden(true)
         .allowsHitTesting(false)
+        // A tool's popover, sheet or menu presents from the visible tools only, not from every hidden copy.
+        .environment(\.contMeasuringCopy, true)
       }
   }
 }
