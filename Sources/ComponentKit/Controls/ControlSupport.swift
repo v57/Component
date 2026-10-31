@@ -67,6 +67,33 @@ extension View {
   }
 }
 
+extension View {
+  /// The ring a picked card wears, as a picked `ChoiceCard` does: 2pt just outside the card's corners, the accent (or
+  /// `hue`) at half strength, solid under Increase Contrast; it fades in and out. For selectable cards of your own (a
+  /// pipeline's step, a document's card). `cornerRadius` is the card's own; `nil` takes the kit's card radius for the
+  /// idiom.
+  ///
+  /// ```swift
+  /// StepCard(step)
+  ///   .kitSurface(.card)
+  ///   .kitSelectedRing(step.id == selection)
+  /// ```
+  public func kitSelectedRing(_ isSelected: Bool, hue: Hue = .accent, cornerRadius: CGFloat? = nil) -> some View {
+    modifier(CtlSelectedRing(isSelected: isSelected, hue: hue, cornerRadius: cornerRadius))
+  }
+}
+
+private struct CtlSelectedRing: ViewModifier {
+  let isSelected: Bool
+  let hue: Hue
+  let cornerRadius: CGFloat?
+  @Environment(\.kitIdiom) private var idiom
+
+  func body(content: Content) -> some View {
+    content.ctlFieldRing(isSelected, hue: hue, cornerRadius: cornerRadius ?? ContMetrics.cardRadius(idiom))
+  }
+}
+
 struct CtlFieldRing: View {
   var isOn: Bool
   var hue: Hue
