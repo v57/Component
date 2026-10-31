@@ -9,6 +9,9 @@ import SwiftUI
 /// action the whole row is a button that washes on hover and press. At `.controlSize(.small)` the row is the dense
 /// 28pt line of a list in a card.
 ///
+/// For VoiceOver the title and its help read as one element and the controls at the end stay elements of their own,
+/// with their identifiers (UI tests reach them); a row with an action is one button.
+///
 /// ```swift
 /// FormCard("Pipeline settings") {
 ///   GroupRow("Big sorts use disk") { Toggle("Big sorts use disk", isOn: $disk).toggleStyle(.kitSwitch).kitLabelsHidden() }
@@ -52,12 +55,14 @@ public struct GroupRow<Label: View, Trailing: View>: View {
       Rectangle().fill(.kitSeparator).frame(height: 0.5)
     }
     .opacity(isEnabled ? 1 : 0.5)
-    .accessibilityElement(children: .combine)
+    // A row that is a button reads as one; otherwise the label reads as one and the controls stay reachable.
+    .accessibilityElement(children: action == nil ? .contain : .combine)
   }
 
   private var row: some View {
     HStack(spacing: 10) {
       label
+        .accessibilityElement(children: .combine)
         .frame(maxWidth: .infinity, alignment: .leading)
       trailing
     }
