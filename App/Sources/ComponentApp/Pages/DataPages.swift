@@ -781,14 +781,18 @@ struct SettingsPage: View {
           }
           CodeSnippet(
             """
+            // Every Mac app's Settings: the kit clears the title bar, the sidebar runs up under the window's
+            // buttons and the pane's title sits beside them (the catalog's own ⌘, window).
             Settings {
-              KitSettings(selection: $pane, window: .titled) { … }.componentKit()
+              KitSettings(selection: $pane, window: .hiddenTitleBar) { … }
+                .frame(width: 640, height: 480)   // the window adds the 32pt title bar
+                .componentKit()
             }
+            .windowStyle(.hiddenTitleBar)
 
             Settings {
-              KitSettings(selection: $pane, window: .hiddenTitleBar) { … }.componentKit()
+              KitSettings(selection: $pane, window: .titled) { … }.componentKit()   // the system's title bar
             }
-            .windowStyle(.hiddenTitleBar)   // the sidebar runs up under the window's buttons
             """)
         }
       }

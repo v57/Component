@@ -19,12 +19,24 @@ public struct ComponentApp: App {
         .frame(width: model.windowWidth, height: model.windowWidth.map { _ in 700 })
         // `--hitch-test <report>` (DEBUG): walks and scrolls every page, writing its hitches (`HitchTest.swift`).
         .hitchTest(model)
+        #if os(macOS)
+          .modifier(OpenSettingsAtLaunch())
+        #endif
     }
     #if !os(tvOS)
     .defaultSize(width: 1320, height: 900)
     .commands { CatalogCommands(model: model) }
     // A fixed width (`--width`) sizes the window to it.
     .windowResizability(model.windowWidth == nil ? .automatic : .contentSize)
+    #endif
+    #if os(macOS)
+    // The standard Settings window of a v57 app: the kit clears the title bar (`KitSettings(window: .hiddenTitleBar)`).
+    Settings {
+      CatalogSettingsWindow()
+        .kitColorScheme(model.appearance.colorScheme)
+        .componentKit(accent: model.accent.color)
+    }
+    .windowStyle(.hiddenTitleBar)
     #endif
   }
 }

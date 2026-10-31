@@ -27,9 +27,19 @@ public struct KitSettings<Content: View>: View {
 
   /// Settings with the panes in `content`; `window` says what the window around them looks like (on the Mac).
   ///
+  /// Every Mac app's Settings window is one setup: `window: .hiddenTitleBar`, a fixed size, and the scene's
+  /// `.windowStyle(.hiddenTitleBar)`. The kit clears the system title and bar itself, so the sidebar runs up under
+  /// the window's buttons and the pane's title sits beside them, with no workaround in the app.
+  ///
   /// ```swift
+  /// Settings {
+  ///   KitSettings(selection: $pane, window: .hiddenTitleBar) { … }
+  ///     .frame(width: 640, height: 520)
+  ///     .componentKit()
+  /// }
+  /// .windowStyle(.hiddenTitleBar)
+  ///
   /// Settings { SettingsView().componentKit() }                                         // KitSettings(…, window: .titled)
-  /// Settings { SettingsView().componentKit() }.windowStyle(.hiddenTitleBar)            // KitSettings(…, window: .hiddenTitleBar)
   /// ```
   public init(
     selection: Binding<String>, window: KitSettingsWindow = .framed, @ViewBuilder content: () -> Content
@@ -60,18 +70,32 @@ public struct KitSettings<Content: View>: View {
         phoneList
           .background { ZStack { content }.hidden().accessibilityHidden(true) }
           .modifier(SettingsPush(isPresented: $showsPane) { phonePane })
-      } else {
-        HStack(spacing: 0) {
-          sidebar.frame(width: idiom.size(190, touch: 260))
-          detail
+      } else if isUnderTitleBar {
+        // The reader stays in the safe area, so it sees the title bar's height; the columns run up under it.
+        GeometryReader { proxy in
+          columns(titleBar: proxy.safeAreaInsets.top)
+            .ignoresSafeArea(.container, edges: .top)
         }
+      } else {
+        columns(titleBar: nil)
       }
     }
     .environment(\.dataSettingsSelection, current?.id ?? "")
     .onPreferenceChange(SettingsPanesKey.self) { value in
       MainActor.assumeIsolated { panes = value }
     }
-    .modifier(SettingsUnderTitleBar(isOn: window == .hiddenTitleBar && idiom == .mac))
+    .modifier(SettingsTitleBarCleared(isOn: isUnderTitleBar))
+  }
+
+  /// The settings run up under the window's (hidden) title bar.
+  private var isUnderTitleBar: Bool { window == .hiddenTitleBar && idiom == .mac }
+
+  /// The sidebar and the selected pane; `titleBar` is the height of the title bar they run under, when they do.
+  private func columns(titleBar: CGFloat?) -> some View {
+    HStack(spacing: 0) {
+      sidebar.frame(width: idiom.size(190, touch: 260))
+      detail(titleBar: titleBar)
+    }
   }
 
   // MARK: Sidebar
@@ -159,15 +183,19 @@ public struct KitSettings<Content: View>: View {
 
   // MARK: Detail
 
-  private var detail: some View {
-    VStack(alignment: .leading, spacing: 0) {
+  /// The pane under its title. Under a title bar the title is centred on the window's buttons (a Settings window's
+  /// bar is 32pt, a window with a toolbar 52); the row keeps its height, so the panes start where they always do.
+  private func detail(titleBar: CGFloat?) -> some View {
+    let titleLine = titleBar.map { $0 > 0 ? min($0, titleHeight) : titleHeight } ?? titleHeight
+    return VStack(alignment: .leading, spacing: 0) {
       HStack(spacing: 8) {
         Text(current?.title ?? "")
           .kitFont(.headline)
           .contentTransition(.opacity)
       }
       .padding(.horizontal, 24)
-      .frame(height: titleHeight, alignment: .center)
+      .frame(height: titleLine, alignment: .center)
+      .frame(height: titleHeight, alignment: .top)
       ZStack(alignment: .topLeading) { content }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -182,20 +210,28 @@ public enum KitSettingsWindow: Hashable, Sendable {
   /// a window whose content already runs under its title bar.
   case framed
   /// A window with a hidden title bar (`.windowStyle(.hiddenTitleBar)`, a Settings scene too): the kit runs its
-  /// sidebar and title row up under the window's buttons itself, no offset needed.
+  /// sidebar and title row up under the window's buttons itself, no offset needed, and takes the system title and
+  /// the bar's background out (a Settings scene keeps both whatever its style). The standard Settings window.
   case hiddenTitleBar
   /// A standard titled window (a plain `Settings` scene): the content starts under the title bar, so the sidebar
   /// starts 8pt down and the pane's title row is 40pt.
   case titled
 }
 
-/// Lets the settings run up under a hidden title bar.
-private struct SettingsUnderTitleBar: ViewModifier {
+/// Clears the title bar the settings run up under. A `Settings` scene keeps its title bar whatever its window style
+/// (the system title over an opaque bar), so the kit clears it itself: no system title (the window keeps it for the
+/// Window menu) and no bar background, so the sidebar and the pane's title show under the window's buttons. macOS 14
+/// hides the window's title and the toolbar's background instead.
+private struct SettingsTitleBarCleared: ViewModifier {
   let isOn: Bool
 
   func body(content: Content) -> some View {
     if isOn {
-      content.ignoresSafeArea(.container, edges: .top)
+      content
+        #if os(macOS)
+          .kitHidesSystemTitle()
+          .modifier(ContToolbarBackgroundHidden())
+        #endif
     } else {
       content
     }
