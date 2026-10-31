@@ -382,6 +382,7 @@ struct AvatarsPage: View {
           }
         }
       }
+      PictureAvatarSpecimens()
     }
   }
 }

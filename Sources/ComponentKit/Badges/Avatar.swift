@@ -35,6 +35,7 @@ public struct Avatar: View {
   var presence: Presence?
   var size: CGFloat
   var image: Image?
+  var url: URL?
   @Environment(\.colorScheme) private var scheme
 
   public init(
@@ -65,6 +66,40 @@ public struct Avatar: View {
   ) {
     self.init(name: name, kind: kind, status: status, presence: presence, size: size)
     self.image = image
+  }
+
+  /// An avatar from a picture's bytes (PNG or JPEG: a generated portrait, a stored icon), drawn as
+  /// `Avatar(name:image:)` does; without bytes, or with bytes that aren't a picture, it is the drawn avatar the other
+  /// arguments describe. Each picture is decoded once (`Image(data:)`).
+  ///
+  /// ```swift
+  /// Avatar(name: agent.name, imageData: agent.portrait, kind: .agent, status: agent.status, size: 28)
+  /// ```
+  public init(
+    name: String, imageData: Data?, letters: String? = nil, kind: Kind = .person, systemImage: String? = nil,
+    hue: Hue? = nil, status: WorkStatus = .idle, presence: Presence? = nil, size: CGFloat = 24
+  ) {
+    self.init(
+      name: name, letters: letters, kind: kind, systemImage: systemImage, hue: hue, status: status,
+      presence: presence, size: size)
+    self.image = imageData.flatMap(Image.init(data:))
+  }
+
+  /// An avatar loaded from a URL (a GitHub profile picture), drawn as `Avatar(name:image:)` does once it arrives; until
+  /// then, and when it can't load, it is the drawn avatar the other arguments describe. Load only what the user asked
+  /// for: the kit makes no request of its own.
+  ///
+  /// ```swift
+  /// Avatar(name: account.login, url: account.avatarURL, size: 32)
+  /// ```
+  public init(
+    name: String, url: URL?, letters: String? = nil, kind: Kind = .person, systemImage: String? = nil,
+    hue: Hue? = nil, status: WorkStatus = .idle, presence: Presence? = nil, size: CGFloat = 24
+  ) {
+    self.init(
+      name: name, letters: letters, kind: kind, systemImage: systemImage, hue: hue, status: status,
+      presence: presence, size: size)
+    self.url = url
   }
 
   /// The hue: the one given, the accent for a thing shown with a glyph, or one picked from the name.
@@ -104,6 +139,14 @@ public struct Avatar: View {
   private func face(_ hue: Hue) -> some View {
     if let image {
       picture(image)
+    } else if let url {
+      AsyncImage(url: url, transaction: Transaction(animation: .kit)) { phase in
+        if let image = phase.image {
+          picture(image)
+        } else {
+          drawnFace(hue)
+        }
+      }
     } else {
       drawnFace(hue)
     }

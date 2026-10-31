@@ -46,3 +46,51 @@ struct CodeBlockSpecimens: View {
     }
   }
 }
+
+// MARK: - Pictures from bytes and URLs, app icons (Avatars page)
+
+struct PictureAvatarSpecimens: View {
+  var body: some View {
+    SpecimenSection(
+      "From bytes, URLs and icons",
+      note: "Avatar(imageData:) and Avatar(url:) draw the picture once it decodes or loads, and the drawn avatar until then or without one. KitAppIcon(image:) clips any square artwork to the app icon's squircle."
+    ) {
+      SpecimenGrid(minWidth: 360) {
+        Specimen(
+          "Avatar(imageData:) · Avatar(url:)", note: "no picture yet",
+          code: "Avatar(name: agent.name, imageData: agent.portrait, kind: .agent)\nAvatar(name: account.login, url: account.avatarURL, size: 32)"
+        ) {
+          Flow(spacing: 14) {
+            Labeled("no data") { Avatar(name: "planner", imageData: nil, kind: .agent, size: 32) }
+            Labeled("not a picture") { Avatar(name: "Maya Okafor", imageData: Data([1, 2, 3]), presence: .online, size: 32) }
+            Labeled("no URL") { Avatar(name: "octocat", url: nil, size: 32) }
+          }
+        }
+        Specimen(
+          "KitAppIcon(image:)",
+          code: "KitAppIcon(image: project.iconImage, size: 44)\nKitAppIcon(data: project.icon, size: 44)\nKitAppIcon(image: nil, size: 44)"
+        ) {
+          Flow(spacing: 14, alignment: .bottom) {
+            KitAppIcon(image: SquareArt.image(systemImage: "hammer.fill", hue: .orange), size: 18)
+            KitAppIcon(image: SquareArt.image(systemImage: "hammer.fill", hue: .orange), size: 28)
+            KitAppIcon(image: SquareArt.image(systemImage: "globe", hue: .teal), size: 44)
+            KitAppIcon(image: SquareArt.image(systemImage: "camera.fill", hue: .indigo), size: 64)
+            Labeled("none") { KitAppIcon(image: nil, size: 44) }
+          }
+        }
+      }
+    }
+  }
+}
+
+/// Square, unclipped artwork, as a project's icon render comes: what KitAppIcon(image:) clips.
+enum SquareArt {
+  static func image(systemImage: String, hue: Hue) -> Image {
+    let renderer = ImageRenderer(
+      content: Rectangle().fill(hue.fill).frame(width: 64, height: 64)
+        .overlay { Image(systemName: systemImage).font(.system(size: 30, weight: .semibold)).foregroundStyle(.white) })
+    renderer.scale = 3
+    guard let cgImage = renderer.cgImage else { return Image(systemName: systemImage) }
+    return Image(decorative: cgImage, scale: 3)
+  }
+}
