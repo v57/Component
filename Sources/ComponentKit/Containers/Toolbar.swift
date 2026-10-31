@@ -224,6 +224,26 @@ struct ContTitleSpace: ToolbarContent {
   }
 }
 
+/// The flexible space that follows a kit title in a system toolbar, so the tools after it sit at the trailing edge
+/// (macOS 26 lines them up right after the title once the system title is gone); nothing on other systems.
+/// `kitToolbarTitle(_:content:)` puts it in for you; this is for a toolbar laid out by hand.
+///
+/// ```swift
+/// .toolbar {
+///   KitToolbarItem(placement: .navigation) { KitTitle(session.title, systemImage: "display") }
+///   KitToolbarTitleSpace()
+///   KitToolbarItem { ToolGroup(iconOnly: true) { controls } }
+/// }
+/// .kitHidesSystemTitle()
+/// ```
+public struct KitToolbarTitleSpace: ToolbarContent {
+  public init() {}
+
+  public var body: some ToolbarContent {
+    ContTitleSpace()
+  }
+}
+
 /// A tool on its own, as inside a `ToolGroup`: 26pt (36 on touch), 9pt corners, a fill on hover, press and while on
 /// (`.kitToolOn(_:)`). For a toolbar that lays out its own tools.
 ///

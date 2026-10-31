@@ -21,6 +21,7 @@ public struct ComponentApp: App {
         .hitchTest(model)
         #if os(macOS)
           .modifier(OpenSettingsAtLaunch())
+          .modifier(OpenSinglePaneAtLaunch())
         #endif
     }
     #if !os(tvOS)
@@ -30,6 +31,13 @@ public struct ComponentApp: App {
     .windowResizability(model.windowWidth == nil ? .automatic : .contentSize)
     #endif
     #if os(macOS)
+    // A window without a sidebar under the kit's toolbar.
+    Window("Single Pane", id: "single-pane") {
+      SinglePaneWindow()
+        .kitColorScheme(model.appearance.colorScheme)
+        .componentKit(accent: model.accent.color)
+    }
+    .defaultSize(width: 720, height: 420)
     // The standard Settings window of a v57 app: the kit clears the title bar (`KitSettings(window: .hiddenTitleBar)`).
     Settings {
       CatalogSettingsWindow()

@@ -82,6 +82,8 @@ extension EnvironmentValues {
 public struct KitToolbar<Title: View>: View {
   let title: Title
   let slots: [ToolbarSlot]
+  /// The bar starts at the window's leading edge, under the traffic lights (a window without a sidebar).
+  @State private var isAtWindowEdge = false
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.contShowSidebar) private var showSidebar
   @Environment(\.contFullScreen) private var isFullScreen
@@ -136,6 +138,9 @@ public struct KitToolbar<Title: View>: View {
     .frame(height: height)
     .frame(maxWidth: .infinity)
     .background { ContWindowDragArea() }
+    #if os(macOS)
+      .background { ContWindowEdgeProbe(isAtEdge: $isAtWindowEdge).accessibilityHidden(true) }
+    #endif
     .environment(\.contBarGround, KitColor.window)
     .animation(.kit, value: showSidebar != nil)
   }
@@ -150,10 +155,14 @@ public struct KitToolbar<Title: View>: View {
 
   /// 16pt in from the bar's edge, and on the Mac clear of the traffic lights and the system item's Show Sidebar
   /// button while the sidebar is hidden (the bar then starts at the window's edge; `kitSidebarToggle` says so). The
-  /// bar's own position can't tell: the split view moves its column without SwiftUI seeing a new frame.
+  /// bar's own position can't tell there: the split view moves its column without SwiftUI seeing a new frame. In a
+  /// window without a split view (a single pane) the bar's place in the window does tell, so it clears the traffic
+  /// lights, where the system toolbar puts its first item.
   private var leadingInset: CGFloat {
     #if os(macOS)
-      showSidebar != nil && !isFullScreen ? ContMetrics.windowControlsWidth + ContMetrics.showSidebarItemWidth + 8 : 16
+      if isFullScreen { return 16 }
+      if showSidebar != nil { return ContMetrics.windowControlsWidth + ContMetrics.showSidebarItemWidth + 8 }
+      return isAtWindowEdge ? ContMetrics.windowControlsWidth + 12 : 16
     #elseif os(Windows) || os(Linux)
       // After the menu bar in the title bar row.
       max(16, (titleBarArea?.leading ?? 0) + 8)
@@ -195,7 +204,8 @@ extension View {
   /// Puts the kit's toolbar at the top of this view, in the window's title bar (under the status bar on iPhone and
   /// iPad), in place of the system toolbar: the title, then the tools at the trailing edge, compacting by the kit's
   /// rule. The view's content scrolls on under it. `windowTitle` stays the window's (Window menu, Mission Control).
-  /// Put it on the detail column, and `kitSidebarToggle` outside it to get the Show Sidebar button in the bar.
+  /// Put it on the detail column, and `kitSidebarToggle` outside it to get the Show Sidebar button in the bar. In a
+  /// window without a sidebar put it on the window's root view: the title then starts after the traffic lights.
   ///
   /// ```swift
   /// HistoryView()
@@ -428,6 +438,56 @@ private struct ContSystemToolbarAway: ViewModifier {
       let isScene = NSStringFromClass(type(of: window)).hasPrefix("SwiftUI.")
       return !isScene && window.styleMask.contains(.titled) && window.styleMask.contains(.fullSizeContentView)
         && !window.titlebarAppearsTransparent
+    }
+  }
+
+  /// Says whether the bar starts at the window's leading edge, under the traffic lights: a bar outside a split view
+  /// (a window of one pane) less than the traffic lights' width from the edge. In a split view's column the kit
+  /// decides from the sidebar's state instead (`contShowSidebar`). AppKit's frames are read, so a moved view is seen.
+  private struct ContWindowEdgeProbe: NSViewRepresentable {
+    @Binding var isAtEdge: Bool
+
+    func makeNSView(context: Context) -> ContWindowEdgeView {
+      let view = ContWindowEdgeView()
+      view.onChange = { isAtEdge = $0 }
+      return view
+    }
+
+    func updateNSView(_ view: ContWindowEdgeView, context: Context) {
+      view.onChange = { isAtEdge = $0 }
+      view.check()
+    }
+  }
+
+  final class ContWindowEdgeView: NSView {
+    var onChange: (Bool) -> Void = { _ in }
+    private var reported: Bool?
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      check()
+    }
+
+    override func setFrameOrigin(_ newOrigin: NSPoint) {
+      super.setFrameOrigin(newOrigin)
+      check()
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+      super.setFrameSize(newSize)
+      check()
+    }
+
+    func check() {
+      guard window != nil else { return }
+      let isInSplitView = sequence(first: superview, next: { $0?.superview }).contains { $0 is NSSplitView }
+      let isAtEdge = !isInSplitView && convert(bounds, to: nil).minX < ContMetrics.windowControlsWidth
+      guard isAtEdge != reported else { return }
+      reported = isAtEdge
+      // Not during the update that moved the view.
+      DispatchQueue.main.async { [weak self] in self?.onChange(isAtEdge) }
     }
   }
 
