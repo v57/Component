@@ -49,6 +49,7 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
   @ViewBuilder var content: Content
   @ViewBuilder var accessory: Accessory
   var titleAccessory: AnyView?
+  var headerMenu: (() -> AnyView)?
   /// Whether the section is drawn open: its own, or `isExpanded`'s followed. Drawn from state even when the app owns
   /// the open state, since a change to an `@AppStorage` binding inside `withAnimation` didn't animate (the section
   /// opened at once).
@@ -84,6 +85,19 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
   public func titleAccessory<V: View>(@ViewBuilder _ content: () -> V) -> Self {
     var section = self
     section.titleAccessory = AnyView(content())
+    return section
+  }
+
+  /// Gives the section's header a context menu (a right-click, or a long press on touch): actions on everything the
+  /// section holds. The rows keep their own menus.
+  ///
+  /// ```swift
+  /// KitSection("Projects", systemImage: "folder") { … }
+  ///   .headerMenu { Button("Remove All Projects from List", systemImage: "minus.circle") { removeAll() } }
+  /// ```
+  public func headerMenu<V: View>(@ViewBuilder _ content: @escaping () -> V) -> Self {
+    var section = self
+    section.headerMenu = { AnyView(content()) }
     return section
   }
 
@@ -130,6 +144,7 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .onTapGesture(perform: toggle)
+        .modifier(SectionHeaderMenu(menu: headerMenu))
         .modifier(SectionHeaderAccessibility(title: title, expanded: expanded, toggle: toggle))
         .padding(.bottom, count > 0 ? 4 : 0)
         .modifier(CardSliceModifier(slice: KitCardSlice(0, of: count + 1), cornerRadius: radius, bleed: 1))
@@ -163,6 +178,8 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
             leading: KitMetrics.cardPadding,
             bottom: expanded ? 0 : KitMetrics.cardPadding,
             trailing: KitMetrics.cardPadding))
+        .contentShape(Rectangle())
+        .modifier(SectionHeaderMenu(menu: headerMenu))
         .modifier(SectionHeaderAccessibility(title: title, expanded: expanded, toggle: toggle))
         // Sticky (`.kitSticky`): the title alone stays in view, on a card of its own.
         .modifier(
@@ -242,6 +259,7 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
       .contentShape(Rectangle())
       .onTapGesture(perform: toggle)
       .kitHover { isHovered = $0 }
+      .modifier(SectionHeaderMenu(menu: headerMenu))
       .modifier(SectionHeaderAccessibility(title: title, expanded: expanded, toggle: toggle))
       .modifier(ContStickyTitleModifier(box: sticky, extra: 0, cornerRadius: 0, plain: true))
       ContRevealLayout(progress: expanded ? 1 : 0) {
@@ -261,6 +279,19 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
           .padding(EdgeInsets(top: 0, leading: 20, bottom: 4, trailing: 0))
           .transition(.opacity)
       }
+    }
+  }
+}
+
+/// The header's context menu, when the section has one.
+private struct SectionHeaderMenu: ViewModifier {
+  let menu: (() -> AnyView)?
+
+  func body(content: Content) -> some View {
+    if let menu {
+      content.kitContextMenu(content: menu)
+    } else {
+      content
     }
   }
 }
