@@ -741,6 +741,7 @@ struct WelcomePage: View {
           }
         }
       }
+      WelcomeAdditionSections()
     }
   }
 }
@@ -1184,6 +1185,7 @@ struct SecretsPage: View {
           }
         }
       }
+      SecretAdditionSections()
     }
   }
 }

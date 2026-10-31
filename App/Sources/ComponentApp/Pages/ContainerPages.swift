@@ -520,6 +520,7 @@ struct SidebarPage: View {
             """)
         }
       }
+      SidebarAdditionSections()
     }
   }
 
@@ -781,6 +782,7 @@ struct ToolbarPage: View {
           }
         }
       }
+      ToolbarAdditionSections()
     }
     .onAppear(perform: fitPhone)
   }
@@ -962,6 +964,7 @@ struct WindowPage: View {
           .padding(.top, KitMetrics.gutter)
         }
       }
+      WindowAdditionSections()
     }
   }
 }
@@ -1394,6 +1397,7 @@ struct SheetsPage: View {
           }
         }
       }
+      SheetAdditionSections()
     }
   }
 
