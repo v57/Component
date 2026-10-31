@@ -95,6 +95,66 @@ enum SquareArt {
   }
 }
 
+// MARK: - Whole rows and trailing icons (Buttons page)
+
+struct RowAndTrailingIconSpecimens: View {
+  @State private var opened = "None"
+
+  var body: some View {
+    SpecimenSection(
+      "Rows and trailing icons",
+      note: ".kitRow makes a whole custom row the button (a NavigationLink to a commit): no tint, no padding, the "
+        + "kit's wash on hover and press. .kitTrailingIcon puts a label's icon after its title, for a button that "
+        + "leaves the app."
+    ) {
+      SpecimenGrid(minWidth: 320) {
+        Specimen(
+          "kitRow", note: "opened: \(opened)",
+          code: "NavigationLink(value: commit) { CommitRow(commit: commit) }\n  .buttonStyle(.kitRow)"
+        ) {
+          VStack(spacing: 0) {
+            ForEach(
+              [("Fix the sidebar's sticky header", "a1c9e2f", "2 hours ago"), ("Add KitRowButtonStyle", "7be0d14", "Yesterday")],
+              id: \.1
+            ) { title, hash, date in
+              Button { opened = hash } label: {
+                HStack(spacing: 10) {
+                  Avatar(name: "v57", size: 26)
+                  VStack(alignment: .leading, spacing: 2) {
+                    Text(title).kitFont(.body).lineLimit(1)
+                    Text("\(hash) · \(date)").kitFont(.caption).foregroundStyle(.kitSecondary)
+                  }
+                  Spacer(minLength: 8)
+                  Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.kitTertiary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+              }
+              .buttonStyle(.kitRow)
+            }
+          }
+          .clipShape(RoundedRectangle(cornerRadius: KitMetrics.radiusCard, style: .continuous))
+          .kitSurface(.card)
+        }
+        Specimen(
+          "kitTrailingIcon",
+          code: "Label(\"Continue on GitHub\", systemImage: \"arrow.up.right\")\n  .labelStyle(.kitTrailingIcon)"
+        ) {
+          Flow(spacing: 10) {
+            Button {} label: { Label("Continue on GitHub", systemImage: "arrow.up.right").labelStyle(.kitTrailingIcon) }
+              .buttonStyle(.kitPrimary)
+            Button {} label: { Label("Open GitHub Again", systemImage: "arrow.up.right").labelStyle(.kitTrailingIcon) }
+              .buttonStyle(.kit)
+            Button {} label: { Label("Release Notes", systemImage: "arrow.up.right").labelStyle(.kitTrailingIcon) }
+              .buttonStyle(.kitPlain)
+          }
+        }
+      }
+    }
+  }
+}
+
 // MARK: - Copy and round primary buttons (Buttons page)
 
 struct CopyAndRoundPrimarySpecimens: View {

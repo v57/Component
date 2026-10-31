@@ -118,3 +118,55 @@ private struct ContGroupRowButton: View {
       .kitHover { isHovered = $0 }
   }
 }
+
+// MARK: - Whole rows
+
+extension ButtonStyle where Self == KitRowButtonStyle {
+  /// A whole custom row as the button (a `NavigationLink` to a commit, a file): no tint, no padding, the kit's wash
+  /// on hover and press.
+  public static var kitRow: KitRowButtonStyle { KitRowButtonStyle() }
+}
+
+/// A whole custom row as a button or `NavigationLink`: the row draws itself (its padding, its colours; text is the
+/// label colour unless the row says otherwise) and the style adds only the kit's feedback, the hover wash and a
+/// deeper one while pressed, over the row's whole shape (`cornerRadius` rounds it, for rows on their own rather than
+/// in a card). Disabled, the row dims. In place of `.buttonStyle(.plain)`, which gives no feedback, and `.kitPlain`,
+/// which tints and pads a label.
+///
+/// ```swift
+/// ForEach(model.commits) { commit in
+///   NavigationLink(value: commit) { CommitRow(commit: commit) }
+///     .buttonStyle(.kitRow)
+/// }
+/// ```
+public struct KitRowButtonStyle: ButtonStyle {
+  var cornerRadius: CGFloat
+
+  public init(cornerRadius: CGFloat = 0) { self.cornerRadius = cornerRadius }
+
+  public func makeBody(configuration: Configuration) -> some View {
+    KitRowButton(configuration: configuration, cornerRadius: cornerRadius)
+  }
+}
+
+private struct KitRowButton: View {
+  let configuration: ButtonStyleConfiguration
+  let cornerRadius: CGFloat
+  @State private var isHovered = false
+  @Environment(\.isEnabled) private var isEnabled
+
+  var body: some View {
+    let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    configuration.label
+      .foregroundStyle(.kitLabel)
+      .contentShape(shape)
+      .background {
+        if isEnabled && (isHovered || configuration.isPressed) {
+          shape.fill(configuration.isPressed ? AnyShapeStyle(.kitPress) : AnyShapeStyle(.kitHover))
+        }
+      }
+      .opacity(isEnabled ? 1 : 0.5)
+      .kitHover { isHovered = $0 }
+      .animation(.kitFast, value: isHovered)
+  }
+}
