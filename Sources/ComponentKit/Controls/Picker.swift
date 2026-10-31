@@ -89,7 +89,9 @@ public struct KitPicker<Value: Hashable>: View {
     }
     .contentShape(shape)
     .ctlIdealWidth(maxWidth)
-    .focusable()
+    // A pop-up button's focus: Tab reaches it only with keyboard navigation on (System Settings), so it never takes
+    // the window's first focus (and its ring) at launch.
+    .focusable(isEnabled, interactions: .activate)
     .kitMenuTrigger(isPresented: $isOpen, matchesWidth: true) {
       if sections.isEmpty {
         KitMenuOptions(selection: $selection, segments: segments)
@@ -285,7 +287,7 @@ public struct KitMenuButton<Content: View>: View {
     }
     .contentShape(Rectangle())
     .fixedSize()
-    .focusable()
+    .focusable(isEnabled, interactions: .activate)
     .focusEffectDisabled()
     .kitMenuTrigger(isPresented: $isOpen) { content }
     .opacity(isEnabled ? 1 : 0.45)
