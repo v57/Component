@@ -195,6 +195,7 @@ public struct KitOneTimeCode: View {
 /// ```swift
 /// KitSafetyCode("603919375512067304187729128814641028931722740519834062518874")
 /// KitSafetyCode(groups: code.groups).controlSize(.small)
+/// KitSafetyCode(pairingCode, groupSize: 3, columns: 2)   // "702 115"
 /// ```
 public struct KitSafetyCode: View {
   var groups: [String]
@@ -202,9 +203,10 @@ public struct KitSafetyCode: View {
   @Environment(\.controlSize) private var controlSize
   @Environment(\.kitIdiom) private var idiom
 
-  /// The code as digits (anything else is ignored), grouped by five.
-  public init(_ digits: String, columns: Int = 4) {
-    self.init(groups: Self.groups(digits), columns: columns)
+  /// The code as digits (anything else is ignored), grouped by five, or by `groupSize` (a six-digit pairing code in
+  /// two groups of three: `KitSafetyCode(code, groupSize: 3, columns: 2)`).
+  public init(_ digits: String, groupSize: Int = 5, columns: Int = 4) {
+    self.init(groups: Self.groups(digits, size: groupSize), columns: columns)
   }
 
   /// The code as its groups.
@@ -213,10 +215,11 @@ public struct KitSafetyCode: View {
     self.columns = max(1, columns)
   }
 
-  /// The digits of `text` in groups of five; a short last group stays short.
-  nonisolated static func groups(_ text: String) -> [String] {
+  /// The digits of `text` in groups of `size` (five by default); a short last group stays short.
+  nonisolated static func groups(_ text: String, size: Int = 5) -> [String] {
     let digits = Array(text.filter(\.isASCIIDigit))
-    return stride(from: 0, to: digits.count, by: 5).map { String(digits[$0..<min($0 + 5, digits.count)]) }
+    let size = max(1, size)
+    return stride(from: 0, to: digits.count, by: size).map { String(digits[$0..<min($0 + size, digits.count)]) }
   }
 
   public var body: some View {
