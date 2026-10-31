@@ -66,20 +66,32 @@ struct ContDisclosureAccessibility: ViewModifier {
 
 /// A tree of rows from data: each item's row, indented one step a level, with a disclosure chevron when it has
 /// children (`nil` children: a leaf, which keeps the chevron's slot so the icons line up). Put `SidebarRow`s in it,
-/// inside a `KitSidebar`, `KitList` or `KitSection`; ← → open and close the selected row from the keyboard.
+/// inside a `KitSidebar`, `KitList` or `KitSection`; ← → open and close the selected row from the keyboard. A
+/// `SidebarRow` that selects nothing and has no action (a group) opens and closes on a click; `RecentItem`s take
+/// the indent and the chevron too, so a welcome screen's project groups are an outline as well.
 ///
-/// The open folders live in the outline unless you pass `expanded` (the ids of the open items) to keep them.
+/// The open folders live in the outline unless you pass `expanded` (the ids of the open items) to keep them, or
+/// `collapsed` (the ids of the closed ones: everything starts open, as groups do), e.g. a `KitIDSet` in
+/// `@AppStorage`. `children` is a key path or a closure.
 ///
 /// ```swift
 /// KitOutline(files, children: \.children) { file in
 ///   SidebarRow(value: file.id, file.name, systemImage: file.isFolder ? "folder" : "doc")
 /// }
 /// KitOutline(groups, children: \.children, expanded: $openGroups) { group in … }
+///
+/// @AppStorage("collapsedGroups") private var collapsed = KitIDSet()
+/// KitOutline(tree.roots, children: { $0.group == nil ? nil : $0.children }, collapsed: $collapsed.ids) { node in
+///   switch node {
+///   case .group(let group, _): SidebarRow(group.name, systemImage: "folder")
+///   case .project(let project): SidebarRow(value: project.id, project.name, systemImage: "shippingbox")
+///   }
+/// }
 /// ```
 public struct KitOutline<Element: Identifiable, RowContent: View>: View {
   let items: [Element]
-  let children: KeyPath<Element, [Element]?>
-  let expanded: Binding<Set<Element.ID>>?
+  let children: (Element) -> [Element]?
+  let expansion: ContOutlineExpansion<Element.ID>?
   let row: (Element) -> RowContent
   @State private var ownExpanded: Set<Element.ID> = []
   @Environment(\.contRowIndent) private var baseIndent
@@ -89,16 +101,63 @@ public struct KitOutline<Element: Identifiable, RowContent: View>: View {
     _ items: some RandomAccessCollection<Element>, children: KeyPath<Element, [Element]?>,
     expanded: Binding<Set<Element.ID>>? = nil, @ViewBuilder row: @escaping (Element) -> RowContent
   ) {
+    self.init(items, children: { $0[keyPath: children] }, expanded: expanded, row: row)
+  }
+
+  /// An outline whose children come from a closure (`nil` for a leaf): an enum's cases, a group's members.
+  public init(
+    _ items: some RandomAccessCollection<Element>, children: @escaping (Element) -> [Element]?,
+    expanded: Binding<Set<Element.ID>>? = nil, @ViewBuilder row: @escaping (Element) -> RowContent
+  ) {
     self.items = Array(items)
     self.children = children
-    self.expanded = expanded
+    self.expansion = expanded.map { .expanded($0) }
+    self.row = row
+  }
+
+  /// An outline that keeps the ids of its closed items: everything else is open.
+  public init(
+    _ items: some RandomAccessCollection<Element>, children: KeyPath<Element, [Element]?>,
+    collapsed: Binding<Set<Element.ID>>, @ViewBuilder row: @escaping (Element) -> RowContent
+  ) {
+    self.init(items, children: { $0[keyPath: children] }, collapsed: collapsed, row: row)
+  }
+
+  /// An outline with children from a closure that keeps the ids of its closed items.
+  public init(
+    _ items: some RandomAccessCollection<Element>, children: @escaping (Element) -> [Element]?,
+    collapsed: Binding<Set<Element.ID>>, @ViewBuilder row: @escaping (Element) -> RowContent
+  ) {
+    self.items = Array(items)
+    self.children = children
+    self.expansion = .collapsed(collapsed)
     self.row = row
   }
 
   public var body: some View {
-    let open = expanded ?? $ownExpanded
+    let open = expansion ?? .expanded($ownExpanded)
     ForEach(items) { item in
-      ContOutlineNode(item: item, children: children, expanded: open, level: baseIndent, row: row)
+      ContOutlineNode(item: item, children: children, expansion: open, level: baseIndent, row: row)
+    }
+  }
+}
+
+/// Which items of an outline are open: the ids of the open ones, or of the closed ones.
+enum ContOutlineExpansion<ID: Hashable> {
+  case expanded(Binding<Set<ID>>)
+  case collapsed(Binding<Set<ID>>)
+
+  func isOpen(_ id: ID) -> Bool {
+    switch self {
+    case .expanded(let ids): ids.wrappedValue.contains(id)
+    case .collapsed(let ids): !ids.wrappedValue.contains(id)
+    }
+  }
+
+  func set(_ id: ID, open: Bool) {
+    switch self {
+    case .expanded(let ids): if open { ids.wrappedValue.insert(id) } else { ids.wrappedValue.remove(id) }
+    case .collapsed(let ids): if open { ids.wrappedValue.remove(id) } else { ids.wrappedValue.insert(id) }
     }
   }
 }
@@ -106,28 +165,61 @@ public struct KitOutline<Element: Identifiable, RowContent: View>: View {
 /// One item of an outline and, while it's open, its children one level in.
 private struct ContOutlineNode<Element: Identifiable, RowContent: View>: View {
   let item: Element
-  let children: KeyPath<Element, [Element]?>
-  @Binding var expanded: Set<Element.ID>
+  let children: (Element) -> [Element]?
+  let expansion: ContOutlineExpansion<Element.ID>
   let level: Int
   let row: (Element) -> RowContent
 
   var body: some View {
-    let kids = item[keyPath: children]
+    let kids = children(item)
     let id = item.id
-    let isOpen = Binding(
-      get: { expanded.contains(id) },
-      set: { open in
-        if open { expanded.insert(id) } else { expanded.remove(id) }
-      })
+    let expansion = expansion
+    let isOpen = Binding(get: { expansion.isOpen(id) }, set: { expansion.set(id, open: $0) })
     row(item)
       .environment(\.contRowIndent, level)
       .environment(\.contRowDisclosure, ContRowDisclosure(isExpanded: kids == nil ? nil : isOpen))
-    if let kids, expanded.contains(id) {
+    if let kids, expansion.isOpen(id) {
       ForEach(kids) { child in
-        ContOutlineNode(item: child, children: children, expanded: $expanded, level: level + 1, row: row)
+        ContOutlineNode(item: child, children: children, expansion: expansion, level: level + 1, row: row)
       }
       .transition(.opacity)
     }
+  }
+}
+
+// MARK: - Stored ids
+
+/// A set of ids that `@AppStorage` keeps (one string, the ids a line each): the closed groups of an outline, the
+/// items removed from a list. Bind an outline to its `ids`.
+///
+/// ```swift
+/// @AppStorage("welcome.collapsedGroups") private var collapsedGroups = KitIDSet()
+/// KitOutline(tree.roots, children: { $0.group == nil ? nil : $0.children }, collapsed: $collapsedGroups.ids) { … }
+/// collapsedGroups.toggle(group.id)
+/// ```
+///
+/// The stored string is the same as the apps' own `CollapsedGroups` wrote (sorted ids joined by newlines), so a
+/// switch to it keeps what users had closed.
+public struct KitIDSet: RawRepresentable, Hashable, Sendable, ExpressibleByArrayLiteral {
+  public var ids: Set<String>
+
+  public init() { ids = [] }
+
+  public init(_ ids: some Sequence<String>) { self.ids = Set(ids) }
+
+  public init(arrayLiteral elements: String...) { ids = Set(elements) }
+
+  public init(rawValue: String) {
+    ids = Set(rawValue.split(separator: "\n").map(String.init))
+  }
+
+  public var rawValue: String { ids.sorted().joined(separator: "\n") }
+
+  public func contains(_ id: String) -> Bool { ids.contains(id) }
+
+  /// Adds `id` if it's missing, removes it if it's there.
+  public mutating func toggle(_ id: String) {
+    if ids.contains(id) { ids.remove(id) } else { ids.insert(id) }
   }
 }
 

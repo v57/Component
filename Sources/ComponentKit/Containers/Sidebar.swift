@@ -62,6 +62,16 @@ extension View {
   }
 }
 
+extension EnvironmentValues {
+  /// How many steps in the rows here sit: `kitRowIndent(_:)`'s level, or the depth a `KitOutline` gives its rows.
+  /// Read it in a row of your own that indents what it holds.
+  ///
+  /// ```swift
+  /// @Environment(\.kitRowIndentLevel) private var depth
+  /// ```
+  public var kitRowIndentLevel: Int { contRowIndent }
+}
+
 // MARK: - KitSidebar
 
 /// The sidebar: card sections on the sidebar ground, the selection as a raised card that glides between rows (with
@@ -368,8 +378,15 @@ extension View {
   ///   Detail().kitSidebarToggle(columnVisibility: $columns)
   /// }
   /// ```
-  public func kitSidebarToggle(columnVisibility: Binding<NavigationSplitViewVisibility>) -> some View {
-    modifier(ContShowSidebar(columnVisibility: columnVisibility))
+  ///
+  /// `isOn: false` leaves the button out (the content keeps its identity): where the split view's own back button
+  /// does the job, as on iPhone.
+  ///
+  /// ```swift
+  /// Detail().kitSidebarToggle(columnVisibility: $columns, isOn: idiom != .phone)
+  /// ```
+  public func kitSidebarToggle(columnVisibility: Binding<NavigationSplitViewVisibility>, isOn: Bool = true) -> some View {
+    modifier(ContShowSidebar(columnVisibility: columnVisibility, isOn: isOn))
   }
 
   /// Says the split view below has three columns (sidebar, content, detail): the kit's sidebar toggle then hides the
@@ -435,6 +452,7 @@ enum ContSplitVisibility {
 
 private struct ContShowSidebar: ViewModifier {
   @Binding var columnVisibility: NavigationSplitViewVisibility
+  var isOn = true
   @State private var isPortrait = false
   @State private var hasKitToolbar = false
   @Environment(\.kitIdiom) private var idiom
@@ -450,7 +468,7 @@ private struct ContShowSidebar: ViewModifier {
     #else
       let isStacked = sizeClass == .compact
     #endif
-    let isHidden = !isStacked && ContSplitVisibility.sidebarIsHidden(
+    let isHidden = isOn && !isStacked && ContSplitVisibility.sidebarIsHidden(
       columnVisibility, threeColumns: threeColumns, isTouch: idiom.isTouch, isPortrait: isPortrait)
     content
       // A kit toolbar below takes the button into its own bar.
@@ -460,7 +478,7 @@ private struct ContShowSidebar: ViewModifier {
         .onPreferenceChange(ContKitToolbarKey.self) { hasKitToolbar = $0 }
       #endif
       .background {
-        if idiom.isTouch {
+        if idiom.isTouch && isOn {
           // The column's own shape stands in for the orientation: full height and narrower than tall in portrait.
           GeometryReader { proxy in
             Color.clear
@@ -470,7 +488,9 @@ private struct ContShowSidebar: ViewModifier {
         }
       }
       .toolbar {
-        ContShowSidebarItem(columnVisibility: $columnVisibility, isHidden: isHidden && !hasKitToolbar)
+        if isOn {
+          ContShowSidebarItem(columnVisibility: $columnVisibility, isHidden: isHidden && !hasKitToolbar)
+        }
       }
   }
 
@@ -844,6 +864,9 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
         action()
       } else if let rowValue {
         selection?.select(rowValue)
+      } else if let isExpanded = disclosure?.isExpanded {
+        // A group that selects nothing (a folder of projects in a `KitOutline`) opens and closes.
+        withKitAnimation { isExpanded.wrappedValue.toggle() }
       }
     }
     // Alongside the single tap, so selecting doesn't wait for a second click.

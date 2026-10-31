@@ -451,6 +451,21 @@ private struct RecentItemTaps: ViewModifier {
 /// RecentItem("harbor", subtitle: "~/Developer/harbor", date: "Today", status: "1 change", statusHue: .orange) { … }
 /// RecentItem("Shell", subtitle: "~/Developer/Shell", image: shellIcon) { … }   // a project's icon in the tile's place
 /// ```
+///
+/// A group of items (a folder of projects): `.disclosure(isExpanded:)` trails it with a chevron that opens and closes
+/// it, and in a `KitOutline` it gets the chevron and its indent (20pt a level) from the outline. Its `action` (Return,
+/// a double click) is still yours: usually the same toggle.
+///
+/// ```swift
+/// KitOutline(tree.roots, children: { $0.group == nil ? nil : $0.children }, collapsed: $collapsed.ids) { node in
+///   if let group = node.group {
+///     RecentItem(group.name, subtitle: "3 projects", systemImage: "folder", id: "group:\(group.id)") {
+///       collapsed.toggle(group.id)
+///     }
+///   } else { … }
+/// }
+/// RecentItem(group.name, systemImage: "folder") { toggle() }.disclosure(isExpanded: $isOpen)
+/// ```
 public struct RecentItem: View {
   var title: String
   var subtitle: String?
@@ -461,7 +476,10 @@ public struct RecentItem: View {
   var image: Image?
   var id: String
   var action: () -> Void
+  var isExpanded: Binding<Bool>?
   @Environment(DataNavModel.self) private var nav: DataNavModel?
+  @Environment(\.contRowDisclosure) private var outlineDisclosure
+  @Environment(\.contRowIndent) private var indent
   @Environment(\.colorScheme) private var scheme
   @Environment(\.kitIdiom) private var idiom
   @State private var isHovered = false
@@ -482,6 +500,20 @@ public struct RecentItem: View {
   }
 
   private var isSelected: Bool { nav?.selected == id }
+
+  /// Trails the item with a chevron bound to `isExpanded` (a group of projects); `nil` removes it.
+  ///
+  /// ```swift
+  /// RecentItem(group.name, systemImage: "folder") { isOpen.toggle() }.disclosure(isExpanded: $isOpen)
+  /// ```
+  public func disclosure(isExpanded: Binding<Bool>?) -> Self {
+    var item = self
+    item.isExpanded = isExpanded
+    return item
+  }
+
+  /// The item's own open state, or the one its `KitOutline` gives it.
+  private var expansion: Binding<Bool>? { isExpanded ?? outlineDisclosure?.isExpanded }
 
   public var body: some View {
     HStack(spacing: 12) {
@@ -508,8 +540,12 @@ public struct RecentItem: View {
         if let status { Chip(status, hue: statusHue) }
         if let date { Text(date).kitFont(.caption) }
       }
+      if let expansion {
+        RecentItemChevron(isExpanded: expansion, title: title)
+      }
     }
-    .padding(.horizontal, 10)
+    .padding(.leading, 10)
+    .padding(.trailing, expansion == nil ? 10 : 2)
     .frame(minHeight: 56)
     .background {
       if isSelected {
@@ -529,6 +565,32 @@ public struct RecentItem: View {
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     .accessibilityAction { action() }
+    .modifier(ContDisclosureAccessibility(disclosure: expansion.map { ContRowDisclosure(isExpanded: $0) }))
+    .padding(.leading, CGFloat(indent) * 20)
+  }
+}
+
+/// A group's chevron at the item's end: right when closed, down when open.
+private struct RecentItemChevron: View {
+  @Binding var isExpanded: Bool
+  let title: String
+  @Environment(\.kitIdiom) private var idiom
+  @State private var isHovered = false
+
+  var body: some View {
+    Button {
+      withKitAnimation { isExpanded.toggle() }
+    } label: {
+      Image(systemName: "chevron.right")
+        .font(.system(size: idiom.size(11, touch: 13), weight: .semibold))
+        .foregroundStyle(isHovered ? .kitLabel : .kitSecondary)
+        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+        .frame(width: idiom.size(28, touch: 36), height: idiom.size(28, touch: 36))
+        .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .kitHover { isHovered = $0 }
+    .accessibilityLabel(isExpanded ? "Collapse \(title)" : "Expand \(title)")
   }
 }
 
