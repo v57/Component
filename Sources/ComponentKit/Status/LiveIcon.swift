@@ -57,9 +57,12 @@ extension Tile where Content == Image {
 extension Tile where Content == Text {
   /// A tile with one or two letters ("Pg", "A").
   public init(letters: String, hue: Hue = .accent, size: CGFloat = 24, style: Style = .soft, shape: KitShape = .rounded) {
-    self.init(hue: hue, size: size, style: style, shape: shape) {
-      Text(letters.prefix(2)).font(.system(size: size * (letters.count > 1 ? 0.42 : 0.5), weight: .bold))
-    }
+    self.init(hue: hue, size: size, style: style, shape: shape) { Self.letters(letters, size: size) }
+  }
+
+  /// One or two letters sized for a tile `size` wide.
+  static func letters(_ letters: String, size: CGFloat) -> Text {
+    Text(letters.prefix(2)).font(.system(size: size * (letters.count > 1 ? 0.42 : 0.5), weight: .bold))
   }
 }
 
@@ -148,5 +151,17 @@ public struct LiveIcon<Content: View>: View {
 extension LiveIcon where Content == Image {
   public init(systemImage: String, hue: Hue = .accent, status: WorkStatus, size: CGFloat = 24, shape: KitShape = .rounded) {
     self.init(hue: hue, status: status, size: size, shape: shape) { Image(systemName: systemImage) }
+  }
+}
+
+extension LiveIcon where Content == Text {
+  /// A live icon with one or two letters, as `Tile(letters:)` draws them: an engine's monogram carrying its
+  /// connection's state.
+  ///
+  /// ```swift
+  /// LiveIcon(letters: "Pg", hue: .blue, status: connection.isConnecting ? .working : .idle, size: 28)
+  /// ```
+  public init(letters: String, hue: Hue = .accent, status: WorkStatus, size: CGFloat = 24, shape: KitShape = .rounded) {
+    self.init(hue: hue, status: status, size: size, shape: shape) { Tile<Text>.letters(letters, size: size) }
   }
 }

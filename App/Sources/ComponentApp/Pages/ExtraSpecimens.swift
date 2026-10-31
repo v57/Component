@@ -343,3 +343,21 @@ struct StatusPillSpecimens: View {
     }
   }
 }
+
+// MARK: - Letters on a live icon (Live Icon page)
+
+struct LetterLiveIconSpecimens: View {
+  var body: some View {
+    SpecimenSection("Letters", note: "LiveIcon(letters:) draws one or two letters as Tile(letters:) does: an engine's monogram carrying its connection.") {
+      Specimen("LiveIcon(letters:)", code: "LiveIcon(letters: \"Pg\", hue: .blue, status: .working, size: 28)") {
+        Flow(spacing: 18, lineSpacing: 12, alignment: .top) {
+          Labeled("idle") { LiveIcon(letters: "Pg", hue: .blue, status: .idle, size: 28) }
+          Labeled("connecting") { LiveIcon(letters: "My", hue: .orange, status: .working, size: 28) }
+          Labeled("failed") { LiveIcon(letters: "Rd", hue: .red, status: .failed("refused"), size: 28) }
+          Labeled("one letter") { LiveIcon(letters: "D", hue: .yellow, status: .working(progress: 0.6), size: 28) }
+          Labeled("18pt") { LiveIcon(letters: "Mg", hue: .green, status: .idle, size: 18) }
+        }
+      }
+    }
+  }
+}

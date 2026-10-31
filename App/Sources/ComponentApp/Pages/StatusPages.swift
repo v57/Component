@@ -157,6 +157,7 @@ struct LiveIconPage: View {
           }
         }
       }
+      LetterLiveIconSpecimens()
     }
   }
 
