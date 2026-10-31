@@ -101,13 +101,25 @@ struct KitOverlayDismissDisabled: PreferenceKey {
 // MARK: - Host
 
 /// How an overlay sits: a sheet in the middle on the kit's card, a dialog in the middle too, the palette at the top
-/// drawing its own.
-enum KitOverlayStyle: Hashable, Sendable {
+/// drawing its own, a popover on the kit's card beside its anchor (in the host's space) with no dim.
+enum KitOverlayStyle: Equatable, Sendable {
   case sheet
   case dialog
   case palette(width: CGFloat)
+  /// The anchor follows the view as it moves (scrolling, a window resizing) without the presenter redrawing.
+  case popover(anchor: ContPopoverAnchor, edge: VerticalEdge)
+
+  static func == (a: Self, b: Self) -> Bool {
+    switch (a, b) {
+    case (.sheet, .sheet), (.dialog, .dialog): true
+    case (.palette(let x), .palette(let y)): x == y
+    case (.popover(let x, let e), .popover(let y, let f)): x === y && e == f
+    default: false
+    }
+  }
 
   var isTop: Bool { if case .palette = self { true } else { false } }
+  var isPopover: Bool { if case .popover = self { true } else { false } }
 }
 
 /// The overlays shown over one window, bottom to top. One that closes stays a moment, fading out, before it goes.
@@ -250,8 +262,9 @@ private struct KitOverlayEntryView: View {
   var body: some View {
     let isShown = hasAppeared && !entry.isClosing
     ZStack(alignment: entry.style.isTop ? .top : .center) {
+      // A popover dims nothing; a click beside it still closes it (and goes no further, as a menu's).
       Rectangle()
-        .fill(.kitScrim)
+        .fill(entry.style.isPopover ? AnyShapeStyle(Color.clear) : AnyShapeStyle(.kitScrim))
         .ignoresSafeArea()
         .contentShape(Rectangle())
         .onTapGesture { if !isDismissDisabled { entry.dismiss() } }
@@ -261,11 +274,19 @@ private struct KitOverlayEntryView: View {
         .opacity(isShown ? 1 : 0)
       card
         .opacity(isShown ? 1 : 0)
-        .scaleEffect(isShown ? 1 : entry.style.isTop ? 0.98 : 0.96, anchor: entry.style.isTop ? .top : .center)
+        .scaleEffect(isShown ? 1 : entry.style.isTop ? 0.98 : 0.96, anchor: scaleAnchor)
     }
     .allowsHitTesting(isTop)
     .animation(.kitFast, value: isShown)
     .onAppear { hasAppeared = true }
+  }
+
+  private var scaleAnchor: UnitPoint {
+    switch entry.style {
+    case .palette: .top
+    case .popover(_, let edge): edge == .bottom ? .top : .bottom
+    case .sheet, .dialog: .center
+    }
   }
 
   @ViewBuilder
@@ -295,6 +316,14 @@ private struct KitOverlayEntryView: View {
         .kitOverlayCard()
         .padding(idiom.size(20, pad: 24, phone: 16))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    case .popover(let anchor, let edge):
+      // The anchor is in the window's space; the layout places the card in its own.
+      GeometryReader { proxy in
+        let origin = proxy.frame(in: .global).origin
+        ContPopoverLayout(anchor: anchor.frame.offsetBy(dx: -origin.x, dy: -origin.y), edge: edge) {
+          body.kitOverlayCard()
+        }
+      }
     }
   }
 }
@@ -316,9 +345,16 @@ private struct KitOverlayBody: View {
 }
 
 extension View {
-  /// The overlays' card: the panel ground with 20pt corners, a hairline and the float shadow (sheets, dialogs, the
-  /// palette). The content is clipped to it.
-  func kitOverlayCard() -> some View {
+  /// The kit overlays' card: the panel ground with 20pt corners, a hairline and the float shadow, the content clipped
+  /// to it. Sheets, dialogs, popovers and the palette sit on it; use it for a floating panel of your own that dims
+  /// nothing (a style panel over a video, a console hanging under the toolbar).
+  ///
+  /// ```swift
+  /// SubtitleStyleForm()
+  ///   .frame(width: 320)
+  ///   .kitOverlayCard()
+  /// ```
+  public func kitOverlayCard() -> some View {
     let shape = RoundedRectangle(cornerRadius: KitMetrics.radiusOverlay, style: .continuous)
     return self
       .clipShape(shape)
