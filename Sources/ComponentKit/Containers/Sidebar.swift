@@ -594,6 +594,7 @@ struct ContSidebarBar<Actions: View>: View {
 /// - `isExpanded:` leads with a disclosure chevron for a tree row (`KitOutline` sets it, and the indent, for you);
 ///   `.disclosureSlot()` keeps its empty slot on a leaf beside such rows, `.disclosureSlot(false)` drops the one a
 ///   `KitOutline` item gives the rows inside it.
+/// - `.pushes()` trails the row with the push chevron: it opens a screen (`KitPushChevron`).
 /// - `.title(_:)` swaps the title for any `Text` (an attributed match, coloured runs); renaming still edits the string.
 /// - `.subtitle { … }` puts any view in the subtitle's place (a styled terminal line, a date and a preview).
 /// - `.titleAccessory { … }` sets a chip or a dot right after the title.
@@ -624,6 +625,7 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
   var isExpanded: Binding<Bool>?
   /// The disclosure slot: `nil` follows the `KitOutline` item the row is in, `true` keeps an empty one, `false` none.
   var reservesDisclosure: Bool?
+  var pushes = false
   var isCurrent = false
   var action: (@MainActor () -> Void)?
   var doubleClick: (@MainActor () -> Void)?
@@ -747,6 +749,20 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
     return row
   }
 
+  /// Trails the row with the push chevron (`KitPushChevron`), after its trailing views: a tap opens a screen. A row
+  /// that selects in a `KitSidebar` or `KitList` shows it only on iPhone, where selecting pushes the selection's
+  /// screen; a row with an `.action` (or in a `NavigationLink`) shows it everywhere.
+  ///
+  /// ```swift
+  /// SidebarRow(value: project.id, project.name, systemImage: "folder").pushes()
+  /// SidebarRow(entry.name, systemImage: "folder").pushes().action { pushed = entry }
+  /// ```
+  public func pushes(_ pushes: Bool = true) -> Self {
+    var row = self
+    row.pushes = pushes
+    return row
+  }
+
   /// Marks the row as the current one: a second, weaker mark than the selection (a flat card), for a sidebar that
   /// holds two (the open repository while a screen of it is selected).
   ///
@@ -796,6 +812,13 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
     if let isExpanded { return ContRowDisclosure(isExpanded: isExpanded) }
     if let reservesDisclosure { return reservesDisclosure ? ContRowDisclosure(isExpanded: nil) : nil }
     return outlineDisclosure
+  }
+
+  /// Whether the push chevron shows: a row that selects pushes only on iPhone.
+  private var showsPushChevron: Bool {
+    guard pushes else { return false }
+    let selects = action == nil && rowValue != nil && selection != nil
+    return !selects || idiom == .phone
   }
 
   public var body: some View {
@@ -850,6 +873,9 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
       trailing
         .kitFont(.caption)
         .monospacedDigit()
+      if showsPushChevron {
+        KitPushChevron()
+      }
     }
     .environment(\.contRowState, ContRowState(isSelected: isSelected, isEmphasized: isEmphasized))
     .padding(
@@ -923,6 +949,25 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
         .modifier(ContSelectionGlide(namespace: selection?.namespace))
       }
     }
+  }
+}
+
+/// The chevron at the end of a row that pushes a screen: small, semibold, in the tertiary colour. `SidebarRow`'s
+/// `.pushes()` draws it; put it at the end of a row of your own (a `GroupRow`, a custom `NavigationLink` row).
+///
+/// ```swift
+/// GroupRow("Appearance", action: { path.append(.appearance) }) { KitPushChevron() }
+/// ```
+public struct KitPushChevron: View {
+  @Environment(\.kitIdiom) private var idiom
+
+  public init() {}
+
+  public var body: some View {
+    Image(systemName: "chevron.right")
+      .font(.system(size: idiom.size(11, touch: 12), weight: .semibold))
+      .foregroundStyle(.kitTertiary)
+      .accessibilityHidden(true)
   }
 }
 

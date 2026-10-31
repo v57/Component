@@ -275,9 +275,7 @@ private struct SettingsPhoneRow: View {
         if let value = pane.value {
           Text(value).kitFont(.caption).foregroundStyle(.kitTertiary).lineLimit(1)
         }
-        Image(systemName: "chevron.right")
-          .font(.system(size: 12, weight: .semibold))
-          .foregroundStyle(.kitTertiary)
+        KitPushChevron()
       }
       .padding(.horizontal, 8)
       .frame(height: 52)
