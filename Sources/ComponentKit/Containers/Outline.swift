@@ -65,7 +65,10 @@ struct ContDisclosureAccessibility: ViewModifier {
 // MARK: - KitOutline
 
 /// A tree of rows from data: each item's row, indented one step a level, with a disclosure chevron when it has
-/// children (`nil` children: a leaf, which keeps the chevron's slot so the icons line up). Put `SidebarRow`s in it,
+/// children (`nil` children: a leaf, which keeps the chevron's slot so the icons line up). An outline whose items
+/// have no children at all (a project list before any group is made) is a plain list: its leaves keep no slot, so
+/// the same `KitOutline` serves with and without groups. Rows nested inside an item's own row content (indented with
+/// `.kitRowIndent(_:)`) take neither its chevron nor its slot. Put `SidebarRow`s in it,
 /// inside a `KitSidebar`, `KitList` or `KitSection`; ← → open and close the selected row from the keyboard. A
 /// `SidebarRow` that selects nothing and has no action (a group) opens and closes on a click; `RecentItem`s take
 /// the indent and the chevron too, so a welcome screen's project groups are an outline as well.
@@ -136,8 +139,11 @@ public struct KitOutline<Element: Identifiable, RowContent: View>: View {
 
   public var body: some View {
     let open = expansion ?? .expanded($ownExpanded)
+    // Nothing opens: no chevrons, so no slots to line up with.
+    let isFlat = !items.contains { children($0) != nil }
     ForEach(items) { item in
-      ContOutlineNode(item: item, children: children, expansion: open, level: baseIndent, row: row)
+      ContOutlineNode(
+        item: item, children: children, expansion: open, level: baseIndent, reservesLeafSlot: !isFlat, row: row)
     }
   }
 }
@@ -168,6 +174,8 @@ private struct ContOutlineNode<Element: Identifiable, RowContent: View>: View {
   let children: (Element) -> [Element]?
   let expansion: ContOutlineExpansion<Element.ID>
   let level: Int
+  /// A leaf keeps the chevron's empty slot (some item in the outline opens).
+  let reservesLeafSlot: Bool
   let row: (Element) -> RowContent
 
   var body: some View {
@@ -177,10 +185,13 @@ private struct ContOutlineNode<Element: Identifiable, RowContent: View>: View {
     let isOpen = Binding(get: { expansion.isOpen(id) }, set: { expansion.set(id, open: $0) })
     row(item)
       .environment(\.contRowIndent, level)
-      .environment(\.contRowDisclosure, ContRowDisclosure(isExpanded: kids == nil ? nil : isOpen))
+      .environment(
+        \.contRowDisclosure,
+        kids == nil && !reservesLeafSlot ? nil : ContRowDisclosure(isExpanded: kids == nil ? nil : isOpen))
     if let kids, expansion.isOpen(id) {
       ForEach(kids) { child in
-        ContOutlineNode(item: child, children: children, expansion: expansion, level: level + 1, row: row)
+        ContOutlineNode(
+          item: child, children: children, expansion: expansion, level: level + 1, reservesLeafSlot: true, row: row)
       }
       .transition(.opacity)
     }

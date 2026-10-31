@@ -56,9 +56,12 @@ extension View {
     environment(\.kitRowDensity, density)
   }
 
-  /// Indents the rows below by `level` steps (a tree: 14pt a step on the Mac, 20 on touch).
+  /// Indents the rows below by `level` steps (a tree: 14pt a step on the Mac, 20 on touch). Rows indented this way
+  /// are their own rows, not a `KitOutline` item's: inside an outline row's content (a project's notes and folders
+  /// under it) they don't take the item's disclosure chevron or its empty slot.
   public func kitRowIndent(_ level: Int) -> some View {
     environment(\.contRowIndent, level)
+      .environment(\.contRowDisclosure, nil)
   }
 }
 
@@ -589,7 +592,8 @@ struct ContSidebarBar<Actions: View>: View {
 /// - `progress:` (and `secondaryProgress:`) draws a `KitProgressBar` under the title (a download, a sync); a row
 ///   with a `status:` draws it in the state's hue (gray while paused), as `.progress(_:secondary:status:)` does.
 /// - `isExpanded:` leads with a disclosure chevron for a tree row (`KitOutline` sets it, and the indent, for you);
-///   `.disclosureSlot()` keeps its empty slot on a leaf beside such rows.
+///   `.disclosureSlot()` keeps its empty slot on a leaf beside such rows, `.disclosureSlot(false)` drops the one a
+///   `KitOutline` item gives the rows inside it.
 /// - `.title(_:)` swaps the title for any `Text` (an attributed match, coloured runs); renaming still edits the string.
 /// - `.subtitle { … }` puts any view in the subtitle's place (a styled terminal line, a date and a preview).
 /// - `.titleAccessory { … }` sets a chip or a dot right after the title.
@@ -618,7 +622,8 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
   /// The work the bar shows: its hue is the state's (gray paused, green done, red failed).
   var progressStatus = WorkStatus.idle
   var isExpanded: Binding<Bool>?
-  var reservesDisclosure = false
+  /// The disclosure slot: `nil` follows the `KitOutline` item the row is in, `true` keeps an empty one, `false` none.
+  var reservesDisclosure: Bool?
   var isCurrent = false
   var action: (@MainActor () -> Void)?
   var doubleClick: (@MainActor () -> Void)?
@@ -729,10 +734,12 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
   }
 
   /// Keeps the disclosure chevron's slot empty on a leaf row, so it lines up with the rows beside it that open (a
-  /// table under a schema next to a view that doesn't). `KitOutline` does it for its own leaves.
+  /// table under a schema next to a view that doesn't). `KitOutline` does it for its own leaves; `false` drops the
+  /// slot (or chevron) a `KitOutline` item gives every row inside it, for a row nested in an item's content.
   ///
   /// ```swift
   /// SidebarRow(value: table.id, table.name, systemImage: "tablecells").disclosureSlot()
+  /// SidebarRow(value: note.id, note.title, systemImage: "doc.text").disclosureSlot(false)
   /// ```
   public func disclosureSlot(_ reserves: Bool = true) -> Self {
     var row = self
@@ -787,7 +794,7 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
   /// The row's own disclosure, or the one its `KitOutline` node gives it.
   private var disclosure: ContRowDisclosure? {
     if let isExpanded { return ContRowDisclosure(isExpanded: isExpanded) }
-    if reservesDisclosure { return ContRowDisclosure(isExpanded: nil) }
+    if let reservesDisclosure { return reservesDisclosure ? ContRowDisclosure(isExpanded: nil) : nil }
     return outlineDisclosure
   }
 
