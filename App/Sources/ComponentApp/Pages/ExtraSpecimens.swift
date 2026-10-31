@@ -99,6 +99,7 @@ enum SquareArt {
 
 struct CopyAndRoundPrimarySpecimens: View {
   @State private var message = "Ship it"
+  @State private var signInCode = "WDJB-MJHT"
 
   var body: some View {
     SpecimenSection(
@@ -120,6 +121,24 @@ struct CopyAndRoundPrimarySpecimens: View {
               KitCopyButton("Copy Code", systemImage: "doc.on.doc", value: "WDJB-MJHT").buttonStyle(.kit)
               KitCopyButton("Copy Password", systemImage: "key", value: "hunter2", isSecret: true).buttonStyle(.kitIcon)
             }
+          }
+        }
+        Specimen(
+          "Copied by the app", note: "the app copies each new code itself; the button says so",
+          code: "KitCopyButton(\"Copy Code\", value: code?.userCode ?? \"\", copiedWhen: code?.userCode)\n  .buttonStyle(.kit)"
+        ) {
+          HStack(spacing: 10) {
+            Text(signInCode).kitFont(.mono)
+            Spacer()
+            KitCopyButton("Copy Code", systemImage: "doc.on.doc", value: signInCode, copiedWhen: signInCode)
+              .buttonStyle(.kit)
+            Button("New Code") {
+              let letters = Array("ABCDEFGHJKLMNPQRSTUVWXYZ")
+              signInCode = String((0..<4).map { _ in letters.randomElement()! }) + "-"
+                + String((0..<4).map { _ in letters.randomElement()! })
+              KitPasteboard.copy(signInCode)
+            }
+            .buttonStyle(.kitPlain)
           }
         }
         Specimen(

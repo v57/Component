@@ -9,25 +9,36 @@ import SwiftUI
 /// KitCopyButton("Copy Code", value: code.userCode).buttonStyle(.kit)
 /// KitCopyButton("Copy Password", systemImage: "key", value: password, isSecret: true).buttonStyle(.kitIcon)
 /// ```
+///
+/// When the app copies the value itself (a sign-in code copied as it arrives), `copiedWhen` says so: each time it
+/// changes to a new non-nil value, and when the button appears with one, the button shows "Copied" as if pressed,
+/// without copying again.
+///
+/// ```swift
+/// KitCopyButton("Copy Code", value: code?.userCode ?? "", copiedWhen: code?.userCode).buttonStyle(.kit)
+/// ```
 public struct KitCopyButton: View {
   var title: String
   var systemImage: String?
   var copiedTitle: String
   var value: () -> String
   var isSecret: Bool
+  var copiedWhen: AnyHashable?
   @State private var copied = 0
   @State private var showsCopied = false
 
-  /// `value` is read when the button is pressed.
+  /// `value` is read when the button is pressed. `copiedWhen`: the app copied the value itself; the button shows
+  /// "Copied" when it appears with it and each time it changes to another non-nil value.
   public init(
     _ title: String = "Copy", systemImage: String? = nil, copiedTitle: String = "Copied",
-    value: @autoclosure @escaping () -> String, isSecret: Bool = false
+    value: @autoclosure @escaping () -> String, isSecret: Bool = false, copiedWhen: AnyHashable? = nil
   ) {
     self.title = title
     self.systemImage = systemImage
     self.copiedTitle = copiedTitle
     self.value = value
     self.isSecret = isSecret
+    self.copiedWhen = copiedWhen
   }
 
   public var body: some View {
@@ -51,6 +62,9 @@ public struct KitCopyButton: View {
       }
     }
     .accessibilityLabel(showsCopied ? copiedTitle : title)
+    .onChange(of: copiedWhen, initial: true) { _, trigger in
+      if trigger != nil { copied += 1 }
+    }
     .task(id: copied) {
       guard copied > 0 else { return }
       withKitAnimation { showsCopied = true }
