@@ -121,10 +121,16 @@ extension KitDesktop {
     #endif
   }
 
-  /// Asks for folders with the system's open panel; empty when cancelled (and on iOS, which has none).
+  /// Asks for folders with the system's open panel; empty when cancelled (and on iOS, which has none). `name` picks an
+  /// item in `directory` to start on (the folder the user is asked to grant again).
+  ///
+  /// ```swift
+  /// let folder = await KitDesktop.chooseFolders(prompt: "Allow Editing", directory: root.deletingLastPathComponent(),
+  ///                                             name: root.lastPathComponent).first
+  /// ```
   @MainActor public static func chooseFolders(
     prompt: String = "Choose", message: String? = nil, directory: URL? = nil, allowsMultipleSelection: Bool = false,
-    canCreateDirectories: Bool = false
+    canCreateDirectories: Bool = false, name: String? = nil
   ) async -> [URL] {
     #if canImport(AppKit)
       let panel = NSOpenPanel()
@@ -135,6 +141,7 @@ extension KitDesktop {
       panel.prompt = prompt
       if let message { panel.message = message }
       if let directory { panel.directoryURL = directory }
+      if let name { panel.nameFieldStringValue = name }
       return panel.runModal() == .OK ? panel.urls : []
     #elseif canImport(UIKit)
       return []
@@ -144,6 +151,42 @@ extension KitDesktop {
         canChooseDirectories: true)
       request.options.confirmationLabel = prompt
       request.options.message = message
+      request.options.defaultDirectory = directory
+      return await FileDialogs.present(request) ?? []
+    #endif
+  }
+
+  /// Asks for files with the system's open panel: of `contentTypes` (any file when empty), and folders too with
+  /// `canChooseFolders`; empty when cancelled (and on iOS, which has none: use SwiftUI's `fileImporter` there). Windows
+  /// and Linux show their own file dialogs.
+  ///
+  /// ```swift
+  /// let urls = await KitDesktop.chooseFiles(prompt: "Open", contentTypes: [.movie], allowsMultipleSelection: true)
+  /// for url in await KitDesktop.chooseFiles(message: "Choose a folder to open as a project.", canChooseFolders: true) { open(url) }
+  /// ```
+  @MainActor public static func chooseFiles(
+    title: String? = nil, prompt: String = "Open", message: String? = nil, contentTypes: [UTType] = [],
+    directory: URL? = nil, canChooseFolders: Bool = false, allowsMultipleSelection: Bool = false
+  ) async -> [URL] {
+    #if canImport(AppKit)
+      let panel = NSOpenPanel()
+      if let title { panel.title = title }
+      if let message { panel.message = message }
+      panel.prompt = prompt
+      panel.canChooseFiles = true
+      panel.canChooseDirectories = canChooseFolders
+      panel.allowsMultipleSelection = allowsMultipleSelection
+      if !contentTypes.isEmpty { panel.allowedContentTypes = contentTypes }
+      if let directory { panel.directoryURL = directory }
+      return panel.runModal() == .OK ? panel.urls : []
+    #elseif canImport(UIKit)
+      return []
+    #else
+      var request = FileDialogRequest(
+        kind: .open, contentTypes: contentTypes.map(\.identifier), allowsMultipleSelection: allowsMultipleSelection,
+        canChooseDirectories: canChooseFolders)
+      request.options.confirmationLabel = prompt
+      request.options.message = message ?? title
       request.options.defaultDirectory = directory
       return await FileDialogs.present(request) ?? []
     #endif
@@ -172,6 +215,47 @@ extension KitDesktop {
     #endif
   }
 
+  /// The icon the file manager shows for a file, folder or app (Finder's on the Mac, already in its shape: draw it with
+  /// `KitAppIcon(image:isShaped: true)` or as it is); nil where the system has none to give.
+  ///
+  /// ```swift
+  /// if let icon = KitDesktop.icon(forFile: app.path) { icon.resizable().frame(width: 18, height: 18) }
+  /// ```
+  @MainActor public static func icon(forFile path: String) -> Image? {
+    #if canImport(AppKit)
+      Image(nsImage: NSWorkspace.shared.icon(forFile: path))
+    #else
+      nil
+    #endif
+  }
+
+  /// Whether an app with this bundle identifier is running (the Mac's apps; false elsewhere).
+  public static func isAppRunning(_ bundleIdentifier: String) -> Bool {
+    #if canImport(AppKit)
+      !NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).isEmpty
+    #else
+      false
+    #endif
+  }
+
+  /// Calls `handler` each time the app becomes the active one (the user comes back to it: refresh what may have
+  /// changed meanwhile), until the returned observation is released. The Mac, iPhone and iPad say so; never called
+  /// where the system doesn't (Windows, Linux).
+  ///
+  /// ```swift
+  /// @State private var activation: AnyObject?
+  /// .onAppear { activation = KitDesktop.onActivation { model.refresh() } }
+  /// ```
+  @MainActor public static func onActivation(_ handler: @escaping @MainActor () -> Void) -> AnyObject? {
+    #if canImport(AppKit)
+      KitObservation(NSApplication.didBecomeActiveNotification, handler)
+    #elseif canImport(UIKit)
+      KitObservation(UIApplication.didBecomeActiveNotification, handler)
+    #else
+      nil
+    #endif
+  }
+
   /// The modifier keys held now, for clicks that select more (⌘-click, ⇧-click). On Windows and Linux Ctrl
   /// counts as ⌘, as in their menus' shortcuts.
   @MainActor public static var modifierKeys: EventModifiers {
@@ -195,3 +279,18 @@ extension KitDesktop {
     #endif
   }
 }
+
+#if canImport(AppKit) || canImport(UIKit)
+  /// A notification observer that stops observing when released.
+  private final class KitObservation {
+    let token: NSObjectProtocol
+
+    @MainActor init(_ name: Notification.Name, _ handler: @escaping @MainActor () -> Void) {
+      token = NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { _ in
+        MainActor.assumeIsolated { handler() }
+      }
+    }
+
+    deinit { NotificationCenter.default.removeObserver(token) }
+  }
+#endif

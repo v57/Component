@@ -254,6 +254,7 @@ struct DateAndMetaSpecimens: View {
 
 struct DropLabelSpecimens: View {
   @State private var isTargeted = true
+  @State private var chosen: [URL] = []
 
   var body: some View {
     SpecimenSection(
@@ -270,6 +271,33 @@ struct DropLabelSpecimens: View {
             .frame(height: 200)
             .kitDropTarget(isTargeted, label: "Drop to download", systemImage: "arrow.down", cornerRadius: KitMetrics.radiusCard)
             .kitFileDrop(isTargeted: $isTargeted) { _ in }
+        }
+      }
+    }
+    SpecimenSection(
+      "Files from the system",
+      note: "KitDesktop asks for files and folders with the system's panels (Windows and Linux: their file dialogs), and gives the file manager's icons."
+    ) {
+      Specimen(
+        "KitDesktop.chooseFiles", note: "opens the panel",
+        code: "let urls = await KitDesktop.chooseFiles(prompt: \"Open\", contentTypes: [.movie], allowsMultipleSelection: true)\nlet folder = await KitDesktop.chooseFolders(prompt: \"Use for Notes\", canCreateDirectories: true).first\nKitDesktop.icon(forFile: \"/Applications/Safari.app\")"
+      ) {
+        VStack(alignment: .leading, spacing: 10) {
+          HStack(spacing: 10) {
+            Button("Choose Files…", systemImage: "doc") {
+              Task { chosen = await KitDesktop.chooseFiles(canChooseFolders: true, allowsMultipleSelection: true) }
+            }
+            .buttonStyle(.kit)
+            Button("Choose a Folder…", systemImage: "folder") {
+              Task { chosen = await KitDesktop.chooseFolders(canCreateDirectories: true) }
+            }
+            .buttonStyle(.kit)
+            if let icon = KitDesktop.icon(forFile: "/Applications/Safari.app") {
+              KitAppIcon(image: icon, size: 28, isShaped: true)
+            }
+          }
+          Text(chosen.isEmpty ? "Nothing chosen" : chosen.map(\.lastPathComponent).joined(separator: ", "))
+            .kitFont(.caption)
         }
       }
     }
