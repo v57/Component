@@ -105,6 +105,7 @@ struct ButtonsPage: View {
           }
         }
       }
+      CopyAndRoundPrimarySpecimens()
     }
   }
 

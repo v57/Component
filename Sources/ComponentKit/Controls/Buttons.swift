@@ -185,35 +185,61 @@ struct KitButtonLabelStyle: LabelStyle {
 /// ```swift
 /// Button("Move to Trash", systemImage: "trash", role: .destructive) { … }.buttonStyle(.kitRound)
 /// ```
+///
+/// `.kitRoundPrimary` fills the circle with the accent (red for `role: .destructive`) and draws the label white, for
+/// the one action a composer or a tool leads with (Send, Clean); disabled it turns quiet. `size` sets any diameter
+/// (a big Clean button with a word in it). The icon grows with the circle; give a word its own font.
+///
+/// ```swift
+/// Button("Send", systemImage: "arrow.up", action: send).buttonStyle(.kitRoundPrimary).disabled(text.isEmpty)
+/// Button(action: clean) { Text("Clean").kitFont(.headline) }.buttonStyle(KitRoundButtonStyle(prominent: true, size: 72))
+/// ```
 public struct KitRoundButtonStyle: ButtonStyle {
-  public init() {}
+  var isProminent: Bool
+  var size: CGFloat?
+
+  public init(prominent: Bool = false, size: CGFloat? = nil) {
+    self.isProminent = prominent
+    self.size = size
+  }
 
   public func makeBody(configuration: Configuration) -> some View {
-    KitRoundButton(configuration: configuration)
+    KitRoundButton(configuration: configuration, isProminent: isProminent, fixedSize: size)
   }
 }
 
 extension ButtonStyle where Self == KitRoundButtonStyle {
   public static var kitRound: KitRoundButtonStyle { KitRoundButtonStyle() }
+  /// A round button filled with the accent, its label white: Send.
+  public static var kitRoundPrimary: KitRoundButtonStyle { KitRoundButtonStyle(prominent: true) }
 }
 
 struct KitRoundButton: View {
   let configuration: ButtonStyleConfiguration
+  var isProminent = false
+  var fixedSize: CGFloat? = nil
   @Environment(\.isEnabled) private var isEnabled
   @Environment(\.controlSize) private var controlSize
   @Environment(\.kitIdiom) private var idiom
   @State private var isHovered = false
 
   var body: some View {
-    let size = KitRoundButton.size(idiom: idiom, small: controlSize == .small || controlSize == .mini)
+    let size = fixedSize ?? KitRoundButton.size(idiom: idiom, small: controlSize == .small || controlSize == .mini)
     configuration.label
       .labelStyle(.iconOnly)
-      .font(.system(size: size * 0.42, weight: .medium))
-      .foregroundStyle(
-        configuration.role == .destructive ? AnyShapeStyle(Hue.red.text)
-          : isEnabled ? AnyShapeStyle(.kitLabel) : AnyShapeStyle(.kitTertiary))
+      .font(.system(size: size * 0.42, weight: isProminent ? .bold : .medium))
+      .lineLimit(1)
+      .minimumScaleFactor(0.7)
+      .padding(.horizontal, size * 0.12)
+      .foregroundStyle(foreground)
       .frame(width: size, height: size)
-      .background { SurfaceShape(surface: .card, cornerRadius: size / 2) }
+      .background {
+        if isProminent {
+          Circle().fill(prominentFill).overlay { Circle().fill(Color.black.opacity(isEnabled ? 0.08 : 0)) }
+        } else {
+          SurfaceShape(surface: .card, cornerRadius: size / 2)
+        }
+      }
       .overlay {
         Circle().fill(Color.primary.opacity(configuration.isPressed ? 0.1 : isHovered && isEnabled ? 0.04 : 0))
       }
@@ -225,6 +251,18 @@ struct KitRoundButton: View {
       #endif
       .animation(.kitFast, value: isHovered)
       .animation(.kitFast, value: configuration.isPressed)
+  }
+
+  private var foreground: AnyShapeStyle {
+    if isProminent { return isEnabled ? AnyShapeStyle(Color.white) : AnyShapeStyle(.kitSecondary) }
+    if configuration.role == .destructive { return AnyShapeStyle(Hue.red.text) }
+    return isEnabled ? AnyShapeStyle(.kitLabel) : AnyShapeStyle(.kitTertiary)
+  }
+
+  /// The accent (red when destructive), 8% darker for the white label's contrast; the fill well when disabled.
+  private var prominentFill: AnyShapeStyle {
+    guard isEnabled else { return AnyShapeStyle(.kitFill) }
+    return AnyShapeStyle((configuration.role == .destructive ? Hue.red : Hue.accent).fill)
   }
 
   /// 32pt (28 small) on the Mac, 44 (36 small) on touch, 64 (56 small) on Apple TV.

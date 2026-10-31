@@ -94,3 +94,48 @@ enum SquareArt {
     return Image(decorative: cgImage, scale: 3)
   }
 }
+
+// MARK: - Copy and round primary buttons (Buttons page)
+
+struct CopyAndRoundPrimarySpecimens: View {
+  @State private var message = "Ship it"
+
+  var body: some View {
+    SpecimenSection(
+      "Copy and lead",
+      note: "KitCopyButton copies and says so for a moment. .kitRoundPrimary is the round button an input or a tool leads with: Send, Clean."
+    ) {
+      SpecimenGrid(minWidth: 320) {
+        Specimen(
+          "KitCopyButton", note: "click one",
+          code: "KitCopyButton(value: command).buttonStyle(.kitPlain)\nKitCopyButton(\"Copy Code\", value: code).buttonStyle(.kit)"
+        ) {
+          VStack(alignment: .leading, spacing: 10) {
+            HStack {
+              Text("claude mcp add dev -- dev-mcp").kitFont(.mono).lineLimit(1)
+              Spacer()
+              KitCopyButton(value: "claude mcp add dev -- dev-mcp").buttonStyle(.kitPlain)
+            }
+            HStack(spacing: 10) {
+              KitCopyButton("Copy Code", systemImage: "doc.on.doc", value: "WDJB-MJHT").buttonStyle(.kit)
+              KitCopyButton("Copy Password", systemImage: "key", value: "hunter2", isSecret: true).buttonStyle(.kitIcon)
+            }
+          }
+        }
+        Specimen(
+          "kitRoundPrimary",
+          code: "Button(\"Send\", systemImage: \"arrow.up\", action: send).buttonStyle(.kitRoundPrimary)\nButton(action: clean) { Text(\"Clean\").kitFont(.headline) }\n  .buttonStyle(KitRoundButtonStyle(prominent: true, size: 72))"
+        ) {
+          Flow(spacing: 14) {
+            Button("Send", systemImage: "arrow.up") {}.buttonStyle(.kitRoundPrimary)
+            Button("Send", systemImage: "arrow.up") {}.buttonStyle(.kitRoundPrimary).controlSize(.small)
+            Button("Send", systemImage: "arrow.up") {}.buttonStyle(.kitRoundPrimary).disabled(true)
+            Button("Stop", systemImage: "stop.fill", role: .destructive) {}.buttonStyle(.kitRoundPrimary)
+            Button {} label: { Text("Clean").kitFont(.headline) }
+              .buttonStyle(KitRoundButtonStyle(prominent: true, size: 72))
+          }
+        }
+      }
+    }
+  }
+}
