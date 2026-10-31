@@ -206,6 +206,7 @@ struct TypePage: View {
         }
         CodeSnippet("MetaLine(\"5 repositories\", \"2 with changes\").kitFont(.caption)")
       }
+      DateAndMetaSpecimens()
     }
   }
 }

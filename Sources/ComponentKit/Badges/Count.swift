@@ -178,6 +178,33 @@ public struct StatusDot: View {
   }
 }
 
+/// A status as a dot and a word: a connection's state, a project's health, a sync line. The text takes the font and
+/// colour around it (`.kitFont(.caption)` for a footer); VoiceOver reads the word.
+///
+/// ```swift
+/// StatusLabel("Connected · atlas", hue: .green).kitFont(.caption)
+/// StatusLabel("Offline", hue: .gray, isHollow: true)
+/// ```
+public struct StatusLabel: View {
+  var title: String
+  var hue: Hue
+  var isHollow: Bool
+
+  public init(_ title: String, hue: Hue, isHollow: Bool = false) {
+    self.title = title
+    self.hue = hue
+    self.isHollow = isHollow
+  }
+
+  public var body: some View {
+    HStack(spacing: 6) {
+      StatusDot(hue: hue, isHollow: isHollow)
+      Text(title).lineLimit(1)
+    }
+    .accessibilityElement(children: .combine)
+  }
+}
+
 #Preview("Counts") {
   VStack(alignment: .leading, spacing: 12) {
     HStack(spacing: 8) {

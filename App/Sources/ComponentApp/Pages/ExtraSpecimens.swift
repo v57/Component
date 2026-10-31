@@ -184,3 +184,68 @@ struct FlowLayoutSpecimens: View {
     }
   }
 }
+
+// MARK: - Dates, dot labels and meta lines of views (Type page)
+
+struct DateAndMetaSpecimens: View {
+  private let now = Date.now
+
+  var body: some View {
+    SpecimenSection(
+      "Dates and durations",
+      note: "date.kitFormatted(_:) writes a date next to now the same way in every app; KitDuration writes lengths of time."
+    ) {
+      let dates: [(String, TimeInterval)] = [
+        ("20 s ago", -20), ("3 min ago", -180), ("2 hr ago", -7_200), ("yesterday", -86_400 - 3_600),
+        ("3 days ago", -3 * 86_400), ("40 days ago", -40 * 86_400), ("400 days ago", -400 * 86_400),
+      ]
+      Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 6) {
+        GridRow {
+          ForEach(["", ".ago", ".clock", ".day", ".dayAndTime", ".elapsed"], id: \.self) { Text($0).kitFont(.monoSmall) }
+        }
+        ForEach(dates, id: \.0) { name, offset in
+          let date = now.addingTimeInterval(offset)
+          GridRow {
+            Text(name).kitFont(.caption)
+            ForEach([KitDateStyle.ago, .clock, .day, .dayAndTime, .elapsed], id: \.self) { style in
+              Text(date.kitFormatted(style, relativeTo: now)).kitFont(.callout)
+            }
+          }
+        }
+      }
+      MetaLine(
+        KitDuration.format(42, seconds: true), KitDuration.format(125, seconds: true), KitDuration.format(4_000),
+        KitDuration.timeLeft(25), KitDuration.timeLeft(200), KitDuration.timeLeft(4_900)
+      )
+      .kitFont(.callout)
+      CodeSnippet(
+        "Text(commit.date.kitFormatted(.dayAndTime))   // \"Today, 10:42\"\nText(message.date.kitFormatted(.clock))       // \"10:42\", \"Yesterday\", \"Mon\"\nText(KitDuration.timeLeft(estimate.remaining)) // \"about 3 min left\""
+      )
+    }
+    SpecimenSection("Dot labels and meta lines of views", note: "StatusLabel is a dot and a word; MetaLine { } puts the dot between any views.") {
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(spacing: 16) {
+          StatusLabel("Connected · atlas", hue: .green)
+          StatusLabel("Connecting…", hue: .orange)
+          StatusLabel("Offline — local only", hue: .gray, isHollow: true)
+        }
+        .kitFont(.caption)
+        MetaLine {
+          Text("main")
+          StatusLabel("3 changed", hue: .orange)
+          SyncCounts(ahead: 2, behind: 1)
+        }
+        .kitFont(.caption)
+        MetaLine {
+          Text("Pass 3")
+          Text("1 failed").foregroundStyle(Hue.red.text)
+          Text("12 min")
+        }
+        .kitFont(.caption)
+      }
+      CodeSnippet(
+        "StatusLabel(\"Connected\", hue: .green).kitFont(.caption)\nMetaLine {\n  Text(branch)\n  if changes > 0 { StatusLabel(\"\\(changes) changed\", hue: .orange) }\n  SyncCounts(ahead: ahead, behind: behind)\n}"
+      )
+    }
+  }
+}

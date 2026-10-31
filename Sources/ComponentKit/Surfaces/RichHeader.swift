@@ -135,15 +135,48 @@ extension RichHeader where Icon == SizedLiveIcon, Meta == MetaLine, Accessory ==
 }
 
 /// A meta line: parts joined with a quiet " · ".
+///
+/// ```swift
+/// MetaLine("5 repositories", "2 with changes").kitFont(.caption)
+/// MetaLine {
+///   Text(branch)
+///   if changes > 0 { StatusLabel("\(changes) changed", hue: .orange) }
+///   SyncCounts(ahead: ahead, behind: behind)
+/// }
+/// ```
+///
+/// The `@ViewBuilder` form takes any views (a dot, counts, a coloured word) and puts the dot between those that are
+/// there; before macOS 15 and iOS 18 they stand a gap apart without it.
 public struct MetaLine: View {
   var parts: [String]
+  var content: AnyView?
 
   public init(_ parts: [String]) { self.parts = parts.filter { !$0.isEmpty } }
   public init(_ parts: String...) { self.init(parts) }
 
+  public init<Content: View>(@ViewBuilder content: () -> Content) {
+    self.parts = []
+    self.content = AnyView(content())
+  }
+
   public var body: some View {
-    parts.enumerated().reduce(Text("")) { text, item in
-      item.offset == 0 ? text + Text(item.element) : text + Text("  ·  ").foregroundStyle(.kitTertiary) + Text(item.element)
+    if let content {
+      if #available(macOS 15, iOS 18, tvOS 18, *) {
+        Group(subviews: content) { parts in
+          HStack(spacing: 5) {
+            ForEach(Array(parts.enumerated()), id: \.element.id) { index, part in
+              if index > 0 { Text("·").foregroundStyle(.kitTertiary) }
+              part
+            }
+          }
+        }
+      } else {
+        HStack(spacing: 10) { content }
+      }
+    } else {
+      parts.enumerated().reduce(Text("")) { text, item in
+        item.offset == 0 ? text + Text(item.element) : text + Text("  ·  ").foregroundStyle(.kitTertiary) + Text(item.element)
+      }
     }
   }
 }
