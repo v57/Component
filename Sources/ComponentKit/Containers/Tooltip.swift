@@ -1,5 +1,9 @@
 import SwiftUI
 
+#if canImport(AppKit)
+  import AppKit
+#endif
+
 extension View {
   /// The kit's tooltip: half a second after the pointer stops on the view, a small card with a rich header shows 6pt
   /// under it: the item's icon on a tinted tile (wearing `status`'s ring while it runs), its name, one line of status,
@@ -13,14 +17,19 @@ extension View {
   ///
   /// It draws in the view's overlay, so put it on views whose container doesn't clip (a scroll view clips). In a
   /// `KitSidebar` the sidebar draws it, over every card and stuck title, kept inside the sidebar (above the row when
-  /// there's no room under it).
+  /// there's no room under it). Elsewhere it shows above the view when the pointer is near the window's bottom (a
+  /// status bar, a bottom bar); `edge` picks the side instead.
+  ///
+  /// ```swift
+  /// Text("Ln 12, Col 4").kitHelp("Go to Line", shortcut: "⌘L", edge: .top)
+  /// ```
   public func kitHelp(
     _ title: String, shortcut: String? = nil, meta: String? = nil, systemImage: String? = nil,
-    hue: Hue = .accent, status: WorkStatus = .idle
+    hue: Hue = .accent, status: WorkStatus = .idle, edge: VerticalEdge? = nil
   ) -> some View {
     modifier(
       ContHelpModifier(
-        title: title, shortcut: shortcut, meta: meta, systemImage: systemImage, hue: hue, status: status))
+        title: title, shortcut: shortcut, meta: meta, systemImage: systemImage, hue: hue, status: status, edge: edge))
   }
 }
 
@@ -39,7 +48,10 @@ private struct ContHelpModifier: ViewModifier {
   let systemImage: String?
   let hue: Hue
   let status: WorkStatus
+  let edge: VerticalEdge?
   @State private var isShown = false
+  /// Whether the pointer was near the window's bottom as the tooltip came (it goes above the view then).
+  @State private var nearBottom = false
   @State private var pending: Task<Void, Never>?
   @State private var id = UUID()
   @Environment(\.kitIdiom) private var idiom
@@ -55,7 +67,7 @@ private struct ContHelpModifier: ViewModifier {
         .simultaneousGesture(TapGesture().onEnded { hide() })
         // Drawn by the container (`ContTooltipHost`), over every card and title.
         .anchorPreference(key: ContTooltipKey.self, value: .bounds) { [isShown, card, id] bounds in
-          isShown ? [ContTooltip(id: id, card: card, anchor: bounds)] : []
+          isShown ? [ContTooltip(id: id, card: card, anchor: bounds, edge: edge)] : []
         }
         .accessibilityHint([meta, shortcut].compactMap { $0 }.joined(separator: ", "))
         .onAppear { if KitLaunchOptions.shownTooltip == title { isShown = true } }
@@ -64,11 +76,14 @@ private struct ContHelpModifier: ViewModifier {
       content
         .kitHover(perform: hover)
         .simultaneousGesture(TapGesture().onEnded { hide() })
-        .overlay(alignment: .bottom) {
+        .overlay(alignment: isAbove ? .top : .bottom) {
           if isShown {
             card
               .fixedSize()
-              .alignmentGuide(.bottom) { $0[.top] - ContTooltipHost.gap }
+              // Under the view (its top a gap below the view's bottom) or over it (its bottom a gap above the top):
+              // a frame of no height on that edge, the card reaching out of it.
+              .padding(isAbove ? .bottom : .top, ContTooltipHost.gap)
+              .frame(height: 0, alignment: isAbove ? .bottom : .top)
               .allowsHitTesting(false)
               .transition(.opacity)
           }
@@ -80,6 +95,8 @@ private struct ContHelpModifier: ViewModifier {
     }
   }
 
+  private var isAbove: Bool { edge.map { $0 == .top } ?? nearBottom }
+
   private var card: ContTooltipCard {
     ContTooltipCard(
       title: title, shortcut: shortcut, meta: meta, systemImage: systemImage, hue: isEnabled ? hue : .gray,
@@ -89,6 +106,7 @@ private struct ContHelpModifier: ViewModifier {
   private func hover(_ inside: Bool) {
     pending?.cancel()
     if inside {
+      if edge == nil { nearBottom = ContTooltipRoom.isNearWindowBottom }
       if Date().timeIntervalSince(ContTooltipClock.lastHidden) < ContTooltipClock.carryOver {
         isShown = true
       } else {
@@ -115,6 +133,27 @@ struct ContTooltip: Identifiable {
   let id: UUID
   let card: ContTooltipCard
   let anchor: Anchor<CGRect>
+  var edge: VerticalEdge? = nil
+}
+
+/// Whether a tooltip outside a host has room under its view.
+@MainActor
+enum ContTooltipRoom {
+  /// How close to the window's bottom the pointer is when a tooltip goes above its view: a card and its gap, and some.
+  static let margin: CGFloat = 64
+
+  /// Whether the pointer is within `margin` of the bottom of the window under it (the Mac; false elsewhere).
+  static var isNearWindowBottom: Bool {
+    #if canImport(AppKit)
+      let mouse = NSEvent.mouseLocation
+      guard let window = NSApp.orderedWindows.first(where: { $0.isVisible && $0.frame.contains(mouse) }) else {
+        return false
+      }
+      return mouse.y - window.frame.minY < margin
+    #else
+      return false
+    #endif
+  }
 }
 
 struct ContTooltipKey: PreferenceKey {
@@ -139,7 +178,7 @@ struct ContTooltipHost: ViewModifier {
       .overlayPreferenceValue(ContTooltipKey.self, alignment: .topLeading) { tooltips in
         GeometryReader { proxy in
           ForEach(tooltips) { tooltip in
-            ContTooltipPlacement(anchor: proxy[tooltip.anchor]) { tooltip.card }
+            ContTooltipPlacement(anchor: proxy[tooltip.anchor], edge: tooltip.edge) { tooltip.card }
               .allowsHitTesting(false)
               .transition(.opacity)
           }
@@ -152,6 +191,7 @@ struct ContTooltipHost: ViewModifier {
 /// Lays a tooltip's card out at its own size under (or over) the view it explains, inside the proposed bounds.
 private struct ContTooltipPlacement: Layout {
   let anchor: CGRect
+  var edge: VerticalEdge? = nil
 
   func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
     proposal.replacingUnspecifiedDimensions()
@@ -167,8 +207,15 @@ private struct ContTooltipPlacement: Layout {
     let size = ideal.width <= room ? ideal : card.sizeThatFits(ProposedViewSize(width: room, height: nil))
     let x = min(max(anchor.midX - size.width / 2, gutter), max(gutter, bounds.width - gutter - size.width))
     let below = anchor.maxY + ContTooltipHost.gap
-    let y = below + size.height <= bounds.height - gutter || anchor.minY - ContTooltipHost.gap - size.height < gutter
-      ? below : anchor.minY - ContTooltipHost.gap - size.height
+    let above = anchor.minY - ContTooltipHost.gap - size.height
+    let fitsBelow = below + size.height <= bounds.height - gutter
+    let fitsAbove = above >= gutter
+    let y =
+      switch edge {
+      case .top: fitsAbove || !fitsBelow ? above : below
+      case .bottom: below
+      case nil: fitsBelow || !fitsAbove ? below : above
+      }
     card.place(at: CGPoint(x: bounds.minX + x, y: bounds.minY + y), proposal: ProposedViewSize(size))
   }
 }

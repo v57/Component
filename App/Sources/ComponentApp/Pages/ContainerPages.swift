@@ -169,6 +169,7 @@ struct SectionsPage: View {
             """)
         }
       }
+      SectionGapSpecimens()
     }
   }
 }
@@ -521,6 +522,7 @@ struct SidebarPage: View {
         }
       }
       SidebarAdditionSections()
+      SidebarGapSpecimens()
     }
   }
 
@@ -783,6 +785,7 @@ struct ToolbarPage: View {
         }
       }
       ToolbarAdditionSections()
+      ToolbarGapSpecimens()
       SystemToolbarReproSections()
     }
     .onAppear(perform: fitPhone)
@@ -1045,6 +1048,7 @@ struct InspectorPage: View {
           .frame(maxWidth: 320)
         }
       }
+      InspectorGapSpecimens()
     }
   }
 }
@@ -1186,6 +1190,7 @@ struct FormsPage: View {
           .frame(maxWidth: 260)
         }
       }
+      FormGapSpecimens()
     }
   }
 }
@@ -1687,6 +1692,27 @@ struct TooltipsPage: View {
             }
           }
           .padding(.bottom, 50)
+        }
+        Specimen(
+          "Above a status bar", ground: .window,
+          code: """
+            StatusBarItem("Ln 12, Col 4")
+              .kitHelp("Go to Line", shortcut: "⌘L", edge: .top)   // or nothing: above near the window's bottom
+            """
+        ) {
+          VStack(spacing: 0) {
+            Color.clear.frame(height: 70)
+            HStack(spacing: 14) {
+              Text("Ln 12, Col 4").kitHelp("Go to Line", shortcut: "⌘L", edge: .top)
+              Text("Spaces: 2").kitHelp("Indentation", meta: "2 spaces, from .editorconfig", edge: .top)
+              Spacer()
+              Text("Swift").kitHelp("Language", meta: "Detected from the extension", systemImage: "swift", edge: .top)
+            }
+            .kitFont(.caption)
+            .padding(.horizontal, 10)
+            .frame(height: 24)
+            .background(.kitFillSoft)
+          }
         }
       }
     }
