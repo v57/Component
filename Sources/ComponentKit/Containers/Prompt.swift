@@ -9,31 +9,45 @@ import SwiftUI
 /// KitPromptField("Name", help: "Use “/” to create folders along the way.")
 /// KitPromptField("Message", systemImage: "text.bubble")
 /// KitPromptField.secure("Password", placeholder: "Mac password", help: "v57 on build-mac")
+/// KitPromptField("Key", systemImage: "key", mono: true)                  // a Redis key, an id
+/// KitPromptField("Email", systemImage: "at", content: .email)            // the keyboard and AutoFill for it
 /// ```
 public struct KitPromptField: Sendable {
+  /// What the field holds, for the keyboard, AutoFill (iPhone and iPad) and capitalisation.
+  public enum Content: Hashable, Sendable {
+    case plain, username, password, newPassword, oneTimeCode, email, url
+  }
+
   public var label: String
   public var placeholder: String?
   public var help: String?
   public var systemImage: String
   public var isSecure: Bool
+  public var content: Content
+  /// Monospaced text without autocorrection (keys, ids, paths).
+  public var isMono: Bool
 
   public init(
     _ label: String = "Name", placeholder: String? = nil, help: String? = nil,
-    systemImage: String = "character.cursor.ibeam", isSecure: Bool = false
+    systemImage: String = "character.cursor.ibeam", isSecure: Bool = false, content: Content = .plain,
+    mono: Bool = false
   ) {
     self.label = label
     self.placeholder = placeholder
     self.help = help
     self.systemImage = systemImage
     self.isSecure = isSecure
+    self.content = content
+    self.isMono = mono
   }
 
-  /// A field that hides what is typed.
+  /// A field that hides what is typed: a password AutoFill can fill (`content: .newPassword` to suggest one).
   public static func secure(
     _ label: String = "Password", placeholder: String? = nil, help: String? = nil,
-    systemImage: String = "ellipsis.rectangle"
+    systemImage: String = "ellipsis.rectangle", content: Content = .password
   ) -> KitPromptField {
-    KitPromptField(label, placeholder: placeholder, help: help, systemImage: systemImage, isSecure: true)
+    KitPromptField(
+      label, placeholder: placeholder, help: help, systemImage: systemImage, isSecure: true, content: content)
   }
 }
 
@@ -67,6 +81,58 @@ extension View {
         title: title, message: message, systemImage: systemImage, hue: hue, field: field, footnote: footnote,
         confirm: confirm, text: text, action: action, dismiss: { isPresented.wrappedValue = false })
     }
+  }
+}
+
+/// A prompt field's content: monospaced, and on iPhone and iPad its AutoFill type, keyboard and capitalisation.
+private struct ContPromptContent: ViewModifier {
+  let content: KitPromptField.Content
+  let isMono: Bool
+
+  func body(content field: Content) -> some View {
+    let plain = content == .plain && !isMono
+    let styled = field
+      .modifier(ContPromptMono(isOn: isMono))
+      .autocorrectionDisabled(!plain)
+    #if os(iOS) || os(visionOS)
+      return styled
+        .textContentType(textContentType)
+        .keyboardType(keyboard)
+        .textInputAutocapitalization(plain ? nil : .never)
+    #else
+      return styled
+    #endif
+  }
+
+  #if os(iOS) || os(visionOS)
+    private var textContentType: UITextContentType? {
+      switch content {
+      case .plain: nil
+      case .username: .username
+      case .password: .password
+      case .newPassword: .newPassword
+      case .oneTimeCode: .oneTimeCode
+      case .email: .emailAddress
+      case .url: .URL
+      }
+    }
+
+    private var keyboard: UIKeyboardType {
+      switch content {
+      case .email: .emailAddress
+      case .url: .URL
+      case .oneTimeCode: .numberPad
+      default: isMono ? .asciiCapable : .default
+      }
+    }
+  #endif
+}
+
+private struct ContPromptMono: ViewModifier {
+  let isOn: Bool
+
+  func body(content: Content) -> some View {
+    if isOn { content.kitFont(.mono) } else { content }
   }
 }
 
@@ -121,6 +187,7 @@ struct ContPrompt: View {
         TextField(placeholder, text: $text)
       }
     }
+    .modifier(ContPromptContent(content: field.content, isMono: field.isMono))
     .focused($focused)
     .onSubmit { submit() }
   }

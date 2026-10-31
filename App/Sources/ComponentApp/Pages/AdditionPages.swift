@@ -20,6 +20,8 @@ struct SheetAdditionSections: View {
   @State private var name = "Trip to Lisbon.md"
   @State private var renamed: String?
   @State private var unlocking = false
+  @State private var renamingKey = catalogOpenSheet == "prompt-mono"
+  @State private var key = "session:7f3a:user"
   @State private var password = ""
   @State private var addingFilter = catalogOpenSheet == "popover"
   @State private var filterField = ""
@@ -77,6 +79,8 @@ struct SheetAdditionSections: View {
           .kitPrompt("Login Keychain", isPresented: $unlocking, text: $password, message: "build-mac",
                      systemImage: "key", hue: .indigo, field: .secure(placeholder: "Mac password"),
                      footnote: "Code unlocks it before each build.", confirm: "Save") { try save($0) }
+          .kitPrompt("Rename Key", isPresented: $renamingKey, text: $key, message: "db 0",
+                     field: KitPromptField("Key", systemImage: "key", mono: true), confirm: "Rename") { rename($0) }
           """
       ) {
         Flow(spacing: 10) {
@@ -86,6 +90,7 @@ struct SheetAdditionSections: View {
             unlocking = true
           }
           .buttonStyle(.kit)
+          Button("Rename Key…", systemImage: "key") { renamingKey = true }.buttonStyle(.kit)
           if let renamed { Text("Renamed to “\(renamed)”").kitFont(.caption) }
         }
         .kitPrompt(
@@ -100,6 +105,10 @@ struct SheetAdditionSections: View {
           hue: .indigo, field: .secure(placeholder: "Mac password", help: "v57 on build-mac"),
           footnote: "An SSH session can't use the login keychain until it's unlocked.", confirm: "Save"
         ) { _ in }
+        .kitPrompt(
+          "Rename Key", isPresented: $renamingKey, text: $key, message: "db 0 · string",
+          field: KitPromptField("Key", systemImage: "key", mono: true), confirm: "Rename"
+        ) { renamed = $0 }
       }
     }
     SpecimenSection(
