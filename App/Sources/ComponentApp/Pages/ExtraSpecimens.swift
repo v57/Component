@@ -380,6 +380,19 @@ struct DropLabelSpecimens: View {
         }
       }
       Specimen(
+        "KitImageFile", note: "a picture file, loaded off the main thread",
+        code: "KitImageFile(url: screenshot.url, maxPixelSize: 600).scaledToFit()\nKitImageFile(url: missing)   // the soft fill: not a picture"
+      ) {
+        HStack(spacing: 12) {
+          ForEach(Self.pictures, id: \.self) { url in
+            KitImageFile(url: url, maxPixelSize: 600)
+              .scaledToFill()
+              .frame(width: 160, height: 100)
+              .clipShape(RoundedRectangle(cornerRadius: KitMetrics.radius, style: .continuous))
+          }
+        }
+      }
+      Specimen(
         "Apps by bundle identifier", note: "Open with: the installed ones",
         code: "KitDesktop.appURL(\"com.apple.dt.Xcode\")       // nil when not installed\nKitDesktop.appIcon(\"com.apple.dt.Xcode\")      // the Finder icon\nKitDesktop.open([folder], withApp: \"com.apple.dt.Xcode\")"
       ) {
@@ -396,6 +409,15 @@ struct DropLabelSpecimens: View {
       }
     }
   }
+}
+
+extension DropLabelSpecimens {
+  /// Two of the system's pictures (where they are) and a file that isn't one.
+  static let pictures: [URL] = [
+    "/System/Library/Desktop Pictures/.thumbnails/Big Sur Coastline.heic",
+    "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericFolderIcon.icns",
+    "/nonexistent/picture.png",
+  ].map { URL(fileURLWithPath: $0) }
 }
 
 // MARK: - Status pill (Feedback page)
