@@ -50,6 +50,8 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
   @ViewBuilder var accessory: Accessory
   var titleAccessory: AnyView?
   var headerMenu: (() -> AnyView)?
+  /// Shown in place of the rows while the section has none (`.emptyState`).
+  var emptyView: AnyView?
   /// Whether the section is drawn open: its own, or `isExpanded`'s followed. Drawn from state even when the app owns
   /// the open state, since a change to an `@AppStorage` binding inside `withAnimation` didn't animate (the section
   /// opened at once).
@@ -101,6 +103,34 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
     return section
   }
 
+  /// Shows a quiet line in the card while the section has no rows (macOS 15 and iOS 18 on; before, nothing shows):
+  /// no projects yet, nothing matches the search. It sits where the rows go, lined up with their titles.
+  ///
+  /// ```swift
+  /// KitSection("Projects", meta: "On your devices", systemImage: "folder") {
+  ///   ForEach(shown) { SidebarRow(value: $0.id, $0.name, systemImage: "folder") }
+  /// }
+  /// .emptyState("Nothing matches “\(search)”.", systemImage: "magnifyingglass")
+  /// ```
+  public func emptyState(_ message: String, systemImage: String? = nil) -> Self {
+    var section = self
+    section.emptyView = AnyView(ContSectionEmptyLine(message: message, systemImage: systemImage))
+    return section
+  }
+
+  /// Shows any view in the card while the section has no rows (macOS 15 and iOS 18 on): an `EmptyState` with a
+  /// button, a line with a link.
+  ///
+  /// ```swift
+  /// KitSection("Remotes", systemImage: "cloud") { … }
+  ///   .emptyState { EmptyState(systemImage: "cloud", title: "No Remotes") { Button("Add Remote…") { … } } }
+  /// ```
+  public func emptyState<V: View>(@ViewBuilder _ content: () -> V) -> Self {
+    var section = self
+    section.emptyView = AnyView(content())
+    return section
+  }
+
   private func toggle() {
     // A stuck title (`.kitSticky`) scrolls to its section instead.
     if let context = sticky.context, context.state?.part == .title, let scroll = context.scroll {
@@ -136,7 +166,8 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
   @available(macOS 15.0, iOS 18.0, *)
   private var listCard: some View {
     Group(subviews: content) { rows in
-      let count = expanded ? rows.count : 0
+      let showsEmpty = expanded && rows.isEmpty && emptyView != nil
+      let count = expanded ? (showsEmpty ? 1 : rows.count) : 0
       let radius = ContMetrics.cardRadius(idiom)
       // The list puts 1pt above and below each row: the slices run over it, and the cards keep the sidebar's gap.
       let gap = (ContMetrics.sectionSpacing(idiom) - 2) / 2
@@ -150,7 +181,13 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
         .modifier(CardSliceModifier(slice: KitCardSlice(0, of: count + 1), cornerRadius: radius, bleed: 1))
         .kitHover { isHovered = $0 }
         .padding(EdgeInsets(top: gap, leading: 0, bottom: count > 0 ? 0 : gap, trailing: 0))
-      if expanded {
+      if showsEmpty, let emptyView {
+        emptyView
+          .environment(\.contInList, false)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .modifier(CardSliceModifier(slice: KitCardSlice(1, of: 2), cornerRadius: radius, bleed: 1))
+          .padding(.bottom, gap)
+      } else if expanded {
         ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
           row
             .environment(\.contInList, false)
@@ -188,7 +225,7 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
       ContRevealLayout(progress: expanded ? 1 : 0) {
         if expanded {
           // Lazy: in a long sidebar the rows come a few at a time as the card nears the screen.
-          KitLazyStack(alignment: .leading, spacing: 2) { content }
+          KitLazyStack(alignment: .leading, spacing: 2, empty: emptyView) { content }
             .environment(\.contStickyContext, nil)
             .padding(
               EdgeInsets(
@@ -264,7 +301,7 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
       .modifier(ContStickyTitleModifier(box: sticky, extra: 0, cornerRadius: 0, plain: true))
       ContRevealLayout(progress: expanded ? 1 : 0) {
         if expanded {
-          KitLazyStack(alignment: .leading, spacing: 0) { content }
+          KitLazyStack(alignment: .leading, spacing: 0, empty: emptyView) { content }
             .padding(.top, 1)
             .environment(\.contStickyContext, nil)
             .transition(.opacity)
@@ -293,6 +330,33 @@ private struct SectionHeaderMenu: ViewModifier {
     } else {
       content
     }
+  }
+}
+
+/// A section's empty line: a quiet caption where the rows go, lined up with their titles.
+struct ContSectionEmptyLine: View {
+  let message: String
+  let systemImage: String?
+  @Environment(\.kitIdiom) private var idiom
+  @Environment(\.kitSectionStyle) private var style
+
+  var body: some View {
+    let compact = style == .plain && !idiom.isTouch
+    HStack(spacing: compact ? 6 : idiom.size(8, touch: 12)) {
+      if let systemImage {
+        Image(systemName: systemImage)
+          .font(.system(size: compact ? 11 : idiom.size(12, touch: 15)))
+          .frame(width: compact ? 16 : KitMetrics.rowTile(idiom))
+          .accessibilityHidden(true)
+      }
+      Text(message)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .kitFont(.caption)
+    .foregroundStyle(.kitSecondary)
+    .padding(EdgeInsets(horizontal: idiom.size(6, touch: 10), vertical: compact ? 2 : 6))
+    .frame(minHeight: compact ? 24 : KitMetrics.row(idiom), alignment: .leading)
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 

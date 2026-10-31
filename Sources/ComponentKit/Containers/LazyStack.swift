@@ -54,6 +54,8 @@ public struct KitLazyStack<Content: View>: View {
   let alignment: HorizontalAlignment
   let spacing: CGFloat
   let content: Content
+  /// Shown in place of the stack while its content has no views (macOS 15 and iOS 18 on): a section's empty line.
+  var empty: AnyView?
   @Environment(\.contLazyEager) private var eager
 
   public init(alignment: HorizontalAlignment = .center, spacing: CGFloat = 8, @ViewBuilder content: () -> Content) {
@@ -62,17 +64,26 @@ public struct KitLazyStack<Content: View>: View {
     self.content = content()
   }
 
+  init(alignment: HorizontalAlignment, spacing: CGFloat, empty: AnyView?, @ViewBuilder content: () -> Content) {
+    self.init(alignment: alignment, spacing: spacing, content: content)
+    self.empty = empty
+  }
+
   public var body: some View {
     if eager {
       if #available(macOS 15, iOS 18, *) {
         // Sticky views (`.kitSticky`) stick here too.
         Group(subviews: content) { subviews in
-          VStack(alignment: alignment, spacing: spacing) {
-            ForEach(subviews) { subview in
-              if let sticky = subview.containerValues.contSticky {
-                subview.modifier(ContStickyItemModifier(id: AnyHashable(subview.id), sticky: sticky))
-              } else {
-                subview
+          if subviews.isEmpty, let empty {
+            empty
+          } else {
+            VStack(alignment: alignment, spacing: spacing) {
+              ForEach(subviews) { subview in
+                if let sticky = subview.containerValues.contSticky {
+                  subview.modifier(ContStickyItemModifier(id: AnyHashable(subview.id), sticky: sticky))
+                } else {
+                  subview
+                }
               }
             }
           }
@@ -81,7 +92,7 @@ public struct KitLazyStack<Content: View>: View {
         VStack(alignment: alignment, spacing: spacing) { content }
       }
     } else if #available(macOS 15, iOS 18, *) {
-      ContLazyStack(alignment: alignment, spacing: spacing, content: content)
+      ContLazyStack(alignment: alignment, spacing: spacing, content: content, empty: empty)
     } else {
       LazyVStack(alignment: alignment, spacing: spacing) { content }
     }
@@ -96,12 +107,15 @@ private struct ContLazyStack<Content: View>: View {
   let alignment: HorizontalAlignment
   let spacing: CGFloat
   let content: Content
+  let empty: AnyView?
   @State private var model = ContLazyModel()
   @Environment(\.contLazyParent) private var parent
 
   var body: some View {
     Group(subviews: content) { subviews in
-      if subviews.count > ContLazyModel.rowLimit {
+      if subviews.isEmpty, let empty {
+        empty
+      } else if subviews.count > ContLazyModel.rowLimit {
         // Thousands of views (a search's matches in one section): each item would cost on every plan and every
         // layout, so they go in a `LazyVStack`, which lays out only what it built.
         LazyVStack(alignment: alignment, spacing: spacing) {
