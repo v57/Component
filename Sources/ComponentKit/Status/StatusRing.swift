@@ -59,12 +59,12 @@ struct StatusRing: View {
     let running = status.isWorking && status.progress == nil
     TimelineView(.animation(paused: !running || !isActive || reduceMotion)) { context in
       RingDrawing(
-        presence: status == .idle ? 0 : 1,
+        presence: status == .idle || status == .waiting ? 0 : 1,
         determinate: status.progress == nil ? 0 : 1,
         progress: status.progress ?? 0,
         elapsed: clock.elapsed(
           at: context.date.timeIntervalSinceReferenceDate, running: running,
-          indeterminate: status.progress == nil && status != .idle),
+          indeterminate: status.progress == nil && status != .idle && status != .waiting),
         indicator: indicator, hue: hue, size: size, shape: shape, outset: outset
       )
     }

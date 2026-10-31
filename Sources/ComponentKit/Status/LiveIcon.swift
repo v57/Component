@@ -94,10 +94,12 @@ public enum KitShape: Hashable, Sendable {
 }
 
 /// A tile that carries work: the ring shows progress (or the work indicator while indeterminate), settles green with a check when
-/// done and red when it failed. Put a `WorkStatus` on it and the kit does the rest.
+/// done and red when it failed. Put a `WorkStatus` on it and the kit does the rest. Work that hasn't started
+/// (`.waiting`) is a bare dashed circle, no tile, until it does.
 ///
 /// ```swift
 /// LiveIcon(systemImage: "arrow.up", status: .working(progress: 0.4))
+/// LiveIcon(systemImage: "hammer", status: .waiting, size: 22)
 /// ```
 public struct LiveIcon<Content: View>: View {
   var hue: Hue
@@ -119,6 +121,24 @@ public struct LiveIcon<Content: View>: View {
 
   public var body: some View {
     let tint = status.hue ?? hue
+    Group {
+      if status == .waiting {
+      // Nothing has happened yet: a bare dashed circle the tile's size, no ground and no ring.
+        Image(systemName: "circle.dashed")
+          .font(.system(size: size * 0.68))
+          .foregroundStyle(.kitSecondary)
+          .frame(width: size, height: size)
+          .transition(.opacity)
+          .accessibilityElement()
+          .accessibilityLabel(Self.label(status))
+      } else {
+        tile(tint: tint).transition(.opacity)
+      }
+    }
+    .animation(.kit, value: status == .waiting)
+  }
+
+  private func tile(tint: Hue) -> some View {
     Tile(hue: tint, size: size, shape: shape) {
       ZStack {
         switch status {
@@ -140,6 +160,7 @@ public struct LiveIcon<Content: View>: View {
   static func label(_ status: WorkStatus) -> String {
     switch status {
     case .idle: ""
+    case .waiting: "Waiting"
     case .working(let p): p.map { "\(Int($0 * 100)) percent" } ?? "Working"
     case .paused: "Paused"
     case .done: "Done"

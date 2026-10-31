@@ -4,6 +4,13 @@ import Foundation
 /// toolbar title. State and progress live in the icon, never in a spinner or a bare bar.
 public enum WorkStatus: Hashable, Sendable {
   case idle
+  /// Not started yet, in line behind other work (a workflow's later step, a queued download): a `LiveIcon` draws a
+  /// bare dashed circle in the secondary colour, no tile and no ring, until the work starts.
+  ///
+  /// ```swift
+  /// LiveIcon(systemImage: "hammer", status: step.hasStarted ? step.status : .waiting, size: 22)
+  /// ```
+  case waiting
   /// Running; `progress` is 0…1 when it's known, `nil` for the work indicator (amount unknown).
   case working(progress: Double? = nil)
   /// Stopped part way, waiting to resume.
@@ -22,12 +29,12 @@ public enum WorkStatus: Hashable, Sendable {
     }
   }
 
-  /// Progress for the ring: known progress, 1 when finished, `nil` while indeterminate or idle.
+  /// Progress for the ring: known progress, 1 when finished, `nil` while indeterminate, idle or waiting.
   public var progress: Double? {
     switch self {
     case .working(let p), .paused(let p): p
     case .done, .failed: 1
-    case .idle: nil
+    case .idle, .waiting: nil
     }
   }
 

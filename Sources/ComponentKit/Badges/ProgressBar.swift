@@ -132,6 +132,7 @@ public struct KitProgressEstimate: View {
     switch status {
     case .working: "Estimating…"
     case .paused: "Paused"
+    case .waiting: "Waiting"
     case .failed(let message): message ?? "Failed"
     case .done, .idle: ""
     }

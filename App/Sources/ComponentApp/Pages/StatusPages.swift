@@ -12,6 +12,7 @@ final class SimulatedWork {
   var label: String {
     switch status {
     case .idle: "Idle"
+    case .waiting: "Waiting"
     case .working(let p): p.map { "\(Int($0 * 100))%" } ?? "Working…"
     case .paused(let p): "Paused at \(Int((p ?? 0) * 100))%"
     case .done: "Done"
@@ -59,7 +60,7 @@ struct LiveIconPage: View {
     ("Paused", .paused(progress: 0.75)), ("Done", .done), ("Failed", .failed("exit 1")),
   ]
   let states: [(String, WorkStatus)] = [
-    ("Idle", .idle), ("Working", .working), ("40%", .working(progress: 0.4)), ("Paused", .paused(progress: 0.6)),
+    ("Waiting", .waiting), ("Idle", .idle), ("Working", .working), ("40%", .working(progress: 0.4)), ("Paused", .paused(progress: 0.6)),
     ("Done", .done), ("Failed", .failed("exit 1")),
   ]
 
@@ -95,9 +96,16 @@ struct LiveIconPage: View {
         }
       }
       SpecimenSection(
-        "States", note: "State lives in the icon: a bloom while the amount is unknown, a ring with progress, then a check or red."
+        "States",
+        note: "State lives in the icon: a dashed circle before it starts, a bloom while the amount is unknown, a ring with progress, then a check or red."
       ) {
-        Specimen("Rounded", code: "LiveIcon(systemImage: \"arrow.up\", status: .working(progress: 0.4))") {
+        Specimen(
+          "Rounded",
+          code: """
+            LiveIcon(systemImage: "arrow.up", status: .working(progress: 0.4))
+            LiveIcon(systemImage: "hammer", status: .waiting)   // not started yet
+            """
+        ) {
           statesRow(shape: .rounded, size: 24)
         }
         Specimen("Circle, 32pt", code: "LiveIcon(systemImage: \"arrow.down\", hue: .green, status: .done, size: 32, shape: .circle)") {
