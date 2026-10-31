@@ -455,6 +455,7 @@ struct RunBlocksPage: View {
           }
         }
       }
+      CodeBlockSpecimens()
     }
   }
 }
