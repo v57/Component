@@ -139,3 +139,28 @@ struct CopyAndRoundPrimarySpecimens: View {
     }
   }
 }
+
+// MARK: - Colours from hex, Hub red (Colours page)
+
+struct HexColourSpecimens: View {
+  var body: some View {
+    SpecimenSection(
+      "From hex",
+      note: "For data that names its own colours (a syntax theme, a stored colour); components take tokens. .kitHubRed is Get's and Player's accent."
+    ) {
+      Flow(spacing: 20, alignment: .top) {
+        Labeled("Color(rgb: 0xc678dd)") { RoundedRectangle(cornerRadius: 10).fill(Color(rgb: 0xc678dd)).frame(width: 96, height: 44) }
+        Labeled("Color(rgb:opacity:)") {
+          RoundedRectangle(cornerRadius: 10).fill(Color(rgb: 0x61afef, opacity: 0.35)).frame(width: 96, height: 44)
+        }
+        Labeled("Color(hex: \"#98c379\")") {
+          RoundedRectangle(cornerRadius: 10).fill(Color(hex: "#98c379") ?? .clear).frame(width: 96, height: 44)
+        }
+        Labeled(".kitHubRed") { RoundedRectangle(cornerRadius: 10).fill(Color.kitHubRed).frame(width: 96, height: 44) }
+      }
+      CodeSnippet(
+        "Text(token).foregroundStyle(Color(rgb: 0xc678dd))\nlet ground = Color(hex: frame.background) ?? .black   // #RGB, #RRGGBB, #RRGGBBAA\nWindowGroup { ContentView().componentKit(accent: .kitHubRed) }"
+      )
+    }
+  }
+}

@@ -70,6 +70,7 @@ struct ColoursPage: View {
         }
         CodeSnippet("WindowGroup { ContentView().componentKit(accent: .orange) }")
       }
+      HexColourSpecimens()
     }
   }
 

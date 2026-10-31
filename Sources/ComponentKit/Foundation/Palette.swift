@@ -297,3 +297,63 @@ public enum StableHue {
     return palette[Int(hash % UInt32(palette.count))]
   }
 }
+
+// MARK: - Colours from hex
+
+extension Color {
+  /// A colour from its sRGB hex value, `0xRRGGBB`: a syntax theme's colours, a colour stored as a number. Components
+  /// take tokens (`KitColor`, `Hue`); this is for data that names its own colours.
+  ///
+  /// ```swift
+  /// Text(token).foregroundStyle(Color(rgb: 0xc678dd))
+  /// ```
+  public init(rgb: UInt32) {
+    self = RGBA(rgb).color
+  }
+
+  /// A colour from its sRGB hex value, `0xRRGGBB`, at an opacity (0…1).
+  ///
+  /// ```swift
+  /// RoundedRectangle(cornerRadius: 4).fill(Color(rgb: 0x61afef, opacity: 0.2))
+  /// ```
+  public init(rgb: UInt32, opacity: Double) {
+    self = RGBA(rgb, opacity).color
+  }
+
+  /// A colour from CSS-style hex text: `#RGB`, `#RRGGBB` or `#RRGGBBAA`, the `#` and surrounding spaces optional;
+  /// nil for anything else.
+  ///
+  /// ```swift
+  /// let background = Color(hex: frame.background) ?? .black
+  /// ```
+  public init?(hex: String) {
+    guard let rgba = RGBA(hex: hex) else { return nil }
+    self = rgba.color
+  }
+
+  /// The red the Hub family's apps (Get, Player) take as their accent: sRGB #FF3B30.
+  ///
+  /// ```swift
+  /// WindowGroup { ContentView().componentKit(accent: .kitHubRed) }
+  /// ```
+  public static var kitHubRed: Color { RGBA(0xff3b30).color }
+}
+
+extension RGBA {
+  /// `#RGB`, `#RRGGBB` or `#RRGGBBAA`; nil for anything else.
+  init?(hex: String) {
+    var digits = Substring(hex.trimmingCharacters(in: .whitespaces))
+    if digits.hasPrefix("#") { digits = digits.dropFirst() }
+    guard [3, 6, 8].contains(digits.count), digits.allSatisfy(\.isHexDigit), let value = UInt32(digits, radix: 16)
+    else { return nil }
+    switch digits.count {
+    case 3:
+      let r = (value >> 8) & 0xf, g = (value >> 4) & 0xf, b = value & 0xf
+      self.init((r * 0x11) << 16 | (g * 0x11) << 8 | b * 0x11)
+    case 6:
+      self.init(value)
+    default:
+      self.init(value >> 8, Double(value & 0xff) / 255)
+    }
+  }
+}
