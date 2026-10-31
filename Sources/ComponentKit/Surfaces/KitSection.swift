@@ -52,6 +52,8 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
   var headerMenu: (() -> AnyView)?
   /// Shown in place of the rows while the section has none (`.emptyState`).
   var emptyView: AnyView?
+  /// The header's tooltip (`.headerHelp`).
+  var headerHelp: ContSectionHelp?
   /// Whether the section is drawn open: its own, or `isExpanded`'s followed. Drawn from state even when the app owns
   /// the open state, since a change to an `@AppStorage` binding inside `withAnimation` didn't animate (the section
   /// opened at once).
@@ -131,6 +133,21 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
     return section
   }
 
+  /// Gives the section's header a tooltip (the kit's, as `.kitHelp`): what the section holds or where it comes
+  /// from, without covering the rows, which keep their own.
+  ///
+  /// ```swift
+  /// KitSection("Notes", meta: ["12 notes", "iCloud"], systemImage: "note.text") { … }
+  ///   .headerHelp("Notes", meta: "Files in iCloud Drive, encrypted.")
+  /// ```
+  public func headerHelp(
+    _ title: String, meta: String? = nil, systemImage: String? = nil, hue: Hue = .accent
+  ) -> Self {
+    var section = self
+    section.headerHelp = ContSectionHelp(title: title, meta: meta, systemImage: systemImage, hue: hue)
+    return section
+  }
+
   private func toggle() {
     // A stuck title (`.kitSticky`) scrolls to its section instead.
     if let context = sticky.context, context.state?.part == .title, let scroll = context.scroll {
@@ -176,6 +193,7 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
         .contentShape(Rectangle())
         .onTapGesture(perform: toggle)
         .modifier(SectionHeaderMenu(menu: headerMenu))
+        .modifier(SectionHeaderHelp(help: headerHelp))
         .modifier(SectionHeaderAccessibility(title: title, expanded: expanded, toggle: toggle))
         .padding(.bottom, count > 0 ? 4 : 0)
         .modifier(CardSliceModifier(slice: KitCardSlice(0, of: count + 1), cornerRadius: radius, bleed: 1))
@@ -217,6 +235,7 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
             trailing: KitMetrics.cardPadding))
         .contentShape(Rectangle())
         .modifier(SectionHeaderMenu(menu: headerMenu))
+        .modifier(SectionHeaderHelp(help: headerHelp))
         .modifier(SectionHeaderAccessibility(title: title, expanded: expanded, toggle: toggle))
         // Sticky (`.kitSticky`): the title alone stays in view, on a card of its own.
         .modifier(
@@ -297,6 +316,7 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
       .onTapGesture(perform: toggle)
       .kitHover { isHovered = $0 }
       .modifier(SectionHeaderMenu(menu: headerMenu))
+      .modifier(SectionHeaderHelp(help: headerHelp))
       .modifier(SectionHeaderAccessibility(title: title, expanded: expanded, toggle: toggle))
       .modifier(ContStickyTitleModifier(box: sticky, extra: 0, cornerRadius: 0, plain: true))
       ContRevealLayout(progress: expanded ? 1 : 0) {
@@ -327,6 +347,27 @@ private struct SectionHeaderMenu: ViewModifier {
   func body(content: Content) -> some View {
     if let menu {
       content.kitContextMenu(content: menu)
+    } else {
+      content
+    }
+  }
+}
+
+/// A section header's tooltip.
+struct ContSectionHelp {
+  var title: String
+  var meta: String?
+  var systemImage: String?
+  var hue: Hue
+}
+
+/// The header's tooltip, when the section has one.
+private struct SectionHeaderHelp: ViewModifier {
+  let help: ContSectionHelp?
+
+  func body(content: Content) -> some View {
+    if let help {
+      content.kitHelp(help.title, meta: help.meta, systemImage: help.systemImage, hue: help.hue)
     } else {
       content
     }
