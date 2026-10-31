@@ -79,11 +79,31 @@ extension KitDesktop {
   /// Whether the app with a bundle identifier (`dev.v57.code`) is installed, for items such as Open in Code that
   /// show only then. Only the Mac looks apps up this way: false elsewhere.
   @MainActor public static func isAppInstalled(_ bundleIdentifier: String) -> Bool {
+    appURL(bundleIdentifier) != nil
+  }
+
+  /// Where the app with a bundle identifier is installed (the Mac's preferred copy); nil when it isn't, and off the
+  /// Mac.
+  ///
+  /// ```swift
+  /// if let xcode = KitDesktop.appURL("com.apple.dt.Xcode") { Text(xcode.deletingPathExtension().lastPathComponent) }
+  /// ```
+  @MainActor public static func appURL(_ bundleIdentifier: String) -> URL? {
     #if canImport(AppKit)
-      NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) != nil
+      NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier)
     #else
-      false
+      nil
     #endif
+  }
+
+  /// The icon of the app with a bundle identifier, as the file manager shows it (in its shape); nil when it isn't
+  /// installed, and off the Mac.
+  ///
+  /// ```swift
+  /// (KitDesktop.appIcon("dev.zed.Zed") ?? Image(systemName: "app")).resizable().frame(width: 16, height: 16)
+  /// ```
+  @MainActor public static func appIcon(_ bundleIdentifier: String) -> Image? {
+    appURL(bundleIdentifier).flatMap { icon(forFile: $0.path) }
   }
 
   /// Opens files and folders in the app with a bundle identifier, handed over in order (a project's folder, then a

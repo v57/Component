@@ -379,6 +379,21 @@ struct DropLabelSpecimens: View {
             .kitFont(.caption)
         }
       }
+      Specimen(
+        "Apps by bundle identifier", note: "Open with: the installed ones",
+        code: "KitDesktop.appURL(\"com.apple.dt.Xcode\")       // nil when not installed\nKitDesktop.appIcon(\"com.apple.dt.Xcode\")      // the Finder icon\nKitDesktop.open([folder], withApp: \"com.apple.dt.Xcode\")"
+      ) {
+        HStack(spacing: 14) {
+          ForEach(["com.apple.dt.Xcode", "com.apple.Terminal", "com.apple.Safari", "dev.v57.code"], id: \.self) { id in
+            if let url = KitDesktop.appURL(id) {
+              HStack(spacing: 6) {
+                if let icon = KitDesktop.appIcon(id) { KitAppIcon(image: icon, size: 20, isShaped: true) }
+                Text(url.deletingPathExtension().lastPathComponent).kitFont(.callout)
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
