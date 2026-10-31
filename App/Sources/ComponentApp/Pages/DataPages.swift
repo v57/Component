@@ -1178,6 +1178,9 @@ struct SecretsPage: View {
               KitSafetyCode("603919375512067304187729128814641028931722740519834062518874").controlSize(.small)
             }
           }
+          Specimen("A key's fingerprint", code: "KitSafetyCode(key.fingerprint, alphabet: .hex, groupSize: 4)") {
+            KitSafetyCode("9f3a b07c 41d2 e8a0 5c19 77be 03f4 a6d1 2c58 e90b 4f17 d3a2 6b80 c5e4 1f9d 72ab", alphabet: .hex, groupSize: 4)
+          }
           Specimen("QR code", code: "KitQRCode(invite.link)") {
             HStack(alignment: .top, spacing: 16) {
               KitQRCode("v57vault://invite?id=v57id:Q2hhbmdlIHRoaXMgaW52aXRlIGlmIHlvdSByZWFkIGl0&name=Rafael", size: 140)

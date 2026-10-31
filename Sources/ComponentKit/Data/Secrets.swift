@@ -196,17 +196,34 @@ public struct KitOneTimeCode: View {
 /// KitSafetyCode("603919375512067304187729128814641028931722740519834062518874")
 /// KitSafetyCode(groups: code.groups).controlSize(.small)
 /// KitSafetyCode(pairingCode, groupSize: 3, columns: 2)   // "702 115"
+/// KitSafetyCode(machineKey.fingerprint, alphabet: .hex, groupSize: 4)   // a key's fingerprint
 /// ```
 public struct KitSafetyCode: View {
+  /// The characters a code keeps from its text; the rest (spaces, colons, dashes) are ignored.
+  public enum Alphabet: Hashable, Sendable {
+    /// 0–9: a safety number, a pairing code.
+    case digits
+    /// 0–9 and a–f (either case, kept as written): a key's fingerprint.
+    case hex
+
+    func keeps(_ character: Character) -> Bool {
+      switch self {
+      case .digits: character.isASCIIDigit
+      case .hex: character.isASCIIDigit || ("a"..."f").contains(character) || ("A"..."F").contains(character)
+      }
+    }
+  }
+
   var groups: [String]
   var columns: Int
   @Environment(\.controlSize) private var controlSize
   @Environment(\.kitIdiom) private var idiom
 
   /// The code as digits (anything else is ignored), grouped by five, or by `groupSize` (a six-digit pairing code in
-  /// two groups of three: `KitSafetyCode(code, groupSize: 3, columns: 2)`).
-  public init(_ digits: String, groupSize: Int = 5, columns: Int = 4) {
-    self.init(groups: Self.groups(digits, size: groupSize), columns: columns)
+  /// two groups of three: `KitSafetyCode(code, groupSize: 3, columns: 2)`). `alphabet: .hex` keeps hex digits too
+  /// (a fingerprint: `KitSafetyCode(fingerprint, alphabet: .hex, groupSize: 4)`).
+  public init(_ digits: String, alphabet: Alphabet = .digits, groupSize: Int = 5, columns: Int = 4) {
+    self.init(groups: Self.groups(digits, size: groupSize, alphabet: alphabet), columns: columns)
   }
 
   /// The code as its groups.
@@ -216,8 +233,8 @@ public struct KitSafetyCode: View {
   }
 
   /// The digits of `text` in groups of `size` (five by default); a short last group stays short.
-  nonisolated static func groups(_ text: String, size: Int = 5) -> [String] {
-    let digits = Array(text.filter(\.isASCIIDigit))
+  nonisolated static func groups(_ text: String, size: Int = 5, alphabet: Alphabet = .digits) -> [String] {
+    let digits = Array(text.filter(alphabet.keeps))
     let size = max(1, size)
     return stride(from: 0, to: digits.count, by: size).map { String(digits[$0..<min($0 + size, digits.count)]) }
   }

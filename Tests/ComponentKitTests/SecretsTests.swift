@@ -39,6 +39,8 @@ import Testing
   // Spaces and other characters are ignored; a short tail stays short.
   #expect(KitSafetyCode.groups("12345 67890-123") == ["12345", "67890", "123"])
   #expect(KitSafetyCode.groups("") == [])
+  #expect(KitSafetyCode.groups("9f:3A-b0 7c", size: 4, alphabet: .hex) == ["9f3A", "b07c"])
+  #expect(KitSafetyCode.groups("9f3a", size: 4) == ["93"])
 }
 
 @Test func wordGridRowsReadAcross() {
