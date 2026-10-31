@@ -276,8 +276,11 @@ struct CatalogView: View {
     } detail: {
       // The page's identity stays inside the column: an `id` on the column's root would be the whole detail's, and
       // the split view would build the column again on every page, its toolbar too.
-      ZStack {
-        PageContent(page: model.page).id(model.page)
+      // iOS: the detail's own stack, as an app's (a split view's detail has none): a list's rows push on iPhone.
+      CatalogDetailStack {
+        ZStack {
+          PageContent(page: model.page).id(model.page)
+        }
       }
       .environment(\.kitIdiom, model.idiom ?? platformIdiom)
       .modifier(InactiveOverride(isOn: model.inactiveWindow))
@@ -293,6 +296,19 @@ struct CatalogView: View {
       if model.hidesSidebar { columns = .detailOnly }
       if model.opensOnPage { compactColumn = .detail }
     }
+  }
+}
+
+/// The detail column in a `NavigationStack` on iOS, so views in a page push (the Sidebar page's list on iPhone).
+private struct CatalogDetailStack<Content: View>: View {
+  @ViewBuilder var content: Content
+
+  var body: some View {
+    #if os(iOS)
+      NavigationStack { content }
+    #else
+      content
+    #endif
   }
 }
 

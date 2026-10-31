@@ -592,6 +592,7 @@ struct MenusPage: View {
         }
       }
       MenuAdditionSections()
+      MenuGapSpecimens()
     }
   }
 }
