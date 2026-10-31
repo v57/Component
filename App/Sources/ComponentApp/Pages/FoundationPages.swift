@@ -168,6 +168,7 @@ struct TypePage: View {
     (.sectionHeader, "sectionHeader", "11 semibold · headers on plain grounds"),
     (.mono, "mono", "12 monospaced · values, ids, code"),
     (.monoSmall, "monoSmall", "11 monospaced · line numbers"),
+    (.code, "code", "12 monospaced, 13 on iPad · code to read"),
   ]
 
   var body: some View {

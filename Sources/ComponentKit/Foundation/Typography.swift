@@ -29,6 +29,13 @@ public enum KitFont: Hashable, Sendable {
   case mono
   /// 11/14 monospaced: small values and line numbers.
   case monoSmall
+  /// 12/16 monospaced on the Mac and iPhone, 13 on iPad: code to read (a file, a diff, an editor), which stays small
+  /// on touch where `mono` grows to 14 and 16 (an iPhone's width holds a line of code).
+  ///
+  /// ```swift
+  /// Text(source).kitFont(.code)
+  /// ```
+  case code
 
   /// Mac size; iPad adds 2 (13 → 15), iPhone 4 (13 → 17), Apple TV doubles it (13 → 26).
   var size: CGFloat {
@@ -38,7 +45,7 @@ public enum KitFont: Hashable, Sendable {
     case .title2: 17
     case .title3: 15
     case .headline, .body: 13
-    case .callout, .mono: 12
+    case .callout, .mono, .code: 12
     case .caption, .sectionHeader, .monoSmall: 11
     }
   }
@@ -51,13 +58,13 @@ public enum KitFont: Hashable, Sendable {
     }
   }
 
-  var isMono: Bool { self == .mono || self == .monoSmall }
+  var isMono: Bool { self == .mono || self == .monoSmall || self == .code }
 
   /// -0.01em on text (Git's designTracking), -0.02em on the big titles, none on monospaced text.
   var trackingEm: CGFloat {
     switch self {
     case .largeTitle, .title1: -0.02
-    case .mono, .monoSmall: 0
+    case .mono, .monoSmall, .code: 0
     default: -0.01
     }
   }
@@ -82,7 +89,8 @@ public enum KitFont: Hashable, Sendable {
 
   /// The point size in an idiom, at a Dynamic Type scale.
   func pointSize(scale: CGFloat, idiom: KitIdiom) -> CGFloat {
-    let grow: CGFloat = self.size >= 20 ? 0 : idiom == .phone ? 4 : idiom == .pad ? 2 : 0
+    let grow: CGFloat =
+      self == .code ? (idiom == .pad ? 1 : 0) : self.size >= 20 ? 0 : idiom == .phone ? 4 : idiom == .pad ? 2 : 0
     return (self.size + grow) * idiom.scale * scale
   }
 }

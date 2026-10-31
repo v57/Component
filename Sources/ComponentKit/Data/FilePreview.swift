@@ -13,7 +13,6 @@ import SwiftUI
 public struct KitFilePreview: View {
   var name: String
   var data: Data
-  @Environment(\.kitIdiom) private var idiom
 
   public init(name: String, data: Data) {
     self.name = name
@@ -54,7 +53,7 @@ public struct KitFilePreview: View {
       case .text:
         ScrollView {
           Text(String(decoding: data.prefix(512 * 1024), as: UTF8.self))
-            .font(.system(size: idiom.size(12, touch: 13), design: .monospaced))
+            .kitFont(.code)
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
