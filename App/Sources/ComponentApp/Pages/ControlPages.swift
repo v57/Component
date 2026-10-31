@@ -193,6 +193,7 @@ struct TogglesPage: View {
           .toggleStyle(.kitChip)
         }
       }
+      MixedCheckboxSpecimens()
     }
   }
 

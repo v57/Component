@@ -39,6 +39,7 @@ struct CtlToggle: View {
   @FocusState private var isFocused: Bool
   @Environment(\.isEnabled) private var isEnabled
   @Environment(\.ctlInChipTrack) private var inTrack
+  @Environment(\.kitMixed) private var kitMixed
 
   var body: some View {
     Button {
@@ -52,7 +53,7 @@ struct CtlToggle: View {
         }
       case .checkbox:
         HStack(spacing: 8) {
-          CtlCheckbox(isOn: configuration.isOn, isFocused: isFocused)
+          CtlCheckbox(isOn: configuration.isOn, isMixed: isMixed, isFocused: isFocused)
           CtlToggleLabel { configuration.label }
         }
       case .chip:
@@ -68,6 +69,28 @@ struct CtlToggle: View {
       Toggle(isOn: configuration.$isOn) { configuration.label }
         .toggleStyle(.switch)
     }
+    .accessibilityHint(isMixed ? "Some are on" : "")
+  }
+
+  /// Some but not all of what the toggle stands for is on: `Toggle(sources:isOn:)` says so, or `.kitMixed(_:)`.
+  private var isMixed: Bool { kind == .checkbox && (configuration.isMixed || kitMixed) }
+}
+
+extension EnvironmentValues {
+  @Entry var kitMixed: Bool = false
+}
+
+extension View {
+  /// Draws the kit's checkboxes inside as mixed (a dash: some of what they stand for is on) while `isMixed`, for a
+  /// checkbox over a group whose state the app works out itself. `Toggle(sources:isOn:)` is mixed on its own.
+  ///
+  /// ```swift
+  /// Toggle("All", isOn: Binding(get: { state == .on }, set: { _ in toggleGroup() }))
+  ///   .toggleStyle(.kitCheckbox)
+  ///   .kitMixed(state == .mixed)
+  /// ```
+  public func kitMixed(_ isMixed: Bool) -> some View {
+    environment(\.kitMixed, isMixed)
   }
 }
 
@@ -150,6 +173,7 @@ struct CtlSwitchTrack: View {
 
 struct CtlCheckbox: View {
   let isOn: Bool
+  var isMixed = false
   let isFocused: Bool
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.colorScheme) private var scheme
@@ -159,7 +183,11 @@ struct CtlCheckbox: View {
     let radius: CGFloat = idiom.size(4.5, touch: 6)
     let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
     ZStack {
-      if isOn {
+      if isMixed {
+        shape.fill(Hue.accent.fill)
+        Capsule().fill(KitColor.ctlKnob).frame(width: size * 0.55, height: max(1.5, size * 0.14))
+          .transition(.scale(scale: 0.5).combined(with: .opacity))
+      } else if isOn {
         shape.fill(Hue.accent.fill)
         Image(systemName: "checkmark")
           .font(.system(size: size * 0.62, weight: .bold))

@@ -361,3 +361,27 @@ struct LetterLiveIconSpecimens: View {
     }
   }
 }
+
+// MARK: - Mixed checkboxes (Toggles page)
+
+struct MixedCheckboxSpecimens: View {
+  @State private var items = [true, false, true]
+
+  var body: some View {
+    SpecimenSection("Mixed", note: "A checkbox over a group shows a dash while some of it is on: Toggle(sources:isOn:) on its own, or .kitMixed(_:).") {
+      Specimen(
+        "Toggle(sources:isOn:)",
+        code: "Toggle(\"All\", sources: $items, isOn: \\.self).toggleStyle(.kitCheckbox)\nToggle(\"Group\", isOn: groupBinding).toggleStyle(.kitCheckbox).kitMixed(state == .mixed)"
+      ) {
+        VStack(alignment: .leading, spacing: 8) {
+          Toggle("All caches", sources: $items, isOn: \.self).toggleStyle(.kitCheckbox)
+          ForEach(items.indices, id: \.self) { index in
+            Toggle(["Xcode", "Simulators", "SwiftPM"][index], isOn: $items[index]).toggleStyle(.kitCheckbox)
+              .padding(.leading, 22)
+          }
+          Toggle("Always mixed", isOn: .constant(true)).toggleStyle(.kitCheckbox).kitMixed(true)
+        }
+      }
+    }
+  }
+}
