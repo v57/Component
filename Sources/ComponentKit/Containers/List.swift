@@ -11,6 +11,18 @@ import SwiftUI
 ///
 /// It draws no ground of its own: put it on a pane (`.kitPane(.secondary)`) or the sidebar colour.
 ///
+/// On iPhone a row pushes its screen through SwiftUI's navigation: `.navigationDestination(item: $selection)` on the
+/// list (it pops back to `nil`), or a `NavigationLink(value:)` around the row with `.buttonStyle(.kitRow)`; either
+/// needs a `NavigationStack` around the list. A `NavigationSplitView`'s detail column has none of its own, so wrap the
+/// detail in one there. `.pushes()` on the rows draws the chevron (the list hides the system's).
+///
+/// ```swift
+/// KitList(selection: $record) {
+///   ForEach(records) { SidebarRow(value: $0.id, $0.title, systemImage: "doc").pushes() }
+/// }
+/// .navigationDestination(item: $record) { RecordScreen(id: $0) }
+/// ```
+///
 /// ```swift
 /// KitList(selection: $note) {
 ///   ForEach(notes) { note in
@@ -83,6 +95,7 @@ public struct KitList<Content: View>: View {
     let inset = ContMetrics.sidebarInset(idiom)
     return List {
       Group { content }
+        .modifier(ContHiddenLinkIndicator())
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(top: 1, leading: inset, bottom: 1, trailing: inset))
@@ -99,7 +112,7 @@ public struct KitList<Content: View>: View {
       ContRowKeyboard(
         current: selection, select: setSelection, onReturn: returnAction, onPrimary: primary,
         scroll: { value, anchor in proxy.scrollTo(ContRowScrollID(value: value), anchor: anchor) }))
-    .simultaneousGesture(TapGesture().onEnded { focused = true })
+    .modifier(ContListTapFocus(focused: $focused, selection: selection))
     .environment(
       \.contSidebarSelection,
       ContSidebarSelection(
@@ -108,6 +121,34 @@ public struct KitList<Content: View>: View {
     )
     .animation(.kit, value: selection)
     .animation(.kit, value: focused)
+  }
+}
+
+/// A `NavigationLink` row draws the kit's chevron itself (`SidebarRow.pushes()`), not the list's (iOS draws one).
+private struct ContHiddenLinkIndicator: ViewModifier {
+  func body(content: Content) -> some View {
+    #if os(iOS)
+      content.navigationLinkIndicatorVisibility(.hidden)
+    #else
+      content
+    #endif
+  }
+}
+
+/// A click in the list gives it keyboard focus (the arrow keys move from there). On iOS a tap gesture on the list
+/// keeps its `NavigationLink`s from firing, so there a row's selection takes focus instead.
+private struct ContListTapFocus: ViewModifier {
+  var focused: FocusState<Bool>.Binding
+  let selection: AnyHashable?
+
+  func body(content: Content) -> some View {
+    #if os(macOS)
+      content.simultaneousGesture(TapGesture().onEnded { focused.wrappedValue = true })
+    #else
+      content.onChange(of: selection) { _, value in
+        if value != nil { focused.wrappedValue = true }
+      }
+    #endif
   }
 }
 

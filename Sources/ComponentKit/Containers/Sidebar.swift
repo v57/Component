@@ -891,17 +891,20 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
     .kitHover { isHovered = $0 }
     .animation(.kitFast, value: isHovered)
     .animation(.kit, value: progress == nil)
-    .onTapGesture {
-      guard !isRenaming else { return }
-      if let action {
-        action()
-      } else if let rowValue {
-        selection?.select(rowValue)
-      } else if let isExpanded = disclosure?.isExpanded {
-        // A group that selects nothing (a folder of projects in a `KitOutline`) opens and closes.
-        withKitAnimation { isExpanded.wrappedValue.toggle() }
-      }
-    }
+    // Only a row that does something takes the tap: one that doesn't (the label of a `NavigationLink`, a row in a
+    // `Button`) leaves it to the view around it, which would never see it otherwise.
+    .modifier(
+      ContRowTap(isOn: action != nil || (rowValue != nil && selection != nil) || disclosure?.isExpanded != nil) {
+        guard !isRenaming else { return }
+        if let action {
+          action()
+        } else if let rowValue {
+          selection?.select(rowValue)
+        } else if let isExpanded = disclosure?.isExpanded {
+          // A group that selects nothing (a folder of projects in a `KitOutline`) opens and closes.
+          withKitAnimation { isExpanded.wrappedValue.toggle() }
+        }
+      })
     // Alongside the single tap, so selecting doesn't wait for a second click.
     .simultaneousGesture(
       TapGesture(count: 2).onEnded {
@@ -968,6 +971,20 @@ public struct KitPushChevron: View {
       .font(.system(size: idiom.size(11, touch: 12), weight: .semibold))
       .foregroundStyle(.kitTertiary)
       .accessibilityHidden(true)
+  }
+}
+
+/// A row's tap, when the row has something to do with it.
+private struct ContRowTap: ViewModifier {
+  let isOn: Bool
+  let action: () -> Void
+
+  func body(content: Content) -> some View {
+    if isOn {
+      content.onTapGesture(perform: action)
+    } else {
+      content
+    }
   }
 }
 
