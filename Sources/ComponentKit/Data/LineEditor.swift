@@ -36,6 +36,8 @@ public struct KitLineEditor: View {
   var font: KitFont
   @Environment(\.self) private var environment
   @Environment(\.kitIdiom) private var idiom
+  /// iPhone and iPad: the height the text view last measured (SwiftUI doesn't ask a UIKit view again as it grows).
+  @State private var height: CGFloat?
 
   public init(
     text: Binding<String>, issues: [Int: KitLineIssue] = [:], placeholder: String? = nil, font: KitFont = .code
@@ -56,8 +58,11 @@ public struct KitLineEditor: View {
 
   @ViewBuilder
   private var editor: some View {
-    #if os(macOS) || os(iOS) || os(visionOS)
+    #if os(macOS)
     LineTextView(text: $text, style: style)
+    #elseif os(iOS) || os(visionOS)
+    LineTextView(text: $text, style: style, height: $height)
+      .frame(height: height)
     #else
     VStack(alignment: .leading, spacing: 4) {
       #if !os(tvOS)
@@ -403,6 +408,7 @@ private final class DecoratedTextView: UITextView {
     lineHeight: 20, label: .label, tertiary: .tertiaryLabel, inset: 10))
 
   override func draw(_ rect: CGRect) {
+    unboundContainer()
     decorator.draw(
       layoutManager, text as NSString, origin: CGPoint(x: textContainerInset.left, y: textContainerInset.top),
       width: textContainer.size.width)
@@ -410,19 +416,39 @@ private final class DecoratedTextView: UITextView {
 
   override func layoutSubviews() {
     super.layoutSubviews()
+    unboundContainer()
     if textContainer.size.width != lastWidth {
       lastWidth = textContainer.size.width
       decorator.restyle(textStorage, width: lastWidth)
       setNeedsDisplay()
+      measure()
     }
   }
 
+  /// UITextView sizes its container to its own bounds, so a line past the current height (the one just typed) is never
+  /// laid out: the container stays as tall as the text needs, and the view grows to it.
+  private func unboundContainer() {
+    if textContainer.size.height < .greatestFiniteMagnitude / 2 {
+      textContainer.size = CGSize(width: textContainer.size.width, height: .greatestFiniteMagnitude)
+    }
+  }
+
+  /// Reports the height the text and its messages take at the current width.
+  func measure() {
+    unboundContainer()
+    let width = textContainer.size.width
+    guard width > 0 else { return }
+    onHeight?(decorator.height(layoutManager, textContainer, text as NSString, width: width))
+  }
+
+  var onHeight: ((CGFloat) -> Void)?
   private var lastWidth: CGFloat = 0
 }
 
 private struct LineTextView: UIViewRepresentable {
   @Binding var text: String
   var style: LineStyle
+  @Binding var height: CGFloat?
 
   func makeUIView(context: Context) -> DecoratedTextView {
     // TextKit 1, for the layout manager the decorations are measured with.
@@ -445,10 +471,16 @@ private struct LineTextView: UIViewRepresentable {
 
   func updateUIView(_ view: DecoratedTextView, context: Context) {
     context.coordinator.parent = self
+    let height = $height
+    view.onHeight = { measured in
+      guard abs((height.wrappedValue ?? 0) - measured) > 0.5 else { return }
+      DispatchQueue.main.async { height.wrappedValue = measured }
+    }
     if view.text != text {
       view.text = text
     }
     apply(style, to: view)
+    view.measure()
   }
 
   private func apply(_ style: LineStyle, to view: DecoratedTextView) {
@@ -482,8 +514,8 @@ private struct LineTextView: UIViewRepresentable {
       parent.text = view.text
       guard let view = view as? DecoratedTextView else { return }
       view.decorator.restyle(view.textStorage, width: view.textContainer.size.width)
-      view.invalidateIntrinsicContentSize()
       view.setNeedsDisplay()
+      view.measure()
     }
   }
 }
