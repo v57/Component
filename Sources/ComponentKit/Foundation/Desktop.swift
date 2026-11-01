@@ -106,6 +106,51 @@ extension KitDesktop {
     appURL(bundleIdentifier).flatMap { icon(forFile: $0.path) }
   }
 
+  /// An installed app, for an Open in item: its bundle identifier, and the name the file manager shows.
+  public struct App: Identifiable, Hashable, Sendable {
+    public let bundleIdentifier: String
+    public let name: String
+    /// Where it is installed (the Mac's preferred copy).
+    public let url: URL
+    public var id: String { bundleIdentifier }
+  }
+
+  /// The installed apps whose bundle identifier starts with `prefix` that say they open files like `file` (by its
+  /// type: from the file when it exists, else from its extension), by name, the running app left out. Empty off
+  /// the Mac.
+  ///
+  /// ```swift
+  /// ForEach(KitDesktop.apps(toOpen: file, prefix: "dev.v57.")) { app in
+  ///   Button("Open in \(app.name)") { KitDesktop.open([file], withApp: app.bundleIdentifier) }
+  /// }
+  /// ```
+  @MainActor public static func apps(toOpen file: URL, prefix: String = "") -> [App] {
+    #if canImport(AppKit)
+      let workspace = NSWorkspace.shared
+      let candidates: [URL] =
+        if FileManager.default.fileExists(atPath: file.path) {
+          workspace.urlsForApplications(toOpen: file)
+        } else if let type = UTType(filenameExtension: file.pathExtension), !file.pathExtension.isEmpty {
+          workspace.urlsForApplications(toOpen: type)
+        } else {
+          []
+        }
+      var seen: Set<String> = [Bundle.main.bundleIdentifier ?? ""]
+      var apps: [App] = []
+      for candidate in candidates {
+        // Several copies of one app (a build beside the installed one) are one item: the preferred copy.
+        guard let id = Bundle(url: candidate)?.bundleIdentifier, id.hasPrefix(prefix), seen.insert(id).inserted,
+          let url = workspace.urlForApplication(withBundleIdentifier: id)
+        else { continue }
+        let name = (FileManager.default.displayName(atPath: url.path) as NSString).deletingPathExtension
+        apps.append(App(bundleIdentifier: id, name: name, url: url))
+      }
+      return apps.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    #else
+      []
+    #endif
+  }
+
   /// Opens files and folders in the app with a bundle identifier, handed over in order (a project's folder, then a
   /// file in it). Does nothing when the app isn't installed, and off the Mac.
   ///
