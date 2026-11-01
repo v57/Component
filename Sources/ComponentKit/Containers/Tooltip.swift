@@ -7,8 +7,9 @@ import SwiftUI
 extension View {
   /// The kit's tooltip: half a second after the pointer stops on the view, a small card with a rich header shows 6pt
   /// under it: the item's icon on a tinted tile (wearing `status`'s ring while it runs), its name, one line of status,
-  /// then the shortcut as keycaps. Moving to the next item swaps it at once. On iPhone, with no pointer, it falls back
-  /// to `.help`; everywhere the words also go to accessibility as a hint.
+  /// then the shortcut as keycaps. Any move of the pointer hides it at once, and it comes back once the pointer rests
+  /// again (on this item or the next one). On iPhone, with no pointer, it falls back to `.help`; everywhere the words
+  /// also go to accessibility as a hint.
   ///
   /// ```swift
   /// Button("Pull", systemImage: "arrow.down") { … }
@@ -33,12 +34,16 @@ extension View {
   }
 }
 
-/// When a tooltip last went away: the next one within a moment shows at once.
-@MainActor
+/// How long the pointer rests on a view before its tooltip shows.
 enum ContTooltipClock {
-  static var lastHidden = Date.distantPast
   static let delay: Duration = .milliseconds(500)
-  static let carryOver: TimeInterval = 0.35
+}
+
+/// The pointer's rest timer: each move pushes its deadline back without redrawing the view.
+@MainActor
+private final class ContTooltipRest {
+  var task: Task<Void, Never>?
+  var deadline = ContinuousClock.now
 }
 
 private struct ContHelpModifier: ViewModifier {
@@ -52,7 +57,7 @@ private struct ContHelpModifier: ViewModifier {
   @State private var isShown = false
   /// Whether the pointer was near the window's bottom as the tooltip came (it goes above the view then).
   @State private var nearBottom = false
-  @State private var pending: Task<Void, Never>?
+  @State private var rest = ContTooltipRest()
   @State private var id = UUID()
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.isEnabled) private var isEnabled
@@ -63,7 +68,8 @@ private struct ContHelpModifier: ViewModifier {
       content.help(title)
     } else if hasHost {
       content
-        .kitHover(perform: hover)
+        .kitHover { if !$0 { hide() } }
+        .onContinuousHover(perform: pointer)
         .simultaneousGesture(TapGesture().onEnded { hide() })
         // Drawn by the container (`ContTooltipHost`), over every card and title.
         .anchorPreference(key: ContTooltipKey.self, value: .bounds) { [isShown, card, id] bounds in
@@ -71,10 +77,11 @@ private struct ContHelpModifier: ViewModifier {
         }
         .accessibilityHint([meta, shortcut].compactMap { $0 }.joined(separator: ", "))
         .onAppear { if KitLaunchOptions.shownTooltip == title { isShown = true } }
-        .onDisappear { pending?.cancel() }
+        .onDisappear { hide() }
     } else {
       content
-        .kitHover(perform: hover)
+        .kitHover { if !$0 { hide() } }
+        .onContinuousHover(perform: pointer)
         .simultaneousGesture(TapGesture().onEnded { hide() })
         .overlay(alignment: isAbove ? .top : .bottom) {
           if isShown {
@@ -91,7 +98,7 @@ private struct ContHelpModifier: ViewModifier {
         .zIndex(isShown ? 100 : 0)
         .accessibilityHint([meta, shortcut].compactMap { $0 }.joined(separator: ", "))
         .onAppear { if KitLaunchOptions.shownTooltip == title { isShown = true } }
-        .onDisappear { pending?.cancel() }
+        .onDisappear { hide() }
     }
   }
 
@@ -103,28 +110,28 @@ private struct ContHelpModifier: ViewModifier {
       status: status)
   }
 
-  private func hover(_ inside: Bool) {
-    pending?.cancel()
-    if inside {
-      if edge == nil { nearBottom = ContTooltipRoom.isNearWindowBottom }
-      if Date().timeIntervalSince(ContTooltipClock.lastHidden) < ContTooltipClock.carryOver {
-        isShown = true
-      } else {
-        pending = Task { @MainActor in
-          await kitSleep(for: ContTooltipClock.delay)
-          guard !Task.isCancelled else { return }
-          withAnimation(.kitFast) { isShown = true }
-        }
+  /// Every move hides the tooltip and restarts the wait; it shows once the pointer has rested for `delay`.
+  private func pointer(_ phase: HoverPhase) {
+    guard case .active = phase, !ContDragActivity.shared.isDragging else { return hide() }
+    if isShown { isShown = false }
+    let rest = rest
+    rest.deadline = .now + ContTooltipClock.delay
+    guard rest.task == nil else { return }
+    rest.task = Task { @MainActor in
+      while ContinuousClock.now < rest.deadline {
+        await kitSleep(until: rest.deadline)
+        if Task.isCancelled { return }
       }
-    } else {
-      hide()
+      rest.task = nil
+      if edge == nil { nearBottom = ContTooltipRoom.isNearWindowBottom }
+      withAnimation(.kitFast) { isShown = true }
     }
   }
 
   private func hide() {
-    pending?.cancel()
-    if isShown { ContTooltipClock.lastHidden = Date() }
-    withAnimation(.kitFast) { isShown = false }
+    rest.task?.cancel()
+    rest.task = nil
+    if isShown { isShown = false }
   }
 }
 
