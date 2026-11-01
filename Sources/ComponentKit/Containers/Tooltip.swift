@@ -32,6 +32,28 @@ extension View {
       ContHelpModifier(
         title: title, shortcut: shortcut, meta: meta, systemImage: systemImage, hue: hue, status: status, edge: edge))
   }
+
+  /// The kit's tooltip with more under its header, past a hairline: a list of what a group holds, a few facts in
+  /// rows. Keep it short and lined up (a `Grid`); it draws in `callout` type.
+  ///
+  /// ```swift
+  /// GroupHeader(group)
+  ///   .kitHelp(group.name, meta: "~/Developer · 12 repositories", systemImage: "folder") {
+  ///     Grid(alignment: .leading) {
+  ///       ForEach(changed) { repo in GridRow { Text(repo.name); SyncCounts(changes: repo.changes) } }
+  ///     }
+  ///   }
+  /// ```
+  public func kitHelp<Detail: View>(
+    _ title: String, shortcut: String? = nil, meta: String? = nil, systemImage: String? = nil,
+    hue: Hue = .accent, status: WorkStatus = .idle, edge: VerticalEdge? = nil,
+    @ViewBuilder detail: () -> Detail
+  ) -> some View {
+    modifier(
+      ContHelpModifier(
+        title: title, shortcut: shortcut, meta: meta, systemImage: systemImage, hue: hue, status: status, edge: edge,
+        detail: AnyView(detail())))
+  }
 }
 
 /// How long the pointer rests on a view before its tooltip shows.
@@ -54,6 +76,7 @@ private struct ContHelpModifier: ViewModifier {
   let hue: Hue
   let status: WorkStatus
   let edge: VerticalEdge?
+  var detail: AnyView? = nil
   @State private var isShown = false
   /// Whether the pointer was near the window's bottom as the tooltip came (it goes above the view then).
   @State private var nearBottom = false
@@ -107,7 +130,7 @@ private struct ContHelpModifier: ViewModifier {
   private var card: ContTooltipCard {
     ContTooltipCard(
       title: title, shortcut: shortcut, meta: meta, systemImage: systemImage, hue: isEnabled ? hue : .gray,
-      status: status)
+      status: status, detail: detail)
   }
 
   /// Every move hides the tooltip and restarts the wait; it shows once the pointer has rested for `delay`.
@@ -227,7 +250,7 @@ private struct ContTooltipPlacement: Layout {
   }
 }
 
-/// The tooltip's card: a rich header at its smallest, and the shortcut as keys.
+/// The tooltip's card: a rich header at its smallest, the shortcut as keys, and any detail under a hairline.
 struct ContTooltipCard: View {
   let title: String
   let shortcut: String?
@@ -235,9 +258,28 @@ struct ContTooltipCard: View {
   let systemImage: String?
   let hue: Hue
   let status: WorkStatus
+  var detail: AnyView? = nil
   @Environment(\.kitIdiom) private var idiom
 
   var body: some View {
+    if let detail {
+      VStack(alignment: .leading, spacing: 0) {
+        header
+        Rectangle().fill(.kitSeparator).frame(height: 0.5)
+        detail
+          .kitFont(.callout)
+          .padding(EdgeInsets(top: 8, leading: 10, bottom: 9, trailing: 10))
+      }
+      .background { SurfaceShape(surface: .floating, cornerRadius: cornerRadius) }
+    } else {
+      header
+        .background { SurfaceShape(surface: .floating, cornerRadius: cornerRadius) }
+    }
+  }
+
+  private var cornerRadius: CGFloat { idiom.isTouch ? KitMetrics.radiusXL : KitMetrics.radiusCard }
+
+  private var header: some View {
     HStack(spacing: 9) {
       if let systemImage {
         LiveIcon(systemImage: systemImage, hue: hue, status: status, size: idiom.size(26, touch: 30))
@@ -251,7 +293,7 @@ struct ContTooltipCard: View {
     }
     .padding(EdgeInsets(top: 7, leading: systemImage == nil ? 10 : 7, bottom: 7, trailing: 8))
     .frame(minHeight: idiom.size(42, touch: 48))
-    .background { SurfaceShape(surface: .floating, cornerRadius: idiom.isTouch ? KitMetrics.radiusXL : KitMetrics.radiusCard) }
+    .frame(maxWidth: detail == nil ? nil : .infinity, alignment: .leading)
   }
 }
 
@@ -260,6 +302,15 @@ struct ContTooltipCard: View {
     ContTooltipCard(title: "Pull", shortcut: "⇧⌘P", meta: "1 behind origin/main", systemImage: "arrow.down", hue: .accent, status: .idle)
     ContTooltipCard(title: "Fetch", shortcut: nil, meta: "Fetching origin…", systemImage: "arrow.clockwise", hue: .accent, status: .working)
     ContTooltipCard(title: "Push", shortcut: "⌘P", meta: "Nothing to push", systemImage: "arrow.up", hue: .gray, status: .idle)
+    ContTooltipCard(
+      title: "v57", shortcut: nil, meta: "~/Developer/v57 · 12 repositories", systemImage: "folder", hue: .orange,
+      status: .idle,
+      detail: AnyView(
+        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 3) {
+          GridRow { Text("Code"); SyncCounts(changes: 1).gridColumnAlignment(.trailing) }
+          GridRow { Text("Shell"); SyncCounts(ahead: 3) }
+          GridRow { Text("Git"); SyncCounts(changes: 2, ahead: 2) }
+        }))
     Button("Hover me", systemImage: "arrow.down") {}
       .buttonStyle(.kit)
       .kitHelp("Pull", shortcut: "⇧⌘P", meta: "1 behind origin/main", systemImage: "arrow.down")
