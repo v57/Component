@@ -48,6 +48,8 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
   @State private var viewport: CGFloat = 0
   /// The body put the footer over its own scroll view (`kitSheetFooterBar`), so the sheet draws no footer row.
   @State private var footerIsInBody = false
+  /// The footer bar's height, while it sits over the sheet's scrolling body.
+  @State private var footerHeight: CGFloat = 0
 
   /// A sheet with any icon (a thing's own tile, an avatar). `width` applies on the Mac (and 80pt wider on iPad, over
   /// the window); `onClose` adds the round close button at the header's end (for panels without a Cancel button).
@@ -72,7 +74,8 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
       if Content.self != EmptyView.self {
         if presentation == .overlay {
           // Over the window the card is as tall as its content, and its body scrolls when the window is shorter,
-          // fading out under the header and over the footer instead of a flat cut at them.
+          // fading out under the header instead of a flat cut, and running on under the footer bar, which fades it
+          // out behind itself (as a window's status bar).
           let space = scrollSpace
           ScrollView {
             sheetBody
@@ -85,21 +88,25 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
           .coordinateSpace(.named(space))
           .scrollBounceBehavior(.basedOnSize)
           .scrollIndicators(.automatic)
-          .frame(maxHeight: bodyHeight)
+          .modifier(FooterOverBody(footer: footerOverBody ? footerBar : nil, height: $footerHeight))
+          .frame(maxHeight: bodyHeight + (footerOverBody ? footerHeight : 0))
           .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { viewport = $0 }
-          .contScrollEdges(top: bodyTop < -0.5, bottom: bodyBottom > viewport + 0.5, length: idiom.size(24, touch: 32))
+          .contScrollEdges(
+            top: bodyTop < -0.5, bottom: !footerOverBody && bodyBottom > viewport + 0.5,
+            length: idiom.size(24, touch: 32))
         } else if idiom == .phone {
           ScrollView {
             sheetBody
               .padding(.bottom, Footer.self == EmptyView.self ? 0 : 4)
           }
           .scrollBounceBehavior(.basedOnSize)
+          .modifier(FooterOverBody(footer: footerOverBody ? footerBar : nil, height: $footerHeight))
           .frame(maxHeight: .infinity, alignment: .top)
         } else {
           sheetBody
         }
       }
-      if footerIsInBody {
+      if footerIsInBody || footerOverBody {
         // The body's scroll view runs on to the sheet's bottom edge, under its footer bar.
       } else if Footer.self != EmptyView.self {
         footerBar
@@ -112,6 +119,13 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
       // Over the window the overlay's card is the ground.
       if presentation != .overlay { Rectangle().fill(.kitPanel).ignoresSafeArea() }
     }
+  }
+
+  /// Whether the footer is a bar over the sheet's own scrolling body (over the window, and on iPhone) rather than a
+  /// row under it.
+  private var footerOverBody: Bool {
+    Footer.self != EmptyView.self && Content.self != EmptyView.self && !footerIsInBody
+      && (presentation == .overlay || idiom == .phone)
   }
 
   private var sheetWidth: CGFloat? {
@@ -295,6 +309,24 @@ extension View {
   /// ```
   public func kitSheetFooterBar() -> some View {
     modifier(SheetFooterBar())
+  }
+}
+
+/// The sheet's footer as a bar over its scrolling body, with the fade behind it; `height` follows the bar's.
+private struct FooterOverBody<Bar: View>: ViewModifier {
+  let footer: Bar?
+  @Binding var height: CGFloat
+
+  func body(content: Content) -> some View {
+    if let footer {
+      content.contEdgeBar(.bottom) {
+        footer
+          .background { ContEdgeFade(edge: .bottom, ground: .panel) }
+          .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+      }
+    } else {
+      content
+    }
   }
 }
 
