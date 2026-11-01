@@ -538,6 +538,7 @@ struct RunBlocksPage: View {
         }
       }
       CodeBlockSpecimens()
+      LineEditorSpecimens()
     }
   }
 }

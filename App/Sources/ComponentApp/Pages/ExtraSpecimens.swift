@@ -47,6 +47,47 @@ struct CodeBlockSpecimens: View {
   }
 }
 
+// MARK: - Line editor (Run Blocks page)
+
+struct LineEditorSpecimens: View {
+  @State private var rules = """
+    ! Things I don't want to see
+    ||ads.example.com^
+    example.com##.newsletter-popup
+    news.example.com#?#.card:has-text(Sponsored)
+    @@||cdn.example.net^$script
+    """
+  @State private var empty = ""
+
+  private var issues: [Int: KitLineIssue] {
+    var issues: [Int: KitLineIssue] = [:]
+    for (index, line) in rules.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+      if line.contains("#?#") { issues[index + 1] = KitLineIssue("Procedural selector: Safari can't run :has-text") }
+      else if line.hasPrefix("||"), !line.hasSuffix("^") { issues[index + 1] = KitLineIssue("No ^ at the end: it matches more than the host", hue: .orange) }
+    }
+    return issues
+  }
+
+  var body: some View {
+    SpecimenSection(
+      "Line editor",
+      note: "Editable monospaced text with line numbers, and each line's error or warning right under it: the line is tinted and the lines below make room. The system text view, so selection, undo and paste work across lines."
+    ) {
+      SpecimenGrid(minWidth: 360) {
+        Specimen(
+          "KitLineEditor", note: "type #?# into a line",
+          code: "KitLineEditor(text: $rules, issues: [4: KitLineIssue(\"Safari can't run :has-text\")])"
+        ) {
+          KitLineEditor(text: $rules, issues: issues)
+        }
+        Specimen("Empty, a placeholder", code: "KitLineEditor(text: $rules, placeholder: \"||ads.example.com^\")") {
+          KitLineEditor(text: $empty, placeholder: "||ads.example.com^")
+        }
+      }
+    }
+  }
+}
+
 // MARK: - Pictures from bytes and URLs, app icons (Avatars page)
 
 struct PictureAvatarSpecimens: View {
