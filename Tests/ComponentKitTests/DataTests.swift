@@ -193,3 +193,42 @@ private struct Key { var name: String; var children: [Key]? }
   // On iPhone it fills the screen under the identity.
   #expect(WelcomeLayout.columnListHeight(available: 1000, identity: 320, fills: true) == 680)
 }
+
+// MARK: - Decoded images
+
+#if canImport(ImageIO)
+  import ImageIO
+  import UniformTypeIdentifiers
+
+  /// A `side`-pixel square PNG of one grey.
+  private func greyPNG(side: Int) throws -> Data {
+    let context = try #require(
+      CGContext(
+        data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue))
+    context.setFillColor(gray: 0.5, alpha: 1)
+    context.fill(CGRect(x: 0, y: 0, width: side, height: side))
+    let image = try #require(context.makeImage())
+    let data = NSMutableData()
+    let destination = try #require(CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil))
+    CGImageDestinationAddImage(destination, image, nil)
+    #expect(CGImageDestinationFinalize(destination))
+    return data as Data
+  }
+
+  @MainActor @Test func decodedImagesLoadOnceAndKeepThePicture() async throws {
+    let png = try greyPNG(side: 64)
+    let key = KitImages.Key(.data(png), maxPixelSize: 36)
+    #expect(KitImages.cached(key) == nil)
+    #expect(await KitImages.load(key) != nil)
+    // The same bytes in another buffer, at the same size, come from the cache.
+    #expect(KitImages.cached(KitImages.Key(.data(Data(png)), maxPixelSize: 36)) != nil)
+    // Another size is another picture.
+    #expect(KitImages.cached(KitImages.Key(.data(png), maxPixelSize: 64)) == nil)
+  }
+
+  @MainActor @Test func decodedImagesRefuseBytesThatAreNoPicture() async {
+    #expect(await KitImages.load(KitImages.Key(.data(Data("not a picture".utf8)), maxPixelSize: nil)) == nil)
+    #expect(await KitImages.load(KitImages.Key(.file(URL(fileURLWithPath: "/nonexistent.png")), maxPixelSize: 10)) == nil)
+  }
+#endif

@@ -421,8 +421,8 @@ struct DropLabelSpecimens: View {
         }
       }
       Specimen(
-        "KitImageFile", note: "a picture file, loaded off the main thread",
-        code: "KitImageFile(url: screenshot.url, maxPixelSize: 600).scaledToFit()\nKitImageFile(url: missing)   // the soft fill: not a picture"
+        "KitImageFile · KitImageData", note: "a picture file or bytes, decoded off the main thread",
+        code: "KitImageFile(url: screenshot.url, maxPixelSize: 600).scaledToFit()\nKitImageFile(url: missing)   // the soft fill: not a picture\nKitImageData(data: attachment.data, maxPixelSize: 600)"
       ) {
         HStack(spacing: 12) {
           ForEach(Self.pictures, id: \.self) { url in

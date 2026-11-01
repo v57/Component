@@ -39,10 +39,13 @@ public struct KitFilePreview: View {
     Group {
       switch Self.form(of: name) {
       case .image:
-        if let image = Image(data: data) {
-          image.resizable().scaledToFit().clipShape(shape)
-        } else {
-          unavailable
+        // Decoded off the main thread, at most 2048 pixels on its long side.
+        KitDecodedImage(.data(data), maxPixelSize: 2048) { phase in
+          switch phase {
+          case .loading: Color.clear
+          case .image(let image): image.resizable().interpolation(.high).scaledToFit().clipShape(shape)
+          case .failed: unavailable
+          }
         }
       case .pdf:
         #if canImport(PDFKit) && (os(iOS) || os(macOS))

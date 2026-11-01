@@ -15,10 +15,12 @@ public struct KitAppIcon: View {
   enum Source {
     case running
     case image(Image?, isShaped: Bool)
+    case data(Data?, isShaped: Bool)
   }
 
   var size: CGFloat
   var source: Source = .running
+  @Environment(\.displayScale) private var displayScale
 
   public init(size: CGFloat = 64) {
     self.size = size
@@ -39,19 +41,28 @@ public struct KitAppIcon: View {
   }
 
   /// Any app's icon from PNG or JPEG bytes, as `init(image:size:isShaped:)` draws it (bytes that aren't a picture
-  /// draw the quiet squircle).
+  /// draw the quiet squircle). They decode off the main thread; nothing is drawn until then.
   ///
   /// ```swift
   /// KitAppIcon(data: facts.icon.preview, size: 96)
   /// ```
   public init(data: Data?, size: CGFloat = 64, isShaped: Bool = false) {
-    self.init(image: data.flatMap(Image.init(data:)), size: size, isShaped: isShaped)
+    self.size = size
+    self.source = .data(data, isShaped: isShaped)
   }
 
   public var body: some View {
     switch source {
     case .running: running
     case .image(let image, let isShaped): picture(image, isShaped: isShaped)
+    case .data(let data, let isShaped):
+      KitDecodedImage(data.map { .data($0) }, maxPixelSize: Int((size * displayScale).rounded(.up))) { phase in
+        switch phase {
+        case .loading: Color.clear.frame(width: size, height: size)
+        case .image(let image): picture(image, isShaped: isShaped)
+        case .failed: picture(nil, isShaped: isShaped)
+        }
+      }
     }
   }
 

@@ -35,8 +35,10 @@ public struct Avatar: View {
   var presence: Presence?
   var size: CGFloat
   var image: Image?
+  var imageData: Data?
   var url: URL?
   @Environment(\.colorScheme) private var scheme
+  @Environment(\.displayScale) private var displayScale
 
   public init(
     name: String, letters: String? = nil, kind: Kind = .person, systemImage: String? = nil, hue: Hue? = nil,
@@ -70,7 +72,8 @@ public struct Avatar: View {
 
   /// An avatar from a picture's bytes (PNG or JPEG: a generated portrait, a stored icon), drawn as
   /// `Avatar(name:image:)` does; without bytes, or with bytes that aren't a picture, it is the drawn avatar the other
-  /// arguments describe. Each picture is decoded once (`Image(data:)`).
+  /// arguments describe, which also shows while the picture decodes off the main thread. Each picture is decoded once,
+  /// at the avatar's size.
   ///
   /// ```swift
   /// Avatar(name: agent.name, imageData: agent.portrait, kind: .agent, status: agent.status, size: 28)
@@ -82,7 +85,7 @@ public struct Avatar: View {
     self.init(
       name: name, letters: letters, kind: kind, systemImage: systemImage, hue: hue, status: status,
       presence: presence, size: size)
-    self.image = imageData.flatMap(Image.init(data:))
+    self.imageData = imageData
   }
 
   /// An avatar loaded from a URL (a GitHub profile picture), drawn as `Avatar(name:image:)` does once it arrives; until
@@ -139,6 +142,10 @@ public struct Avatar: View {
   private func face(_ hue: Hue) -> some View {
     if let image {
       picture(image)
+    } else if let imageData {
+      KitDecodedImage(.data(imageData), maxPixelSize: Int((size * displayScale).rounded(.up))) { phase in
+        if case .image(let image) = phase { picture(image) } else { drawnFace(hue) }
+      }
     } else if let url {
       AsyncImage(url: url, transaction: Transaction(animation: .kit)) { phase in
         if let image = phase.image {

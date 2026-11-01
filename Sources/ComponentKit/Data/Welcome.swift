@@ -450,6 +450,7 @@ private struct RecentItemTaps: ViewModifier {
 /// ```swift
 /// RecentItem("harbor", subtitle: "~/Developer/harbor", date: "Today", status: "1 change", statusHue: .orange) { … }
 /// RecentItem("Shell", subtitle: "~/Developer/Shell", image: shellIcon) { … }   // a project's icon in the tile's place
+/// RecentItem("Shell", subtitle: "~/Developer/Shell", imageData: project.icon) { … }   // its PNG, decoded off the main thread
 /// ```
 ///
 /// A group of items (a folder of projects): `.disclosure(isExpanded:)` trails it with a chevron that opens and closes
@@ -474,6 +475,7 @@ public struct RecentItem: View {
   var statusHue: Hue
   var systemImage: String?
   var image: Image?
+  var imageData: Data?
   var id: String
   var action: () -> Void
   var isExpanded: Binding<Bool>?
@@ -486,7 +488,8 @@ public struct RecentItem: View {
 
   public init(
     _ title: String, subtitle: String? = nil, date: String? = nil, status: String? = nil, statusHue: Hue = .gray,
-    systemImage: String? = nil, image: Image? = nil, id: String? = nil, action: @escaping () -> Void
+    systemImage: String? = nil, image: Image? = nil, imageData: Data? = nil, id: String? = nil,
+    action: @escaping () -> Void
   ) {
     self.title = title
     self.subtitle = subtitle
@@ -495,6 +498,7 @@ public struct RecentItem: View {
     self.statusHue = statusHue
     self.systemImage = systemImage
     self.image = image
+    self.imageData = imageData
     self.id = id ?? subtitle ?? title
     self.action = action
   }
@@ -520,6 +524,9 @@ public struct RecentItem: View {
       Group {
         if let image {
           Avatar(name: title, image: image, kind: .thing, size: 36)
+        } else if let imageData {
+          // The tile stands in while the picture decodes, and when the bytes aren't one.
+          Avatar(name: title, imageData: imageData, kind: .thing, systemImage: systemImage, size: 36)
         } else if let systemImage {
           Tile(systemImage: systemImage, hue: StableHue.pick(title), size: 36)
         } else {
