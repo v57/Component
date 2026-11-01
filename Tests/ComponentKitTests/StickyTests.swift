@@ -25,30 +25,36 @@ private func gitTable(atlasRows: CGFloat = 100) -> ContStickyTable {
     spacing: 10, topGap: 0)
 }
 
-@Test func stickyBottomStackKeepsItsOrder() {
-  // At the top of the list: atlas whole, then the Branches and Remotes titles, ending at the bottom edge.
+@Test func stickyDockKeepsTheSectionsOrder() {
+  // At the top of the list: atlas, Branches and Remotes wait in the dock, 30pt copies inside its 4pt padding.
   let placements = gitTable().placements(visibleTop: 0, visibleBottom: 1000)
   #expect(placements[0] == nil)
-  #expect(placements[3] == ContStickyPlacement(edge: .bottom, part: .title, y: 950))
-  #expect(placements[2] == ContStickyPlacement(edge: .bottom, part: .title, y: 890))
-  #expect(placements[1] == ContStickyPlacement(edge: .bottom, part: .content, y: 730))
+  #expect(placements[3] == ContStickyPlacement(edge: .bottom, part: .title, y: 966))
+  #expect(placements[2] == ContStickyPlacement(edge: .bottom, part: .title, y: 936))
+  #expect(placements[1] == ContStickyPlacement(edge: .bottom, part: .content, y: 906))
 }
 
-@Test func stickyBottomStackFallsBackToTitlesPastItsShare() {
-  // atlas with 300pt of rows: 350 + 50 + 50 + 20 is more than 40% of 1000, so it shows its title too.
-  let placements = gitTable(atlasRows: 300).placements(visibleTop: 0, visibleBottom: 1000)
-  #expect(placements[1] == ContStickyPlacement(edge: .bottom, part: .title, y: 830))
-  #expect(placements[2]?.part == .title)
-  #expect(placements[3]?.part == .title)
+@Test func stickyDockUsesTheCopiesHeights() {
+  // atlas's copy, with its rows, measured 40pt.
+  var table = gitTable()
+  table.items[1].copyHeight = 40
+  #expect(table.placements(visibleTop: 0, visibleBottom: 1000)[1]?.y == 896)
 }
 
-@Test func stickyBottomItemInPlaceStopsTheStack() {
+@Test func stickyDockStopsAtASectionInView() {
   // Scrolled so atlas is in view: it and Branches are in place, Remotes still waits.
   let table = gitTable()
   let placements = table.placements(visibleTop: 1500, visibleBottom: 2500)
   #expect(placements[1] == nil)
   #expect(placements[2] == nil)
-  #expect(placements[3] == ContStickyPlacement(edge: .bottom, part: .title, y: 2450))
+  #expect(placements[3] == ContStickyPlacement(edge: .bottom, part: .title, y: 2466))
+}
+
+@Test func stickyCopyLetsGoAsItsTitleReachesIt() {
+  // Remotes' title at 2510: its copy's place is 2506 at a 2540pt bottom (waiting), 2511 at 2545 (in view).
+  let table = gitTable()
+  #expect(table.placements(visibleTop: 1540, visibleBottom: 2540)[3] != nil)
+  #expect(table.placements(visibleTop: 1545, visibleBottom: 2545)[3] == nil)
 }
 
 @Test func stickyTitleWhileVisibleStaysThenIsPushedUp() {
@@ -107,19 +113,18 @@ private func gitTable(atlasRows: CGFloat = 100) -> ContStickyTable {
   #expect(ContStickyState(edge: .bottom, part: .title, order: 1).zIndex > ContStickyState(edge: .bottom, part: .title, order: 0).zIndex)
 }
 
-@Test func stickyBottomTitlesPastTheShareLetTheFarthestGo() {
-  // Six titles of 60pt under a 600pt sidebar: 40% holds three, the nearest; the rest scroll as usual, and no
-  // section in view is pushed up.
+@Test func stickyDockPastTheShareLetsTheFarthestGo() {
+  // Six 60pt copies under a 600pt sidebar: 40% holds three with the padding, the nearest; the rest scroll as usual.
   let items = (0..<6).map { index in
     ContStickyItem(
       id: AnyHashable(index), sticky: ContSticky(top: .none, bottom: .title), minY: 1000 + CGFloat(index) * 300,
-      maxY: 1250 + CGFloat(index) * 300, titleTop: 1000 + CGFloat(index) * 300, titleHeight: 60)
+      maxY: 1250 + CGFloat(index) * 300, titleTop: 1000 + CGFloat(index) * 300, titleHeight: 60, copyHeight: 60)
   }
   let table = ContStickyTable(items: items, spacing: 10, topGap: 0)
   let placements = table.placements(visibleTop: 0, visibleBottom: 600)
   #expect(placements.compactMap { $0 }.count == 3)
-  #expect(placements[0] == ContStickyPlacement(edge: .bottom, part: .title, y: 400))
-  #expect(placements[2] == ContStickyPlacement(edge: .bottom, part: .title, y: 540))
+  #expect(placements[0] == ContStickyPlacement(edge: .bottom, part: .title, y: 416))
+  #expect(placements[2] == ContStickyPlacement(edge: .bottom, part: .title, y: 536))
   #expect(placements[3] == nil && placements[5] == nil)
 }
 
@@ -143,10 +148,13 @@ private func gitTable(atlasRows: CGFloat = 100) -> ContStickyTable {
   #expect(live?.table.placements(visibleTop: -2, visibleBottom: 606)[1] == nil)
 }
 
-@Test func stickyPausedTableKeepsEveryItemInPlace() {
+@Test func stickyPausedTableKeepsTheTopInPlace() {
+  // In the middle of the list: no title at the top while paused; the dock, outside the scroll view, stays.
   var table = gitTable()
   table.isPaused = true
-  #expect(table.placements(visibleTop: 2100, visibleBottom: 3000).allSatisfy { $0 == nil })
+  let placements = table.placements(visibleTop: 800, visibleBottom: 1800)
+  #expect(placements[0] == nil)
+  #expect(placements[1]?.edge == .bottom && placements[3]?.edge == .bottom)
 }
 
 @available(macOS 15.0, iOS 18.0, *)

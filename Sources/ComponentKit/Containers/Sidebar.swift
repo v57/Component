@@ -184,7 +184,7 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     }
     // Stuck sections stack under the title bar and over the bottom bar; a stuck title scrolls to its section.
     // The bottom bar keeps its own gap above its cards.
-    .contStickyHost(spacing: spacing, topGap: 2, bottomGap: showsBar ? 0 : inset) { id in
+    .contStickyHost(spacing: spacing, topGap: 2, bottomGap: showsBar ? 0 : inset, sideInset: inset) { id in
       proxy.scrollTo(ContStickyScrollID(value: id), anchor: .top)
     }
     .focusable()
@@ -644,6 +644,7 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
   @Environment(\.kitWindowIsActive) private var isActive
   @Environment(\.kitSectionStyle) private var style
   @Environment(\.kitRowDensity) private var density
+  @Environment(\.contStickyCopy) private var isCopy
   @State private var isHovered = false
 
   init(
@@ -828,6 +829,50 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
   }
 
   public var body: some View {
+    if isCopy {
+      copyBody
+    } else {
+      rowBody
+    }
+  }
+
+  /// In a section's copy in the sidebar's bottom dock (`.kitSticky(bottom: .content)`): its icon and trailing views
+  /// as a small button, the title its label.
+  private var copyBody: some View {
+    let isSelected = rowValue != nil && selection?.value == rowValue && idiom != .phone
+    let radius = ContMetrics.rowRadius(idiom, compact: true)
+    return HStack(spacing: 3) {
+      icon
+      trailing
+        .kitFont(.caption)
+        .monospacedDigit()
+    }
+    .padding(.horizontal, 5)
+    .frame(minHeight: idiom.size(24, touch: 32))
+    .background {
+      if isSelected {
+        SurfaceShape(surface: .raised, cornerRadius: radius)
+      } else if isHovered, !idiom.isTouch {
+        RoundedRectangle(cornerRadius: radius, style: .continuous).fill(KitColor.rowHover)
+      }
+    }
+    .contentShape(Rectangle())
+    .kitHover { isHovered = $0 }
+    .animation(.kitFast, value: isHovered)
+    .onTapGesture {
+      if let action {
+        action()
+      } else if let rowValue {
+        selection?.select(rowValue)
+      }
+    }
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel(title)
+    .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+  }
+
+  @ViewBuilder
+  private var rowBody: some View {
     // A row is not left selected on iPhone (it pushes its screen).
     let isSelected = rowValue != nil && selection?.value == rowValue && idiom != .phone
     let isEmphasized = isSelected && (selection?.isFocused ?? false) && isActive

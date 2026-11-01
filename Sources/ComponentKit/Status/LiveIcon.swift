@@ -107,6 +107,7 @@ public struct LiveIcon<Content: View>: View {
   var size: CGFloat
   var shape: KitShape
   @ViewBuilder var content: Content
+  @Environment(\.contTileSize) private var tileSize
 
   public init(
     hue: Hue = .accent, status: WorkStatus, size: CGFloat = 24, shape: KitShape = .rounded,
@@ -121,6 +122,7 @@ public struct LiveIcon<Content: View>: View {
 
   public var body: some View {
     let tint = status.hue ?? hue
+    let size = tileSize ?? size
     Group {
       if status == .waiting {
       // Nothing has happened yet: a bare dashed circle the tile's size, no ground and no ring.
@@ -132,13 +134,13 @@ public struct LiveIcon<Content: View>: View {
           .accessibilityElement()
           .accessibilityLabel(Self.label(status))
       } else {
-        tile(tint: tint).transition(.opacity)
+        tile(tint: tint, size: size).transition(.opacity)
       }
     }
     .animation(.kit, value: status == .waiting)
   }
 
-  private func tile(tint: Hue) -> some View {
+  private func tile(tint: Hue, size: CGFloat) -> some View {
     Tile(hue: tint, size: size, shape: shape) {
       ZStack {
         switch status {

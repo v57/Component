@@ -8,8 +8,10 @@ import SwiftUI
 // Each frame, every sticky view works out from the table and its own place in the scroll view where it shows, in a
 // `visualEffect`: scrolling changes no state. Only whether a view is stuck is state (its z-order and its stuck card),
 // and that changes as it sticks or comes free. While the user scrolls or drags a row, and for half a second after,
-// nothing sticks: the sections scroll in place (and the views skip the work), and the stuck ones come back once the
-// list holds still. Before macOS 15 and iOS 18 the stack is a `LazyVStack` and nothing sticks.
+// nothing sticks at the top: the sections scroll in place (and the views skip the work), and the stuck ones come back
+// once the list holds still. Sections below the visible area never move: a compact copy of each waits in a dock over
+// the bottom bar, outside the scroll view (the sections send their copies up as a preference), until the section
+// scrolls up to it. Before macOS 15 and iOS 18 the stack is a `LazyVStack` and nothing sticks.
 
 /// What a sticky section keeps in view once it has scrolled up past the visible area (`.kitSticky(top:bottom:)`).
 public enum KitStickyTop: Hashable, Sendable {
@@ -23,11 +25,12 @@ public enum KitStickyTop: Hashable, Sendable {
   case none
 }
 
-/// What a sticky section keeps in view while it is still below the visible area (`.kitSticky(top:bottom:)`).
+/// What a sticky section keeps in view while it is still below the visible area (`.kitSticky(top:bottom:)`): a
+/// compact copy, one line in the dock over the sidebar's bottom bar; clicking it scrolls to the section.
 public enum KitStickyBottom: Hashable, Sendable {
-  /// The whole section waits at the bottom (it falls back to its title past 40% of the sidebar).
+  /// Its line also holds its rows, as small buttons (a `SidebarRow` shows its icon and trailing views).
   case content
-  /// Its title waits at the bottom, as a card of its own; clicking it scrolls to the section.
+  /// Its line shows its icon, title and meta.
   case title
   /// Nothing waits; the list ends at the edge.
   case none
@@ -35,16 +38,16 @@ public enum KitStickyBottom: Hashable, Sendable {
 
 extension View {
   /// Keeps this section in view when it scrolls out of the visible area of a `KitSidebar`: at the top once it has
-  /// scrolled up past it, at the bottom while it is still below it. Stuck sections stack in their own order (top
-  /// ones under the sidebar's top bar, bottom ones over its bottom bar), float as opaque cards, and a stuck title
-  /// scrolls to its section when clicked. The bottom stack takes at most 40% of the sidebar; past that, `.content`
-  /// shows only the title. Sections without it never stick.
+  /// scrolled up past it, and while it is still below it as a compact line in the dock over the bottom bar. Stuck
+  /// sections stack in their own order under the sidebar's top bar as opaque cards, and a stuck title or a docked
+  /// line scrolls to its section when clicked. The dock takes at most 40% of the sidebar. Sections without it never
+  /// stick.
   ///
   /// ```swift
   /// KitSection("Repositories", meta: ["72 repositories"], systemImage: "folder") { rows }
   ///   .kitSticky()                                  // the title while the list is in view
   /// KitSection("atlas", meta: ["main", "4 changed"], systemImage: "arrow.triangle.branch") { pages }
-  ///   .kitSticky(bottom: .content)                  // the open repository waits at the bottom
+  ///   .kitSticky(bottom: .content)                  // the open repository and its pages wait in the dock
   /// KitSection("Branches", meta: ["3 local"], glyph: { BranchGlyph() }) { branches }
   ///   .kitSticky(bottom: .title)
   /// ```
@@ -125,6 +128,8 @@ struct ContStickyItem: Equatable, @unchecked Sendable {
   /// shows whole either way.
   var titleTop: CGFloat? = nil
   var titleHeight: CGFloat? = nil
+  /// The height of its copy in the bottom dock, once the dock has drawn it.
+  var copyHeight: CGFloat? = nil
 
   /// The top and height of `part`.
   func block(_ part: ContStickyPart) -> (top: CGFloat, height: CGFloat) {
@@ -149,8 +154,12 @@ struct ContStickyTable: Equatable, @unchecked Sendable {
   /// The user is scrolling or dragging (or was half a second ago): every item stays in place.
   var isPaused = false
 
-  /// The share of the visible height the bottom stack may take before `.content` falls back to the title.
+  /// The share of the visible height the bottom dock may take; past it, the farthest copies let go.
   static let bottomShare: CGFloat = 0.4
+  /// A copy's height in the dock until the dock has drawn it.
+  static let copyEstimate: CGFloat = 30
+  /// The dock's padding around its copies.
+  var dockPadding: CGFloat = 4
   /// The stack's coordinate space, where the frames are.
   static let space = "kit.sticky"
   /// The scroll view's own space, where the clear area is.
@@ -162,61 +171,58 @@ struct ContStickyTable: Equatable, @unchecked Sendable {
   ///
   /// - Top: an item sticks once its part has scrolled above the line under the top bar (and the items stuck before
   ///   it). `.titleWhileVisible` stays only while the section reaches below the title, which its end pushes up.
-  /// - Bottom: an item sticks while its part would end below the bottom bar (and the items stuck after it); an
-  ///   item in place stops the stack, as the items before it end above it.
+  ///   Nothing sticks there while the table is paused.
+  /// - Bottom: the item stays where it is, and a compact copy of it shows in the dock over the bottom bar while its
+  ///   title is below the copy's place there (`y`, the copy's top); an item in view stops the dock, as the items
+  ///   before it are in view too. Past its share of the sidebar, the farthest copies let go one by one.
   func placements(visibleTop: CGFloat, visibleBottom: CGFloat) -> [ContStickyPlacement?] {
     var result = [ContStickyPlacement?](repeating: nil, count: items.count)
-    guard !isPaused else { return result }
     let top = visibleTop + topGap
     let bottom = visibleBottom - bottomGap
-    var cursor = top
-    for (index, item) in items.enumerated() where item.sticky.top != .none {
-      let part: ContStickyPart = item.sticky.top == .content ? .content : .title
-      let block = item.block(part)
-      guard block.top < cursor else { continue }
-      var y = cursor
-      if item.sticky.top == .titleWhileVisible {
-        guard item.maxY > cursor else { continue }
-        y = min(cursor, item.maxY - block.height)
+    if !isPaused {
+      var cursor = top
+      for (index, item) in items.enumerated() where item.sticky.top != .none {
+        let part: ContStickyPart = item.sticky.top == .content ? .content : .title
+        let block = item.block(part)
+        guard block.top < cursor else { continue }
+        var y = cursor
+        if item.sticky.top == .titleWhileVisible {
+          guard item.maxY > cursor else { continue }
+          y = min(cursor, item.maxY - block.height)
+        }
+        result[index] = ContStickyPlacement(edge: .top, part: part, y: y)
+        cursor = max(cursor, y + block.height + spacing)
       }
-      result[index] = ContStickyPlacement(edge: .top, part: part, y: y)
-      cursor = max(cursor, y + block.height + spacing)
     }
-    // The bottom stack, in reverse; past its share, every item shows its title, and if the titles don't fit
-    // either, the farthest let go one by one (a stack that grew past its share pushed sections in view up).
     let cap = (bottom - top) * Self.bottomShare
-    var stack = bottomStack(above: bottom, skipping: result, titlesOnly: false, dropping: [])
-    if stack.height > cap {
-      var dropped: Set<Int> = []
-      stack = bottomStack(above: bottom, skipping: result, titlesOnly: true, dropping: dropped)
-      while stack.height > cap, let farthest = stack.placements.map(\.0).max() {
-        dropped.insert(farthest)
-        stack = bottomStack(above: bottom, skipping: result, titlesOnly: true, dropping: dropped)
-      }
+    var dropped: Set<Int> = []
+    var dock = dockStack(above: bottom - dockPadding, skipping: result, dropping: dropped)
+    while dock.height + 2 * dockPadding > cap, let farthest = dock.placements.map(\.0).max() {
+      dropped.insert(farthest)
+      dock = dockStack(above: bottom - dockPadding, skipping: result, dropping: dropped)
     }
-    for (index, placement) in stack.placements { result[index] = placement }
+    for (index, placement) in dock.placements { result[index] = placement }
     return result
   }
 
-  private func bottomStack(
-    above bottom: CGFloat, skipping top: [ContStickyPlacement?], titlesOnly: Bool, dropping dropped: Set<Int>
+  /// The copies in the dock, from the bottom up, and their height.
+  private func dockStack(
+    above bottom: CGFloat, skipping top: [ContStickyPlacement?], dropping dropped: Set<Int>
   ) -> (placements: [(Int, ContStickyPlacement)], height: CGFloat) {
     var cursor = bottom
     var placements: [(Int, ContStickyPlacement)] = []
-    var height: CGFloat = 0
-    for index in items.indices.reversed()
-    where top[index] == nil && items[index].sticky.bottom != .none && !dropped.contains(index) {
+    for index in items.indices.reversed() where items[index].sticky.bottom != .none && !dropped.contains(index) {
+      // Stuck at the top, it and the items before it are above.
+      guard top[index] == nil else { break }
       let item = items[index]
-      let part: ContStickyPart = item.sticky.bottom == .content && !titlesOnly ? .content : .title
-      let block = item.block(part)
-      let y = min(block.top, cursor - block.height)
-      if y < block.top {
-        placements.append((index, ContStickyPlacement(edge: .bottom, part: part, y: y)))
-        height += block.height + (placements.count > 1 ? spacing : 0)
-      }
-      cursor = y - spacing
+      let slot = cursor - (item.copyHeight ?? Self.copyEstimate)
+      // Its title came up to its copy's place: it's in view, and so is everything before it.
+      guard item.block(.title).top > slot else { break }
+      let part: ContStickyPart = item.sticky.bottom == .content ? .content : .title
+      placements.append((index, ContStickyPlacement(edge: .bottom, part: part, y: slot)))
+      cursor = slot
     }
-    return (placements, height)
+    return (placements, bottom - cursor)
   }
 
   /// Where the item `id` shows, with the visible area in the stack's space.
@@ -245,8 +251,9 @@ struct ContStickyTable: Equatable, @unchecked Sendable {
   func offset(of id: AnyHashable, part: ContStickyPart, naturalTop: CGFloat, proxy: GeometryProxy) -> CGFloat {
     guard !isPaused, let (table, index) = live(id, part: part, at: naturalTop), clearBottom > clearTop else { return 0 }
     let visible = visibleArea(naturalTop: naturalTop, hostTop: proxy.frame(in: .named(Self.hostSpace)).minY)
+    // A view docked at the bottom stays where it is: its copy shows there.
     guard let placement = table.placements(visibleTop: visible.top, visibleBottom: visible.bottom)[index],
-      placement.part == part
+      placement.edge == .top, placement.part == part
     else { return 0 }
     return placement.y - naturalTop
   }
@@ -265,6 +272,8 @@ struct ContStickyContext: Equatable, @unchecked Sendable {
   var id: AnyHashable
   var state: ContStickyState?
   var scroll: ContStickyScroll?
+  /// What its copy in the bottom dock shows.
+  var bottom: KitStickyBottom = .none
 }
 
 /// Scrolls the host to a sticky item (a click on its stuck title).
@@ -285,6 +294,8 @@ extension EnvironmentValues {
   @Entry var contStickyRegistry: ContStickyRegistry? = nil
   /// The sticky item this view is in, for the `KitSection` inside it.
   @Entry var contStickyContext: ContStickyContext? = nil
+  /// The view is drawn in a copy in the bottom dock: rows draw as small buttons.
+  @Entry var contStickyCopy = false
 }
 
 // MARK: - Registry
@@ -302,6 +313,9 @@ struct ContStickyTitle: Equatable, @unchecked Sendable {
 final class ContStickyRegistry {
   private(set) var items: [AnyHashable: ContStickyItem] = [:]
   private(set) var titles: [AnyHashable: ContStickyTitle] = [:]
+  /// The items whose copies show in the bottom dock.
+  private(set) var docked: Set<AnyHashable> = []
+  private(set) var copyHeights: [AnyHashable: CGFloat] = [:]
   /// The host draws again (once for any number of changes in one update).
   var onChange: (@MainActor () -> Void)?
   private var isPending = false
@@ -318,10 +332,23 @@ final class ContStickyRegistry {
     changed()
   }
 
+  func setDocked(_ id: AnyHashable, _ isDocked: Bool) {
+    guard docked.contains(id) != isDocked else { return }
+    if isDocked { docked.insert(id) } else { docked.remove(id) }
+    changed()
+  }
+
+  func setCopyHeight(_ id: AnyHashable, _ height: CGFloat) {
+    guard copyHeights[id] != height else { return }
+    copyHeights[id] = height
+    changed()
+  }
+
   func remove(_ id: AnyHashable) {
-    guard items[id] != nil || titles[id] != nil else { return }
+    guard items[id] != nil || titles[id] != nil || docked.contains(id) else { return }
     items[id] = nil
     titles[id] = nil
+    docked.remove(id)
     changed()
   }
 
@@ -341,12 +368,13 @@ final class ContStickyRegistry {
 extension View {
   /// Makes this scroll view a host of sticky sections: put it on the `ScrollView` and give its stack the
   /// `ContStickyTable.space` coordinate space (`contStickyStack()`). `spacing` is the gap between stuck views,
-  /// `topGap` and `bottomGap` their gaps from the visible area's ends.
+  /// `topGap` and `bottomGap` their gaps from the visible area's ends, `sideInset` the bottom dock's from its sides.
   func contStickyHost(
-    spacing: CGFloat, topGap: CGFloat, bottomGap: CGFloat, scroll: @escaping @MainActor (AnyHashable) -> Void
+    spacing: CGFloat, topGap: CGFloat, bottomGap: CGFloat, sideInset: CGFloat,
+    scroll: @escaping @MainActor (AnyHashable) -> Void
   ) -> some View {
     modifier(
-      ContStickyHost(spacing: spacing, topGap: topGap, bottomGap: bottomGap, scroll: scroll))
+      ContStickyHost(spacing: spacing, topGap: topGap, bottomGap: bottomGap, sideInset: sideInset, scroll: scroll))
   }
 
   /// The stack of a sticky host's scroll view: the frames the sticky views report are in its space.
@@ -359,6 +387,7 @@ private struct ContStickyHost: ViewModifier {
   let spacing: CGFloat
   let topGap: CGFloat
   let bottomGap: CGFloat
+  let sideInset: CGFloat
   let scroll: @MainActor (AnyHashable) -> Void
   @State private var registry = ContStickyRegistry()
   @State private var clear = ContStickyClear()
@@ -368,13 +397,32 @@ private struct ContStickyHost: ViewModifier {
   func body(content: Content) -> some View {
     let _ = revision
     if #available(macOS 15.0, iOS 18.0, *) {
+      let table = table
+      let scroll = ContStickyScroll { [pause] id in
+        pause.scrollsItself()
+        self.scroll(id)
+      }
       content
         .environment(\.contStickyTable, table)
-        .environment(\.contStickyScroll, ContStickyScroll { [pause] id in
-          pause.scrollsItself()
-          scroll(id)
-        })
+        .environment(\.contStickyScroll, scroll)
         .environment(\.contStickyRegistry, registry)
+        // The sections below the visible area stay in place; their copies wait in the dock over the bottom bar,
+        // outside the scroll view, so nothing in it moves for them.
+        .overlayPreferenceValue(ContStickyCopyKey.self, alignment: .bottom) { copies in
+          let docked = table.items.compactMap { item in
+            registry.docked.contains(item.id) ? copies.last { $0.id == item.id } : nil
+          }
+          Color.clear
+            .overlay(alignment: .bottom) {
+              if !docked.isEmpty {
+                ContStickyDock(copies: docked, registry: registry)
+                  .environment(\.contStickyScroll, scroll)
+                  .padding(EdgeInsets(top: 0, leading: sideInset, bottom: bottomGap, trailing: sideInset))
+              }
+            }
+            // The fade behind the dock reaches past it: the sidebar ends it.
+            .clipped()
+        }
         .onAppear {
           registry.onChange = { revision &+= 1 }
           revision &+= 1
@@ -413,6 +461,7 @@ private struct ContStickyHost: ViewModifier {
         sorted[index].titleTop = sorted[index].minY + title.top
         sorted[index].titleHeight = title.height
       }
+      sorted[index].copyHeight = registry.copyHeights[sorted[index].id]
     }
     return ContStickyTable(
       items: sorted, clearTop: clear.top, clearBottom: clear.bottom, spacing: spacing, topGap: topGap,
@@ -513,7 +562,7 @@ struct ContStickyItemModifier: ViewModifier {
       let keyed = ContStickyKeyed(table: table, id: id)
       // What reads geometry sits outside the offset: inside it, frames move with it, and the offset would follow.
       content
-        .environment(\.contStickyContext, ContStickyContext(id: id, state: state, scroll: scroll))
+        .environment(\.contStickyContext, ContStickyContext(id: id, state: state, scroll: scroll, bottom: sticky.bottom))
         // The section's title measures itself from here, so the offset of the whole doesn't move it.
         .coordinateSpace(.named(ContStickyTable.itemSpace))
         .visualEffect { effect, proxy in
@@ -571,20 +620,26 @@ struct ContStickyItemModifier: ViewModifier {
 extension ContStickyItemModifier {
   private func update() {
     var new: ContStickyState?
+    var isDocked = false
+    // The dock follows the scroll while the table is paused too: it's outside the scroll view.
     if let hostTop = visible.hostTop, let frame = visible.frame, let table = visible.table,
-      !table.isPaused, table.clearBottom > table.clearTop
+      table.clearBottom > table.clearTop
     {
       let area = table.visibleArea(naturalTop: frame.minY, hostTop: hostTop)
       if let (live, order) = table.live(id, part: .content, at: frame.minY) {
         let placements = live.placements(visibleTop: area.top, visibleBottom: area.bottom)
         if let placement = placements[order] {
-          let farther = placement.edge == .top ? placements[(order + 1)...] : placements[..<order]
-          new = ContStickyState(
-            edge: placement.edge, part: placement.part, order: order,
-            isLast: !farther.contains { $0?.edge == placement.edge })
+          if placement.edge == .top {
+            new = ContStickyState(
+              edge: .top, part: placement.part, order: order,
+              isLast: !placements[(order + 1)...].contains { $0?.edge == .top })
+          } else {
+            isDocked = true
+          }
         }
       }
     }
+    if visible.isPresent { registry?.setDocked(id, isDocked) }
     if new != state {
       state = new
       redrawSoon()
@@ -602,8 +657,8 @@ extension ContStickyItemModifier {
     let moved = frame != visible.frame
     visible.frame = frame
     visible.hostTop = hostTop
-    // Paused, nothing sticks: a scrolled frame has nothing to check.
-    if !moved, state == nil, visible.table?.isPaused == true { return }
+    // Paused, nothing sticks at the top: a scrolled frame has nothing to check, unless the item may be docked.
+    if !moved, state == nil, sticky.bottom == .none, visible.table?.isPaused == true { return }
     Task { @MainActor in
       if moved { report() }
       update()
@@ -641,6 +696,136 @@ struct ContStickyKeyed: @unchecked Sendable {
   }
 }
 
+// MARK: - Dock
+
+/// A section's copy in the bottom dock.
+struct ContStickyCopy: Identifiable {
+  let id: AnyHashable
+  /// A plain section's: the dock draws on the sidebar's ground instead of a card.
+  let plain: Bool
+  let view: AnyView
+}
+
+/// The copies of the sections that may wait at the bottom, from the sections themselves.
+struct ContStickyCopyKey: PreferenceKey {
+  static var defaultValue: [ContStickyCopy] { [] }
+  static func reduce(value: inout [ContStickyCopy], nextValue: () -> [ContStickyCopy]) {
+    value.append(contentsOf: nextValue())
+  }
+}
+
+/// The bottom dock: the copies of the sections below the visible area, one compact line each on one stuck card,
+/// in the sections' order. It measures its copies for the table, and goes while the user drags a row (to drop it on
+/// a row under it).
+struct ContStickyDock: View {
+  let copies: [ContStickyCopy]
+  let registry: ContStickyRegistry
+  @Environment(\.kitIdiom) private var idiom
+
+  var body: some View {
+    let plain = copies.allSatisfy(\.plain)
+    let isDragging = ContDragActivity.shared.isDragging
+    VStack(spacing: 0) {
+      ForEach(copies) { copy in
+        copy.view
+          .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { registry.setCopyHeight(copy.id, $0) }
+      }
+    }
+    .padding(ContStickyTable().dockPadding)
+    .background {
+      ContStuckGround(
+        cornerRadius: plain ? 0 : ContMetrics.cardRadius(idiom), plain: plain,
+        state: ContStickyState(edge: .bottom, part: .content, isLast: true))
+    }
+    .opacity(isDragging ? 0 : 1)
+    .allowsHitTesting(!isDragging)
+    .animation(.kit, value: isDragging)
+  }
+}
+
+/// A section's line in the bottom dock: a small icon, the title and the meta, and for a section that waits whole
+/// its rows as small buttons. A click on the line scrolls to the section.
+struct ContStickyCopyLine<Icon: View, Meta: View, Rows: View>: View {
+  let id: AnyHashable
+  let title: Text
+  let plain: Bool
+  /// It shows the section's rows: they may not fit beside the title.
+  let hasRows: Bool
+  @ViewBuilder var icon: Icon
+  @ViewBuilder var meta: Meta
+  @ViewBuilder var rows: Rows
+  @State private var isHovered = false
+  @Environment(\.contStickyScroll) private var scroll
+  @Environment(\.kitIdiom) private var idiom
+
+  /// The icon, the title and the meta. On the last line it may cut the meta, never the title.
+  private func heading(meta showsMeta: Bool) -> some View {
+    HStack(spacing: 6) {
+      if !plain {
+        icon.environment(\.contTileSize, idiom.size(18, touch: 24))
+      }
+      title
+        .kitFont(plain ? .sectionHeader : .body)
+        .fontWeight(.semibold)
+        .foregroundStyle(plain ? AnyShapeStyle(KitColor.sectionHeader) : AnyShapeStyle(.kitLabel))
+        .lineLimit(1)
+        .layoutPriority(1)
+      if showsMeta {
+        meta
+          .kitFont(.caption)
+          .lineLimit(1)
+      }
+    }
+  }
+
+  private var buttons: some View {
+    HStack(spacing: 1) { rows }
+      .environment(\.contStickyCopy, true)
+      .fixedSize()
+  }
+
+  var body: some View {
+    Group {
+      if hasRows {
+        // All on one line if it fits; then without the meta; then the rows on a line of their own.
+        ViewThatFits(in: .horizontal) {
+          HStack(spacing: 6) {
+            heading(meta: true)
+            Spacer(minLength: 4)
+            buttons
+          }
+          HStack(spacing: 6) {
+            heading(meta: false)
+            Spacer(minLength: 4)
+            buttons
+          }
+          VStack(alignment: .leading, spacing: 2) {
+            heading(meta: true)
+            buttons
+          }
+          .padding(.vertical, 3)
+        }
+      } else {
+        heading(meta: true)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
+    }
+    .padding(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 0))
+    .frame(minHeight: idiom.size(28, touch: 40))
+    .background {
+      if isHovered, !idiom.isTouch {
+        RoundedRectangle(cornerRadius: ContMetrics.rowRadius(idiom, compact: true), style: .continuous)
+          .fill(KitColor.rowHover)
+      }
+    }
+    .contentShape(Rectangle())
+    .kitHover { isHovered = $0 }
+    .onTapGesture { withKitAnimation { scroll?.action(id) } }
+    .accessibilityElement(children: .contain)
+    .accessibilityAction(named: Text("Show Section")) { scroll?.action(id) }
+  }
+}
+
 // MARK: - Section title
 
 /// The sticky item a section is in, for its header's tap (a stuck title scrolls to its section). The section's own
@@ -658,6 +843,8 @@ struct ContStickyTitleModifier: ViewModifier {
   let extra: CGFloat
   let cornerRadius: CGFloat
   let plain: Bool
+  /// The section's copy in the bottom dock, with its rows or without.
+  var copy: ((_ id: AnyHashable, _ rows: Bool) -> AnyView)? = nil
   @State private var frame: CGRect?
   @Environment(\.contStickyTable) private var table
   @Environment(\.contStickyContext) private var context
@@ -683,6 +870,10 @@ struct ContStickyTitleModifier: ViewModifier {
           report(context.id)
         }
         .onChange(of: extra) { report(context.id) }
+        .preference(
+          key: ContStickyCopyKey.self,
+          value: context.bottom == .none
+            ? [] : copy.map { [ContStickyCopy(id: context.id, plain: plain, view: $0(context.id, context.bottom == .content))] } ?? [])
         .zIndex(1)
         // What a click on the stuck title scrolls to (an id outside the stack's subview is never found).
         .id(ContStickyScrollID(value: context.id))

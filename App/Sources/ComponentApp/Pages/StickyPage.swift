@@ -74,7 +74,7 @@ struct StickyPage: View {
               }
               """)
             Text(
-              "Top: .content .title .titleWhileVisible (default) .none\nBottom: .content .title .none (default)\nThe bottom stack takes at most 40% of the sidebar; past that, .content shows the title. Sections without .kitSticky never stick."
+              "Top: .content .title .titleWhileVisible (default) .none\nBottom: .content .title .none (default)\nBelow the visible area a section waits as one line in the dock over the bottom bar (.content: with its rows as small buttons); the dock takes at most 40% of the sidebar. Sections without .kitSticky never stick."
             )
             .kitFont(.caption)
           }

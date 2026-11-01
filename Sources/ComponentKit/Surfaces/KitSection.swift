@@ -240,7 +240,8 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
         // Sticky (`.kitSticky`): the title alone stays in view, on a card of its own.
         .modifier(
           ContStickyTitleModifier(
-            box: sticky, extra: expanded ? KitMetrics.cardPadding : 0, cornerRadius: radius, plain: false))
+            box: sticky, extra: expanded ? KitMetrics.cardPadding : 0, cornerRadius: radius, plain: false,
+            copy: copy(plain: false)))
       ContRevealLayout(progress: expanded ? 1 : 0) {
         if expanded {
           // Lazy: in a long sidebar the rows come a few at a time as the card nears the screen.
@@ -260,6 +261,20 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
     // Stuck whole (`.kitSticky`), the card floats: opaque, with the float shadow.
     .background { ContStickyCardGround(cornerRadius: radius) }
     .kitHover { isHovered = $0 }
+  }
+
+  /// Its line in the sidebar's bottom dock (`.kitSticky(bottom:)`), with its rows as small buttons or without.
+  private func copy(plain: Bool) -> (AnyHashable, Bool) -> AnyView {
+    { id, rows in
+      AnyView(
+        ContStickyCopyLine(id: id, title: title, plain: plain, hasRows: rows) {
+          icon
+        } meta: {
+          if !plain { meta }
+        } rows: {
+          if rows { content }
+        })
+    }
   }
 
   private var header: RichHeader<Icon, Meta, some View> {
@@ -318,7 +333,7 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
       .modifier(SectionHeaderMenu(menu: headerMenu))
       .modifier(SectionHeaderHelp(help: headerHelp))
       .modifier(SectionHeaderAccessibility(title: title, expanded: expanded, toggle: toggle))
-      .modifier(ContStickyTitleModifier(box: sticky, extra: 0, cornerRadius: 0, plain: true))
+      .modifier(ContStickyTitleModifier(box: sticky, extra: 0, cornerRadius: 0, plain: true, copy: copy(plain: true)))
       ContRevealLayout(progress: expanded ? 1 : 0) {
         if expanded {
           KitLazyStack(alignment: .leading, spacing: 0, empty: emptyView) { content }

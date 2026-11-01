@@ -220,3 +220,8 @@ public struct SizedLiveIcon: View {
     }
   }
 }
+
+extension EnvironmentValues {
+  /// The tile size of the `LiveIcon`s below, over their own (a section's line in the bottom dock).
+  @Entry var contTileSize: CGFloat? = nil
+}
