@@ -106,21 +106,52 @@ private struct ContDropTarget: ViewModifier {
 
   func body(content: Content) -> some View {
     content
-      .background {
+      .backgroundPreferenceValue(ContDropFrameKey.self) { frame in
         if isTargeted {
-          SurfaceShape(surface: .raised, cornerRadius: cornerRadius).transition(.opacity)
-        }
-      }
-      .overlay {
-        if isTargeted {
-          RoundedRectangle(cornerRadius: cornerRadius + ContMetrics.ringWidth, style: .continuous)
-            .strokeBorder(Hue.accent.soft(0.5), lineWidth: ContMetrics.ringWidth)
-            .padding(-ContMetrics.ringWidth)
-            .allowsHitTesting(false)
+          ContDropFrame(frame: frame) { SurfaceShape(surface: .raised, cornerRadius: cornerRadius) }
             .transition(.opacity)
         }
       }
+      .overlayPreferenceValue(ContDropFrameKey.self) { frame in
+        if isTargeted {
+          ContDropFrame(frame: frame) {
+            RoundedRectangle(cornerRadius: cornerRadius + ContMetrics.ringWidth, style: .continuous)
+              .strokeBorder(Hue.accent.soft(0.5), lineWidth: ContMetrics.ringWidth)
+              .padding(-ContMetrics.ringWidth)
+          }
+          .allowsHitTesting(false)
+          .transition(.opacity)
+        }
+      }
+      // A drop target around this one rings its own view.
+      .transformPreference(ContDropFrameKey.self) { $0 = nil }
       .animation(.kitFast, value: isTargeted)
+  }
+}
+
+/// Where a drop target on a view draws, when the view is one that runs to the window's edges (a `KitSidebar`): its
+/// cards' column inside the gutter, so the ring sits in the gap rather than past the edges.
+struct ContDropFrameKey: PreferenceKey {
+  static let defaultValue: Anchor<CGRect>? = nil
+  static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) { value = value ?? nextValue() }
+}
+
+/// A drop target's ground or ring: on the frame its view reports when that view fills the target (a sidebar the
+/// modifier is on; not one deeper in a window the ring goes around), else on the whole target.
+private struct ContDropFrame<Shape: View>: View {
+  let frame: Anchor<CGRect>?
+  @ViewBuilder let shape: Shape
+
+  var body: some View {
+    GeometryReader { proxy in
+      let rect = frame.map { proxy[$0] }
+      // Within the widest gutter (16pt, iPhone) of either side.
+      if let rect, rect.width >= proxy.size.width - 2 * ContMetrics.sidebarInset(.phone) - 1 {
+        shape.frame(width: rect.width, height: rect.height).offset(x: rect.minX, y: rect.minY)
+      } else {
+        shape
+      }
+    }
   }
 }
 

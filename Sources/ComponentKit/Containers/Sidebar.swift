@@ -239,6 +239,12 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
         #endif
       }
     }
+    // A drop target on the sidebar rings its cards' column, inside the gutter, not the column's edges.
+    .background {
+      Color.clear
+        .anchorPreference(key: ContDropFrameKey.self, value: .bounds) { $0 }
+        .padding(EdgeInsets(top: 2, leading: inset, bottom: inset, trailing: inset))
+    }
     // The rows' tooltips over every card and stuck title (a row's own overlay sat under the next card and under its
     // section's stuck title).
     .modifier(ContTooltipHost())
