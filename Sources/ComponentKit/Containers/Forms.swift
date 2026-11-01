@@ -101,7 +101,7 @@ public struct FormHeading: View {
 /// ```
 ///
 /// Chained on the row: `.titleAccessory { }` sets a chip right after the title, `.detail { }` a line of small
-/// controls under the row, lined up with its title.
+/// controls under the row, lined up with its title, `.tile { }` a view in the tile's place (a project's icon).
 ///
 /// ```swift
 /// FormRow("Primary", help: "Runs this chat's agents", systemImage: "laptopcomputer", status: sync) { … }
@@ -121,6 +121,7 @@ public struct FormRow<Control: View, Field: View>: View {
   var isStacked = false
   var titleAccessory: AnyView?
   var detailView: AnyView?
+  var customTile: AnyView?
   @ViewBuilder var control: Control
   @ViewBuilder var field: Field
   @FocusState private var fieldFocused: Bool
@@ -159,6 +160,19 @@ public struct FormRow<Control: View, Field: View>: View {
     return row
   }
 
+  /// Draws `content` in the tile's place, at the tile's size: a project's icon, an avatar. The row still takes a
+  /// `systemImage` (the tile without it).
+  ///
+  /// ```swift
+  /// FormRow(project.name, help: path, systemImage: "folder") { Chip("Repository") }
+  ///   .tile { Avatar(name: project.name, image: icon, kind: .thing, size: 24) }
+  /// ```
+  public func tile<V: View>(@ViewBuilder _ content: () -> V) -> Self {
+    var row = self
+    row.customTile = AnyView(content())
+    return row
+  }
+
   /// Puts a line of small controls under the row, lined up with its title and running to its end (a formatter's
   /// "Only with a config file" and its custom command). Controls in it are small.
   ///
@@ -181,7 +195,9 @@ public struct FormRow<Control: View, Field: View>: View {
     let lead: CGFloat = systemImage == nil ? 0 : tile + 12
     VStack(alignment: .leading, spacing: 0) {
       HStack(spacing: 12) {
-        if let systemImage {
+        if let customTile, systemImage != nil {
+          customTile.frame(width: tile, height: tile)
+        } else if let systemImage {
           if tileStatus != .idle {
             LiveIcon(systemImage: systemImage, hue: error == nil ? hue : .red, status: tileStatus, size: tile)
           } else {
