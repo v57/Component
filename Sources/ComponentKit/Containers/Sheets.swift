@@ -46,6 +46,8 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
   @State private var bodyBottom: CGFloat = 0
   @State private var scrollSpace = UUID()
   @State private var viewport: CGFloat = 0
+  /// The body put the footer over its own scroll view (`kitSheetFooterBar`), so the sheet draws no footer row.
+  @State private var footerIsInBody = false
 
   /// A sheet with any icon (a thing's own tile, an avatar). `width` applies on the Mac (and 80pt wider on iPad, over
   /// the window); `onClose` adds the round close button at the header's end (for panels without a Cancel button).
@@ -97,7 +99,9 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
           sheetBody
         }
       }
-      if Footer.self != EmptyView.self {
+      if footerIsInBody {
+        // The body's scroll view runs on to the sheet's bottom edge, under its footer bar.
+      } else if Footer.self != EmptyView.self {
         footerBar
       } else {
         Spacer(minLength: KitMetrics.gutter).frame(height: KitMetrics.gutter)
@@ -122,6 +126,8 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
   private var sheetBody: some View {
     VStack(alignment: .leading, spacing: KitMetrics.gutter) { content }
       .padding(.horizontal, KitMetrics.gutter)
+      .environment(\.kitSheetFooter, Footer.self == EmptyView.self ? nil : KitSheetFooter(view: AnyView(footerBar)))
+      .onPreferenceChange(KitSheetFooterInBody.self) { footerIsInBody = $0 }
   }
 
   private var header: some View {
@@ -259,6 +265,53 @@ enum SheetFooterButton {
 extension EnvironmentValues {
   /// True inside a sheet's footer bar: kit buttons there take the footer's size.
   @Entry var kitInSheetFooter: Bool = false
+  /// The sheet's footer bar, for a body that scrolls on its own to put over its scroll view (`kitSheetFooterBar`).
+  @Entry var kitSheetFooter: KitSheetFooter? = nil
+}
+
+struct KitSheetFooter {
+  var view: AnyView
+}
+
+/// Set by `kitSheetFooterBar`: the footer is in the body.
+private struct KitSheetFooterInBody: PreferenceKey {
+  static let defaultValue = false
+  static func reduce(value: inout Bool, nextValue: () -> Bool) { value = value || nextValue() }
+}
+
+extension View {
+  /// Puts the sheet's footer over this scroll view as a bar its content scrolls under and fades out behind, as a
+  /// window's status bar does, for a `KitSheet` body that scrolls on its own (one that keeps its height while its
+  /// sections change). The sheet then draws no footer row, and the scroll view runs on to the sheet's bottom edge.
+  /// Nothing outside a sheet with a footer.
+  ///
+  /// ```swift
+  /// KitSheet(title: "New Connection", systemImage: "cylinder") {
+  ///   ScrollView { fields }.frame(idealHeight: 620).kitSheetFooterBar()
+  /// } footer: {
+  ///   Button("Cancel") { … }
+  ///   Button("Connect") { … }.buttonStyle(.kitPrimary)
+  /// }
+  /// ```
+  public func kitSheetFooterBar() -> some View {
+    modifier(SheetFooterBar())
+  }
+}
+
+private struct SheetFooterBar: ViewModifier {
+  @Environment(\.kitSheetFooter) private var footer
+
+  func body(content: Content) -> some View {
+    if let footer {
+      content
+        .contEdgeBar(.bottom) {
+          footer.view.background { ContEdgeFade(edge: .bottom, ground: .panel) }
+        }
+        .preference(key: KitSheetFooterInBody.self, value: true)
+    } else {
+      content
+    }
+  }
 }
 
 private struct ContSheetButton: View {
