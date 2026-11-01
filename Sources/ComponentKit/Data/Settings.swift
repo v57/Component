@@ -185,22 +185,24 @@ public struct KitSettings<Content: View>: View {
 
   /// The pane under its title. Under a title bar the title is centred on the window's buttons (a Settings window's
   /// bar is 32pt, a window with a toolbar 52); the row keeps its height, so the panes start where they always do.
+  /// The row is a bar the pane scrolls under and fades out behind, rather than an edge it is cut off at.
   private func detail(titleBar: CGFloat?) -> some View {
     let titleLine = titleBar.map { $0 > 0 ? min($0, titleHeight) : titleHeight } ?? titleHeight
-    return VStack(alignment: .leading, spacing: 0) {
-      HStack(spacing: 8) {
-        Text(current?.title ?? "")
-          .kitFont(.headline)
-          .contentTransition(.opacity)
+    return ZStack(alignment: .topLeading) { content }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      .contEdgeBar(.top) {
+        HStack(spacing: 8) {
+          Text(current?.title ?? "")
+            .kitFont(.headline)
+            .contentTransition(.opacity)
+        }
+        .padding(.horizontal, 24)
+        .frame(height: titleLine, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: titleHeight, alignment: .top)
+        .background { ContEdgeFade(edge: .top, ground: .window) }
       }
-      .padding(.horizontal, 24)
-      .frame(height: titleLine, alignment: .center)
-      .frame(height: titleHeight, alignment: .top)
-      ZStack(alignment: .topLeading) { content }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .background(.kitWindow)
+      .background(.kitWindow)
   }
 }
 
