@@ -106,6 +106,20 @@ extension KitDesktop {
     appURL(bundleIdentifier).flatMap { icon(forFile: $0.path) }
   }
 
+  /// The file manager's own icon (Finder's on the Mac), for a Show in Finder item as the apps' Open in items show
+  /// theirs; nil where the system has none to give.
+  ///
+  /// ```swift
+  /// Label { Text("Show in \(KitDesktop.fileManagerName)") } icon: { KitDesktop.fileManagerIcon?.resizable() }
+  /// ```
+  @MainActor public static var fileManagerIcon: Image? {
+    #if os(macOS)
+      appIcon("com.apple.finder")
+    #else
+      nil
+    #endif
+  }
+
   /// An installed app, for an Open in item: its bundle identifier, and the name the file manager shows.
   public struct App: Identifiable, Hashable, Sendable {
     public let bundleIdentifier: String
