@@ -367,6 +367,13 @@ struct ContMultiConfirmation: View {
   let hue: Hue?
   let buttons: [KitConfirmationButton]
   let dismiss: @MainActor () -> Void
+  @Environment(\.kitDismiss) private var kitDismiss
+
+  /// The binding false, and the card off the stack even when its presenter is gone (`kitDismiss`).
+  private func close() {
+    dismiss()
+    kitDismiss()
+  }
 
   var body: some View {
     let defaultID = (buttons.first { $0.isDefault } ?? buttons.last)?.id
@@ -376,20 +383,20 @@ struct ContMultiConfirmation: View {
       icon: { LiveIcon(systemImage: systemImage, hue: tint, status: .idle, size: 32) },
       content: { EmptyView() },
       footer: {
-        Button("Cancel", role: .cancel) { dismiss() }
+        Button("Cancel", role: .cancel) { close() }
           .keyboardShortcut(.cancelAction)
         ForEach(buttons) { button in
           if button.id == defaultID {
             Button(button.title, role: button.role) {
+              close()
               button.action()
-              dismiss()
             }
             .buttonStyle(.kitPrimary)
             .keyboardShortcut(.defaultAction)
           } else {
             Button(button.title, role: button.role) {
+              close()
               button.action()
-              dismiss()
             }
           }
         }
@@ -407,6 +414,13 @@ struct ContConfirmation: View {
   let role: ButtonRole?
   let action: @MainActor () -> Void
   let dismiss: @MainActor () -> Void
+  @Environment(\.kitDismiss) private var kitDismiss
+
+  /// The binding false, and the card off the stack even when its presenter is gone (`kitDismiss`).
+  private func close() {
+    dismiss()
+    kitDismiss()
+  }
 
   var body: some View {
     var sheet = KitSheet(
@@ -414,11 +428,11 @@ struct ContConfirmation: View {
       icon: { LiveIcon(systemImage: systemImage, hue: role == .destructive ? .red : .accent, status: .idle, size: 32) },
       content: { EmptyView() },
       footer: {
-        Button("Cancel", role: .cancel) { dismiss() }
+        Button("Cancel", role: .cancel) { close() }
           .keyboardShortcut(.cancelAction)
         Button(confirm, role: role) {
+          close()
           action()
-          dismiss()
         }
         .buttonStyle(.kitPrimary)
         .keyboardShortcut(.defaultAction)

@@ -428,9 +428,16 @@ struct KitOverlayPresenter<Overlay: View>: ViewModifier {
     }
   }
 
+  /// Sets the binding false, and takes the card off the stack itself: when the presenter went without disappearing
+  /// (a lazy stack dropped it, a list it was in emptied), its binding no longer reaches it, and the card would stay.
   private var dismissAction: KitDismissAction {
     let binding = $isPresented
-    return KitDismissAction { binding.wrappedValue = false }
+    let host = host
+    let id = id
+    return KitDismissAction {
+      binding.wrappedValue = false
+      host?.remove(id)
+    }
   }
 
   /// The content with the presenting view's environment (its models, accent, idiom) and the kit's dismiss.
