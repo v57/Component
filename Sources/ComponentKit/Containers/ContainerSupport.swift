@@ -493,25 +493,40 @@ enum ContPlatform {
     #endif
   }
 
-  /// Shows or hides the sidebar of the clicked window's split view (the window needn't be key yet: a click that
-  /// activates the app), else the key window's.
-  /// `window` is the window the asking view is in, for a click that reaches a window in the background without an
-  /// event of its own (Remote's input, accessibility): the key window's split view answered instead, or none did.
+  /// Shows or hides the sidebar of the split view in `window` (the window the asking view is in), else in the clicked
+  /// window (the window needn't be key yet: a click that activates the app), else in the key window.
   static func toggleSidebar(in window: ContWindowRef? = nil) {
     #if os(macOS)
-      let selector = #selector(NSSplitViewController.toggleSidebar(_:))
-      if let window = NSApp.currentEvent?.window, (window.firstResponder ?? window).tryToPerform(selector, with: nil) {
-        return
-      }
-      // The split view's controller itself: a background window's first responder is often the window, whose
-      // responder chain doesn't pass the split view.
-      if let controller = window?.window?.contentView.flatMap(splitViewController(in:)) {
+      // The split view's controller itself, not the responder chain: SwiftUI's window answers `toggleSidebar(_:)`
+      // itself, and after a click the first responder is often the window. A background window's chain doesn't pass
+      // the split view either.
+      if let controller = splitViewController(in: window) {
         controller.toggleSidebar(nil)
         return
       }
-      NSApp.sendAction(selector, to: nil, from: nil)
+      NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
     #endif
   }
+
+  /// Whether the sidebar of the split view in `window` (as `toggleSidebar(in:)` finds it) is collapsed; nil without
+  /// one, and off the Mac.
+  static func sidebarIsCollapsed(in window: ContWindowRef?) -> Bool? {
+    #if os(macOS)
+      guard let items = splitViewController(in: window)?.splitViewItems else { return nil }
+      return (items.first { $0.behavior == .sidebar } ?? items.first)?.isCollapsed
+    #else
+      nil
+    #endif
+  }
+
+  #if os(macOS)
+    private static func splitViewController(in window: ContWindowRef?) -> NSSplitViewController? {
+      for candidate in [window?.window, NSApp.currentEvent?.window, NSApp.keyWindow] {
+        if let controller = candidate?.contentView.flatMap(splitViewController(in:)) { return controller }
+      }
+      return nil
+    }
+  #endif
 
   #if os(macOS)
     /// The first split view controller in `view`'s tree, breadth first (the window's outermost one).

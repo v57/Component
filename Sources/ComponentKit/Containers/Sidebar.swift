@@ -438,14 +438,18 @@ enum ContSplitVisibility {
     Mirror(reflecting: visibility).children.first { $0.label == "isAutomatic" }?.value as? Bool ?? false
   }
 
-  /// Shows the hidden sidebar. On the Mac through the window's split view, as the sidebar's own hide button does:
-  /// once AppKit has collapsed the sidebar, setting the binding back to `.all` doesn't bring it back.
+  /// Shows the hidden sidebar through the binding, as the sidebar's own button hid it. On the Mac, AppKit's
+  /// `toggleSidebar` didn't bring back a sidebar the binding hid at `.detailOnly` on a click (SwiftUI's window took the
+  /// action and did nothing; the split view's controller left it collapsed too). A sidebar AppKit collapsed itself
+  /// doesn't come back through the binding, so the window's split view shows it then.
   @MainActor
   static func showSidebar(_ columnVisibility: Binding<NavigationSplitViewVisibility>, in window: ContWindowRef? = nil) {
-    if ContPlatform.canToggleSidebar {
-      ContPlatform.toggleSidebar(in: window)
-    } else {
-      withAnimation(.kitSlow) { columnVisibility.wrappedValue = .all }
+    withAnimation(.kitSlow) { columnVisibility.wrappedValue = .all }
+    guard ContPlatform.canToggleSidebar else { return }
+    Task { @MainActor in
+      // SwiftUI starts expanding it within a turn of the run loop.
+      try? await Task.sleep(for: .seconds(0.05))
+      if ContPlatform.sidebarIsCollapsed(in: window) == true { ContPlatform.toggleSidebar(in: window) }
     }
   }
 
@@ -464,12 +468,13 @@ private struct ContShowSidebar: ViewModifier {
   var isOn = true
   @State private var isPortrait = false
   @State private var hasKitToolbar = false
-  /// Set by the button until the split view reports the sidebar back. AppKit reports it only once its animation is
-  /// over, so the button stayed under the opening sidebar and the title waited beside it, then both jumped.
-  @State private var isShowing = false
-  /// The button, which comes once the sidebar has slid away and fades in. Drawn as the hide started, it slid down
-  /// from the title bar's top beside the sidebar's own hide button.
-  @State private var showsButton = false
+  #if os(macOS)
+    /// How far from the window's leading edge the column starts: the button comes once the sidebar has slid away
+    /// (the column is at the edge). Drawn as the hide started, it showed beside the sidebar's own hide button.
+    @State private var columnMinX: CGFloat = 1
+  #else
+    @State private var showsButton = false
+  #endif
   @State private var window = ContWindowRef()
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.contThreeColumns) private var threeColumns
@@ -484,32 +489,29 @@ private struct ContShowSidebar: ViewModifier {
     #else
       let isStacked = sizeClass == .compact
     #endif
-    let sidebarIsHidden = isOn && !isStacked && ContSplitVisibility.sidebarIsHidden(
+    let isHidden = isOn && !isStacked && ContSplitVisibility.sidebarIsHidden(
       columnVisibility, threeColumns: threeColumns, isTouch: idiom.isTouch, isPortrait: isPortrait)
-    let isHidden = sidebarIsHidden && !isShowing
+    #if os(macOS)
+      let showsButton = isHidden && columnMinX < 1
+    #endif
     content
-      // A kit toolbar below takes the button into its own bar, and makes room for it at once: the title moves aside
-      // as the sidebar goes and back as it comes.
+      // A kit toolbar below takes the button into its own bar.
       .environment(\.contShowSidebar, isHidden ? ContShowSidebarAction(action: showSidebar) : nil)
       .environment(\.contShowsSidebarButton, isHidden && showsButton)
-      .onChange(of: sidebarIsHidden) { _, hidden in
-        if !hidden { isShowing = false }
-      }
-      .task(id: isHidden) {
-        guard isHidden else {
-          showsButton = false
-          return
-        }
-        try? await Task.sleep(for: .seconds(0.35))
-        guard !Task.isCancelled else { return }
-        // Without the hide's animation: the system toolbar animated the item's frame in from the top.
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) { showsButton = true }
-      }
-      // On iPhone and iPad the kit toolbar hides the navigation bar, so the system item never shows there.
+      .environment(\.contHasSidebarToggle, isOn && !isStacked)
       #if os(macOS)
         .onPreferenceChange(ContKitToolbarKey.self) { hasKitToolbar = $0 }
+        .background { ContWindowLeadingProbe(minX: $columnMinX, limit: 1).accessibilityHidden(true) }
+      #else
+        .task(id: isHidden) {
+          guard isHidden else {
+            showsButton = false
+            return
+          }
+          try? await Task.sleep(for: .seconds(0.35))
+          guard !Task.isCancelled else { return }
+          showsButton = true
+        }
       #endif
       .background { ContWindowReader(ref: window) }
       .background {
@@ -522,34 +524,32 @@ private struct ContShowSidebar: ViewModifier {
           }
         }
       }
+      // On iPhone and iPad the kit toolbar hides the navigation bar, so the system item never shows there.
       .toolbar {
         if isOn {
           ContShowSidebarItem(
-            action: ContShowSidebarAction(action: showSidebar), isHidden: isHidden && showsButton && !hasKitToolbar)
+            action: ContShowSidebarAction(action: showSidebar), isHidden: isHidden && !hasKitToolbar,
+            isVisible: showsButton)
         }
       }
   }
 
   private func showSidebar() {
-    withAnimation(.kit) { isShowing = true }
     ContSplitVisibility.showSidebar($columnVisibility, in: window)
-    // Back as it was if the sidebar didn't come.
-    Task {
-      try? await Task.sleep(for: .seconds(1))
-      isShowing = false
-    }
   }
 }
 
 private struct ContShowSidebarItem: ToolbarContent {
   let action: ContShowSidebarAction
   let isHidden: Bool
+  let isVisible: Bool
 
   // The kit's own button, without the system's glass: a plain `ToolbarItem` button was the glass circle on iPad.
   var body: some ToolbarContent {
     KitToolbarItem(placement: .navigation) {
       if isHidden {
-        ContShowSidebarButton(action: action)
+        ContShowSidebarButton(action: action, isVisible: isVisible)
+          .transition(.identity)
       }
     }
   }

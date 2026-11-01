@@ -82,11 +82,12 @@ extension EnvironmentValues {
 public struct KitToolbar<Title: View>: View {
   let title: Title
   let slots: [ToolbarSlot]
-  /// The bar starts at the window's leading edge, under the traffic lights (a window without a sidebar).
-  @State private var isAtWindowEdge = false
+  /// How far from the window's leading edge the bar starts.
+  @State private var windowMinX = CGFloat.infinity
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.contShowSidebar) private var showSidebar
   @Environment(\.contShowsSidebarButton) private var showsSidebarButton
+  @Environment(\.contHasSidebarToggle) private var hasSidebarToggle
   @Environment(\.contFullScreen) private var isFullScreen
   #if os(Windows) || os(Linux)
     /// The title bar row the bar sits in (v57/SwiftUI): its height, the menu bar before it, the caption buttons after.
@@ -126,7 +127,7 @@ public struct KitToolbar<Title: View>: View {
         // On the Mac the system toolbar's item carries the button (`ContSystemToolbarAway`): the item sits there
         // and would take its clicks. In full screen the toolbar is hidden.
         if let showSidebar, showsSidebarButton, drawsShowSidebar {
-          ContShowSidebarButton(action: showSidebar)
+          ContShowSidebarButton(action: showSidebar, isVisible: true)
             .transition(.opacity)
         }
       }
@@ -140,7 +141,7 @@ public struct KitToolbar<Title: View>: View {
     .frame(maxWidth: .infinity)
     .background { ContWindowDragArea() }
     #if os(macOS)
-      .background { ContWindowEdgeProbe(isAtEdge: $isAtWindowEdge).accessibilityHidden(true) }
+      .background { ContWindowLeadingProbe(minX: $windowMinX, limit: leadingRoom).accessibilityHidden(true) }
     #endif
     .environment(\.contBarGround, KitColor.window)
     .animation(.kit, value: showSidebar != nil)
@@ -154,16 +155,22 @@ public struct KitToolbar<Title: View>: View {
     #endif
   }
 
-  /// 16pt in from the bar's edge, and on the Mac clear of the traffic lights and the system item's Show Sidebar
-  /// button while the sidebar is hidden (the bar then starts at the window's edge; `kitSidebarToggle` says so). The
-  /// bar's own position can't tell there: the split view moves its column without SwiftUI seeing a new frame. In a
-  /// window without a split view (a single pane) the bar's place in the window does tell, so it clears the traffic
-  /// lights, where the system toolbar puts its first item.
+  /// 16pt in from the bar's edge, and on the Mac clear of the traffic lights (where the system toolbar puts its first
+  /// item), and of the Show Sidebar button in a column whose sidebar `kitSidebarToggle` hides, measured from where the
+  /// bar is in the window. So as the sidebar slides away the title rides with its column until it reaches that room,
+  /// and as the sidebar comes back the title waits there until the column takes it along (it jumped aside at once,
+  /// then slid back with the column).
+  #if os(macOS)
+    /// The traffic lights' room, and the Show Sidebar button's beside a sidebar `kitSidebarToggle` hides.
+    private var leadingRoom: CGFloat {
+      ContMetrics.windowControlsWidth + (hasSidebarToggle ? ContMetrics.showSidebarItemWidth + 8 : 12)
+    }
+  #endif
+
   private var leadingInset: CGFloat {
     #if os(macOS)
       if isFullScreen { return 16 }
-      if showSidebar != nil { return ContMetrics.windowControlsWidth + ContMetrics.showSidebarItemWidth + 8 }
-      return isAtWindowEdge ? ContMetrics.windowControlsWidth + 12 : 16
+      return max(16, leadingRoom - windowMinX)
     #elseif os(Windows) || os(Linux)
       // After the menu bar in the title bar row.
       max(16, (titleBarArea?.leading ?? 0) + 8)
@@ -362,8 +369,9 @@ private struct ContSystemToolbarAway: ViewModifier {
         .toolbar(isFullScreen ? .hidden : .automatic, for: .windowToolbar)
         .toolbar {
           KitToolbarItem(placement: .navigation) {
-            if let showSidebar, showsSidebarButton, !isFullScreen {
-              ContShowSidebarButton(action: showSidebar)
+            if let showSidebar, !isFullScreen {
+              ContShowSidebarButton(action: showSidebar, isVisible: showsSidebarButton)
+                .transition(.identity)
             } else {
               Color.clear.frame(width: 1, height: 1).accessibilityHidden(true)
             }
@@ -443,53 +451,80 @@ private struct ContSystemToolbarAway: ViewModifier {
     }
   }
 
-  /// Says whether the bar starts at the window's leading edge, under the traffic lights: a bar outside a split view
-  /// (a window of one pane) less than the traffic lights' width from the edge. In a split view's column the kit
-  /// decides from the sidebar's state instead (`contShowSidebar`). AppKit's frames are read, so a moved view is seen.
-  private struct ContWindowEdgeProbe: NSViewRepresentable {
-    @Binding var isAtEdge: Bool
+  /// Reports how far from the window's leading edge the view starts, up to `limit`: past it the reader doesn't care,
+  /// so a sidebar resized wider than that updates nothing. AppKit's frames are read: a split view moves its columns
+  /// without SwiftUI seeing a new frame, so the views it lays out (the columns the view is in) are watched too, and
+  /// every step of a sidebar's slide is seen.
+  struct ContWindowLeadingProbe: NSViewRepresentable {
+    @Binding var minX: CGFloat
+    let limit: CGFloat
 
-    func makeNSView(context: Context) -> ContWindowEdgeView {
-      let view = ContWindowEdgeView()
-      view.onChange = { isAtEdge = $0 }
+    func makeNSView(context: Context) -> ContWindowLeadingView {
+      let view = ContWindowLeadingView()
+      view.limit = limit
+      view.onChange = { minX = $0 }
       return view
     }
 
-    func updateNSView(_ view: ContWindowEdgeView, context: Context) {
-      view.onChange = { isAtEdge = $0 }
+    func updateNSView(_ view: ContWindowLeadingView, context: Context) {
+      view.limit = limit
+      view.onChange = { minX = $0 }
       view.check()
     }
   }
 
-  final class ContWindowEdgeView: NSView {
-    var onChange: (Bool) -> Void = { _ in }
-    private var reported: Bool?
+  final class ContWindowLeadingView: NSView {
+    var limit = CGFloat.infinity
+    var onChange: (CGFloat) -> Void = { _ in }
+    private var reported: CGFloat?
+    private var observers: [NSObjectProtocol] = []
 
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     override func viewDidMoveToWindow() {
       super.viewDidMoveToWindow()
+      observers.forEach(NotificationCenter.default.removeObserver)
+      observers = []
+      if window != nil {
+        var view = superview
+        while let next = view {
+          if next.superview is NSSplitView {
+            observers.append(
+              NotificationCenter.default.addObserver(
+                forName: NSView.frameDidChangeNotification, object: next, queue: nil
+              ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.check(now: true) }
+              })
+          }
+          view = next.superview
+        }
+      }
       check()
     }
 
     override func setFrameOrigin(_ newOrigin: NSPoint) {
       super.setFrameOrigin(newOrigin)
-      check()
+      check(now: true)
     }
 
     override func setFrameSize(_ newSize: NSSize) {
       super.setFrameSize(newSize)
-      check()
+      check(now: true)
     }
 
-    func check() {
+    /// At once (`now`) when a frame changes, as a split view slides its column: a run loop later the bar was a step
+    /// behind the column and the title overshot its room. A new window or SwiftUI's update reports after the update.
+    func check(now: Bool = false) {
       guard window != nil else { return }
-      let isInSplitView = sequence(first: superview, next: { $0?.superview }).contains { $0 is NSSplitView }
-      let isAtEdge = !isInSplitView && convert(bounds, to: nil).minX < ContMetrics.windowControlsWidth
-      guard isAtEdge != reported else { return }
-      reported = isAtEdge
-      // Not during the update that moved the view.
-      DispatchQueue.main.async { [weak self] in self?.onChange(isAtEdge) }
+      let minX = min(convert(bounds, to: nil).minX.rounded(), limit)
+      guard minX != reported else { return }
+      reported = minX
+      if now {
+        onChange(minX)
+      } else {
+        // Not during the update that moved the view.
+        DispatchQueue.main.async { [weak self] in self?.onChange(minX) }
+      }
     }
   }
 
@@ -534,18 +569,29 @@ extension View {
 #endif
 
 /// The kit's Show Sidebar button: in its bar, and as the system toolbar's item (without the glass) elsewhere.
+/// As the system toolbar's item it comes invisible as the sidebar starts to hide, so the toolbar lays it out (and moves
+/// it along) while it can't be seen, and fades in where it is once the sidebar is gone: drawn as it came, it grew in
+/// from the title bar's top.
 struct ContShowSidebarButton: View {
   let action: ContShowSidebarAction
-  @State private var isVisible = false
+  var isVisible: Bool
+  @State private var isShown = false
 
   var body: some View {
     ToolGroup(iconOnly: true) {
       Button("Show Sidebar", systemImage: "sidebar.left") { action() }
     }
     .help("Show Sidebar")
-    // Fades in where it is: the system toolbar's item comes without an animation of its own.
-    .opacity(isVisible ? 1 : 0)
-    .onAppear { withAnimation(.kit) { isVisible = true } }
+    .opacity(isShown ? 1 : 0)
+    // Comes out from behind the traffic lights, where the sidebar's own button went. It leaves at once as the
+    // sidebar comes back (an identity transition where it is the toolbar's item): sliding back, it crossed the
+    // traffic lights beside the sidebar's returning button.
+    .offset(x: isShown ? 0 : -ContMetrics.showSidebarItemWidth)
+    .allowsHitTesting(isVisible)
+    .accessibilityHidden(!isVisible)
+    .onChange(of: isVisible, initial: true) { _, visible in
+      withAnimation(.kit) { isShown = visible }
+    }
   }
 }
 
@@ -567,8 +613,11 @@ struct ContShowSidebarAction: Equatable {
 
 extension EnvironmentValues {
   @Entry var contShowSidebar: ContShowSidebarAction? = nil
-  /// Whether the Show Sidebar button is drawn: once the sidebar has slid away, after `contShowSidebar` made room.
+  /// Whether the Show Sidebar button can be seen: once the sidebar has slid away.
   @Entry var contShowsSidebarButton = false
+  /// Whether `kitSidebarToggle` can hide the sidebar beside this column: on the Mac the kit's bar keeps room for the
+  /// Show Sidebar button where the column meets the traffic lights.
+  @Entry var contHasSidebarToggle = false
   /// Whether the Mac window is in full screen, where the system toolbar is hidden and the traffic lights are away.
   @Entry var contFullScreen = false
   /// A hidden copy of views laid out only to be measured (the kit toolbar's forms): overlays and menus bound to the
