@@ -86,6 +86,7 @@ public struct KitToolbar<Title: View>: View {
   @State private var isAtWindowEdge = false
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.contShowSidebar) private var showSidebar
+  @Environment(\.contShowsSidebarButton) private var showsSidebarButton
   @Environment(\.contFullScreen) private var isFullScreen
   #if os(Windows) || os(Linux)
     /// The title bar row the bar sits in (v57/SwiftUI): its height, the menu bar before it, the caption buttons after.
@@ -124,7 +125,7 @@ public struct KitToolbar<Title: View>: View {
         #endif
         // On the Mac the system toolbar's item carries the button (`ContSystemToolbarAway`): the item sits there
         // and would take its clicks. In full screen the toolbar is hidden.
-        if let showSidebar, drawsShowSidebar {
+        if let showSidebar, showsSidebarButton, drawsShowSidebar {
           ContShowSidebarButton(action: showSidebar)
             .transition(.opacity)
         }
@@ -351,6 +352,7 @@ private struct ContGroundGlow: ViewModifier {
 /// kit's bar. On iPhone and iPad the navigation bar hides.
 private struct ContSystemToolbarAway: ViewModifier {
   @Environment(\.contShowSidebar) private var showSidebar
+  @Environment(\.contShowsSidebarButton) private var showsSidebarButton
   @State private var isFullScreen = false
 
   func body(content: Content) -> some View {
@@ -360,7 +362,7 @@ private struct ContSystemToolbarAway: ViewModifier {
         .toolbar(isFullScreen ? .hidden : .automatic, for: .windowToolbar)
         .toolbar {
           KitToolbarItem(placement: .navigation) {
-            if let showSidebar, !isFullScreen {
+            if let showSidebar, showsSidebarButton, !isFullScreen {
               ContShowSidebarButton(action: showSidebar)
             } else {
               Color.clear.frame(width: 1, height: 1).accessibilityHidden(true)
@@ -534,12 +536,16 @@ extension View {
 /// The kit's Show Sidebar button: in its bar, and as the system toolbar's item (without the glass) elsewhere.
 struct ContShowSidebarButton: View {
   let action: ContShowSidebarAction
+  @State private var isVisible = false
 
   var body: some View {
     ToolGroup(iconOnly: true) {
       Button("Show Sidebar", systemImage: "sidebar.left") { action() }
     }
     .help("Show Sidebar")
+    // Fades in where it is: the system toolbar's item comes without an animation of its own.
+    .opacity(isVisible ? 1 : 0)
+    .onAppear { withAnimation(.kit) { isVisible = true } }
   }
 }
 
@@ -561,6 +567,8 @@ struct ContShowSidebarAction: Equatable {
 
 extension EnvironmentValues {
   @Entry var contShowSidebar: ContShowSidebarAction? = nil
+  /// Whether the Show Sidebar button is drawn: once the sidebar has slid away, after `contShowSidebar` made room.
+  @Entry var contShowsSidebarButton = false
   /// Whether the Mac window is in full screen, where the system toolbar is hidden and the traffic lights are away.
   @Entry var contFullScreen = false
   /// A hidden copy of views laid out only to be measured (the kit toolbar's forms): overlays and menus bound to the

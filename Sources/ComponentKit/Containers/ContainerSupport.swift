@@ -495,15 +495,38 @@ enum ContPlatform {
 
   /// Shows or hides the sidebar of the clicked window's split view (the window needn't be key yet: a click that
   /// activates the app), else the key window's.
-  static func toggleSidebar() {
-    #if canImport(AppKit)
+  /// `window` is the window the asking view is in, for a click that reaches a window in the background without an
+  /// event of its own (Remote's input, accessibility): the key window's split view answered instead, or none did.
+  static func toggleSidebar(in window: ContWindowRef? = nil) {
+    #if os(macOS)
       let selector = #selector(NSSplitViewController.toggleSidebar(_:))
       if let window = NSApp.currentEvent?.window, (window.firstResponder ?? window).tryToPerform(selector, with: nil) {
+        return
+      }
+      // The split view's controller itself: a background window's first responder is often the window, whose
+      // responder chain doesn't pass the split view.
+      if let controller = window?.window?.contentView.flatMap(splitViewController(in:)) {
+        controller.toggleSidebar(nil)
         return
       }
       NSApp.sendAction(selector, to: nil, from: nil)
     #endif
   }
+
+  #if os(macOS)
+    /// The first split view controller in `view`'s tree, breadth first (the window's outermost one).
+    private static func splitViewController(in view: NSView) -> NSSplitViewController? {
+      var queue = [view]
+      while !queue.isEmpty {
+        let next = queue.removeFirst()
+        if let split = next as? NSSplitView, let controller = split.delegate as? NSSplitViewController {
+          return controller
+        }
+        queue += next.subviews
+      }
+      return nil
+    }
+  #endif
 
   /// What a double click on the title bar does, per System Settings (Desktop & Dock): zoom (the default), minimize,
   /// or nothing.
@@ -641,6 +664,52 @@ extension View {
           responder = current.next
         }
       }
+    }
+  }
+#endif
+
+/// The window a view is in (`ContWindowReader` fills it), for platform calls aimed at that window.
+final class ContWindowRef {
+  #if os(macOS)
+    weak var window: NSWindow?
+  #endif
+}
+
+/// Keeps `ref` pointing at the window it is drawn in. Put it in a background.
+struct ContWindowReader: View {
+  let ref: ContWindowRef
+
+  var body: some View {
+    #if os(macOS)
+      ContWindowReaderRepresentable(ref: ref).frame(width: 0, height: 0).accessibilityHidden(true)
+    #else
+      Color.clear.frame(width: 0, height: 0)
+    #endif
+  }
+}
+
+#if os(macOS)
+  private struct ContWindowReaderRepresentable: NSViewRepresentable {
+    let ref: ContWindowRef
+
+    func makeNSView(context: Context) -> ContWindowReaderView { ContWindowReaderView() }
+
+    func updateNSView(_ view: ContWindowReaderView, context: Context) {
+      view.ref = ref
+      if let window = view.window { ref.window = window }
+    }
+  }
+
+  private final class ContWindowReaderView: NSView {
+    var ref: ContWindowRef?
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      // Only ever set: a copy leaving the window (SwiftUI replacing the background) cleared it after the new one
+      // had set it. The reference is weak, so a closed window still lets go.
+      if let window { ref?.window = window }
     }
   }
 #endif
