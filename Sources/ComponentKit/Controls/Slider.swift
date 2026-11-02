@@ -91,7 +91,7 @@ public struct KitSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloa
           .shadow(color: .black.opacity(overlay ? 0.4 : 0.2), radius: 1.5, y: 1)
           .shadow(color: .black.opacity(overlay ? 0.3 : 0), radius: 4, y: 2)
           .frame(width: metrics.knobWidth, height: metrics.knobHeight)
-          .ctlFieldRing((isHovered || isDragging) && !isFocused, cornerRadius: metrics.knobHeight / 2)
+          .ctlFieldRing((isHovered || isDragging) && !isFocused, cornerRadius: metrics.knobHeight / 2, fades: true)
           .ctlStandaloneRing(isFocused, cornerRadius: nil)
           .offset(x: center - metrics.knobWidth / 2)
         if showsBubble {

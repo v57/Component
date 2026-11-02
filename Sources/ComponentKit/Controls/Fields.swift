@@ -113,7 +113,6 @@ struct CtlFieldModifier<Trailing: View>: ViewModifier {
     .contentShape(shape)
     .onTapGesture { isFocused = true }
     .opacity(isEnabled ? 1 : 0.45)
-    .animation(.kitFast, value: isFocused)
     .animation(.kit, value: status)
   }
 

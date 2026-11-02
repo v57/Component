@@ -103,7 +103,8 @@ struct CtlChoiceCardBody<Content: View>: View {
       style == .tall
       ? AnyLayout(VStackLayout(alignment: .center, spacing: 8)) : AnyLayout(HStackLayout(spacing: 10))
     layout { content }
-      .padding(EdgeInsets(horizontal: 10, vertical: style == .tall ? 10 : 0))
+      // Room above and below content taller than the card's minimum (a title over two lines of detail on a phone).
+      .padding(EdgeInsets(horizontal: 10, vertical: style == .tall ? 10 : idiom.size(6, touch: 10)))
       .frame(maxWidth: .infinity, minHeight: style == .tall ? nil : height, alignment: style == .tall ? .center : .leading)
       .background {
         if isOn {
@@ -113,7 +114,7 @@ struct CtlChoiceCardBody<Content: View>: View {
           if isEnabled && (isHovered || isPressed) { shape.fill(KitColor.ctlGhost) }
         }
       }
-      .ctlFieldRing(isOn, cornerRadius: radius)
+      .ctlFieldRing(isOn, cornerRadius: radius, fades: true)
       .scaleEffect(isPressed && isEnabled ? 0.98 : 1)
       .kitHover { isHovered = $0 }
       .animation(.kitFast, value: isHovered)

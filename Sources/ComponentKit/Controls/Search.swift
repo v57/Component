@@ -97,7 +97,6 @@ public struct KitSearchField<Scope: KitOption>: View {
     .ctlFieldRing(isFocused || failed, hue: failed ? .red : .accent, cornerRadius: metrics.radius)
     .contentShape(shape)
     .onTapGesture { isFocused = true }
-    .animation(.kitFast, value: isFocused)
     .animation(.kit, value: status)
     .animation(.kitFast, value: text.isEmpty)
     .accessibilityElement(children: .contain)

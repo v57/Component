@@ -56,13 +56,14 @@ extension View {
   }
 
   /// The field ring: 2pt outside the shape, the accent (or red) at half strength; solid under Increase Contrast.
-  /// Fields, tracks (while an item inside has focus) and a picked choice card wear it.
-  func ctlFieldRing(_ isOn: Bool, hue: Hue = .accent, cornerRadius: CGFloat) -> some View {
+  /// Fields, tracks (while an item inside has focus) and a picked choice card wear it. Focus shows at once, whatever
+  /// animates around it; `fades` is for what isn't focus (a picked card).
+  func ctlFieldRing(_ isOn: Bool, hue: Hue = .accent, cornerRadius: CGFloat, fades: Bool = false) -> some View {
     #if os(tvOS)
       // No rings on Apple TV: the focused item itself grows and lights.
       self
     #else
-      overlay { CtlFieldRing(isOn: isOn, hue: hue, cornerRadius: cornerRadius) }
+      overlay { CtlFieldRing(isOn: isOn, hue: hue, cornerRadius: cornerRadius, fades: fades) }
     #endif
   }
 }
@@ -90,7 +91,7 @@ private struct CtlSelectedRing: ViewModifier {
   @Environment(\.kitIdiom) private var idiom
 
   func body(content: Content) -> some View {
-    content.ctlFieldRing(isSelected, hue: hue, cornerRadius: cornerRadius ?? ContMetrics.cardRadius(idiom))
+    content.ctlFieldRing(isSelected, hue: hue, cornerRadius: cornerRadius ?? ContMetrics.cardRadius(idiom), fades: true)
   }
 }
 
@@ -98,6 +99,7 @@ struct CtlFieldRing: View {
   var isOn: Bool
   var hue: Hue
   var cornerRadius: CGFloat
+  var fades = false
   @Environment(\.kitMoreContrast) private var moreContrast
 
   var body: some View {
@@ -106,7 +108,7 @@ struct CtlFieldRing: View {
       .padding(-1)
       .opacity(isOn ? 1 : 0)
       .allowsHitTesting(false)
-      .animation(.kitFast, value: isOn)
+      .animation(fades ? .kitFast : nil, value: isOn)
   }
 }
 
