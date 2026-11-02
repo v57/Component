@@ -135,6 +135,7 @@ private struct ContLazyStack<Content: View>: View {
 
   private func stack(_ subviews: SubviewsCollection) -> some View {
     let ids = subviews.map { AnyHashable($0.id) }
+    model.arriving(ids)
     // Sticky views (`.kitSticky`) that may show at an edge from anywhere stay built, with their rows.
     let pinned = Set(subviews.filter { $0.containerValues.contSticky?.isPinned == true }.map { AnyHashable($0.id) })
     return Group {
@@ -297,6 +298,9 @@ final class ContLazyModel {
   /// Past this many views a stack lets far ones go even when asked to keep them: built views still lay out.
   static let keptLimit = 300
 
+  /// Past this many new views at once, they come as placeholders, a few a frame (`arriving`).
+  static let arrivingLimit = 100
+
   /// How far ahead views are built while scrolling, and while the scroll rests, in screens; past `release` they go.
   static let ahead: CGFloat = 1
   static let restingAhead: CGFloat = 1.25
@@ -317,6 +321,21 @@ final class ContLazyModel {
   private var estimate: CGFloat {
     if measuredCount > 0 { return measuredSum / CGFloat(measuredCount) }
     return ContLazyScheduler.shared.averageHeight ?? max((window?.height ?? 0) / 3, 44)
+  }
+
+  /// A few views joining a stack already on screen (a group opening) are built as they arrive, under the change that
+  /// brought them. As placeholders they cost the frames that matter several passes (a guessed height, built, measured,
+  /// laid out again), and those past the screen stalled the app once the scheduler came to them. Ones that land far off
+  /// are let go by the next plan.
+  func arriving(_ ids: [AnyHashable]) {
+    guard hasWindow, !slots.isEmpty else { return }
+    let new = ids.filter { byID[$0] == nil }
+    guard !new.isEmpty, new.count <= Self.arrivingLimit else { return }
+    for id in new {
+      let slot = slot(id)
+      slot.isBuilt = true
+      slot.flag.isBuilt = true
+    }
   }
 
   func setItems(_ ids: [AnyHashable], pinned: Set<AnyHashable> = [], spacing: CGFloat, parent: ContLazyParent?) {
