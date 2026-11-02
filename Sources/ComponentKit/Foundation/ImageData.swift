@@ -133,6 +133,36 @@ struct KitDecodedImage<Content: View>: View {
   }
 }
 
+extension View {
+  /// Decodes a list's `Avatar(imageData:)` pictures ahead, one at a time off the main thread, while the list first
+  /// shows: each row then draws its picture in its first frame, instead of redrawing as its own decode lands while the
+  /// list scrolls for the first time.
+  ///
+  /// ```swift
+  /// List.kitPreloadAvatars(projects.compactMap(\.icon), size: 32)
+  /// ```
+  public func kitPreloadAvatars(_ images: [Data], size: CGFloat) -> some View {
+    modifier(KitAvatarPreload(images: images, size: size))
+  }
+}
+
+private struct KitAvatarPreload: ViewModifier {
+  let images: [Data]
+  let size: CGFloat
+  @Environment(\.displayScale) private var displayScale
+
+  func body(content: Content) -> some View {
+    // By count: rows decode a picture that changed in place themselves.
+    content.task(id: images.count) {
+      let maxPixelSize = Int((size * displayScale).rounded(.up))
+      for data in images {
+        guard !Task.isCancelled else { return }
+        _ = await KitImages.load(KitImages.Key(.data(data), maxPixelSize: maxPixelSize))
+      }
+    }
+  }
+}
+
 /// Decodes pictures off the main thread and keeps them by source and size (dropped under memory pressure). On the
 /// Apple platforms ImageIO decodes the pixels there too (`kCGImageSourceShouldCacheImmediately`), so nothing is left
 /// for the first draw.

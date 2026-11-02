@@ -21,6 +21,9 @@ extension EnvironmentValues {
   /// The lazy stack item this view is in, so a stack inside it (in a scroll view of its own, say) is no nearer the
   /// screen than its item.
   @Entry var contLazyParent: ContLazyParent? = nil
+  /// The `KitLazyStack`s below finish building while scrolling rests and keep what they built, so the first scroll
+  /// through a touch sidebar's rows builds nothing (each row built under the finger was a dropped frame).
+  @Entry var contLazyKeepsBuilt = false
 }
 
 extension View {
@@ -110,6 +113,7 @@ private struct ContLazyStack<Content: View>: View {
   let empty: AnyView?
   @State private var model = ContLazyModel()
   @Environment(\.contLazyParent) private var parent
+  @Environment(\.contLazyKeepsBuilt) private var keepsBuilt
 
   var body: some View {
     Group(subviews: content) { subviews in
@@ -146,7 +150,10 @@ private struct ContLazyStack<Content: View>: View {
         }
       }
       .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .top))
-      .onAppear { model.setItems(ids, pinned: pinned, spacing: spacing, parent: parent) }
+      .onAppear {
+        model.keepsBuilt = keepsBuilt
+        model.setItems(ids, pinned: pinned, spacing: spacing, parent: parent)
+      }
       // Views that come with an animated change (a group opening) are built under its animation, so the views below
       // slide down as they come in instead of jumping.
       .transaction(value: ids) { model.insertionAnimation = $0.disablesAnimations ? nil : $0.animation }
@@ -282,8 +289,13 @@ final class ContLazyModel {
   /// Views the last `setItems` added under `insertionAnimation`: built under it rather than without animation.
   @ObservationIgnored private var inserted: Set<AnyHashable> = []
 
+  /// Finishes building while scrolling rests and lets nothing go (`contLazyKeepsBuilt`), up to `keptLimit` views.
+  @ObservationIgnored var keepsBuilt = false
+
   /// Past this many views a stack is a `LazyVStack`: planning and laying out every item cost each frame of a scroll.
   static let rowLimit = 1000
+  /// Past this many views a stack lets far ones go even when asked to keep them: built views still lay out.
+  static let keptLimit = 300
 
   /// How far ahead views are built while scrolling, and while the scroll rests, in screens; past `release` they go.
   static let ahead: CGFloat = 1
@@ -411,8 +423,9 @@ final class ContLazyModel {
     let outer = parent.flatMap { parent in parent.model?.distance(of: parent.item) } ?? 0
     buildsAll = parent.flatMap { parent in parent.model?.buildsAll(in: parent.item) } ?? false
     let screen = max(window?.height ?? 0, outer > 0 ? 400 : 100)
-    let ahead = screen * (scheduler.isResting ? Self.restingAhead : Self.ahead)
-    let farDistance = screen * Self.release
+    let keeps = keepsBuilt && slots.count <= Self.keptLimit
+    let ahead = keeps && scheduler.isResting ? .infinity : screen * (scheduler.isResting ? Self.restingAhead : Self.ahead)
+    let farDistance = keeps ? .infinity : screen * Self.release
     var now: [ContLazySlot] = []
     var changed: [ContLazySlot] = []
     var y: CGFloat = 0

@@ -176,6 +176,8 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
       KitLazyStack(alignment: .leading, spacing: spacing) {
         content
       }
+      // Touch: rows finish building while the list rests, so the first scroll through them builds none.
+      .environment(\.contLazyKeepsBuilt, idiom.isTouch)
       // Sticky sections (`.kitSticky`) report their places in the stack's space.
       .contStickyStack()
       .padding(.horizontal, inset)
