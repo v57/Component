@@ -1222,27 +1222,14 @@ struct KitMenuOverlay<Content: View>: View {
   private let margin: CGFloat = 8
 
   var body: some View {
-    GeometryReader { proxy in
-      let place = placement(in: proxy.size)
-      ZStack(alignment: .topLeading) {
-        // On touch a context menu dims everything but its view, which stays bright as the system's lifts it.
-        let touchContext = model.isContext && !model.isAtPoint && idiom.isTouch
-        KitMenuDim(cutout: touchContext ? model.trigger : nil)
-          .fill(touchContext ? AnyShapeStyle(.kitScrim) : AnyShapeStyle(.clear), style: FillStyle(eoFill: true))
-          .opacity(shown && !model.isClosing ? 1 : 0)
-          .contentShape(Rectangle())
-          .onTapGesture { model.dismiss() }
-          .accessibilityHidden(true)
-        KitMenuCard(model: model, minWidth: matchesWidth ? anchor.width : nil) { content }
-          .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }
-          .scaleEffect(scale)
-          .opacity(model.isClosing ? 0 : (shown && size != nil ? 1 : 0) * (1 - 0.5 * model.fade))
-          .offset(x: place.origin.x, y: place.origin.y)
+    // The outer reader sees the safe area, which the card's own bounds run past.
+    GeometryReader { safe in
+      GeometryReader { proxy in
+        overlay(in: proxy.size, safeArea: idiom.isTouch ? safe.safeAreaInsets : EdgeInsets())
       }
-      .coordinateSpace(name: KitMenuModel.space)
-      .environment(\.kitMenuBounds, proxy.size)
+      .ignoresSafeArea()
     }
-    .ignoresSafeArea()
+    .ignoresSafeArea(.keyboard)
     .focusable()
     .focused($isFocused)
     .focusEffectDisabled()
@@ -1276,6 +1263,27 @@ struct KitMenuOverlay<Content: View>: View {
     .onChange(of: anchor) { model.anchor = anchor }
   }
 
+  private func overlay(in bounds: CGSize, safeArea: EdgeInsets) -> some View {
+    let place = placement(in: bounds, safeArea: safeArea)
+    return ZStack(alignment: .topLeading) {
+      // On touch a context menu dims everything but its view, which stays bright as the system's lifts it.
+      let touchContext = model.isContext && !model.isAtPoint && idiom.isTouch
+      KitMenuDim(cutout: touchContext ? model.trigger : nil)
+        .fill(touchContext ? AnyShapeStyle(.kitScrim) : AnyShapeStyle(.clear), style: FillStyle(eoFill: true))
+        .opacity(shown && !model.isClosing ? 1 : 0)
+        .contentShape(Rectangle())
+        .onTapGesture { model.dismiss() }
+        .accessibilityHidden(true)
+      KitMenuCard(model: model, minWidth: matchesWidth ? anchor.width : nil) { content }
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }
+        .scaleEffect(scale)
+        .opacity(model.isClosing ? 0 : (shown && size != nil ? 1 : 0) * (1 - 0.5 * model.fade))
+        .offset(x: place.origin.x, y: place.origin.y)
+    }
+    .coordinateSpace(name: KitMenuModel.space)
+    .environment(\.kitMenuBounds, bounds)
+  }
+
   /// Opening grows it in from 96%; straying shrinks it toward 80%; closing takes it on down as it fades.
   private var scale: CGFloat {
     if reduceMotion { return 1 }
@@ -1283,8 +1291,11 @@ struct KitMenuOverlay<Content: View>: View {
     return (shown ? 1 : 0.96) * (1 - 0.2 * model.fade)
   }
 
-  private func placement(in bounds: CGSize) -> (origin: CGPoint, above: Bool) {
+  private func placement(in bounds: CGSize, safeArea: EdgeInsets) -> (origin: CGPoint, above: Bool) {
     let size = size ?? .zero
+    // Clear of the status bar and the home indicator.
+    let top = max(margin, safeArea.top)
+    let bottom = bounds.height - max(margin, safeArea.bottom)
     if model.isContext && !model.isAtPoint && idiom.isTouch {
       // On touch, as the system's: beside the pressed view, not over it (the finger and the view stay clear):
       // under it, starting at the finger, or above it when there's no room below.
@@ -1292,21 +1303,25 @@ struct KitMenuOverlay<Content: View>: View {
       // iPhone centres it on the view; iPad starts it at the finger.
       let start = idiom == .phone ? trigger.midX - size.width / 2 : anchor.minX
       let x = min(max(start, margin), max(margin, bounds.width - size.width - margin))
-      if trigger.maxY + margin + size.height <= bounds.height - margin {
+      if trigger.maxY + margin + size.height <= bottom {
         return (CGPoint(x: x, y: trigger.maxY + margin), false)
       }
-      if trigger.minY - margin - size.height >= margin {
+      if trigger.minY - margin - size.height >= top {
         return (CGPoint(x: x, y: trigger.minY - margin - size.height), true)
       }
+      // Room on neither side: the side with more, over the view rather than under the status bar.
+      let above = trigger.minY - top > bottom - trigger.maxY
+      let y = above ? trigger.minY - margin - size.height : trigger.maxY + margin
+      return (CGPoint(x: x, y: min(max(y, top), max(top, bottom - size.height))), above)
     }
     if model.isContext {
       // At the point, its top-left corner just past it; flipped left or up when it would run off the edge.
       var x = anchor.minX + 1
       var y = anchor.minY + 1
       if x + size.width > bounds.width - margin { x = anchor.minX - size.width - 1 }
-      if y + size.height > bounds.height - margin { y = anchor.minY - size.height - 1 }
+      if y + size.height > bottom { y = anchor.minY - size.height - 1 }
       x = min(max(x, margin), max(margin, bounds.width - size.width - margin))
-      y = min(max(y, margin), max(margin, bounds.height - size.height - margin))
+      y = min(max(y, top), max(top, bottom - size.height))
       return (CGPoint(x: x, y: y), y < anchor.minY)
     }
     return Self.popUpPlacement(anchor: anchor, size: size, in: bounds, gap: gap, margin: margin)
