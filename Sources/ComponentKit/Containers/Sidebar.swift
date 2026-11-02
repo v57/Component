@@ -1338,3 +1338,25 @@ public struct RowTile: View {
   .frame(width: 260, height: 520)
   .componentKit()
 }
+
+extension View {
+  /// A split view's sidebar column at the kit's widths (`KitMetrics.sidebarWidth`, `sidebarMinWidth`,
+  /// `sidebarMaxWidth`). Goes on the column's root view, in the split view: a split view doesn't read it from inside
+  /// `KitSidebar`.
+  ///
+  /// ```swift
+  /// NavigationSplitView {
+  ///   SidebarView().kitSidebarColumn()
+  /// } detail: { … }
+  /// ```
+  public func kitSidebarColumn() -> some View { modifier(ContSidebarColumn()) }
+}
+
+private struct ContSidebarColumn: ViewModifier {
+  @Environment(\.kitIdiom) private var idiom
+
+  func body(content: Content) -> some View {
+    content.navigationSplitViewColumnWidth(
+      min: KitMetrics.sidebarMinWidth(idiom), ideal: KitMetrics.sidebarWidth, max: KitMetrics.sidebarMaxWidth(idiom))
+  }
+}

@@ -53,7 +53,10 @@ public enum KitMetrics {
   /// ```
   public static func rowTile(_ idiom: KitIdiom) -> CGFloat { idiom.size(18, pad: 28, phone: 30) }
 
-  public static let sidebarWidth: CGFloat = 240 * scale
+  /// A sidebar's width in a split view until the user drags it (`kitSidebarColumn()`).
+  public static let sidebarWidth: CGFloat = 300 * scale
+  /// The widest a `KitSidebar` can be dragged in a split view: 420pt on the Mac, 360 on iPad.
+  public static func sidebarMaxWidth(_ idiom: KitIdiom) -> CGFloat { idiom.size(420, touch: 360) }
   /// The narrowest a `KitSidebar` gets (its bottom bar's search, status and actions still fit): 200pt on the Mac,
   /// 260 on iPad, 400 on Apple TV; iPhone fills the screen.
   public static func sidebarMinWidth(_ idiom: KitIdiom) -> CGFloat { idiom.size(200, pad: 260, phone: 0) }

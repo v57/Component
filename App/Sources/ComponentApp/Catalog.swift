@@ -271,7 +271,7 @@ struct CatalogView: View {
     NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $compactColumn) {
       CatalogSidebar(search: $search, columns: platformIdiom.isTouch ? $columns : nil)
         .toolbar(removing: .sidebarToggle)
-        .navigationSplitViewColumnWidth(min: 250, ideal: 270, max: 340)
+        .kitSidebarColumn()
         .defaultScrollAnchor(model.sidebarAnchor.map { UnitPoint(x: 0.5, y: $0) })
     } detail: {
       // The page's identity stays inside the column: an `id` on the column's root would be the whole detail's, and
