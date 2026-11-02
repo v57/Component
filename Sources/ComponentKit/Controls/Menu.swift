@@ -1076,8 +1076,10 @@ struct KitMenuPresenter<MenuContent: View>: ViewModifier {
     /// The view that finds the window and the frame the menu opens from; on touch a context menu's long press is its.
     private func anchor() -> KitMenuAnchor {
       if kind == .attached { session.contextPoint = point }
+      // Disabled, a context menu takes no presses: a row behind an overlay (which disables the window behind it) was
+      // the smallest anchor under a press on the sheet's own row, and opened its menu instead.
       return KitMenuAnchor(
-        session: session, isPresented: isPresented, isContext: kind == .context,
+        session: session, isPresented: isPresented, isContext: kind == .context && isEnabled,
         menu: { model, anchor in AnyView(overlay(model, anchor)) })
     }
   #endif
