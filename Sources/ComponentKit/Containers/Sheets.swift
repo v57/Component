@@ -487,15 +487,15 @@ struct ContMultiConfirmation: View {
         ForEach(buttons) { button in
           if button.id == defaultID {
             Button(button.title, role: button.role) {
-              close()
               button.action()
+              close()
             }
             .buttonStyle(.kitPrimary)
             .keyboardShortcut(.defaultAction)
           } else {
             Button(button.title, role: button.role) {
-              close()
               button.action()
+              close()
             }
           }
         }
@@ -530,8 +530,9 @@ struct ContConfirmation: View {
         Button("Cancel", role: .cancel) { close() }
           .keyboardShortcut(.cancelAction)
         Button(confirm, role: role) {
-          close()
+          // Before closing: closing clears the binding, often the very value the action reads.
           action()
+          close()
         }
         .buttonStyle(.kitPrimary)
         .keyboardShortcut(.defaultAction)
