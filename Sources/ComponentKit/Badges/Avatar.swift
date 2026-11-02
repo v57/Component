@@ -212,7 +212,7 @@ public struct Avatar: View {
           }
         }
         .foregroundStyle(Color.white)
-        .overlay { TopHighlight(shape: shape, opacity: 0.25) }
+        .overlay { TopHighlight(shape: shape, opacity: 0.25, isBanded: false) }
         .overlay { shape.strokeBorder(scheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.12), lineWidth: 0.5) }
         .shadow(color: .black.opacity(scheme == .dark ? 0.4 : 0.14), radius: size * 0.11, y: size * 0.09)
     }

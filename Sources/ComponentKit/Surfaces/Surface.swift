@@ -103,12 +103,30 @@ extension View {
 }
 
 /// Dark mode's resting edge: a 0.5pt highlight along the top of a shape instead of a shadow.
+///
+/// On a card it's drawn in a band of its own along the top, whatever the card's height: a gradient stroke is drawn on
+/// the CPU, and the whole card's was again on every frame its height animated (a sidebar group opening: 60 ms a frame
+/// on an iPhone 16 Pro Max, at any number of rows). `isBanded` false follows the shape's height (an avatar's circle).
 struct TopHighlight<S: InsettableShape>: View {
   let shape: S
   let opacity: Double
+  var isBanded = true
+
+  /// The band's height: the highlight is gone halfway down it, before the band's own bottom corners.
+  private static var band: CGFloat { 48 }
 
   var body: some View {
-    shape.strokeBorder(Self.gradient(opacity), lineWidth: 0.5)
+    if isBanded {
+      shape.strokeBorder(
+        LinearGradient(
+          colors: [.white.opacity(opacity), .white.opacity(0)], startPoint: .top, endPoint: .init(x: 0.5, y: 0.5)),
+        lineWidth: 0.5
+      )
+      .frame(maxHeight: Self.band)
+      .frame(maxHeight: .infinity, alignment: .top)
+    } else {
+      shape.strokeBorder(Self.gradient(opacity), lineWidth: 0.5)
+    }
   }
 
   static func gradient(_ opacity: Double) -> LinearGradient {
