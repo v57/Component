@@ -164,6 +164,8 @@ extension View {
 
 /// A vertical scroll view that fades its bottom edge while content runs on under it.
 struct ContEdgeScroll<Content: View>: View {
+  /// Off, the edge stays as it is (a card's own edge ends the content).
+  var fades = true
   @ViewBuilder var content: Content
   @State private var viewport: CGFloat = 0
   @State private var contentBottom: CGFloat = 0
@@ -176,7 +178,7 @@ struct ContEdgeScroll<Content: View>: View {
     }
     .coordinateSpace(.named(space))
     .modifier(ContHeightReader(height: $viewport))
-    .contScrollEdge(contentBottom > viewport + 0.5, length: idiom.size(32, pad: 40, phone: 48))
+    .contScrollEdge(fades && contentBottom > viewport + 0.5, length: idiom.size(32, pad: 40, phone: 48))
   }
 }
 

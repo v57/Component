@@ -217,10 +217,14 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
   /// The pane's list: a card on the pane's ground.
   private var listCard: some View {
     listContent
-      .padding(EdgeInsets(top: 10, leading: KitMetrics.gutter, bottom: 12, trailing: KitMetrics.gutter))
+      .padding(EdgeInsets(top: 10, leading: KitMetrics.gutter, bottom: optionsView == nil ? 0 : 12, trailing: KitMetrics.gutter))
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-      .kitSurface(.card, cornerRadius: idiom.isTouch ? KitMetrics.radiusXL : KitMetrics.radiusOverlay)
+      // Without options under them the rows run on to the card's rounded edge, which ends them.
+      .clipShape(RoundedRectangle(cornerRadius: cardRadius, style: .continuous))
+      .kitSurface(.card, cornerRadius: cardRadius)
   }
+
+  private var cardRadius: CGFloat { idiom.isTouch ? KitMetrics.radiusXL : KitMetrics.radiusOverlay }
 
   private var listContent: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -258,11 +262,12 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
     }
     return Group {
       if flat {
-        rows
+        rows.padding(.bottom, optionsView == nil ? 12 : 0)
       } else {
         ScrollViewReader { proxy in
-          // The rows fade out at the bottom while more run on under the options (`.ck-scroll-edge`).
-          ContEdgeScroll { rows }
+          // The rows fade out at the bottom only while more run on under the options (`.ck-scroll-edge`).
+          ContEdgeScroll(fades: optionsView != nil) { rows }
+            .contentMargins(.bottom, optionsView == nil ? 12 : 0, for: .scrollContent)
             .scrollIndicators(.never)
             .onChange(of: nav.selected) { _, id in if let id { proxy.scrollTo(id) } }
         }
