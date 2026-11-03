@@ -1106,9 +1106,57 @@ struct FormsPage: View {
   @State private var size = 13
   @State private var mode = "Unified"
   @State private var checking: WorkStatus = .idle
+  @State private var previewDark = true
 
   var body: some View {
     CatalogPage(page: .forms) {
+      SpecimenSection(
+        "Settings previews",
+        note: "What a setting does, live: FormRow.preview under that row, FormPreview at the head of a card for a group of settings. Change the controls and the scene follows."
+      ) {
+        Specimen(
+          "preview, FormPreview", ground: .panel,
+          code: """
+            FormCard("Terminal") {
+              FormRow("Dark Scheme", systemImage: "paintpalette") { Toggle("Dark Scheme", isOn: $dark).labelsHidden() }
+                .preview { TerminalSample(dark: dark) }
+            }
+            FormCard("Editor") {
+              FormPreview { CodeSample(size: size) }
+              FormRow("Size", value: "\\(size) pt") { KitSlider(…) }
+            }
+            """
+        ) {
+          VStack(alignment: .leading, spacing: 16) {
+            FormCard("Terminal") {
+              FormRow("Dark Scheme", help: "The terminal's colours", systemImage: "paintpalette", hue: .purple) {
+                Toggle("Dark Scheme", isOn: $previewDark).labelsHidden()
+              }
+              .preview {
+                VStack(alignment: .leading, spacing: 2) {
+                  Text("~/Atlas % swift test").foregroundStyle(previewDark ? Color.white : Color.black)
+                  Text("Test run passed").foregroundStyle(Hue.green.text)
+                }
+                .font(.system(size: 12, design: .monospaced))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .padding(.horizontal, 12)
+                .background(previewDark ? Color.black : Color.white)
+              }
+            }
+            FormCard("Editor") {
+              FormPreview(height: 56) {
+                Text("let trip = Trip(stops: 3)")
+                  .font(.system(size: CGFloat(size), design: .monospaced))
+                  .lineLimit(1)
+              }
+              FormRow("Size", value: "\(size) pt") {
+                KitSlider("Size", value: Binding(get: { Double(size) }, set: { size = Int($0) }), in: 10...20)
+              }
+            }
+          }
+          .frame(width: 420)
+        }
+      }
       SpecimenSection(
         "Form cards", note: "A card per group; rows with an icon tile, the label, a line of help and the control at the end."
       ) {

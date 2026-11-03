@@ -51,6 +51,47 @@ public struct FormCard<Content: View>: View {
   }
 }
 
+/// A live preview of what a group of settings does, as a row of its `FormCard`: the card's width, at the head of the
+/// settings it shows. For one setting's preview, `FormRow.preview` puts it under that row.
+///
+/// ```swift
+/// FormCard("Editor") {
+///   FormPreview { CodeSample(font: font, wraps: wraps) }
+///   FormRow("Font", systemImage: "textformat") { … }
+///   FormRow("Wrap Lines", systemImage: "text.alignleft") { Toggle("Wrap Lines", isOn: $wraps).labelsHidden() }
+/// }
+/// ```
+public struct FormPreview<Content: View>: View {
+  var height: CGFloat
+  @ViewBuilder var content: Content
+
+  public init(height: CGFloat = 72, @ViewBuilder content: () -> Content) {
+    self.height = height
+    self.content = content()
+  }
+
+  public var body: some View {
+    ContFormPreviewScene(height: height, content: content)
+      .padding(EdgeInsets(horizontal: 12, vertical: 10))
+  }
+}
+
+/// The scene a setting's preview draws in: a well in the card, its content clipped to 8pt corners.
+private struct ContFormPreviewScene<Content: View>: View {
+  let height: CGFloat
+  let content: Content
+
+  var body: some View {
+    content
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .frame(height: height)
+      .background(.kitField)
+      .clipShape(RoundedRectangle(cornerRadius: KitMetrics.radius, style: .continuous))
+      .allowsHitTesting(false)
+      .accessibilityHidden(true)
+  }
+}
+
 /// The title of a group of form rows, set as `FormCard`'s title is: a headline 12pt in from the card's edge. Put it
 /// over a group that isn't a `FormCard` (a grid of choice cards) so it lines up with the form's other titles.
 ///
@@ -121,6 +162,7 @@ public struct FormRow<Control: View, Field: View>: View {
   var isStacked = false
   var titleAccessory: AnyView?
   var detailView: AnyView?
+  var previewView: AnyView?
   var customTile: AnyView?
   @ViewBuilder var control: Control
   @ViewBuilder var field: Field
@@ -190,6 +232,20 @@ public struct FormRow<Control: View, Field: View>: View {
     return row
   }
 
+  /// Shows what the setting does, live, in a scene under the row, lined up with its title: the row's value drawn on
+  /// sample content (a colour scheme on a few lines of a terminal, a font on a line of code). It takes no clicks, and
+  /// says nothing to VoiceOver: the row's title and help do.
+  ///
+  /// ```swift
+  /// FormRow("Color Scheme", systemImage: "paintpalette") { KitMenuButton(…) }
+  ///   .preview { TerminalSample(scheme: scheme, usesBackgroundColors: usesBackground) }
+  /// ```
+  public func preview<V: View>(height: CGFloat = 72, @ViewBuilder _ content: () -> V) -> Self {
+    var row = self
+    row.previewView = AnyView(ContFormPreviewScene(height: height, content: content()))
+    return row
+  }
+
   public var body: some View {
     let tile: CGFloat = idiom.size(24, touch: 30)
     let lead: CGFloat = systemImage == nil ? 0 : tile + 12
@@ -255,6 +311,10 @@ public struct FormRow<Control: View, Field: View>: View {
           .controlSize(.small)
           .frame(maxWidth: .infinity, alignment: .leading)
           .padding(EdgeInsets(top: 0, leading: lead, bottom: 4, trailing: 0))
+      }
+      if let previewView {
+        previewView
+          .padding(EdgeInsets(top: 2, leading: lead, bottom: 6, trailing: 0))
       }
     }
     .padding(EdgeInsets(horizontal: 12, vertical: 6))
