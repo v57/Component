@@ -650,3 +650,38 @@ private let tree = [
   #expect(state.target == 2 && state.hint == nil)
   state.end()
 }
+
+#if canImport(AppKit)
+  @Suite("Tooltip window")
+  @MainActor struct TooltipWindowTests {
+    private let window = CGRect(x: 100, y: 100, width: 800, height: 600)
+    private let screen = CGRect(x: 0, y: 0, width: 1800, height: 1100)
+    private let card = CGSize(width: 96, height: 42)
+    private var room: CGFloat { ContTooltipPanelView.shadowRoom }
+
+    @Test("A view at a column's edge has its tooltip centred under it, past the column")
+    func centred() {
+      let view = CGRect(x: 353, y: 661, width: 28, height: 26)  // x 253 in the window, 39 from its top to the view's bottom.
+      let frame = ContTooltipPanelView.panelFrame(view: view, window: window, screen: screen, card: card, edge: nil)
+      #expect(frame.midX == view.midX)
+      #expect(frame.maxY - room == view.minY - ContTooltipHost.gap)
+    }
+
+    @Test("It stays inside the window at either side")
+    func staysInside() {
+      let leading = CGRect(x: 102, y: 660, width: 20, height: 20)
+      let left = ContTooltipPanelView.panelFrame(view: leading, window: window, screen: screen, card: card, edge: nil)
+      #expect(left.minX + room == window.minX + KitMetrics.gutter)
+      let trailing = CGRect(x: 878, y: 660, width: 20, height: 20)
+      let right = ContTooltipPanelView.panelFrame(view: trailing, window: window, screen: screen, card: card, edge: nil)
+      #expect(right.maxX - room == window.maxX - KitMetrics.gutter)
+    }
+
+    @Test("It goes above a view at the window's bottom")
+    func above() {
+      let view = CGRect(x: 400, y: 104, width: 40, height: 20)
+      let frame = ContTooltipPanelView.panelFrame(view: view, window: window, screen: screen, card: card, edge: nil)
+      #expect(frame.minY + room == view.maxY + ContTooltipHost.gap)
+    }
+  }
+#endif

@@ -16,10 +16,10 @@ extension View {
   ///   .kitHelp("Pull", shortcut: "⇧⌘P", meta: "1 behind origin/main", systemImage: "arrow.down")
   /// ```
   ///
-  /// It draws in the view's overlay, so put it on views whose container doesn't clip (a scroll view clips). In a
-  /// `KitSidebar` the sidebar draws it, over every card and stuck title, kept inside the sidebar (above the row when
-  /// there's no room under it). Elsewhere it shows above the view when the pointer is near the window's bottom (a
-  /// status bar, a bottom bar); `edge` picks the side instead.
+  /// On the Mac it draws in a small window of its own over the app's window, so no column or scroll view clips it: it
+  /// stays inside the window, and goes above the view when there's no room under it; `edge` picks the side instead.
+  /// On iPad it draws in the view's overlay, so put it on views whose container doesn't clip (a scroll view clips); in
+  /// a `KitSidebar` the sidebar draws it, over every card and stuck title, kept inside the sidebar.
   ///
   /// ```swift
   /// Text("Ln 12, Col 4").kitHelp("Go to Line", shortcut: "⌘L", edge: .top)
@@ -78,15 +78,56 @@ private struct ContHelpModifier: ViewModifier {
   let edge: VerticalEdge?
   var detail: AnyView? = nil
   @State private var isShown = false
-  /// Whether the pointer was near the window's bottom as the tooltip came (it goes above the view then).
-  @State private var nearBottom = false
   @State private var rest = ContTooltipRest()
   @State private var id = UUID()
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.isEnabled) private var isEnabled
   @Environment(\.contTooltipHost) private var hasHost
+  #if canImport(AppKit)
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.kitAccent) private var accent
+    @Environment(\.kitIncreaseContrast) private var increaseContrast
+    @Environment(\.layoutDirection) private var layoutDirection
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.locale) private var locale
+    @Environment(\.contMeasuringCopy) private var isMeasuringCopy
+  #endif
 
   func body(content: Content) -> some View {
+    #if canImport(AppKit)
+      content
+        .kitHover { if !$0 { hide() } }
+        .onContinuousHover(perform: pointer)
+        .simultaneousGesture(TapGesture().onEnded { hide() })
+        .background {
+          // A kit toolbar's hidden copy of its tools shows none.
+          if isShown, !isMeasuringCopy {
+            ContTooltipPanelAnchor(
+              card: AnyView(
+                ContTooltipPanelContent(card: card)
+                  .environment(\.colorScheme, colorScheme)
+                  .environment(\.kitAccent, accent)
+                  .environment(\.kitIdiom, idiom)
+                  .environment(\.kitIncreaseContrast, increaseContrast)
+                  .environment(\.layoutDirection, layoutDirection)
+                  .environment(\.dynamicTypeSize, dynamicTypeSize)
+                  .environment(\.locale, locale)
+                  .font(KitFont.body.font)
+                  .foregroundStyle(.kitLabel)),
+              edge: edge
+            )
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+          }
+        }
+        .accessibilityHint([meta, shortcut].compactMap { $0 }.joined(separator: ", "))
+        .onAppear {
+          // For captures: once the window's columns have settled, as they have under a pointer.
+          guard KitLaunchOptions.shownTooltip == title else { return }
+          DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { isShown = true }
+        }
+        .onDisappear { hide() }
+    #else
     if idiom == .phone {
       content.help(title)
     } else if hasHost {
@@ -123,9 +164,10 @@ private struct ContHelpModifier: ViewModifier {
         .onAppear { if KitLaunchOptions.shownTooltip == title { isShown = true } }
         .onDisappear { hide() }
     }
+    #endif
   }
 
-  private var isAbove: Bool { edge.map { $0 == .top } ?? nearBottom }
+  private var isAbove: Bool { edge == .top }
 
   private var card: ContTooltipCard {
     ContTooltipCard(
@@ -146,7 +188,6 @@ private struct ContHelpModifier: ViewModifier {
         if Task.isCancelled { return }
       }
       rest.task = nil
-      if edge == nil { nearBottom = ContTooltipRoom.isNearWindowBottom }
       withAnimation(.kitFast) { isShown = true }
     }
   }
@@ -164,26 +205,6 @@ struct ContTooltip: Identifiable {
   let card: ContTooltipCard
   let anchor: Anchor<CGRect>
   var edge: VerticalEdge? = nil
-}
-
-/// Whether a tooltip outside a host has room under its view.
-@MainActor
-enum ContTooltipRoom {
-  /// How close to the window's bottom the pointer is when a tooltip goes above its view: a card and its gap, and some.
-  static let margin: CGFloat = 64
-
-  /// Whether the pointer is within `margin` of the bottom of the window under it (the Mac; false elsewhere).
-  static var isNearWindowBottom: Bool {
-    #if canImport(AppKit)
-      let mouse = NSEvent.mouseLocation
-      guard let window = NSApp.orderedWindows.first(where: { $0.isVisible && $0.frame.contains(mouse) }) else {
-        return false
-      }
-      return mouse.y - window.frame.minY < margin
-    #else
-      return false
-    #endif
-  }
 }
 
 struct ContTooltipKey: PreferenceKey {
@@ -235,6 +256,16 @@ private struct ContTooltipPlacement: Layout {
     let ideal = card.sizeThatFits(.unspecified)
     let room = max(0, bounds.width - 2 * gutter)
     let size = ideal.width <= room ? ideal : card.sizeThatFits(ProposedViewSize(width: room, height: nil))
+    let origin = ContTooltipGeometry.origin(anchor: anchor, size: size, in: bounds.size, edge: edge)
+    card.place(at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y), proposal: ProposedViewSize(size))
+  }
+}
+
+/// Where a tooltip's card goes in its container, whose top-left is the origin: centred under (or over) the view it
+/// explains, 8pt inside the container's edges.
+enum ContTooltipGeometry {
+  static func origin(anchor: CGRect, size: CGSize, in bounds: CGSize, edge: VerticalEdge?) -> CGPoint {
+    let gutter = KitMetrics.gutter
     let x = min(max(anchor.midX - size.width / 2, gutter), max(gutter, bounds.width - gutter - size.width))
     let below = anchor.maxY + ContTooltipHost.gap
     let above = anchor.minY - ContTooltipHost.gap - size.height
@@ -246,9 +277,140 @@ private struct ContTooltipPlacement: Layout {
       case .bottom: below
       case nil: fitsBelow || !fitsAbove ? below : above
       }
-    card.place(at: CGPoint(x: bounds.minX + x, y: bounds.minY + y), proposal: ProposedViewSize(size))
+    return CGPoint(x: x, y: y)
   }
 }
+
+#if canImport(AppKit)
+  /// The card in its window: room around it for the floating surface's shadow, and the kit's fade in.
+  private struct ContTooltipPanelContent: View {
+    let card: ContTooltipCard
+    @State private var isShown = false
+
+    var body: some View {
+      card
+        .fixedSize()
+        .opacity(isShown ? 1 : 0)
+        .padding(ContTooltipPanelView.shadowRoom)
+        .onAppear { withAnimation(.kitFast) { isShown = true } }
+    }
+  }
+
+  /// Behind the view while its tooltip shows: finds the window and the frame, and keeps the tooltip's window open.
+  private struct ContTooltipPanelAnchor: NSViewRepresentable {
+    let card: AnyView
+    let edge: VerticalEdge?
+
+    func makeNSView(context: Context) -> ContTooltipPanelView { ContTooltipPanelView() }
+
+    func updateNSView(_ view: ContTooltipPanelView, context: Context) {
+      view.card = card
+      view.edge = edge
+      view.show()
+    }
+
+    static func dismantleNSView(_ view: ContTooltipPanelView, coordinator: ()) { view.close() }
+  }
+
+  /// The tooltip's window: a borderless child of the view's window, so it stays over that window and moves with it,
+  /// and nothing in the window (a split view's column, a scroll view) clips it. It takes no clicks and no focus.
+  final class ContTooltipPanelView: NSView {
+    /// Past the card on every side, for the floating surface's shadow (radius 20, 16 down).
+    static let shadowRoom: CGFloat = 36
+
+    var card = AnyView(EmptyView())
+    var edge: VerticalEdge?
+    private var panel: NSPanel?
+    private var host: NSHostingView<AnyView>?
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      if window != nil { show() } else { close() }
+    }
+
+    // SwiftUI gives the view its frame after updating it, so the first `show` sees a stale place.
+    override func setFrameOrigin(_ newOrigin: NSPoint) {
+      super.setFrameOrigin(newOrigin)
+      if panel != nil { show() }
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+      super.setFrameSize(newSize)
+      if panel != nil { show() }
+    }
+
+    func show() {
+      guard let window else { return }
+      let host = host ?? NSHostingView(rootView: card)
+      host.rootView = card
+      host.sizingOptions = [.intrinsicContentSize]
+      let panel = panel ?? makePanel(in: window, host: host)
+      panel.appearance = window.effectiveAppearance
+      self.host = host
+      self.panel = panel
+      place()
+      // A column the view is in may have moved without the view's own frame changing.
+      DispatchQueue.main.async { [weak self] in self?.place() }
+    }
+
+    private func place() {
+      guard let window, let panel, let host else { return }
+      let room = Self.shadowRoom
+      host.layoutSubtreeIfNeeded()
+      let fitting = host.intrinsicContentSize
+      guard fitting.width > 2 * room, fitting.height > 2 * room else { return }
+      let frame = Self.panelFrame(
+        view: window.convertToScreen(convert(bounds, to: nil)), window: window.frame,
+        screen: (window.screen ?? NSScreen.main)?.visibleFrame,
+        card: CGSize(width: fitting.width - 2 * room, height: fitting.height - 2 * room), edge: edge)
+      if panel.frame != frame { panel.setFrame(frame, display: true) }
+    }
+
+    func close() {
+      guard let panel else { return }
+      panel.parent?.removeChildWindow(panel)
+      panel.orderOut(nil)
+      self.panel = nil
+      host = nil
+    }
+
+    /// The tooltip window's frame on the screen (AppKit's coordinates, from the bottom): the card placed inside the
+    /// app's window, and inside the screen when it's wider than the window; plus the room for its shadow.
+    static func panelFrame(
+      view: CGRect, window: CGRect, screen: CGRect?, card: CGSize, edge: VerticalEdge?
+    ) -> CGRect {
+      let anchor = CGRect(x: view.minX - window.minX, y: window.maxY - view.maxY, width: view.width, height: view.height)
+      let origin = ContTooltipGeometry.origin(anchor: anchor, size: card, in: window.size, edge: edge)
+      var x = window.minX + origin.x
+      var y = window.maxY - origin.y - card.height
+      if let screen {
+        x = max(screen.minX, min(x, screen.maxX - card.width))
+        y = max(screen.minY, min(y, screen.maxY - card.height))
+      }
+      let room = shadowRoom
+      return CGRect(x: x - room, y: y - room, width: card.width + 2 * room, height: card.height + 2 * room)
+    }
+
+    private func makePanel(in window: NSWindow, host: NSHostingView<AnyView>) -> NSPanel {
+      let panel = NSPanel(
+        contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+      panel.isOpaque = false
+      panel.backgroundColor = .clear
+      panel.hasShadow = false
+      panel.ignoresMouseEvents = true
+      panel.hidesOnDeactivate = false
+      panel.isReleasedWhenClosed = false
+      panel.animationBehavior = .none
+      panel.collectionBehavior = [.transient, .ignoresCycle, .fullScreenAuxiliary]
+      host.autoresizingMask = [.width, .height]
+      panel.contentView = host
+      window.addChildWindow(panel, ordered: .above)
+      return panel
+    }
+  }
+#endif
 
 /// The tooltip's card: a rich header at its smallest, the shortcut as keys, and any detail under a hairline.
 struct ContTooltipCard: View {
