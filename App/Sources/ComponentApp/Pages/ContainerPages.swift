@@ -181,6 +181,8 @@ struct SidebarPage: View {
   @State private var pickedNotes: Set<Int> = [1, 2]
   @State private var archived: Int?
   @State private var pickedFiles: Set<String> = ["Trip.swift"]
+  @State private var splitPage: String?
+  @State private var splitColumns = NavigationSplitViewVisibility.all
   @State private var search = ""
   @State private var repos = sampleRepos
   @State private var renaming: String?
@@ -346,6 +348,27 @@ struct SidebarPage: View {
             // ↑↓ move, ← closes or goes to the parent, → opens or goes to the first child
             """)
         }
+      }
+      SpecimenSection(
+        "A sidebar and its screen",
+        note: "KitSidebarSplit: on iPhone one stack, the selection pushed over the list, and Back clears it; on iPad and the Mac a split view. Use it at a window's root: inside another stack, as here, it can't push values of its own."
+      ) {
+        WindowFrame(height: 360) {
+          KitSidebarSplit(selection: $splitPage, columnVisibility: $splitColumns) {
+            KitSidebar(selection: $splitPage, columnVisibility: $splitColumns) {
+              KitSection("Pages", meta: "A sample", systemImage: "folder") {
+                ForEach(["History", "Branches", "Tags"], id: \.self) { page in
+                  SidebarRow(value: page, page, systemImage: "doc.text").pushes()
+                }
+              }
+            }
+          } detail: { page in
+            Text(page).kitFont(.headline)
+          } empty: {
+            Text("Nothing selected").kitFont(.headline)
+          }
+        }
+        .frame(maxWidth: 620)
       }
       SpecimenSection(
         "Selecting several rows",
