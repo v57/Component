@@ -369,12 +369,15 @@ private struct ContSystemToolbarAway: ViewModifier {
         .toolbar(isFullScreen ? .hidden : .automatic, for: .windowToolbar)
         .toolbar {
           KitToolbarItem(placement: .navigation) {
-            if let showSidebar, !isFullScreen {
-              ContShowSidebarButton(action: showSidebar, isVisible: showsSidebarButton)
-                .transition(.identity)
-            } else {
-              Color.clear.frame(width: 1, height: 1).accessibilityHidden(true)
+            Group {
+              if let showSidebar, !isFullScreen {
+                ContShowSidebarButton(action: showSidebar, isVisible: showsSidebarButton)
+                  .transition(.identity)
+              } else {
+                Color.clear.frame(width: 1, height: 1).accessibilityHidden(true)
+              }
             }
+            .background { ContToolbarItemClicks(takesClicks: showSidebar != nil && !isFullScreen && showsSidebarButton) }
           }
         }
         .kitHidesSystemTitle()
@@ -524,6 +527,43 @@ private struct ContSystemToolbarAway: ViewModifier {
       } else {
         // Not during the update that moved the view.
         DispatchQueue.main.async { [weak self] in self?.onChange(minX) }
+      }
+    }
+  }
+
+  /// Lets the clicks through the system toolbar's item while it shows nothing. AppKit's viewer around the item is
+  /// 36pt wide however small the item is, and takes every click over it: it lay over what the kit's bar draws at the
+  /// start of a column (Code's Run button got no clicks, and its right click was the toolbar's own menu). A hidden
+  /// viewer keeps the toolbar, so the title bar keeps its 52pt.
+  struct ContToolbarItemClicks: NSViewRepresentable {
+    let takesClicks: Bool
+
+    func makeNSView(context: Context) -> ContToolbarItemClicksView { ContToolbarItemClicksView() }
+
+    func updateNSView(_ view: ContToolbarItemClicksView, context: Context) {
+      view.takesClicks = takesClicks
+      view.apply()
+    }
+  }
+
+  final class ContToolbarItemClicksView: NSView {
+    var takesClicks = false
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      apply()
+    }
+
+    func apply() {
+      var ancestor = superview
+      while let view = ancestor {
+        if NSStringFromClass(type(of: view)).contains("NSToolbarItemViewer") {
+          if view.isHidden == takesClicks { view.isHidden = !takesClicks }
+          return
+        }
+        ancestor = view.superview
       }
     }
   }
