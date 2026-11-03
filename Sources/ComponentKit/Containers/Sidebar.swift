@@ -1240,7 +1240,7 @@ private struct ContRowModifiedTaps: ViewModifier {
   let clicked: (@MainActor (AnyHashable, EventModifiers) -> Void)?
 
   func body(content: Content) -> some View {
-    #if os(macOS) || os(iOS)
+    #if os(macOS)
       if let row, let clicked {
         content
           .highPriorityGesture(TapGesture().modifiers([.command, .shift]).onEnded { clicked(row, [.command, .shift]) })
