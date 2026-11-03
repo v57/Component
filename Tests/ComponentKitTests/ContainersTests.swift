@@ -685,3 +685,68 @@ private let tree = [
     }
   }
 #endif
+
+@Suite("Selecting several rows")
+@MainActor struct RowClicksTests {
+  private func clicks() -> ContRowClicks {
+    let clicks = ContRowClicks()
+    clicks.order = ["a", "b", "c", "d", "e"].map(AnyHashable.init)
+    return clicks
+  }
+  private func set(_ values: String...) -> Set<AnyHashable> { Set(values.map(AnyHashable.init)) }
+
+  @Test("A click selects the row alone")
+  func plain() {
+    #expect(clicks().click("b", modifiers: [], in: set("a", "c")) == set("b"))
+  }
+
+  @Test("⌘-click adds a row and removes it again")
+  func command() {
+    let clicks = clicks()
+    let added = clicks.click("c", modifiers: .command, in: set("a"))
+    #expect(added == set("a", "c"))
+    #expect(clicks.click("c", modifiers: .command, in: added) == set("a"))
+  }
+
+  @Test("⇧-click selects from the last click to the row, either way, and a new ⇧-click replaces the range")
+  func shift() {
+    let clicks = clicks()
+    let first = clicks.click("c", modifiers: [], in: [])
+    let down = clicks.click("e", modifiers: .shift, in: first)
+    #expect(down == set("c", "d", "e"))
+    #expect(clicks.click("a", modifiers: .shift, in: down) == set("a", "b", "c"))
+  }
+
+  @Test("⇧⌘-click adds the range to what's selected")
+  func shiftCommand() {
+    let clicks = clicks()
+    let first = clicks.click("a", modifiers: [], in: [])
+    let second = clicks.click("c", modifiers: .command, in: first)
+    #expect(clicks.click("e", modifiers: [.shift, .command], in: second) == set("a", "c", "d", "e"))
+  }
+
+  @Test("⇧-click with nothing clicked before selects the row alone")
+  func shiftWithoutAnchor() {
+    #expect(clicks().click("b", modifiers: .shift, in: []) == set("b"))
+  }
+
+  @Test("The arrow keys move from the last row clicked, while it stays selected")
+  func lead() {
+    let clicks = clicks()
+    _ = clicks.click("d", modifiers: [], in: [])
+    #expect(clicks.lead(in: set("b", "d")) == AnyHashable("d"))
+    #expect(clicks.lead(in: set("b", "c")) == AnyHashable("b"))
+    #expect(clicks.lead(in: []) == nil)
+  }
+
+  @Test("A right click on a selected row acts on the whole selection, on another row on that row")
+  func menuTargets() {
+    @Namespace var namespace
+    let selection = ContSidebarSelection(
+      value: "a", select: { _ in }, isFocused: true, namespace: namespace, values: set("a", "b"))
+    #expect(selection.targets(of: "b") == set("a", "b"))
+    #expect(selection.targets(of: "c") == set("c"))
+    #expect(selection.contains("a"))
+    #expect(!selection.contains("c"))
+  }
+}

@@ -315,15 +315,22 @@ struct ContRowKeyboard: ViewModifier {
   var onPrimary: (@MainActor (AnyHashable) -> Void)? = nil
   /// Scrolls the row with this value into view: to `anchor`, or as little as it takes (`nil`).
   var scroll: (@MainActor (AnyHashable, UnitPoint?) -> Void)? = nil
+  /// A selection of several rows: it learns the rows' order here, for ⇧-click ranges.
+  var clicks: ContRowClicks? = nil
+  /// ⇧↑↓ in a selection of several: the range grows to the row.
+  var extend: (@MainActor (AnyHashable) -> Void)? = nil
   @State private var rows: [ContRowNavItem] = []
 
   func body(content: Content) -> some View {
     content
       .onPreferenceChange(ContRowNavKey.self) { rows in
-        MainActor.assumeIsolated { self.rows = rows }
+        MainActor.assumeIsolated {
+          self.rows = rows
+          clicks?.order = rows.map(\.value)
+        }
       }
       .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow, .return]) { press in
-        handle(press.key)
+        handle(press.key, extending: press.modifiers.contains(.shift))
       }
   }
 
@@ -352,7 +359,7 @@ struct ContRowKeyboard: ViewModifier {
     return .handled
   }
 
-  private func handle(_ key: KeyEquivalent) -> KeyPress.Result {
+  private func handle(_ key: KeyEquivalent, extending: Bool = false) -> KeyPress.Result {
     let plain = plainRows
     let step: ContRowNav.Step
     switch key {
@@ -380,7 +387,7 @@ struct ContRowKeyboard: ViewModifier {
     }
     switch step {
     case .select(let value):
-      select(value)
+      if extending, let extend { extend(value) } else { select(value) }
       scroll?(value, nil)
     case .expand(let value), .collapse(let value):
       guard let isExpanded = rows.first(where: { $0.value == value })?.disclosure?.isExpanded else { return .ignored }

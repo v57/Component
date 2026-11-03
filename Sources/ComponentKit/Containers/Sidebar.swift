@@ -1,5 +1,9 @@
 import SwiftUI
 
+#if canImport(AppKit)
+  import AppKit
+#endif
+
 // The kit's sidebar: Shell's `ScrollView` + `LazyVStack` sidebar (SidebarView2), made generic, on a `KitLazyStack`.
 // A stack does none of what a `List` does for its rows, so the container publishes the selection, its focus and a
 // namespace, and every row selects itself on tap, draws the selection card (which glides between rows) and reorders
@@ -14,6 +18,101 @@ struct ContSidebarSelection {
   var namespace: Namespace.ID
   /// The container's double-click (and Return) action on a row's value.
   var primaryAction: (@MainActor (AnyHashable) -> Void)? = nil
+  /// The rows selected together, in a container that selects several (`value` is then the last one clicked).
+  var values: Set<AnyHashable>? = nil
+  /// A click with modifiers on a row (or ⇧ with an arrow key), in a container that selects several.
+  var clicked: (@MainActor (AnyHashable, EventModifiers) -> Void)? = nil
+  /// What a right click on a row shows (`selectionContextMenu`), given the rows it acts on.
+  var menu: (@MainActor (Set<AnyHashable>) -> AnyView)? = nil
+
+  func contains(_ row: AnyHashable?) -> Bool {
+    guard let row else { return false }
+    return values?.contains(row) ?? (value == row)
+  }
+
+  /// The rows a right click on `row` acts on: the whole selection when it's in it, else that row alone.
+  func targets(of row: AnyHashable) -> Set<AnyHashable> {
+    if let values, values.contains(row) { values } else { [row] }
+  }
+
+  /// One selection card glides between rows; several stay where they are.
+  var glideNamespace: Namespace.ID? { (values?.count ?? 0) > 1 ? nil : namespace }
+}
+
+/// A container's selection of several rows, whatever their type.
+struct ContMultiSelection {
+  let get: () -> Set<AnyHashable>
+  let set: @MainActor (Set<AnyHashable>) -> Void
+
+  init<Selection: Hashable & Sendable>(_ selection: Binding<Set<Selection>>) {
+    get = { Set(selection.wrappedValue.map(AnyHashable.init)) }
+    set = { values in selection.wrappedValue = Set(values.compactMap { $0.base as? Selection }) }
+  }
+}
+
+/// What clicks on a container's rows do to a selection of several, as on the Mac: a click selects the row alone,
+/// ⌘-click adds or removes it, ⇧-click selects the range from the last click to it, in the rows' order. The arrow
+/// keys go through here too, so ⇧↑ and ⇧↓ extend the range. Rows not built yet (far down a lazy list) aren't in a range.
+@MainActor
+final class ContRowClicks {
+  /// Where a range starts: the last row clicked without ⇧.
+  var anchor: AnyHashable?
+  /// The last row clicked: where the arrow keys move from.
+  var lead: AnyHashable?
+  /// The rows in their order, from the container's keyboard handling.
+  var order: [AnyHashable] = []
+
+  /// The selection after a click on `value`.
+  func click(_ value: AnyHashable, modifiers: EventModifiers, in selected: Set<AnyHashable>) -> Set<AnyHashable> {
+    lead = value
+    if modifiers.contains(.shift), let anchor, let start = order.firstIndex(of: anchor),
+      let end = order.firstIndex(of: value)
+    {
+      let range = Set(order[min(start, end)...max(start, end)])
+      return modifiers.contains(.command) ? selected.union(range) : range
+    }
+    anchor = value
+    if modifiers.contains(.command) {
+      var selected = selected
+      if selected.remove(value) == nil { selected.insert(value) }
+      return selected
+    }
+    return [value]
+  }
+
+  /// The row the arrow keys move from: the last one clicked while it stays selected, else the first selected.
+  func lead(in selected: Set<AnyHashable>) -> AnyHashable? {
+    if let lead, selected.contains(lead) { return lead }
+    return order.first(where: selected.contains) ?? selected.first
+  }
+
+  /// A click no modified tap took (and an arrow key's move) on the container's selection: a ⇧-click can arrive here,
+  /// so the keyboard has the last word.
+  func select(in multi: ContMultiSelection) -> @MainActor (AnyHashable) -> Void {
+    { [self] value in multi.set(click(value, modifiers: Self.keyboardModifiers, in: multi.get())) }
+  }
+
+  private static var keyboardModifiers: EventModifiers {
+    #if canImport(AppKit)
+      let flags = NSEvent.modifierFlags
+      var modifiers: EventModifiers = []
+      if flags.contains(.command) { modifiers.insert(.command) }
+      if flags.contains(.shift) { modifiers.insert(.shift) }
+      return modifiers
+    #else
+      return []
+    #endif
+  }
+
+  /// ⇧ with an arrow key: the range grows to the row, and the keys go on from it.
+  func extend(in multi: ContMultiSelection) -> @MainActor (AnyHashable) -> Void {
+    { [self] value in multi.set(click(value, modifiers: .shift, in: multi.get())) }
+  }
+
+  /// A click on a row with these modifiers, on the container's selection.
+  func clicked(in multi: ContMultiSelection) -> @MainActor (AnyHashable, EventModifiers) -> Void {
+    { [self] value, modifiers in multi.set(click(value, modifiers: modifiers, in: multi.get())) }
+  }
 }
 
 /// A row's own state, for what draws inside it (the icon tile turns to the accent on the emphasized selection).
@@ -97,6 +196,9 @@ extension EnvironmentValues {
 public struct KitSidebar<Content: View, BottomBar: View>: View {
   private let getSelection: () -> AnyHashable?
   private let setSelection: @MainActor (AnyHashable) -> Void
+  private var multi: ContMultiSelection?
+  private var selectionMenu: (@MainActor (Set<AnyHashable>) -> AnyView)?
+  @State private var clicks = ContRowClicks()
   private let searchText: Binding<String>?
   private let searchPrompt: String
   private let isSearching: Binding<Bool>?
@@ -141,6 +243,31 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     self.bottomBar = bottomBar()
   }
 
+  /// A sidebar whose rows select several values: ⌘-click adds or removes a row, ⇧-click (and ⇧↑↓) selects a range.
+  /// Act on them with `selectionContextMenu`.
+  ///
+  /// ```swift
+  /// KitSidebar(selection: $notes) { … }
+  ///   .selectionContextMenu { (notes: Set<Note.ID>) in
+  ///     Button("Delete \(notes.count) Notes", role: .destructive) { delete(notes) }
+  ///   }
+  /// ```
+  public init<Selection: Hashable & Sendable>(
+    selection: Binding<Set<Selection>>, searchText: Binding<String>? = nil, searchPrompt: String = "Search",
+    isSearching: Binding<Bool>? = nil, columnVisibility: Binding<NavigationSplitViewVisibility>? = nil,
+    @ViewBuilder content: () -> Content, @ViewBuilder bottomBar: () -> BottomBar
+  ) {
+    getSelection = { nil }
+    setSelection = { _ in }
+    multi = ContMultiSelection(selection)
+    self.searchText = searchText
+    self.searchPrompt = searchPrompt
+    self.isSearching = isSearching
+    self.columnVisibility = columnVisibility
+    self.content = content()
+    self.bottomBar = bottomBar()
+  }
+
   /// A sidebar whose rows select a value that is always set.
   @_disfavoredOverload
   public init<Selection: Hashable & Sendable>(
@@ -165,7 +292,10 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   }
 
   private func sidebar(_ proxy: ScrollViewProxy) -> some View {
-    let selection = getSelection()
+    let values = multi?.get()
+    let selection = values.map { clicks.lead(in: $0) } ?? getSelection()
+    let clicked = multi.map { clicks.clicked(in: $0) }
+    let select = multi.map { clicks.select(in: $0) } ?? setSelection
     let inset = ContMetrics.sidebarInset(idiom)
     let spacing = style == .plain ? 8 : ContMetrics.sectionSpacing(idiom)
     // The rows run on under the title bar and the bottom bar (both safe area), so the system's scroll edge
@@ -194,8 +324,9 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     .focused($focused)
     .modifier(
       ContRowKeyboard(
-        current: selection, select: setSelection, onReturn: returnAction, onPrimary: primary,
-        scroll: { value, anchor in proxy.scrollTo(ContRowScrollID(value: value), anchor: anchor) }))
+        current: selection, select: select, onReturn: returnAction, onPrimary: primary,
+        scroll: { value, anchor in proxy.scrollTo(ContRowScrollID(value: value), anchor: anchor) }, clicks: clicks,
+        extend: multi.map { clicks.extend(in: $0) }))
     // A click on a row focuses the sidebar, like a click into a `List`.
     .simultaneousGesture(TapGesture().onEnded { focused = true })
     // No system scroll edge under the title bar; the bottom bar as an inset.
@@ -265,12 +396,13 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     .environment(
       \.contSidebarSelection,
       ContSidebarSelection(
-        value: selection, select: setSelection, isFocused: focused || idiom.isTouch || appearsActive, namespace: namespace,
-        primaryAction: primary)
+        value: selection, select: select, isFocused: focused || idiom.isTouch || appearsActive, namespace: namespace,
+        primaryAction: primary, values: values, clicked: clicked, menu: selectionMenu)
     )
     .environment(\.contReorderState, reorder)
     // The selection card glides to the newly selected row, and settles or goes flat as focus comes and goes.
     .animation(.kit, value: selection)
+    .animation(.kit, value: values)
     .animation(.kit, value: focused)
   }
 
@@ -298,6 +430,20 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   public func status<Status: View>(@ViewBuilder _ content: () -> Status) -> Self {
     var sidebar = self
     sidebar.statusView = AnyView(content())
+    return sidebar
+  }
+
+  /// A right click's menu for the rows it acts on: the whole selection when the row is in it, else that row alone.
+  ///
+  /// ```swift
+  /// KitSidebar(selection: $notes) { … }
+  ///   .selectionContextMenu { (notes: Set<Note.ID>) in Button("Archive \(notes.count)") { archive(notes) } }
+  /// ```
+  public func selectionContextMenu<Value: Hashable, Menu: View>(
+    @ViewBuilder _ menu: @escaping @MainActor (Set<Value>) -> Menu
+  ) -> Self {
+    var sidebar = self
+    sidebar.selectionMenu = { values in AnyView(menu(values.contValues())) }
     return sidebar
   }
 
@@ -345,6 +491,17 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
 }
 
 extension KitSidebar where BottomBar == EmptyView {
+  /// A sidebar whose rows select several values, with no actions of its own in the bottom bar.
+  public init<Selection: Hashable & Sendable>(
+    selection: Binding<Set<Selection>>, searchText: Binding<String>? = nil, searchPrompt: String = "Search",
+    isSearching: Binding<Bool>? = nil, columnVisibility: Binding<NavigationSplitViewVisibility>? = nil,
+    @ViewBuilder content: () -> Content
+  ) {
+    self.init(
+      selection: selection, searchText: searchText, searchPrompt: searchPrompt, isSearching: isSearching,
+      columnVisibility: columnVisibility, content: content, bottomBar: { EmptyView() })
+  }
+
   /// A sidebar with no actions of its own in the bottom bar (the search button and the toggle still show).
   public init<Selection: Hashable & Sendable>(
     selection: Binding<Selection?>, searchText: Binding<String>? = nil, searchPrompt: String = "Search",
@@ -874,7 +1031,7 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
   /// In a section's copy in the sidebar's bottom dock (`.kitSticky(bottom: .content)`): its icon and trailing views
   /// as a small button, the title its label.
   private var copyBody: some View {
-    let isSelected = rowValue != nil && selection?.value == rowValue && idiom != .phone
+    let isSelected = selection?.contains(rowValue) == true && idiom != .phone
     let radius = ContMetrics.rowRadius(idiom, compact: true)
     return HStack(spacing: 3) {
       icon
@@ -909,7 +1066,7 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
   @ViewBuilder
   private var rowBody: some View {
     // A row is not left selected on iPhone (it pushes its screen).
-    let isSelected = rowValue != nil && selection?.value == rowValue && idiom != .phone
+    let isSelected = selection?.contains(rowValue) == true && idiom != .phone
     let isEmphasized = isSelected && (selection?.isFocused ?? false) && isActive
     let isRenaming = rename?.isRenaming.wrappedValue ?? false
     let disclosure = disclosure
@@ -1011,6 +1168,8 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
       }
     }
     .modifier(ContDisclosureAccessibility(disclosure: disclosure))
+    .modifier(ContRowSelectionMenu(row: rowValue, selection: selection))
+    .modifier(ContRowModifiedTaps(row: rowValue, clicked: isRenaming ? nil : selection?.clicked))
     // What the arrow keys scroll to as they move the selection.
     .id(ContRowScrollID(value: rowValue))
   }
@@ -1035,7 +1194,7 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
             shape.fill(KitColor.raised).opacity(0.6)
           }
         }
-        .modifier(ContSelectionGlide(namespace: selection?.namespace))
+        .modifier(ContSelectionGlide(namespace: selection?.glideNamespace))
       }
     }
   }
@@ -1072,6 +1231,47 @@ private struct ContRowTap: ViewModifier {
       content
     }
   }
+}
+
+/// ⌘-, ⇧- and ⇧⌘-clicks on a row of a container that selects several. Each gesture reads its own event's modifiers
+/// and takes the click from the plain tap; SwiftUI runs a tap's action after the event, with no `NSApp.currentEvent`.
+private struct ContRowModifiedTaps: ViewModifier {
+  let row: AnyHashable?
+  let clicked: (@MainActor (AnyHashable, EventModifiers) -> Void)?
+
+  func body(content: Content) -> some View {
+    #if os(macOS) || os(iOS)
+      if let row, let clicked {
+        content
+          .highPriorityGesture(TapGesture().modifiers([.command, .shift]).onEnded { clicked(row, [.command, .shift]) })
+          .highPriorityGesture(TapGesture().modifiers(.command).onEnded { clicked(row, .command) })
+          .highPriorityGesture(TapGesture().modifiers(.shift).onEnded { clicked(row, .shift) })
+      } else {
+        content
+      }
+    #else
+      content
+    #endif
+  }
+}
+
+/// A row's part of the container's `selectionContextMenu`.
+private struct ContRowSelectionMenu: ViewModifier {
+  let row: AnyHashable?
+  let selection: ContSidebarSelection?
+
+  func body(content: Content) -> some View {
+    if let row, let selection, let menu = selection.menu {
+      content.kitContextMenu { menu(selection.targets(of: row)) }
+    } else {
+      content
+    }
+  }
+}
+
+extension Set where Element == AnyHashable {
+  /// The selection as the type a container's rows use.
+  func contValues<Value: Hashable>() -> Set<Value> { Set<Value>(compactMap { $0.base as? Value }) }
 }
 
 /// Ties the selection card to the sidebar's namespace, so the one card moves between rows instead of blinking.

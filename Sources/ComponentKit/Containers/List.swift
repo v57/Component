@@ -36,6 +36,9 @@ import SwiftUI
 public struct KitList<Content: View>: View {
   private let getSelection: () -> AnyHashable?
   private let setSelection: @MainActor (AnyHashable) -> Void
+  private var multi: ContMultiSelection?
+  private var selectionMenu: (@MainActor (Set<AnyHashable>) -> AnyView)?
+  @State private var clicks = ContRowClicks()
   private let content: Content
   private var returnAction: (@MainActor () -> Void)?
   private var primary: (@MainActor (AnyHashable) -> Void)?
@@ -52,6 +55,24 @@ public struct KitList<Content: View>: View {
     setSelection = { value in
       if let value = value.base as? Selection { selection.wrappedValue = value }
     }
+    self.content = content()
+  }
+
+  /// A list whose rows select several values: ⌘-click adds or removes a row, ⇧-click (and ⇧↑↓) selects a range. Act on
+  /// them with `selectionContextMenu`.
+  ///
+  /// ```swift
+  /// KitList(selection: $notes) { … }
+  ///   .selectionContextMenu { (notes: Set<Note.ID>) in
+  ///     Button("Delete \(notes.count) Notes", role: .destructive) { delete(notes) }
+  ///   }
+  /// ```
+  public init<Selection: Hashable & Sendable>(
+    selection: Binding<Set<Selection>>, @ViewBuilder content: () -> Content
+  ) {
+    getSelection = { nil }
+    setSelection = { _ in }
+    multi = ContMultiSelection(selection)
     self.content = content()
   }
 
@@ -86,12 +107,29 @@ public struct KitList<Content: View>: View {
     return list
   }
 
+  /// A right click's menu for the rows it acts on: the whole selection when the row is in it, else that row alone.
+  ///
+  /// ```swift
+  /// KitList(selection: $notes) { … }
+  ///   .selectionContextMenu { (notes: Set<Note.ID>) in Button("Archive \(notes.count)") { archive(notes) } }
+  /// ```
+  public func selectionContextMenu<Value: Hashable, Menu: View>(
+    @ViewBuilder _ menu: @escaping @MainActor (Set<Value>) -> Menu
+  ) -> Self {
+    var list = self
+    list.selectionMenu = { values in AnyView(menu(values.contValues())) }
+    return list
+  }
+
   public var body: some View {
     ScrollViewReader { proxy in list(proxy) }
   }
 
   private func list(_ proxy: ScrollViewProxy) -> some View {
-    let selection = getSelection()
+    let values = multi?.get()
+    let selection = values.map { clicks.lead(in: $0) } ?? getSelection()
+    let clicked = multi.map { clicks.clicked(in: $0) }
+    let select = multi.map { clicks.select(in: $0) } ?? setSelection
     let inset = ContMetrics.sidebarInset(idiom)
     return List {
       Group { content }
@@ -110,16 +148,18 @@ public struct KitList<Content: View>: View {
     .focused($focused)
     .modifier(
       ContRowKeyboard(
-        current: selection, select: setSelection, onReturn: returnAction, onPrimary: primary,
-        scroll: { value, anchor in proxy.scrollTo(ContRowScrollID(value: value), anchor: anchor) }))
+        current: selection, select: select, onReturn: returnAction, onPrimary: primary,
+        scroll: { value, anchor in proxy.scrollTo(ContRowScrollID(value: value), anchor: anchor) }, clicks: clicks,
+        extend: multi.map { clicks.extend(in: $0) }))
     .modifier(ContListTapFocus(focused: $focused, selection: selection))
     .environment(
       \.contSidebarSelection,
       ContSidebarSelection(
-        value: selection, select: setSelection, isFocused: focused || idiom.isTouch || appearsActive, namespace: namespace,
-        primaryAction: primary)
+        value: selection, select: select, isFocused: focused || idiom.isTouch || appearsActive, namespace: namespace,
+        primaryAction: primary, values: values, clicked: clicked, menu: selectionMenu)
     )
     .animation(.kit, value: selection)
+    .animation(.kit, value: values)
     .animation(.kit, value: focused)
   }
 }

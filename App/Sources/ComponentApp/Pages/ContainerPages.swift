@@ -178,6 +178,9 @@ struct SectionsPage: View {
 
 struct SidebarPage: View {
   @State private var selection: String? = "History"
+  @State private var pickedNotes: Set<Int> = [1, 2]
+  @State private var archived: Int?
+  @State private var pickedFiles: Set<String> = ["Trip.swift"]
   @State private var search = ""
   @State private var repos = sampleRepos
   @State private var renaming: String?
@@ -342,6 +345,44 @@ struct SidebarPage: View {
             .kitSectionStyle(.plain)        // or .kitRowDensity(.compact) with card sections
             // ↑↓ move, ← closes or goes to the parent, → opens or goes to the first child
             """)
+        }
+      }
+      SpecimenSection(
+        "Selecting several rows",
+        note: "KitSidebar and KitList take a Set: ⌘-click adds or removes a row, ⇧-click and ⇧↑↓ select a range. selectionContextMenu acts on the whole selection, or on the row alone when it isn't selected."
+      ) {
+        Columns {
+          WindowFrame(height: 300) {
+            KitList(selection: $pickedNotes) {
+              ForEach(0..<6, id: \.self) { index in
+                SidebarRow(value: index, sampleNotes[index % sampleNotes.count].0, systemImage: "doc.text")
+              }
+            }
+            .selectionContextMenu { (picked: Set<Int>) in
+              Button("Archive \(picked.count) Notes", systemImage: "archivebox") { archived = picked.count }
+              Button("Delete \(picked.count) Notes", systemImage: "trash", role: .destructive) { pickedNotes = [] }
+            }
+            .kitPane(.secondary)
+          }
+          .frame(width: 300)
+          WindowFrame(height: 300) {
+            KitSidebar(selection: $pickedFiles) {
+              KitSection("Sources", meta: "\(pickedFiles.count) selected", systemImage: "folder") {
+                ForEach(["App.swift", "Trip.swift", "Stop.swift", "Map.swift"], id: \.self) { file in
+                  SidebarRow(value: file, file, systemImage: "swift")
+                }
+              }
+            }
+            .selectionContextMenu { (picked: Set<String>) in
+              Button("Duplicate \(picked.count) Files", systemImage: "plus.square.on.square") {}
+            }
+          }
+          .frame(width: 260)
+          VStack(alignment: .leading, spacing: 4) {
+            Text("\(pickedNotes.count) selected").kitFont(.headline)
+            Text(archived.map { "Archived \($0)" } ?? "Right click a row").kitFont(.caption)
+          }
+          .accessibilityIdentifier("picked-notes")
         }
       }
       SpecimenSection(
