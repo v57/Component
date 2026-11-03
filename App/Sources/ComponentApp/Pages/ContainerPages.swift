@@ -665,6 +665,7 @@ let sampleTree = [
 // MARK: - Toolbar
 
 struct ToolbarPage: View {
+  @State private var navPlace = 1
   @Environment(\.kitIdiom) private var idiom
   @State private var barSearch = ""
   @State private var width: CGFloat = 640
@@ -750,6 +751,38 @@ struct ToolbarPage: View {
                 .background(Hue.accent.soft(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
           }
+        }
+      }
+      SpecimenSection(
+        "Navigation before the title",
+        note: "kitToolbar(_:navigation:title:tools:): back and forward, or tools that act on what the title names, before the title at the bar's spacing. They never fold."
+      ) {
+        Specimen(
+          "navigation:",
+          code: """
+            EditorView()
+              .kitToolbar(file.name) {
+                ToolGroup(iconOnly: true) {
+                  Button("Back", systemImage: "chevron.left") { goBack() }.disabled(!canGoBack)
+                  Button("Forward", systemImage: "chevron.right") { goForward() }.disabled(!canGoForward)
+                }
+              } title: {
+                KitTitle(file.name, meta: [file.folder], systemImage: "swift")
+              } tools: { … }
+            """
+        ) {
+          KitToolbar {
+            ToolGroup(iconOnly: true) {
+              Button("Back", systemImage: "chevron.left") { navPlace -= 1 }.disabled(navPlace == 0)
+              Button("Forward", systemImage: "chevron.right") { navPlace += 1 }.disabled(navPlace == 2)
+            }
+          } title: {
+            KitTitle(["App.swift", "Trip.swift", "Map.swift"][navPlace], meta: ["Sources"], systemImage: "swift", hue: .orange)
+          } tools: {
+            ToolGroup { Button("Inspector", systemImage: "sidebar.right") {} }
+          }
+          .frame(width: 560)
+          .kitSurface(.card, cornerRadius: KitMetrics.radiusCard)
         }
       }
       SpecimenSection(

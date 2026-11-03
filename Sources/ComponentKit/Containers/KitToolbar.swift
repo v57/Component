@@ -82,6 +82,7 @@ extension EnvironmentValues {
 public struct KitToolbar<Title: View>: View {
   let title: Title
   let slots: [ToolbarSlot]
+  var navigation: AnyView?
   /// How far from the window's leading edge the bar starts.
   @State private var windowMinX = CGFloat.infinity
   @Environment(\.kitIdiom) private var idiom
@@ -104,6 +105,28 @@ public struct KitToolbar<Title: View>: View {
   public init(@ViewBuilder title: () -> Title, @ToolbarSlotBuilder tools: () -> [ToolbarSlot]) {
     self.title = title()
     self.slots = tools()
+  }
+
+  /// A toolbar with `navigation` before the title, at the bar's spacing: back and forward, or tools that act on what
+  /// the title names. It never folds; the title truncates first.
+  ///
+  /// ```swift
+  /// KitToolbar {
+  ///   ToolGroup(iconOnly: true) {
+  ///     Button("Back", systemImage: "chevron.left") { goBack() }.disabled(!canGoBack)
+  ///     Button("Forward", systemImage: "chevron.right") { goForward() }.disabled(!canGoForward)
+  ///   }
+  /// } title: {
+  ///   KitTitle("TripStore.swift", systemImage: "swift")
+  /// } tools: { … }
+  /// ```
+  public init<Navigation: View>(
+    @ViewBuilder navigation: () -> Navigation, @ViewBuilder title: () -> Title,
+    @ToolbarSlotBuilder tools: () -> [ToolbarSlot]
+  ) {
+    self.title = title()
+    self.slots = tools()
+    self.navigation = AnyView(navigation())
   }
 
   public var body: some View {
@@ -130,6 +153,7 @@ public struct KitToolbar<Title: View>: View {
           ContShowSidebarButton(action: showSidebar, isVisible: true)
             .transition(.opacity)
         }
+        navigation
       }
       title
         .lineLimit(1)
@@ -240,6 +264,27 @@ extension View {
     @ToolbarSlotBuilder tools: () -> [ToolbarSlot]
   ) -> some View {
     kitToolbar(title, title: { KitTitle(title, meta: meta, systemImage: systemImage, hue: hue, status: status) }, tools: tools)
+  }
+
+  /// The kit's toolbar with `navigation` before the title, at the bar's spacing: back and forward, or tools that act
+  /// on what the title names.
+  ///
+  /// ```swift
+  /// EditorView()
+  ///   .kitToolbar(file.name) {
+  ///     ToolGroup(iconOnly: true) {
+  ///       Button("Back", systemImage: "chevron.left") { goBack() }.disabled(!canGoBack)
+  ///       Button("Forward", systemImage: "chevron.right") { goForward() }.disabled(!canGoForward)
+  ///     }
+  ///   } title: {
+  ///     KitTitle(file.name, meta: [file.folder], systemImage: "swift")
+  ///   } tools: { … }
+  /// ```
+  public func kitToolbar<Navigation: View, Title: View>(
+    _ windowTitle: String, @ViewBuilder navigation: () -> Navigation, @ViewBuilder title: () -> Title,
+    @ToolbarSlotBuilder tools: () -> [ToolbarSlot]
+  ) -> some View {
+    modifier(ContKitToolbar(windowTitle: windowTitle, bar: KitToolbar(navigation: navigation, title: title, tools: tools)))
   }
 
   /// The kit's toolbar only while `isPresented`: a column whose pages bring their own toolbar for some content (a
