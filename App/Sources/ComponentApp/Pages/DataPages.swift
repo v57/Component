@@ -855,6 +855,35 @@ struct SettingsPage: View {
           }
           """)
       }
+      SpecimenSection("Security and Privacy panes", note: "What every app's two panes repeat. Every claim comes from the app's real network calls, and a comparison names apps only from their own documentation.") {
+        VStack(alignment: .leading, spacing: 18) {
+          KitPrivacyParties("Atlas", footer: "Links you click open in your browser.") {
+            KitPrivacyParty(
+              "Your servers", systemImage: "server.rack", hue: .blue, when: "When you sync.",
+              why: "They see your IP address and your sign-in, and receive what you send.")
+            KitPrivacyParty(
+              "Apple", systemImage: "icloud", hue: .gray, when: "While iCloud is on.",
+              why: "It keeps your list in your private iCloud, encrypted on this device first.")
+          }
+          KitSecurityComparison("Atlas", footer: "From each app’s documentation, November 2026.") {
+            KitComparisonRow(
+              "Your key", systemImage: "key", here: "Made in the Secure Enclave, which nothing can copy it out of.",
+              others: [("Other App", "A private key file you point it to.")])
+          }
+        }
+        .frame(maxWidth: 520)
+        CodeSnippet(
+          """
+          KitPrivacyParties("Git") {
+            KitPrivacyParty("Your Git servers", systemImage: "server.rack", hue: .blue,
+              when: "When you clone, fetch, pull or push.",
+              why: "They see your IP address and your sign-in, and receive what you push.")
+          }
+          KitSecurityComparison("Git", footer: "From each app’s documentation, November 2026.") {
+            KitComparisonRow("Your SSH key", systemImage: "key", here: "…", others: [("Tower", "…")])
+          }
+          """)
+      }
       SpecimenSection("In a Settings scene", note: "Say what the window looks like; the kit lays the sidebar and the title row out for it.") {
         VStack(alignment: .leading, spacing: 12) {
           VStack(alignment: .leading, spacing: 6) {
