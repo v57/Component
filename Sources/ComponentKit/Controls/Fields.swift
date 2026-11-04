@@ -73,6 +73,68 @@ extension View {
   }
 }
 
+/// A field for text with paragraphs: Return starts a new line, and the field grows with the text between `lines`, then
+/// scrolls. Use it for a description, release notes, a script; a value that only wraps (a public key) or a one-line
+/// message that submits stays a `TextField(axis: .vertical)`.
+///
+/// It exists for the Mac, where Return in a vertical `TextField` ends editing and selects the whole text, so the next
+/// key replaces it. A `.defaultAction` button also fires on Return while this field has the focus, so the button of a
+/// sheet with one takes Command-Return: `.keyboardShortcut(.return, modifiers: .command)`.
+///
+/// `prompt` is also its accessibility label, unless it has its own. Put it on the kit with `.kitField()` or a `FormRow`'s
+/// `field:`. On Apple TV, which has no text views, it is a plain `TextField`. It is for prose: the Mac's smart quotes and
+/// dashes stay on, even with `.autocorrectionDisabled()`, so code and commands go in a `KitLineEditor`. Its binding reads
+/// the current value (`@State`, a store), not a copy the body took: the text view reads it back between keys, and a stale
+/// value drops them.
+///
+/// ```swift
+/// KitMultilineField("What changed", text: $notes, lines: 6...14).kitField()
+/// FormRow("Description", systemImage: "text.alignleft", field: KitMultilineField("Description", text: $details))
+/// ```
+public struct KitMultilineField: View {
+  let prompt: String
+  @Binding var text: String
+  let lines: ClosedRange<Int>
+
+  public init(_ prompt: String, text: Binding<String>, lines: ClosedRange<Int> = 3...14) {
+    self.prompt = prompt
+    self._text = text
+    self.lines = lines
+  }
+
+  public var body: some View {
+    #if os(tvOS)
+      TextField(prompt, text: $text)
+    #else
+      // The text view takes the height of this hidden text; the space keeps a last empty line's height.
+      Text(text + " ")
+        .lineLimit(lines)
+        .opacity(0)
+        .accessibilityHidden(true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay {
+          TextEditor(text: $text)
+            .scrollContentBackground(.hidden)
+            .accessibilityLabel(prompt)
+            // The text view's own margins, so the text sits where the sizing text and the prompt do.
+            #if os(iOS) || os(visionOS)
+              .padding(EdgeInsets(top: -8, leading: -5, bottom: -8, trailing: -5))
+            #elseif os(macOS)
+              .padding(.horizontal, -5)
+            #endif
+        }
+        .overlay(alignment: .topLeading) {
+          if text.isEmpty {
+            Text(prompt)
+              .foregroundStyle(.kitTertiary)
+              .allowsHitTesting(false)
+              .accessibilityHidden(true)
+          }
+        }
+    #endif
+  }
+}
+
 struct CtlFieldModifier<Trailing: View>: ViewModifier {
   let status: FieldStatus
   let mono: Bool
@@ -152,6 +214,7 @@ enum CtlFieldMetrics {
     TextField("Repository URL", text: $url).kitField(status: .checking)
     TextField("Host", text: $wrong).kitField(status: .error).kitFieldError("Not a Git URL")
     TextField("Location", text: $empty).kitField().disabled(true)
+    KitMultilineField("What changed", text: $empty).kitField()
   }
   .padding(20)
   .frame(width: 320)

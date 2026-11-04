@@ -758,6 +758,9 @@ struct FieldsPage: View {
   @State private var port = "5432"
   @State private var long = "~/Developer/v57/Component/Sources/ComponentKit/Containers/SidebarReorder.swift"
   @State private var checking = false
+  @State private var notes = "Sync is now instant.\n\nThe sidebar remembers its width, and Return starts a new line in this field."
+  @State private var markdown = "- **Sync**: now instant.\n- **Sidebar**: keeps its width."
+  @State private var key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMfQ7c1vYtXqk3pG0m2n8LwZr5hJd9uKs4bEoTa6yWxC v57@laptop"
 
   var body: some View {
     CatalogPage(page: .fields) {
@@ -791,6 +794,39 @@ struct FieldsPage: View {
           }
           Specimen("Long value", code: "// one line, scrolls while editing") {
             TextField("Path", text: $long).kitField(mono: true)
+          }
+        }
+      }
+      SpecimenSection(
+        "Paragraphs",
+        note: "Return starts a new line; the field grows with the text between its lines, then scrolls. In a sheet, its primary button takes Command-Return. Code and commands go in a KitLineEditor, without smart quotes."
+      ) {
+        SpecimenGrid(minWidth: 380) {
+          Specimen("Empty", code: "KitMultilineField(\"What changed\", text: $notes).kitField()") {
+            KitMultilineField("What changed", text: $empty).kitField()
+          }
+          Specimen("Filled", code: "KitMultilineField(\"What changed\", text: $notes, lines: 3...8).kitField()") {
+            KitMultilineField("What changed", text: $notes, lines: 3...8).kitField()
+          }
+          Specimen(
+            "Mono, for Markdown",
+            code: "KitMultilineField(\"Release notes\", text: $notes, lines: 2...8).kitField(mono: true)"
+          ) {
+            KitMultilineField("Release notes", text: $markdown, lines: 2...8).kitField(mono: true)
+          }
+          Specimen(
+            "In a form",
+            code: "FormRow(\"Description\", systemImage: \"text.alignleft\",\n        field: KitMultilineField(\"Description\", text: $notes))"
+          ) {
+            FormCard {
+              FormRow("Description", systemImage: "text.alignleft", field: KitMultilineField("Description", text: $notes))
+            }
+          }
+          Specimen(
+            "One value that wraps: not this field",
+            code: "TextField(\"Public key\", text: $key, axis: .vertical).lineLimit(3...6).kitField(mono: true)"
+          ) {
+            TextField("Public key", text: $key, axis: .vertical).lineLimit(3...6).kitField(mono: true)
           }
         }
       }

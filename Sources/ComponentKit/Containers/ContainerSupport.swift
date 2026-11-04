@@ -359,8 +359,8 @@ struct ContFilledField<Field: View>: View {
           .transition(.opacity)
       }
     }
-    .padding(EdgeInsets(top: 0, leading: 10, bottom: 0, trailing: status != .idle ? (height - icon) / 2 : 10))
-    .frame(height: height)
+    .padding(EdgeInsets(top: 6, leading: 10, bottom: 6, trailing: status != .idle ? (height - icon) / 2 : 10))
+    .frame(minHeight: height)
     .background {
       shape.fill(isFocused ? AnyShapeStyle(KitColor.control) : AnyShapeStyle(.kitField))
     }

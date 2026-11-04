@@ -8,7 +8,8 @@ import SwiftUI
 /// A sheet's content: the still rich header (an icon tile, the title, one line of meta that wraps), the body's cards
 /// 8pt in from the edges, and the footer as a card bar. Buttons in the footer are filled and borderless; give the
 /// primary one `.buttonStyle(.kitPrimary)` and `.keyboardShortcut(.defaultAction)` (Return), Cancel
-/// `.keyboardShortcut(.cancelAction)` (Escape). Lead the footer with a `SheetStatus` to show the sheet's own state
+/// `.keyboardShortcut(.cancelAction)` (Escape). A sheet with a `KitMultilineField` takes Command-Return for its primary
+/// button, as Return starts a new line there and `.defaultAction` would fire too. Lead the footer with a `SheetStatus` to show the sheet's own state
 /// (the arc while input is checked, red when wrong, a check when ready); the bar then spans the sheet. Without one it
 /// is as wide as its buttons, at the trailing side: no `Spacer()` before them, which would stretch it again.
 ///
