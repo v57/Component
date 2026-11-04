@@ -368,7 +368,7 @@ struct ContToolLabelStyle: LabelStyle {
 
   func makeBody(configuration: Configuration) -> some View {
     if iconOnly {
-      configuration.icon
+      configuration.iconAlone
     } else {
       HStack(spacing: 6) {
         configuration.icon

@@ -252,7 +252,7 @@ private struct ContBarLabelStyle: LabelStyle {
 
   func makeBody(configuration: Configuration) -> some View {
     if iconOnly {
-      configuration.icon
+      configuration.iconAlone
     } else {
       HStack(spacing: 5) {
         configuration.icon.imageScale(.small)

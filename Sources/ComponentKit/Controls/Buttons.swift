@@ -147,6 +147,14 @@ struct KitButton: View {
   }
 }
 
+extension LabelStyleConfiguration {
+  /// The icon alone, with the title still the button's name for accessibility, as SwiftUI's own icon-only style does.
+  /// A label style that returns just `icon` leaves the button nameless: its help then reads as its name.
+  var iconAlone: some View {
+    Label { title } icon: { icon }.labelStyle(.iconOnly)
+  }
+}
+
 /// Icon and title 6pt apart; an icon-only button shows just the icon (the title stays for accessibility).
 struct KitButtonLabelStyle: LabelStyle {
   var iconOnly: Bool
@@ -154,7 +162,7 @@ struct KitButtonLabelStyle: LabelStyle {
 
   func makeBody(configuration: Configuration) -> some View {
     if iconOnly {
-      configuration.icon
+      configuration.iconAlone
     } else {
       HStack(spacing: spacing) {
         configuration.icon.imageScale(.small)
