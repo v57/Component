@@ -150,7 +150,7 @@ struct KitButton: View {
 extension LabelStyleConfiguration {
   /// The icon alone, with the title still the button's name for accessibility, as SwiftUI's own icon-only style does.
   /// A label style that returns just `icon` leaves the button nameless: its help then reads as its name.
-  var iconAlone: some View {
+  @MainActor var iconAlone: some View {
     Label { title } icon: { icon }.labelStyle(.iconOnly)
   }
 }

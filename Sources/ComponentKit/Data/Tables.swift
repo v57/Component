@@ -935,12 +935,18 @@ private struct GridRowDropDelegate: DropDelegate {
 
 /// Loads a dropped item's `Transferable`.
 enum KitGridDropLoader {
+  /// Hands the item from the provider's callback to the one caller waiting for it: v57/SwiftUI's `Transferable` isn't `Sendable`.
+  private struct Loaded<Item>: @unchecked Sendable {
+    let item: Item?
+  }
+
   @MainActor static func load<Item: Transferable>(_ type: Item.Type, from provider: NSItemProvider) async -> Item? {
-    await withCheckedContinuation { continuation in
+    let loaded = await withCheckedContinuation { (continuation: CheckedContinuation<Loaded<Item>, Never>) in
       _ = provider.loadTransferable(type: Item.self) { result in
-        continuation.resume(returning: try? result.get())
+        continuation.resume(returning: Loaded(item: try? result.get()))
       }
     }
+    return loaded.item
   }
 }
 
