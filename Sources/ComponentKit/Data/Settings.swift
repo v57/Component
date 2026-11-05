@@ -66,10 +66,19 @@ public struct KitSettings<Content: View>: View {
   public var body: some View {
     Group {
       if idiom == .phone {
-        // The panes list themselves from `content`, so it stays in the hierarchy, out of sight, under the list.
+        // The panes list themselves from `content`, so it stays in the hierarchy, out of sight, under the list, with
+        // no pane selected: the pushed copy is the one that shows it, and runs its tasks.
         phoneList
-          .background { ZStack { content }.hidden().accessibilityHidden(true) }
-          .modifier(SettingsPush(isPresented: $showsPane) { phonePane })
+          .background {
+            ZStack { content }
+              .environment(\.dataSettingsSelection, "")
+              .hidden()
+              .accessibilityHidden(true)
+          }
+          .modifier(
+            SettingsPush(isPresented: $showsPane) {
+              SettingsPhonePane(box: SettingsPhonePaneBox(pane: current, content: AnyView(content)))
+            })
       } else if isUnderTitleBar {
         // The reader stays in the safe area, so it sees the title bar's height; the columns run up under it.
         GeometryReader { proxy in
@@ -168,19 +177,6 @@ public struct KitSettings<Content: View>: View {
     .background(.kitWindow)
   }
 
-  /// The selected pane, pushed: its form under the kit's toolbar.
-  private var phonePane: some View {
-    ZStack(alignment: .topLeading) { content }
-      .environment(\.dataSettingsSelection, current?.id ?? "")
-      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-      .background(.kitWindow)
-      .kitPane(.content)
-      .kitToolbar(
-        current?.title ?? "", meta: ["Settings"], systemImage: current?.systemImage ?? "gearshape",
-        hue: current?.hue ?? .gray
-      ) {}
-  }
-
   // MARK: Detail
 
   /// The pane under its title. Under a title bar the title is centred on the window's buttons (a Settings window's
@@ -247,6 +243,39 @@ struct SettingsPaneInfo: Identifiable, Hashable {
   var hue: Hue
   var section: String
   var value: String?
+}
+
+/// What `SettingsPhonePane` shows, behind one reference on purpose: a new box per `KitSettings` body, so the pushed
+/// value changes only when the settings do. With the pane built right in the destination, or held in a struct, the
+/// stack rebuilt the pushed pane over and over while AttributeGraph's low-priority layouts for that value were
+/// pending, each rebuild's preferences asking for the next render. Under heavy CPU load that held the main thread
+/// for 6-32 s (a struct of the pane and an `AnyView` was enough in Debug, not in Release); with the box, 0.1-0.3 s.
+private final class SettingsPhonePaneBox {
+  let pane: SettingsPaneInfo?
+  let content: AnyView
+
+  init(pane: SettingsPaneInfo?, content: AnyView) {
+    self.pane = pane
+    self.content = content
+  }
+}
+
+/// The selected pane on iPhone, pushed: its form under the kit's toolbar.
+private struct SettingsPhonePane: View {
+  let box: SettingsPhonePaneBox
+
+  var body: some View {
+    let pane = box.pane
+    ZStack(alignment: .topLeading) { box.content }
+      .environment(\.dataSettingsSelection, pane?.id ?? "")
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      .background(.kitWindow)
+      .kitPane(.content)
+      .kitToolbar(
+        pane?.title ?? "", meta: ["Settings"], systemImage: pane?.systemImage ?? "gearshape",
+        hue: pane?.hue ?? .gray
+      ) {}
+  }
 }
 
 /// Pushes the pane on iPhone, on the navigation stack around the settings.
