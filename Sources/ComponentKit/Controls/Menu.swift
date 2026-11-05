@@ -121,9 +121,63 @@ extension View {
   public func kitMenuHighlighted(_ isHighlighted: Bool = true) -> some View {
     environment(\.kitMenuForcedHighlight, isHighlighted)
   }
+
+  /// A second line under a menu row's title, in small type: what the row works on, in a few words.
+  ///
+  /// ```swift
+  /// Button("Filter", systemImage: "line.3.horizontal.decrease") { add(.filter) }
+  ///   .kitMenuDetail("Keep only matching documents")
+  /// ```
+  public func kitMenuDetail(_ detail: String?) -> some View {
+    environment(\.kitMenuDetail, detail)
+  }
+
+  /// What picking this row will do, in a sentence, for the panel at the menu's end: shown while the row is
+  /// highlighted, its space kept so the rows don't move. On the Mac only (touch has no pointer to highlight with: say
+  /// it in the confirmation). A destructive row's sentence is red; `KitMenuPreview` says what the menu is about while
+  /// no row is highlighted.
+  ///
+  /// ```swift
+  /// Button("Pull", systemImage: "arrow.down") { pull() }
+  ///   .kitMenuHint("3 commits")
+  ///   .kitMenuPreview("Brings 3 commits from origin into main. Your 2 commits stay.")
+  /// ```
+  public func kitMenuPreview(_ text: String?) -> some View {
+    environment(\.kitMenuPreview, text.map { KitMenuPreviewItem(text: $0) })
+  }
+
+  /// The row's sentence with a small picture above it (what happens to a branch).
+  public func kitMenuPreview<Picture: View>(_ text: String, @ViewBuilder picture: () -> Picture) -> some View {
+    environment(\.kitMenuPreview, KitMenuPreviewItem(text: text, picture: AnyView(picture())))
+  }
+
+  /// The words a menu's `KitMenuFilter` matches this row by, and what kind of thing it is, said at the row's end
+  /// while filtering ("Tool", "Library"). Rows without one (commands: Refresh) stay while filtering.
+  ///
+  /// ```swift
+  /// ForEach(tools) { tool in Button(tool.name) { pick(tool) }.kitMenuFilter(tool.name, kind: "Tool") }
+  /// ```
+  public func kitMenuFilter(_ text: String, kind: String? = nil) -> some View {
+    environment(\.kitMenuFilter, KitMenuFilterText(text: text, kind: kind))
+  }
+}
+
+/// A row's sentence for the menu's preview panel.
+struct KitMenuPreviewItem {
+  var text: String
+  var picture: AnyView? = nil
+  var isDanger = false
+}
+
+struct KitMenuFilterText: Equatable {
+  var text: String
+  var kind: String?
 }
 
 extension EnvironmentValues {
+  @Entry var kitMenuDetail: String? = nil
+  @Entry var kitMenuPreview: KitMenuPreviewItem? = nil
+  @Entry var kitMenuFilter: KitMenuFilterText? = nil
   @Entry var kitMenuHint: String? = nil
   @Entry var kitMenuForcedHighlight: Bool = false
   @Entry var kitMenuModel: KitMenuModel? = nil
@@ -177,9 +231,14 @@ struct KitMenuCard<Content: View>: View {
 
   var body: some View {
     let metrics = KitMenuMetrics(idiom)
-    let rows = VStack(alignment: .leading, spacing: metrics.rowGap) { content }
+    // The preview panel takes the rows' width (its sentences wrap), never sets it.
+    let hasPanel = !idiom.isTouch && model.hasPreviews
+    let width = max(minWidth ?? 0, hasPanel ? metrics.panelMinWidth : metrics.minWidth) - 2 * metrics.cardPadding
+    let rows = KitMenuPanelLayout(minWidth: width, spacing: 6) {
+      VStack(alignment: .leading, spacing: metrics.rowGap) { content }
+      if hasPanel { KitMenuPreviewPanel(model: model) }
+    }
       .padding(metrics.cardPadding)
-      .frame(minWidth: max(minWidth ?? 0, metrics.minWidth), alignment: .leading)
       .fixedSize()
       .onGeometryChange(for: CGSize.self) { $0.size } action: { rowsSize = $0 }
     // Taller than its window (a long list of branches), it scrolls; the rows still measure themselves in the menu's
@@ -245,18 +304,31 @@ struct KitMenuMetrics {
   var icon: CGFloat
   var iconGap: CGFloat
   var minWidth: CGFloat
+  /// A second line's type (`kitMenuDetail`), a section header's, the end column (a check, a chevron).
+  var detailFont: CGFloat
+  var headerFont: CGFloat
+  var end: CGFloat
+  /// A menu with a preview panel is at least this wide, so its sentences wrap to a few lines.
+  var panelMinWidth: CGFloat
+  /// A row with a second line, an app's icon in a row (Open With), a device tile's width.
+  var detailRowHeight: CGFloat
+  var appIcon: CGFloat
+  var tileWidth: CGFloat
 
   init(_ idiom: KitIdiom) {
     switch idiom {
     case .mac:
-      (rowHeight, rowRadius, rowGap, rowPadding, cardPadding, cardRadius) = (26, 6, 1, 8, 5, KitMetrics.radiusLarge)
+      (rowHeight, rowRadius, rowGap, rowPadding, cardPadding, cardRadius) = (28, 8, 1, 8, 6, 14)
       (font, hintFont, icon, iconGap, minWidth) = (13, 12, 16, 8, 160)
+      (detailFont, headerFont, end, panelMinWidth, detailRowHeight, appIcon, tileWidth) = (11, 11, 14, 268, 40, 24, 94)
     case .tv:
-      (rowHeight, rowRadius, rowGap, rowPadding, cardPadding, cardRadius) = (52, 12, 2, 16, 10, KitMetrics.radiusLarge)
+      (rowHeight, rowRadius, rowGap, rowPadding, cardPadding, cardRadius) = (56, 16, 2, 16, 12, 28)
       (font, hintFont, icon, iconGap, minWidth) = (26, 24, 32, 16, 320)
+      (detailFont, headerFont, end, panelMinWidth, detailRowHeight, appIcon, tileWidth) = (22, 22, 28, 536, 80, 48, 188)
     case .pad, .phone:
-      (rowHeight, rowRadius, rowGap, rowPadding, cardPadding, cardRadius) = (44, 14, 2, 12, 6, KitMetrics.radiusOverlay)
-      (font, hintFont, icon, iconGap, minWidth) = (idiom == .pad ? 15 : 17, 13, 20, 12, 250)
+      (rowHeight, rowRadius, rowGap, rowPadding, cardPadding, cardRadius) = (44, 14, 2, 12, 8, 22)
+      (font, hintFont, icon, iconGap, minWidth) = (idiom == .pad ? 15 : 17, 15, 20, 12, 250)
+      (detailFont, headerFont, end, panelMinWidth, detailRowHeight, appIcon, tileWidth) = (13, 13, 18, 300, 56, 32, 92)
     }
   }
 }
@@ -279,6 +351,63 @@ final class KitMenuModel {
     /// The hint at the row's end: a one-character hint (a number) is also the key that picks it.
     var hint: String?
     var trigger: () -> Void = {}
+    /// What picking it will do, for the preview panel.
+    var preview: KitMenuPreviewItem?
+    /// The row matches the filter by these words.
+    var filter: KitMenuFilterText?
+    /// ← and → move inside the row (the Open With row's apps, a grid's tiles) instead of opening a submenu.
+    var step: ((Int) -> Void)?
+  }
+
+  /// What the menu is about, in the preview panel while no row with a sentence is highlighted (`KitMenuPreview`).
+  var summary: KitMenuPreviewItem?
+  /// Some row says what it will do, so the menu has a preview panel.
+  var hasPreviews: Bool { summary != nil || rows.values.contains { $0.preview != nil } }
+  /// Every sentence the panel may show, so it keeps the tallest one's space.
+  var previews: [KitMenuPreviewItem] { (summary.map { [$0] } ?? []) + rows.values.compactMap(\.preview) }
+  /// The highlighted row's sentence (an open submenu's row keeps it), else the menu's summary.
+  var activePreview: KitMenuPreviewItem? {
+    if let id = highlighted ?? openSubmenu, let preview = rows[id]?.preview { return preview }
+    return summary
+  }
+
+  /// The menu has a filter field (`KitMenuFilter`): typing goes to it.
+  var hasFilter = false
+  /// What's typed in the filter: rows with filter words that don't contain it hide, submenus open in place.
+  var query = "" {
+    didSet {
+      guard query != oldValue else { return }
+      highlighted = nil
+      openSubmenu = nil
+      // Once the rows that match have registered: the first one, so Return picks it.
+      Task { @MainActor [weak self] in
+        await kitSleep(for: .milliseconds(30))
+        guard let self, self.highlighted == nil, !self.query.isEmpty else { return }
+        self.move(by: 1)
+      }
+    }
+  }
+  /// What's typed in the filter of the menu this one opens from (a submenu has none of its own).
+  var rootQuery: String { parent?.rootQuery ?? query }
+  var isFiltering: Bool { !rootQuery.isEmpty }
+  /// Rows matching the filter now.
+  var matchCount: Int { rows.values.filter { $0.filter != nil }.count }
+
+  /// A key typed while the menu has a filter: Delete takes a character off, other text goes into it. True when the
+  /// filter took it.
+  func type(_ characters: String, isDelete: Bool) -> Bool {
+    guard hasFilter else { return false }
+    if isDelete {
+      guard !query.isEmpty else { return true }
+      query.removeLast()
+      return true
+    }
+    guard !characters.isEmpty, characters.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) })
+    else { return false }
+    // Arrows and function keys arrive as private-use characters.
+    guard !characters.unicodeScalars.contains(where: { (0xF700...0xF8FF).contains($0.value) }) else { return false }
+    query += characters
+    return true
   }
 
   var highlighted: UUID?
@@ -388,8 +517,13 @@ final class KitMenuModel {
 
   /// ↑/↓: the next enabled row, top to bottom, wrapping.
   func move(by step: Int) {
-    let order = rows.filter(\.value.isEnabled).sorted { (frames[$0.key]?.minY ?? 0) < (frames[$1.key]?.minY ?? 0) }
-      .map(\.key)
+    // In reading order: a grid's tiles left to right along each line.
+    let order = rows.filter(\.value.isEnabled).sorted {
+      let a = frames[$0.key] ?? .zero
+      let b = frames[$1.key] ?? .zero
+      return abs(a.minY - b.minY) > 1 ? a.minY < b.minY : a.minX < b.minX
+    }
+    .map(\.key)
     guard !order.isEmpty else { return }
     if let highlighted, let index = order.firstIndex(of: highlighted) {
       self.highlighted = order[(index + step + order.count) % order.count]
@@ -419,6 +553,10 @@ final class KitMenuModel {
 
   /// → opens the highlighted submenu, ← closes it.
   func openHighlightedSubmenu(_ open: Bool) {
+    if openSubmenu != nil, let child, child.highlighted != nil, let id = child.highlighted, let step = child.rows[id]?.step {
+      return step(open ? 1 : -1)
+    }
+    if let highlighted, let step = rows[highlighted]?.step { return step(open ? 1 : -1) }
     if open, let highlighted, rows[highlighted]?.isSubmenu == true { openSubmenu = highlighted }
     if !open { openSubmenu = nil }
   }
@@ -426,7 +564,9 @@ final class KitMenuModel {
 
 // MARK: - Rows
 
-/// A menu row: the icon column, the title, the hint (or a submenu's chevron), highlighted under the pointer.
+/// A menu row: the icon column, the title (and a second line, `kitMenuDetail`), a word at the end, then one end
+/// column for the check or a submenu's chevron, so the words line up; highlighted under the pointer in the accent's
+/// tint (red for a destructive row).
 struct KitMenuRow<Label: View>: View {
   var checked: Bool? = nil
   var role: ButtonRole? = nil
@@ -435,11 +575,20 @@ struct KitMenuRow<Label: View>: View {
   var isHeader = false
   /// The row's id in its menu (a submenu passes its own, to know when it is open).
   var rowID: UUID? = nil
+  /// A taller row than the idiom's (the Open With row's 24pt icons).
+  var height: CGFloat? = nil
+  /// Views at the row's end, before the end column (the Open With row's other apps).
+  var trailing: AnyView? = nil
+  /// ← and → inside the row.
+  var step: ((Int) -> Void)? = nil
   var trigger: () -> Void
   @ViewBuilder var label: Label
 
   @Environment(\.kitMenuModel) private var model
   @Environment(\.kitMenuHint) private var hint
+  @Environment(\.kitMenuDetail) private var detail
+  @Environment(\.kitMenuPreview) private var preview
+  @Environment(\.kitMenuFilter) private var filter
   @Environment(\.kitMenuForcedHighlight) private var forced
   @Environment(\.isEnabled) private var isEnabled
   @Environment(\.kitIdiom) private var idiom
@@ -452,44 +601,83 @@ struct KitMenuRow<Label: View>: View {
     isEnabled && (forced || model?.highlighted == id || (isSubmenu && model?.openSubmenu == id))
   }
 
+  /// Filtering, a row whose words don't contain what's typed hides; rows without words (commands) stay.
+  private var isFilteredOut: Bool {
+    guard let model, model.isFiltering, let filter else { return false }
+    return !filter.text.localizedStandardContains(model.rootQuery)
+  }
+
   var body: some View {
+    if isFilteredOut {
+      EmptyView()
+    } else {
+      row
+    }
+  }
+
+  private var row: some View {
     let metrics = KitMenuMetrics(idiom)
-    HStack(spacing: metrics.iconGap) {
-      if let checked {
-        Image(systemName: "checkmark")
-          .font(.system(size: metrics.font * 0.85, weight: .semibold))
-          .opacity(checked ? 1 : 0)
-          .frame(width: metrics.icon)
-          .accessibilityHidden(!checked)
-      }
-      if !hasIcon && model?.hasIconColumn == true && checked == nil {
+    let destructive = role == .destructive
+    // While filtering, the row says what kind of thing it is (a tool, a library) where its hint was.
+    let end = model?.isFiltering == true ? (filter?.kind ?? hint) : hint
+    let hasEnd = isSubmenu || isHeader || checked != nil || model?.hasCheckColumn == true
+    return HStack(spacing: metrics.iconGap) {
+      if !hasIcon && model?.hasIconColumn == true {
         Color.clear.frame(width: metrics.icon, height: 1)
       }
-      label
-        .lineLimit(1)
-        .fontWeight(isHeader ? .semibold : nil)
-        .onPreferenceChange(KitMenuHasIcon.self) { value in hasIcon = value }
-      Spacer(minLength: 8)
-      if let hint, !isSubmenu {
-        Text(Self.textPresentation(hint))
-          .font(.system(size: metrics.hintFont))
-          .foregroundStyle(isHighlighted ? AnyShapeStyle(Color.white.opacity(0.8)) : AnyShapeStyle(.kitTertiary))
+      VStack(alignment: .leading, spacing: 1) {
+        label
+          .lineLimit(1)
+          .fontWeight(isHeader ? .semibold : nil)
+          .onPreferenceChange(KitMenuHasIcon.self) { value in hasIcon = value }
+        if let detail {
+          Text(detail)
+            .font(.system(size: metrics.detailFont))
+            .foregroundStyle(destructive ? AnyShapeStyle(Hue.red.text) : AnyShapeStyle(.kitSecondary))
+            .opacity(destructive ? 0.75 : 1)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.leading, hasIcon ? metrics.icon + metrics.iconGap : 0)
+        }
       }
-      if isSubmenu || isHeader {
-        Image(systemName: isHeader ? "chevron.down" : "chevron.right")
-          .font(.system(size: metrics.font * 0.75, weight: .semibold))
-          .foregroundStyle(isHighlighted ? AnyShapeStyle(Color.white.opacity(0.8)) : AnyShapeStyle(.kitSecondary))
+      Spacer(minLength: 8)
+      if let end {
+        Text(Self.textPresentation(end))
+          .font(.system(size: metrics.hintFont))
+          .monospacedDigit()
+          .foregroundStyle(.kitSecondary)
+          .lineLimit(1)
+          .fixedSize()
+      }
+      if let trailing { trailing }
+      if hasEnd {
+        Group {
+          if isSubmenu || isHeader {
+            Image(systemName: isHeader ? "chevron.down" : "chevron.right")
+              .font(.system(size: metrics.font * 0.7, weight: .semibold))
+              .foregroundStyle(.kitSecondary)
+          } else if checked == true {
+            Image(systemName: "checkmark")
+              .font(.system(size: metrics.font * 0.85, weight: .semibold))
+              .foregroundStyle(.kitAccent)
+          }
+        }
+        .frame(width: metrics.end)
+        .padding(.leading, -metrics.iconGap / 2)
       }
     }
     .font(.system(size: metrics.font))
     .foregroundStyle(titleStyle)
     .environment(\.kitMenuRowHighlighted, isHighlighted)
+    .environment(\.kitMenuRowDestructive, destructive)
     .padding(.horizontal, metrics.rowPadding)
-    .frame(height: metrics.rowHeight)
+    .padding(.trailing, trailing == nil ? 0 : -metrics.rowPadding / 2)
+    .padding(.vertical, detail == nil ? 0 : idiom.size(4, touch: 8))
+    .frame(minHeight: detail == nil ? (height ?? metrics.rowHeight) : metrics.detailRowHeight)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background {
       RoundedRectangle(cornerRadius: metrics.rowRadius, style: .continuous)
-        .fill(isHighlighted ? AnyShapeStyle(role == .destructive ? Hue.red.fill : Hue.accent.fill) : AnyShapeStyle(.clear))
+        .fill(isHighlighted ? AnyShapeStyle((destructive ? Hue.red : Hue.accent).soft(0.14)) : AnyShapeStyle(.clear))
     }
     .contentShape(Rectangle())
     .kitHover { inside in hover(inside) }
@@ -497,9 +685,15 @@ struct KitMenuRow<Label: View>: View {
     .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(KitMenuModel.space)) } action: { frame in
       model?.setFrame(id, frame)
     }
-    .onChange(of: isEnabled, initial: true) { register() }
+    .onChange(of: isEnabled, initial: true) {
+      register()
+      // A mockup's highlighted row (`kitMenuHighlighted`) is its menu's, for the preview panel.
+      if forced, isEnabled { model?.highlighted = id }
+    }
     .onChange(of: hasIcon) { register() }
     .onChange(of: hint) { register() }
+    .onChange(of: preview?.text) { register() }
+    .onChange(of: filter) { register() }
     .onDisappear { model?.remove(id) }
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(checked == true ? [.isButton, .isSelected] : .isButton)
@@ -523,7 +717,6 @@ struct KitMenuRow<Label: View>: View {
 
   private var titleStyle: AnyShapeStyle {
     if !isEnabled { return AnyShapeStyle(.kitTertiary) }
-    if isHighlighted { return AnyShapeStyle(Color.white) }
     if role == .destructive { return AnyShapeStyle(Hue.red.text) }
     return AnyShapeStyle(.kitLabel)
   }
@@ -533,6 +726,10 @@ struct KitMenuRow<Label: View>: View {
     let isSubmenu = isSubmenu
     let hasCheck = checked != nil
     let hint = hint
+    var preview = preview
+    if role == .destructive { preview?.isDanger = true }
+    let filter = filter
+    let step = step
     model?.update(id) { row in
       row.hint = hint
       row.isEnabled = isEnabled
@@ -540,6 +737,9 @@ struct KitMenuRow<Label: View>: View {
       row.hasCheck = hasCheck
       row.isSubmenu = isSubmenu
       row.trigger = trigger
+      row.preview = preview
+      row.filter = filter
+      row.step = step
     }
   }
 
@@ -555,6 +755,17 @@ struct KitMenuRow<Label: View>: View {
 
 extension EnvironmentValues {
   @Entry var kitMenuRowHighlighted: Bool = false
+  @Entry var kitMenuRowDestructive: Bool = false
+}
+
+extension View {
+  /// A submenu's rows don't take its own row's hint, second line, sentence or filter words.
+  func kitMenuRowsReset() -> some View {
+    environment(\.kitMenuHint, nil)
+      .environment(\.kitMenuDetail, nil)
+      .environment(\.kitMenuPreview, nil)
+      .environment(\.kitMenuFilter, nil)
+  }
 }
 
 struct KitMenuHasIcon: PreferenceKey {
@@ -602,7 +813,7 @@ private struct KitMenuToggle: View {
   }
 }
 
-/// A `Label` in a menu row: the icon in the 16pt column (secondary, white on the highlight), then the title.
+/// A `Label` in a menu row: the icon in the 16pt column (secondary; red in a destructive row), then the title.
 struct KitMenuLabelStyle: LabelStyle {
   func makeBody(configuration: Configuration) -> some View {
     KitMenuLabel(configuration: configuration)
@@ -611,7 +822,7 @@ struct KitMenuLabelStyle: LabelStyle {
 
 private struct KitMenuLabel: View {
   let configuration: LabelStyleConfiguration
-  @Environment(\.kitMenuRowHighlighted) private var isHighlighted
+  @Environment(\.kitMenuRowDestructive) private var isDestructive
   @Environment(\.isEnabled) private var isEnabled
   @Environment(\.kitIdiom) private var idiom
 
@@ -620,7 +831,8 @@ private struct KitMenuLabel: View {
     HStack(spacing: metrics.iconGap) {
       configuration.icon
         .foregroundStyle(
-          !isEnabled ? AnyShapeStyle(.kitTertiary) : isHighlighted ? AnyShapeStyle(Color.white) : AnyShapeStyle(.kitSecondary)
+          !isEnabled
+            ? AnyShapeStyle(.kitTertiary) : isDestructive ? AnyShapeStyle(Hue.red.text) : AnyShapeStyle(.kitSecondary)
         )
         .frame(width: metrics.icon)
       configuration.title
@@ -683,16 +895,20 @@ extension KitMenuOptions where Value: KitOption {
   }
 }
 
-/// A row that opens a menu beside it (on hover, a click, or →): "Sort by ▸", "Open With ▸".
+/// A row that opens a menu beside it (on hover, a click, or →): "Sort by ▸", "Open With ▸". `value` is said at the
+/// row's end: the current choice ("Name"), or how many rows a fold holds ("18"). While the menu's filter has text,
+/// the submenu's rows show in place, so a match inside a fold is found too.
 ///
 /// ```swift
-/// KitSubmenu("Sort by", systemImage: "arrow.up.arrow.down") {
+/// KitSubmenu("Sort by", value: "Name", systemImage: "arrow.up.arrow.down") {
 ///   Button("Name") { sort(.name) }
 ///   Button("Date") { sort(.date) }
 /// }
+/// KitSubmenu("All Libraries", value: "\(libraries.count)") { ForEach(libraries) { … } }
 /// ```
 public struct KitSubmenu<Content: View>: View {
   var title: String
+  var value: String?
   var systemImage: String?
   var content: Content
   @Environment(\.kitMenuModel) private var model
@@ -705,8 +921,9 @@ public struct KitSubmenu<Content: View>: View {
   @State private var rowGeometry = KitMenuRowGeometry()
   @State private var childSize: CGSize = .zero
 
-  public init(_ title: String, systemImage: String? = nil, @ViewBuilder content: () -> Content) {
+  public init(_ title: String, value: String? = nil, systemImage: String? = nil, @ViewBuilder content: () -> Content) {
     self.title = title
+    self.value = value
     self.systemImage = systemImage
     self.content = content()
   }
@@ -714,10 +931,19 @@ public struct KitSubmenu<Content: View>: View {
   private var isOpen: Bool { forced || model?.openSubmenu == rowID }
 
   public var body: some View {
+    if model?.isFiltering == true {
+      content.kitMenuRowsReset()
+    } else {
+      submenu
+    }
+  }
+
+  private var submenu: some View {
     let metrics = KitMenuMetrics(idiom)
-    KitMenuRow(isSubmenu: true, rowID: rowID, trigger: { model?.openSubmenu = rowID }) {
+    return KitMenuRow(isSubmenu: true, rowID: rowID, trigger: { model?.openSubmenu = rowID }) {
       if let systemImage { Label(title, systemImage: systemImage) } else { Text(title) }
     }
+    .kitMenuHint(value)
     .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(KitMenuModel.space)) } action: { [rowGeometry] in
       rowGeometry.frame = $0
     }
@@ -756,6 +982,7 @@ public struct KitSubmenu<Content: View>: View {
     }
     .onGeometryChange(for: CGSize.self) { $0.size } action: { childSize = $0 }
     .environment(\.kitMenuForcedHighlight, false)
+    .kitMenuRowsReset()
     .transition(.opacity)
     .onAppear {
       child.parent = model
@@ -842,50 +1069,68 @@ public struct KitMenuFooter: View {
   }
 }
 
-/// A group of rows under a small header, as a menu's sections ("Remote Branches", "Cloud"). Divide sections with a
-/// `Divider()`.
+/// A group of rows under a small header, as a menu's sections ("Remote Branches", "Cloud"); `value` is a quiet word
+/// at the header's end that its rows share, said once instead of on every row ("iOS 27.2"). Divide sections with a
+/// `Divider()`. While the menu's filter has text the header hides: the rows that match say their kind.
 ///
 /// ```swift
 /// KitMenuSection("Local") { ForEach(local) { branch in Button(branch.name) { merge(branch) } } }
 /// Divider()
 /// KitMenuSection("Remote") { ForEach(remote) { branch in Button(branch.name) { merge(branch) } } }
+/// KitMenuSection("iPhone Simulators", value: "iOS 27.2") { … }
 /// ```
 public struct KitMenuSection<Content: View>: View {
   var title: String
+  var value: String?
   var content: Content
 
-  public init(_ title: String, @ViewBuilder content: () -> Content) {
+  public init(_ title: String, value: String? = nil, @ViewBuilder content: () -> Content) {
     self.title = title
+    self.value = value
     self.content = content()
   }
 
   public var body: some View {
-    KitMenuSectionHeader(title: title)
+    KitMenuSectionHeader(title: title, value: value)
     content
   }
 }
 
-/// A section's header: its title in small semibold type, lined up with the rows' titles.
+/// A section's header: its title in small semibold type at the rows' edge, and a quiet word at its end.
 struct KitMenuSectionHeader: View {
   var title: String
+  var value: String? = nil
   @Environment(\.kitMenuModel) private var model
   @Environment(\.kitIdiom) private var idiom
 
   var body: some View {
+    if model?.isFiltering != true {
+      header
+    }
+  }
+
+  private var header: some View {
     let metrics = KitMenuMetrics(idiom)
-    let columns = (model?.hasCheckColumn == true ? 1 : 0) + (model?.hasIconColumn == true ? 1 : 0)
-    Text(title)
-      .font(.system(size: metrics.hintFont, weight: .semibold))
-      .foregroundStyle(.kitSecondary)
-      .lineLimit(1)
-      .padding(
-        EdgeInsets(
-          top: idiom.size(4, touch: 10),
-          leading: metrics.rowPadding + CGFloat(columns) * (metrics.icon + metrics.iconGap),
-          bottom: idiom.size(1, touch: 4),
-          trailing: metrics.rowPadding))
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .accessibilityAddTraits(.isHeader)
+    return HStack(alignment: .firstTextBaseline, spacing: 8) {
+      Text(title)
+        .font(.system(size: metrics.headerFont, weight: .semibold))
+        .foregroundStyle(.kitSecondary)
+      Spacer(minLength: 0)
+      if let value {
+        Text(value)
+          .font(.system(size: metrics.headerFont))
+          .foregroundStyle(.kitTertiary)
+          .padding(.trailing, model?.hasCheckColumn == true ? metrics.end + metrics.iconGap / 2 : 0)
+      }
+    }
+    .lineLimit(1)
+    .padding(
+      EdgeInsets(
+        top: idiom.size(5, touch: 10), leading: metrics.rowPadding, bottom: idiom.size(3, touch: 4),
+        trailing: metrics.rowPadding))
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .accessibilityElement(children: .combine)
+    .accessibilityAddTraits(.isHeader)
   }
 }
 
@@ -1235,6 +1480,7 @@ struct KitMenuOverlay<Content: View>: View {
     .focusEffectDisabled()
     .onKeyPress(keys: [.escape, .upArrow, .downArrow, .rightArrow, .leftArrow, .return]) { press in
       switch press.key {
+      case .escape where !model.query.isEmpty: model.query = ""
       case .escape: model.dismiss()
       case .upArrow: model.move(by: -1)
       case .downArrow: model.move(by: 1)
@@ -1246,6 +1492,7 @@ struct KitMenuOverlay<Content: View>: View {
     }
     .onKeyPress(phases: .down) { press in
       guard press.modifiers.subtracting(.shift).isEmpty else { return .ignored }
+      if model.type(press.characters, isDelete: press.key == .delete) { return .handled }
       return model.activate(key: press.characters) ? .handled : .ignored
     }
     .onAppear {
@@ -1497,8 +1744,9 @@ struct KitMenuOverlay<Content: View>: View {
         let keyCode = event.keyCode
         let command = event.modifierFlags.contains(.command)
         let characters = event.charactersIgnoringModifiers
+        let typed = event.modifierFlags.contains(.control) ? nil : event.characters
         let handled = MainActor.assumeIsolated {
-          self?.handle(keyCode: keyCode, command: command, characters: characters) ?? false
+          self?.handle(keyCode: keyCode, command: command, characters: characters, typed: typed) ?? false
         }
         return handled ? nil : event
       }
@@ -1575,11 +1823,22 @@ struct KitMenuOverlay<Content: View>: View {
     }
 
     /// The menu's keys; ⌘ shortcuts close it and go on to the app, as with a menu.
-    private func handle(keyCode: UInt16, command: Bool, characters: String? = nil) -> Bool {
+    private func handle(keyCode: UInt16, command: Bool, characters: String? = nil, typed: String? = nil) -> Bool {
       guard let model else { return false }
       if command {
         dismiss()
         return false
+      }
+      // A menu with a filter takes what's typed (Space too), Delete, and Esc first clears what's typed.
+      if model.hasFilter {
+        if keyCode == 51 { return model.type("", isDelete: true) }
+        if keyCode == 53, !model.query.isEmpty {
+          model.query = ""
+          return true
+        }
+        if let typed, ![36, 76, 53, 123, 124, 125, 126].contains(keyCode), model.type(typed, isDelete: false) {
+          return true
+        }
       }
       switch keyCode {
       case 126: model.move(by: -1)

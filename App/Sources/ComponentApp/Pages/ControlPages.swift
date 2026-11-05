@@ -295,8 +295,9 @@ struct MenusPage: View {
     CatalogPage(page: .menus) {
       SpecimenSection(
         "Menu",
-        note: "The kit draws its menus: a floating card, 26pt rows (44 on touch) with an icon column, the title and a "
-          + "hint; the highlighted row is the accent. Inside, Button, Toggle and Divider become rows."
+        note: "The kit draws its menus: a floating card, 28pt rows (44 on touch) with an icon column, the title, a word "
+          + "and one end column for the check or the chevron; the highlighted row takes the accent's tint. Inside, Button, "
+          + "Toggle and Divider become rows."
       ) {
         SpecimenGrid(minWidth: 280) {
           Specimen(
@@ -352,6 +353,102 @@ struct MenusPage: View {
               Button("Insert Path", systemImage: "character.cursor.ibeam") {}.kitMenuHint("3")
               Divider()
               KitMenuFooter("harbor.png", subtitle: "Dropped on prod-db", systemImage: "doc")
+            }
+          }
+        }
+      }
+      SpecimenSection(
+        "Preview and long lists",
+        note: "A panel at the end says what the highlighted row will do (the Mac only). Open With is one row. A long "
+          + "list starts with a filter (type while it's open), sorts by kind and folds its long tail; tiles pick one "
+          + "of many things of one kind."
+      ) {
+        SpecimenGrid(minWidth: 320) {
+          Specimen(
+            "Preview", note: "The sentence for the row under the pointer; its space is kept",
+            code: "Button(\"Pull\", systemImage: \"arrow.down\") { … }\n  .kitMenuHint(\"3 commits\")\n  .kitMenuPreview(\"Brings 3 commits from origin into main.\")\nKitOpenWithRow([.app(\"com.apple.dt.Xcode\", name: \"Xcode\", opening: [url]), .fileManager(revealing: [url])])"
+          ) {
+            KitMenu {
+              KitMenuPreview("Trips, on main: 3 commits behind origin, 2 ahead.")
+              Button("Fetch", systemImage: "arrow.down.circle") {}
+                .kitMenuPreview("Checks origin for new commits. Nothing in main changes.")
+              Button("Pull", systemImage: "arrow.down") {}.kitMenuHint("3 commits").kitMenuHighlighted()
+                .kitMenuPreview("Brings 3 commits from origin into main. Your 2 commits stay.")
+              Button("Push", systemImage: "arrow.up") {}.kitMenuHint("2 commits")
+                .kitMenuPreview("Sends your 2 commits on main to origin.")
+              Divider()
+              KitOpenWithRow([
+                .app("com.apple.dt.Xcode", name: "Xcode", opening: [], preview: "Opens Trips in Xcode."),
+                .app("dev.v57.code", name: "Code", opening: [], preview: "Opens Trips in Code."),
+                .fileManager(revealing: [], preview: "Shows the Trips folder in Finder."),
+                .terminal(at: URL(fileURLWithPath: NSHomeDirectory()), preview: "Opens Terminal in the Trips folder."),
+              ])
+              Divider()
+              KitSubmenu("Group", value: "Work", systemImage: "folder") {
+                KitMenuOptions(selection: .constant("Work"), options: [("Work", "Work"), ("Open Source", "Open Source")])
+              }
+              Button("Remove from List", systemImage: "minus.circle") {}
+                .kitMenuPreview("Takes Trips off this list. Its folder stays.")
+            }
+          }
+          Specimen(
+            "A destructive row", note: "Red tint, red sentence; a second line",
+            code: "Button(\"Discard Changes…\", systemImage: \"trash\", role: .destructive) { … }\n  .kitMenuPreview(\"Removes these 15 changed lines…\")\nButton(\"Filter\") { … }.kitMenuDetail(\"Keep only matching documents\")"
+          ) {
+            KitMenu {
+              Button("Unstage", systemImage: "minus.circle") {}.kitMenuPreview("Takes TripStore.swift out of the next commit.")
+              Button("Discard Changes…", systemImage: "trash", role: .destructive) {}.kitMenuHighlighted()
+                .kitMenuPreview("Removes these 15 changed lines and puts TripStore.swift back as it was in the last commit. You can’t undo this.")
+              Divider()
+              Button("Filter", systemImage: "line.3.horizontal.decrease") {}.kitMenuDetail("Keep only matching documents")
+              Button("Copy Path", systemImage: "doc.on.doc") {}
+            }
+          }
+          Specimen(
+            "A long list", note: "Filter, sections by kind, the tail folded; type to filter",
+            code: "KitMenuFilter(\"Filter 22 schemes\", total: 22)\nKitMenuSection(\"Apps\") { … .kitMenuFilter(name, kind: \"App\") }\nKitSubmenu(\"Libraries\", value: \"18\") { … }"
+          ) {
+            KitMenu {
+              KitMenuFilter("Filter 22 schemes", total: 22) { "No scheme has “\($0)” in its name." }
+              KitMenuSection("Apps") {
+                KitMenuOptions(selection: .constant("Code"), options: [("Code", "Code")]).kitMenuFilter("Code", kind: "App")
+              }
+              KitMenuSection("Tools") {
+                Button("code-lsp") {}.kitMenuFilter("code-lsp", kind: "Tool").kitMenuHighlighted()
+                Button("code-pretty") {}.kitMenuFilter("code-pretty", kind: "Tool")
+              }
+              Divider()
+              KitSubmenu("Libraries", value: "18") {
+                ForEach(["CodeActions", "CodeEditor", "CodeHighlighting", "CodeKit", "CodeLSP"], id: \.self) { name in
+                  Button(name) {}.kitMenuFilter(name, kind: "Library")
+                }
+              }
+              Divider()
+              Button("Refresh Schemes") {}
+            }
+          }
+          Specimen(
+            "Tiles", note: "One of many things of one kind; the heading says the family",
+            code: "KitMenuSection(\"iPhone Simulators\", value: \"iOS 27.2\") {\n  KitMenuGrid { KitMenuTile(\"18 Pro\", systemImage: \"iphone\", detail: \"Booted\") { … } }\n}"
+          ) {
+            KitMenu {
+              KitMenuFilter("Filter 14 devices", total: 14)
+              KitMenuSection("Devices", value: "iOS 27.2") {
+                KitMenuGrid {
+                  KitMenuTile("iPad Pro", systemImage: "ipad", isOn: true) {}
+                  KitMenuTile("v57", systemImage: "iphone") {}
+                }
+              }
+              KitMenuSection("iPhone Simulators", value: "iOS 27.2") {
+                KitMenuGrid {
+                  KitMenuTile("Duo", systemImage: "iphone", detail: "27.2.4") {}
+                  KitMenuTile("17", systemImage: "iphone") {}
+                  KitMenuTile("18 Pro", systemImage: "iphone", detail: "Booted") {}.kitMenuHighlighted()
+                  KitMenuTile("Air", systemImage: "iphone") {}
+                }
+              }
+              Divider()
+              Button("Refresh Devices") {}
             }
           }
         }
