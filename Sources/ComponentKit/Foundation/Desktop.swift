@@ -120,6 +120,31 @@ extension KitDesktop {
     #endif
   }
 
+  /// The app that opens `file` by default (by its type: from the file when it exists, else from its extension); nil
+  /// when none does, and off the Mac.
+  ///
+  /// ```swift
+  /// if let app = KitDesktop.defaultApp(for: file) { Button("Open in \(app.name)") { KitDesktop.open(file) } }
+  /// ```
+  @MainActor public static func defaultApp(for file: URL) -> App? {
+    #if canImport(AppKit)
+      let workspace = NSWorkspace.shared
+      let candidate: URL? =
+        if FileManager.default.fileExists(atPath: file.path) {
+          workspace.urlForApplication(toOpen: file)
+        } else if let type = UTType(filenameExtension: file.pathExtension), !file.pathExtension.isEmpty {
+          workspace.urlForApplication(toOpen: type)
+        } else {
+          nil
+        }
+      guard let candidate, let id = Bundle(url: candidate)?.bundleIdentifier else { return nil }
+      let name = (FileManager.default.displayName(atPath: candidate.path) as NSString).deletingPathExtension
+      return App(bundleIdentifier: id, name: name, url: candidate)
+    #else
+      nil
+    #endif
+  }
+
   /// An installed app, for an Open in item: its bundle identifier, and the name the file manager shows.
   public struct App: Identifiable, Hashable, Sendable {
     public let bundleIdentifier: String

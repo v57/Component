@@ -142,13 +142,17 @@ extension View {
   ///   .kitMenuHint("3 commits")
   ///   .kitMenuPreview("Brings 3 commits from origin into main. Your 2 commits stay.")
   /// ```
-  public func kitMenuPreview(_ text: String?) -> some View {
-    environment(\.kitMenuPreview, text.map { KitMenuPreviewItem(text: $0) })
+  ///
+  /// `isDanger` makes the sentence red for a row that isn't destructive itself but loses something (Force Push).
+  public func kitMenuPreview(_ text: String?, isDanger: Bool = false) -> some View {
+    environment(\.kitMenuPreview, text.map { KitMenuPreviewItem(text: $0, isDanger: isDanger) })
   }
 
   /// The row's sentence with a small picture above it (what happens to a branch).
-  public func kitMenuPreview<Picture: View>(_ text: String, @ViewBuilder picture: () -> Picture) -> some View {
-    environment(\.kitMenuPreview, KitMenuPreviewItem(text: text, picture: AnyView(picture())))
+  public func kitMenuPreview<Picture: View>(
+    _ text: String, isDanger: Bool = false, @ViewBuilder picture: () -> Picture
+  ) -> some View {
+    environment(\.kitMenuPreview, KitMenuPreviewItem(text: text, picture: AnyView(picture()), isDanger: isDanger))
   }
 
   /// The words a menu's `KitMenuFilter` matches this row by, and what kind of thing it is, said at the row's end

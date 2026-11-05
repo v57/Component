@@ -379,6 +379,25 @@ public struct KitOpenApp: Identifiable {
     }
   }
 
+  /// The app that opens `file` by default, named with its icon ("Open in Preview"); off the Mac, or when no app
+  /// claims the file, a plain "Open" that hands it to the system.
+  ///
+  /// ```swift
+  /// KitOpenWithRow([.defaultApp(opening: screenshot), .fileManager(revealing: [screenshot])])
+  /// ```
+  @MainActor public static func defaultApp(opening file: URL, preview: String? = nil) -> KitOpenApp {
+    guard let app = KitDesktop.defaultApp(for: file) else {
+      return KitOpenApp("Open", icon: KitDesktop.icon(forFile: file.path), words: "Open", preview: preview, id: "kit.default") {
+        KitDesktop.open(file)
+      }
+    }
+    return KitOpenApp(
+      app.name, icon: KitDesktop.icon(forFile: app.url.path), preview: preview, id: app.bundleIdentifier
+    ) {
+      KitDesktop.open([file], withApp: app.bundleIdentifier)
+    }
+  }
+
   /// The file manager (Finder, Explorer, Files), selecting `urls` in their folder: "Show in Finder".
   @MainActor public static func fileManager(revealing urls: [URL], preview: String? = nil) -> KitOpenApp {
     let name = KitDesktop.fileManagerName
