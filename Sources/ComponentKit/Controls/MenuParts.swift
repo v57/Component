@@ -426,8 +426,8 @@ public struct KitOpenApp: Identifiable {
 /// Open With as one row: the first app in words with its icon, the other apps as icons at the row's end. Pointing at
 /// an icon turns the words and the first icon into that app's ("Show in Finder"), so the row always says what a click
 /// does; clicking the words opens the first app, an icon its own. ← → move between the apps, Return opens. On iPhone
-/// and iPad (no pointer to follow) each app is its own row. Apps that are nil (not installed) are left out, and with
-/// none the row draws nothing.
+/// and iPad (no pointer to follow) each app is its own row. Apps that are nil (not installed) are left out, an app
+/// listed twice (by `id`, its bundle identifier) shows once, and with none the row draws nothing.
 ///
 /// ```swift
 /// .kitContextMenu {
@@ -449,7 +449,9 @@ public struct KitOpenWithRow: View {
   @State private var active: Int?
 
   public init(_ apps: [KitOpenApp?]) {
-    self.apps = apps.compactMap { $0 }
+    // An app listed twice (a file's default app is also one of the others) shows once, where it first comes.
+    var seen = Set<String>()
+    self.apps = apps.compactMap { $0 }.filter { seen.insert($0.id).inserted }
   }
 
   public var body: some View {
