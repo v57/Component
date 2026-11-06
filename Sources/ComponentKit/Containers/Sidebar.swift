@@ -1136,9 +1136,9 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
           action()
         } else if let rowValue {
           selection?.select(rowValue)
-        } else if let isExpanded = disclosure?.isExpanded {
-          // A group that selects nothing (a folder of projects in a `KitOutline`) opens and closes.
-          withKitAnimation { isExpanded.wrappedValue.toggle() }
+        } else if let disclosure, disclosure.isExpanded != nil {
+          // A group that selects nothing (a folder of projects in a `KitOutline`) opens and closes (⌥: with all inside).
+          disclosure.toggle()
         }
       })
     // Alongside the single tap, so selecting doesn't wait for a second click.

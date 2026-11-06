@@ -8,6 +8,22 @@ import SwiftUI
 struct ContRowDisclosure {
   /// `nil`: a leaf in a tree, which keeps the chevron's slot.
   var isExpanded: Binding<Bool>?
+  /// Opens or closes the row with everything inside it (an ⌥-click on the chevron); `nil` where the row's children
+  /// aren't known (then ⌥-click opens or closes the row alone).
+  var setRecursively: ((Bool) -> Void)? = nil
+
+  /// Opens or closes the row; with ⌥ held, everything inside it too, as in Finder and Xcode.
+  @MainActor func toggle() {
+    guard let isExpanded else { return }
+    let open = !isExpanded.wrappedValue
+    withKitAnimation {
+      if let setRecursively, KitDesktop.modifierKeys.contains(.option) {
+        setRecursively(open)
+      } else {
+        isExpanded.wrappedValue = open
+      }
+    }
+  }
 }
 
 extension EnvironmentValues {
@@ -15,7 +31,8 @@ extension EnvironmentValues {
   @Entry var contRowDisclosure: ContRowDisclosure? = nil
 }
 
-/// The chevron: right when closed, down when open; 12pt (14 on touch). A tap opens or closes it.
+/// The chevron: right when closed, down when open; 12pt (14 on touch). A tap opens or closes it, an ⌥-click everything
+/// inside it too (in a `KitOutline`).
 struct ContDisclosureButton: View {
   let disclosure: ContRowDisclosure
   let title: String
@@ -25,7 +42,7 @@ struct ContDisclosureButton: View {
     let size: CGFloat = idiom.size(12, touch: 14)
     if let isExpanded = disclosure.isExpanded {
       Button {
-        withKitAnimation { isExpanded.wrappedValue.toggle() }
+        disclosure.toggle()
       } label: {
         Image(systemName: "chevron.right")
           .font(.system(size: size * 0.75, weight: .semibold))
@@ -159,9 +176,38 @@ enum ContOutlineExpansion<ID: Hashable> {
   }
 
   func set(_ id: ID, open: Bool) {
+    set([id], open: open)
+  }
+
+  /// Opens or closes several in one write.
+  func set(_ some: some Sequence<ID>, open: Bool) {
     switch self {
-    case .expanded(let ids): if open { ids.wrappedValue.insert(id) } else { ids.wrappedValue.remove(id) }
-    case .collapsed(let ids): if open { ids.wrappedValue.remove(id) } else { ids.wrappedValue.insert(id) }
+    case .expanded(let ids):
+      var new = ids.wrappedValue
+      if open { new.formUnion(some) } else { new.subtract(some) }
+      if new != ids.wrappedValue { ids.wrappedValue = new }
+    case .collapsed(let ids):
+      var new = ids.wrappedValue
+      if open { new.subtract(some) } else { new.formUnion(some) }
+      if new != ids.wrappedValue { ids.wrappedValue = new }
+    }
+  }
+
+  /// Opens or closes `item` and everything inside it. Opening goes a level at a time, asking for each level's
+  /// children after the one above opened, so an app that reads a folder when it opens (a file tree) has them.
+  @MainActor func setRecursively<Element: Identifiable>(
+    _ item: Element, open: Bool, children: (Element) -> [Element]?
+  ) where Element.ID == ID {
+    // Far more than anyone opens by hand: a node_modules stays in reach.
+    var budget = 5_000
+    var level = [item]
+    while !level.isEmpty, budget > 0 {
+      let ids = level.prefix(budget).map(\.id)
+      budget -= ids.count
+      if open { set(ids, open: true) }
+      // Closing reaches inside closed folders too, so opening one later doesn't bring back its old open folders.
+      level = level.flatMap { children($0) ?? [] }.filter { children($0) != nil }
+      if !open { set(ids, open: false) }
     }
   }
 }
@@ -181,11 +227,14 @@ private struct ContOutlineNode<Element: Identifiable, RowContent: View>: View {
     let id = item.id
     let expansion = expansion
     let isOpen = Binding(get: { expansion.isOpen(id) }, set: { expansion.set(id, open: $0) })
+    let children = children
+    let disclosure =
+      kids == nil
+      ? ContRowDisclosure(isExpanded: nil)
+      : ContRowDisclosure(isExpanded: isOpen) { open in expansion.setRecursively(item, open: open, children: children) }
     row(item)
       .environment(\.contRowIndent, level)
-      .environment(
-        \.contRowDisclosure,
-        kids == nil && !reservesLeafSlot ? nil : ContRowDisclosure(isExpanded: kids == nil ? nil : isOpen))
+      .environment(\.contRowDisclosure, kids == nil && !reservesLeafSlot ? nil : disclosure)
     if let kids, expansion.isOpen(id) {
       ForEach(kids) { child in
         ContOutlineNode(
@@ -328,7 +377,7 @@ struct ContRowKeyboard: ViewModifier {
         }
       }
       .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow, .return]) { press in
-        handle(press.key, extending: press.modifiers.contains(.shift))
+        handle(press.key, extending: press.modifiers.contains(.shift), recursive: press.modifiers.contains(.option))
       }
   }
 
@@ -357,7 +406,8 @@ struct ContRowKeyboard: ViewModifier {
     return .handled
   }
 
-  private func handle(_ key: KeyEquivalent, extending: Bool = false) -> KeyPress.Result {
+  /// `recursive`: ⌥→ and ⌥← open or close everything inside the row too.
+  private func handle(_ key: KeyEquivalent, extending: Bool = false, recursive: Bool = false) -> KeyPress.Result {
     let plain = plainRows
     let step: ContRowNav.Step
     switch key {
@@ -366,7 +416,14 @@ struct ContRowKeyboard: ViewModifier {
       step = ContRowNav.move(current, by: offset, in: plain)
       if step == .none { return moveOn(by: offset) }
     case .leftArrow: step = ContRowNav.left(current, in: plain)
-    case .rightArrow: step = ContRowNav.right(current, in: plain)
+    case .rightArrow:
+      // ⌥→ on an open row opens what's inside it rather than moving in.
+      let row = rows.first { $0.value == current }
+      if recursive, let current, row?.disclosure?.setRecursively != nil {
+        step = .expand(current)
+      } else {
+        step = ContRowNav.right(current, in: plain)
+      }
     case .return:
       let row = rows.first { $0.value == current }
       if let action = row?.action {
@@ -388,8 +445,17 @@ struct ContRowKeyboard: ViewModifier {
       if extending, let extend { extend(value) } else { select(value) }
       scroll?(value, nil)
     case .expand(let value), .collapse(let value):
-      guard let isExpanded = rows.first(where: { $0.value == value })?.disclosure?.isExpanded else { return .ignored }
-      withKitAnimation { isExpanded.wrappedValue = step == .expand(value) }
+      guard let disclosure = rows.first(where: { $0.value == value })?.disclosure,
+        let isExpanded = disclosure.isExpanded
+      else { return .ignored }
+      let open = step == .expand(value)
+      withKitAnimation {
+        if recursive, let setRecursively = disclosure.setRecursively {
+          setRecursively(open)
+        } else {
+          isExpanded.wrappedValue = open
+        }
+      }
     case .none: return .ignored
     }
     return .handled

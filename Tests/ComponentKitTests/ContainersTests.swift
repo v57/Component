@@ -750,3 +750,35 @@ private let tree = [
     #expect(!selection.contains("c"))
   }
 }
+
+/// A folder whose children are read only once it's open, as Code's file tree reads a folder.
+@MainActor private final class LazyFolder: Identifiable {
+  let id: String
+  let depth: Int
+  var read = false
+  private lazy var kids: [LazyFolder] = depth == 0 ? [] : (0..<2).map { LazyFolder("\(id)/\($0)", depth: depth - 1) }
+  init(_ id: String, depth: Int) {
+    self.id = id
+    self.depth = depth
+  }
+  var children: [LazyFolder]? { read ? kids : [] }
+}
+
+@MainActor @Test func optionClickOpensAndClosesEverythingInside() {
+  let root = LazyFolder("r", depth: 2)
+  var all: [String: LazyFolder] = [root.id: root]
+  var open: Set<String> = []
+  let binding = Binding(
+    get: { open },
+    set: { new in
+      // Opening reads the folder, as the app's binding does.
+      for id in new.subtracting(open) { all[id]?.read = true; all[id]?.children?.forEach { all[$0.id] = $0 } }
+      open = new
+    })
+  let expansion = ContOutlineExpansion<String>.expanded(binding)
+  expansion.setRecursively(root, open: true, children: \.children)
+  #expect(open == ["r", "r/0", "r/1", "r/0/0", "r/0/1", "r/1/0", "r/1/1"])
+  expansion.set("r/1", open: false)
+  expansion.setRecursively(root, open: false, children: \.children)
+  #expect(open.isEmpty)
+}
