@@ -852,6 +852,8 @@ struct SettingsPage: View {
             SettingsPane("General", systemImage: "gearshape") { FormCard { … } }
             SettingsPane("Updates", systemImage: "arrow.down.circle", hue: .blue, section: "v57", value: "Daily") { UpdatesSettings() }
             SettingsPane("About", systemImage: "info.circle", section: "v57") { AboutSettings() }
+          } footer: {
+            KitCopyButton("Copy Public Key", systemImage: "key", value: key.publicKey).buttonStyle(.kit)   // under the panes
           }
           """)
       }
@@ -998,6 +1000,10 @@ struct SampleSettings: View {
           }
         }
       }
+    } footer: {
+      // An action for every pane, under the panes.
+      KitCopyButton("Copy Public Key", systemImage: "key", value: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA… this-mac")
+        .buttonStyle(.kit)
     }
   }
 }

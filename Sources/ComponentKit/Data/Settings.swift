@@ -16,10 +16,20 @@ import SwiftUI
 ///   SettingsPane("About", systemImage: "info.circle", section: "v57") { AboutSettings() }
 /// }
 /// ```
-public struct KitSettings<Content: View>: View {
+///
+/// `footer` sits at the bottom of the sidebar, under the panes (on iPhone, under the last card): an action for every
+/// pane, such as copying this device's key.
+///
+/// ```swift
+/// KitSettings(selection: $pane) { … } footer: {
+///   KitCopyButton("Copy Public Key", systemImage: "key", value: key.publicKey).buttonStyle(.kit)
+/// }
+/// ```
+public struct KitSettings<Content: View, Footer: View>: View {
   @Binding var selection: String
   var window: KitSettingsWindow
   var content: Content
+  var footer: Footer
   @State private var panes: [SettingsPaneInfo] = []
   @State private var showsPane = false
   @FocusState private var isSidebarFocused: Bool
@@ -42,11 +52,13 @@ public struct KitSettings<Content: View>: View {
   /// Settings { SettingsView().componentKit() }                                         // KitSettings(…, window: .titled)
   /// ```
   public init(
-    selection: Binding<String>, window: KitSettingsWindow = .framed, @ViewBuilder content: () -> Content
+    selection: Binding<String>, window: KitSettingsWindow = .framed, @ViewBuilder content: () -> Content,
+    @ViewBuilder footer: () -> Footer
   ) {
     self._selection = selection
     self.window = window
     self.content = content()
+    self.footer = footer()
   }
 
   /// The room left at the top of the sidebar, and the height of the pane's title row.
@@ -124,6 +136,8 @@ public struct KitSettings<Content: View>: View {
         }
       }
       Spacer(minLength: 0)
+      footer
+        .padding(.bottom, KitMetrics.gutter)
     }
     .padding(EdgeInsets(top: topInset, leading: KitMetrics.gutter, bottom: 0, trailing: KitMetrics.gutter))
     .frame(maxHeight: .infinity, alignment: .topLeading)
@@ -170,6 +184,7 @@ public struct KitSettings<Content: View>: View {
           .padding(4)
           .kitSurface(.card)
         }
+        footer
       }
       .padding(EdgeInsets(top: 4, leading: KitMetrics.gutter + 4, bottom: 24, trailing: KitMetrics.gutter + 4))
     }
@@ -199,6 +214,15 @@ public struct KitSettings<Content: View>: View {
         .background { ContEdgeFade(edge: .top, ground: .window) }
       }
       .background(.kitWindow)
+  }
+}
+
+extension KitSettings where Footer == EmptyView {
+  /// Settings with the panes in `content` and nothing under them.
+  public init(
+    selection: Binding<String>, window: KitSettingsWindow = .framed, @ViewBuilder content: () -> Content
+  ) {
+    self.init(selection: selection, window: window, content: content) { EmptyView() }
   }
 }
 
