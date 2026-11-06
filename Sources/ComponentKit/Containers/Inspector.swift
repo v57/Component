@@ -188,11 +188,6 @@ public struct InspectorRow<Value: View>: View {
     }
     .padding(EdgeInsets(horizontal: idiom.size(6, touch: 10), vertical: idiom.size(4, touch: 6)))
     .frame(minHeight: idiom.size(30, pad: 40, phone: 44))
-    .background {
-      if isHovered, !idiom.isTouch {
-        RoundedRectangle(cornerRadius: ContMetrics.rowRadius(idiom), style: .continuous).fill(.kitHover)
-      }
-    }
     .contentShape(Rectangle())
     .kitHover { isHovered = $0 }
     .animation(.kitFast, value: isHovered)

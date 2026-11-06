@@ -837,7 +837,6 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
   @Environment(\.kitSectionStyle) private var style
   @Environment(\.kitRowDensity) private var density
   @Environment(\.contStickyCopy) private var isCopy
-  @State private var isHovered = false
 
   init(
     value: AnyHashable?, title: String, subtitle: String?, progress: Double? = nil, secondaryProgress: Double? = nil,
@@ -1044,13 +1043,9 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
     .background {
       if isSelected {
         SurfaceShape(surface: .raised, cornerRadius: radius)
-      } else if isHovered, !idiom.isTouch {
-        RoundedRectangle(cornerRadius: radius, style: .continuous).fill(KitColor.rowHover)
       }
     }
     .contentShape(Rectangle())
-    .kitHover { isHovered = $0 }
-    .animation(.kitFast, value: isHovered)
     .onTapGesture {
       if let action {
         action()
@@ -1131,8 +1126,6 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
     .frame(minHeight: compact ? 24 : KitMetrics.row(idiom))
     .background { background(isSelected: isSelected, isEmphasized: isEmphasized, isRenaming: isRenaming) }
     .contentShape(Rectangle())
-    .kitHover { isHovered = $0 }
-    .animation(.kitFast, value: isHovered)
     .animation(.kit, value: progress == nil)
     // Only a row that does something takes the tap: one that doesn't (the label of a `NavigationLink`, a row in a
     // `Button`) leaves it to the view around it, which would never see it otherwise.
@@ -1183,8 +1176,6 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
         shape.fill(Hue.accent.soft())
       } else if isCurrent, !isSelected {
         SurfaceShape(surface: .raised, cornerRadius: radius).opacity(isActive ? 1 : 0.6)
-      } else if isHovered, !isSelected, !idiom.isTouch {
-        shape.fill(KitColor.rowHover).transition(.opacity)
       }
       if isSelected {
         Group {

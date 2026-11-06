@@ -4,19 +4,20 @@ import SwiftUI
 import UIKit
 #endif
 
-// Hub's 3D hover: the view tilts toward the pointer, a soft light follows it and a rim catches the light. A view
+// Hub's 3D effect: the view tilts toward the finger, a soft light follows it and a rim catches the light. A view
 // inside another one (a tile in a card) tilts less and lights its parent faintly, so the parent reads as focused too.
+// The pointer doesn't drive it on the Mac or iPad (hover effects are only in menus and other passing overlays):
+// there a press lights it.
 //
-// The light and the rim are only in the tree while the view is lit (hovered, touched, pressed, focused, or a child
-// is): an idle view draws its content and nothing else, however many there are on screen.
+// The light and the rim are only in the tree while the view is lit (touched, pressed, focused, or a child is): an idle view draws its content and nothing else, however many there are on screen.
 //
 // On Apple TV focus drives it, as Hub draws it: the focused view grows, tilts toward the thumb on the remote's touch
 // surface (toward the top right while it rests), lights there and casts the only shadow on screen; its parent lifts a
 // little and glows faintly. No ring.
 
 extension View {
-  /// Tilts the view toward the pointer and lights it where the pointer is; touches do the same on iOS. Inside
-  /// another hover effect it tilts less and lights the outer view faintly. Put it on the thing that's pressed (the
+  /// Tilts the view toward a touch and lights it there on iOS; a press lights it everywhere (the pointer alone
+  /// doesn't). Inside another hover effect it tilts less and lights the outer view faintly. Put it on the thing that's pressed (the
   /// tile, the card), not around its caption: text under the light washes out. In a button, give the button
   /// `.buttonStyle(.kitHoverEffect)` so presses deepen the effect.
   ///
@@ -147,9 +148,8 @@ private struct KitHoverEffect<S: InsettableShape>: ViewModifier {
     private let isFocused = false
   #endif
 
-  @State private var hovering = false
   @State private var touching = false
-  /// Where the pointer is, from -0.5 to 0.5 across the view.
+  /// Where the finger is, from -0.5 to 0.5 across the view.
   @State private var offset = CGPoint.zero
   @State private var size = CGSize(width: 1, height: 1)
   @State private var innerLit = false
@@ -157,7 +157,7 @@ private struct KitHoverEffect<S: InsettableShape>: ViewModifier {
   /// Whether the light is in the tree: set as soon as the view lights, cleared once it has faded out.
   @State private var lightOn = false
 
-  private var isActive: Bool { hovering || touching || isFocused }
+  private var isActive: Bool { touching || isFocused }
   private var wantsLight: Bool { isActive || isPressed || innerLit }
   private var isDark: Bool { scheme == .dark }
   /// Tilting blurs edges on a low-resolution screen, and moves the view under Reduce Motion.
@@ -199,13 +199,13 @@ private struct KitHoverEffect<S: InsettableShape>: ViewModifier {
       #if os(tvOS)
       .modifier(FocusInput(isFocused: isFocused, innerLit: innerLit, offset: $offset))
       #else
-      .modifier(HoverInput(hovering: $hovering, touching: $touching, offset: $offset, size: size))
+      .modifier(HoverInput(touching: $touching, offset: $offset, size: size))
       #endif
       .task(id: wantsLight) {
         if wantsLight {
           lightOn = true
         } else {
-          // Long enough for the light to spread and fade (the 0.5 s spring of a hover ending).
+          // Long enough for the light to spread and fade (the 0.5 s spring of a press ending).
           await kitSleep(for: .seconds(0.7))
           if !Task.isCancelled { lightOn = false }
         }
@@ -260,9 +260,9 @@ private struct KitHoverEffect<S: InsettableShape>: ViewModifier {
   }
 }
 
-/// Pointer hover everywhere, touch drags on iOS 18, the system's gaze highlight on visionOS.
+/// Touch drags on iOS 18, the system's gaze highlight on visionOS. Not the pointer: on the Mac and iPad only a press
+/// lights the view.
 private struct HoverInput: ViewModifier {
-  @Binding var hovering: Bool
   @Binding var touching: Bool
   @Binding var offset: CGPoint
   let size: CGSize
@@ -274,29 +274,13 @@ private struct HoverInput: ViewModifier {
     }
     #elseif os(iOS)
     if #available(iOS 18, *) {
-      content.onContinuousHover(perform: hover).gesture(TouchTracking(began: touchBegan, moved: touchMoved, ended: touchEnded))
+      content.gesture(TouchTracking(began: touchBegan, moved: touchMoved, ended: touchEnded))
     } else {
-      content.onContinuousHover(perform: hover)
+      content
     }
     #else
-    content.onContinuousHover(perform: hover)
+    content
     #endif
-  }
-
-  private func hover(_ phase: HoverPhase) {
-    switch phase {
-    case .active(let point) where !ContDragActivity.shared.isDragging:
-      withAnimation(.spring(response: 0.25, dampingFraction: 1)) {
-        move(to: point)
-        hovering = true
-      }
-    default:
-      guard hovering else { return }
-      withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-        offset = .zero
-        hovering = false
-      }
-    }
   }
 
   private func touchBegan() {
@@ -304,14 +288,13 @@ private struct HoverInput: ViewModifier {
   }
 
   private func touchMoved(_ point: CGPoint) {
-    guard !hovering else { return }
     withAnimation(.spring(response: 0.25, dampingFraction: 1)) { move(to: point) }
   }
 
   private func touchEnded() {
     withAnimation(.spring(response: 0.25, dampingFraction: 1)) {
       touching = false
-      if !hovering { offset = .zero }
+      offset = .zero
     }
   }
 

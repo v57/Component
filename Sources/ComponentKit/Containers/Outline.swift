@@ -20,7 +20,6 @@ struct ContDisclosureButton: View {
   let disclosure: ContRowDisclosure
   let title: String
   @Environment(\.kitIdiom) private var idiom
-  @State private var isHovered = false
 
   var body: some View {
     let size: CGFloat = idiom.size(12, touch: 14)
@@ -30,14 +29,13 @@ struct ContDisclosureButton: View {
       } label: {
         Image(systemName: "chevron.right")
           .font(.system(size: size * 0.75, weight: .semibold))
-          .foregroundStyle(isHovered ? .kitLabel : .kitSecondary)
+          .foregroundStyle(.kitSecondary)
           .rotationEffect(.degrees(isExpanded.wrappedValue ? 90 : 0))
           .frame(width: size, height: size)
           .padding(.horizontal, -1)
           .contentShape(Rectangle().inset(by: -4))
       }
       .buttonStyle(.plain)
-      .kitHover { isHovered = $0 }
       .accessibilityLabel(isExpanded.wrappedValue ? "Collapse \(title)" : "Expand \(title)")
     } else {
       Color.clear.frame(width: size - 2, height: size).accessibilityHidden(true)

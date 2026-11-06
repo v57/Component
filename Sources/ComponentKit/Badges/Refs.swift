@@ -294,7 +294,6 @@ struct MoreRefsStyle: ButtonStyle {
   struct MoreRefsLabel: View {
     let configuration: Configuration
     let isOpen: Bool
-    @State private var isHovered = false
     @Environment(\.kitIdiom) private var idiom
     @Environment(\.isFocused) private var isFocused
 
@@ -310,7 +309,7 @@ struct MoreRefsStyle: ButtonStyle {
           if isOpen {
             SurfaceShape(surface: .raised, cornerRadius: touch ? 6 : KitMetrics.radiusXS)
           } else {
-            let extra = isHovered || configuration.isPressed ? 0.14 : 0
+            let extra = configuration.isPressed ? 0.14 : 0
             shape.fill(BadgeTint(hue: .gray, light: 0.16 + extra, dark: 0.22 + extra))
           }
         }
@@ -319,8 +318,6 @@ struct MoreRefsStyle: ButtonStyle {
         }
         .contentShape(shape)
         .fixedSize()
-        .kitHover { isHovered = $0 }
-        .animation(.kitFast, value: isHovered)
         .animation(.kitFast, value: isOpen)
     }
   }

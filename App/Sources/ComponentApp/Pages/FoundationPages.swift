@@ -32,7 +32,7 @@ struct ColoursPage: View {
     Token(name: "kitFill", style: .kitFill, use: "Pills, tracks, wells"),
     Token(name: "kitFillSoft", style: .kitFillSoft, use: "Stripes, soft tiles"),
     Token(name: "kitField", style: .kitField, use: "Text fields, field tracks"),
-    Token(name: "kitHover", style: .kitHover, use: "Hover"),
+    Token(name: "kitHover", style: .kitHover, use: "Hover in menus, open pickers"),
     Token(name: "kitPress", style: .kitPress, use: "Press"),
   ]
 
@@ -305,7 +305,7 @@ struct MotionPage: View {
 
   let animations: [(String, Animation, String)] = [
     ("kit", .kit, "0.25 s smooth · selection, pages, icons"),
-    ("kitFast", .kitFast, "0.15 s · press, hover, labels"),
+    ("kitFast", .kitFast, "0.15 s · press, labels"),
     ("kitSlow", .kitSlow, "0.35 s · windows, sheets, the sidebar"),
     ("kitSpring", .kitSpring, "A spring · things that land"),
   ]

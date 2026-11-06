@@ -110,17 +110,15 @@ private struct ContGroupRowButtonStyle: ButtonStyle {
 
 private struct ContGroupRowButton: View {
   let configuration: ButtonStyleConfiguration
-  @State private var isHovered = false
   @Environment(\.isEnabled) private var isEnabled
 
   var body: some View {
     configuration.label
       .background {
-        if isEnabled && (isHovered || configuration.isPressed) {
-          Rectangle().fill(configuration.isPressed ? AnyShapeStyle(.kitPress) : AnyShapeStyle(.kitHover))
+        if isEnabled && configuration.isPressed {
+          Rectangle().fill(.kitPress)
         }
       }
-      .kitHover { isHovered = $0 }
   }
 }
 
@@ -128,13 +126,13 @@ private struct ContGroupRowButton: View {
 
 extension ButtonStyle where Self == KitRowButtonStyle {
   /// A whole custom row as the button (a `NavigationLink` to a commit, a file): no tint, no padding, the kit's wash
-  /// on hover and press.
+  /// while pressed.
   public static var kitRow: KitRowButtonStyle { KitRowButtonStyle() }
 }
 
 /// A whole custom row as a button or `NavigationLink`: the row draws itself (its padding, its colours; text is the
-/// label colour unless the row says otherwise) and the style adds only the kit's feedback, the hover wash and a
-/// deeper one while pressed, over the row's whole shape (`cornerRadius` rounds it, for rows on their own rather than
+/// label colour unless the row says otherwise) and the style adds only the kit's feedback, a wash while pressed,
+/// over the row's whole shape (`cornerRadius` rounds it, for rows on their own rather than
 /// in a card). Disabled, the row dims. In place of `.buttonStyle(.plain)`, which gives no feedback, and `.kitPlain`,
 /// which tints and pads a label.
 ///
@@ -157,7 +155,6 @@ public struct KitRowButtonStyle: ButtonStyle {
 private struct KitRowButton: View {
   let configuration: ButtonStyleConfiguration
   let cornerRadius: CGFloat
-  @State private var isHovered = false
   @Environment(\.isEnabled) private var isEnabled
 
   var body: some View {
@@ -166,12 +163,10 @@ private struct KitRowButton: View {
       .foregroundStyle(.kitLabel)
       .contentShape(shape)
       .background {
-        if isEnabled && (isHovered || configuration.isPressed) {
-          shape.fill(configuration.isPressed ? AnyShapeStyle(.kitPress) : AnyShapeStyle(.kitHover))
+        if isEnabled && configuration.isPressed {
+          shape.fill(.kitPress)
         }
       }
       .opacity(isEnabled ? 1 : 0.5)
-      .kitHover { isHovered = $0 }
-      .animation(.kitFast, value: isHovered)
   }
 }

@@ -131,7 +131,6 @@ extension KitColor {
   static let field = KitColor(.black(0.045), .black(0.3), more: .black(0.09), .black(0.4))
   static let hover = KitColor(.black(0.04), .white(0.05))
   static let press = KitColor(.black(0.1), .white(0.1))
-  static let rowHover = KitColor(.black(0.03), .white(0.05))
   static let rowUnfocused = KitColor(.black(0.09), .white(0.14))
   static let scrim = KitColor(.black(0.18), .black(0.4))
   static let highlight = KitColor(.white(0), .white(0.08))

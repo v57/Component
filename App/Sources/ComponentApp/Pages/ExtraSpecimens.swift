@@ -145,7 +145,7 @@ struct RowAndTrailingIconSpecimens: View {
     SpecimenSection(
       "Rows and trailing icons",
       note: ".kitRow makes a whole custom row the button (a NavigationLink to a commit): no tint, no padding, the "
-        + "kit's wash on hover and press. .kitTrailingIcon puts a label's icon after its title, for a button that "
+        + "kit's wash while pressed. .kitTrailingIcon puts a label's icon after its title, for a button that "
         + "leaves the app."
     ) {
       SpecimenGrid(minWidth: 320) {

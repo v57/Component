@@ -47,7 +47,6 @@ struct KitButton: View {
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.colorScheme) private var scheme
   @Environment(\.kitInSheetFooter) private var inFooter
-  @State private var isHovered = false
   #if os(tvOS)
     @Environment(\.isFocused) private var isFocused
   #else
@@ -55,8 +54,8 @@ struct KitButton: View {
   #endif
 
   private var isDestructive: Bool { configuration.role == .destructive }
-  /// Hovered on the Mac and iPad, focused on Apple TV.
-  private var isLit: Bool { (isHovered || isFocused) && isEnabled }
+  /// Focused on Apple TV.
+  private var isLit: Bool { isFocused && isEnabled }
 
   var body: some View {
     let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
@@ -75,7 +74,6 @@ struct KitButton: View {
       }
       .opacity(isEnabled || kind == .primary ? 1 : 0.45)
       .contentShape(shape)
-      .kitHover { isHovered = $0 }
       #if os(tvOS)
       .overlay {
         // The tint fills 20% more while focused.
@@ -83,7 +81,6 @@ struct KitButton: View {
       }
       .kitFocusedButton(in: shape, isPressed: configuration.isPressed)
       #endif
-      .animation(.kitFast, value: isHovered)
       .animation(.kitFast, value: configuration.isPressed)
   }
 
@@ -263,7 +260,6 @@ struct KitRoundButton: View {
   @Environment(\.isEnabled) private var isEnabled
   @Environment(\.controlSize) private var controlSize
   @Environment(\.kitIdiom) private var idiom
-  @State private var isHovered = false
 
   var body: some View {
     let size = fixedSize ?? KitRoundButton.size(idiom: idiom, small: controlSize == .small || controlSize == .mini)
@@ -283,15 +279,13 @@ struct KitRoundButton: View {
         }
       }
       .overlay {
-        Circle().fill(Color.primary.opacity(configuration.isPressed ? 0.1 : isHovered && isEnabled ? 0.04 : 0))
+        Circle().fill(Color.primary.opacity(configuration.isPressed ? 0.1 : 0))
       }
       .contentShape(Circle())
       .scaleEffect(configuration.isPressed ? 0.97 : 1)
-      .kitHover { isHovered = $0 }
       #if os(tvOS)
       .kitFocusedButton(in: Circle(), isPressed: configuration.isPressed)
       #endif
-      .animation(.kitFast, value: isHovered)
       .animation(.kitFast, value: configuration.isPressed)
   }
 

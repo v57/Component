@@ -56,7 +56,6 @@ public struct KitAccountPicker: View {
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.isEnabled) private var isEnabled
   @State private var isOpen = false
-  @State private var isHovered = false
 
   public init(
     accounts: [KitAccount], selection: Binding<String>, meta: String? = nil, style: Style = .sidebar,
@@ -118,11 +117,9 @@ public struct KitAccountPicker: View {
       } else {
         SurfaceShape(surface: .card, cornerRadius: radius)
       }
-      shape.fill(Color.primary.opacity((isHovered || isOpen) && isEnabled ? 0.04 : 0))
+      shape.fill(Color.primary.opacity(isOpen && isEnabled ? 0.04 : 0))
     }
     .contentShape(shape)
-    .kitHover { isHovered = $0 }
-    .animation(.kitFast, value: isHovered)
     .kitMenuTrigger(isPresented: $isOpen, matchesWidth: !compact) { menu(current) }
     .padding(.bottom, compact ? 0 : KitMetrics.gutter)
     .accessibilityElement(children: .ignore)

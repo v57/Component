@@ -219,7 +219,6 @@ private struct ContBarButton: View {
   let labeled: Bool
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.isEnabled) private var isEnabled
-  @State private var isHovered = false
 
   var body: some View {
     let size = ContMetrics.barButton(idiom)
@@ -232,17 +231,15 @@ private struct ContBarButton: View {
       .padding(.horizontal, labeled ? (idiom.size(8, touch: 12)) : 4)
       .frame(minWidth: size.width, minHeight: size.height)
       .background {
-        shape.fill(configuration.isPressed ? AnyShapeStyle(.kitPress) : isHovered && isEnabled ? AnyShapeStyle(.kitFill) : AnyShapeStyle(Color.clear))
+        shape.fill(configuration.isPressed ? AnyShapeStyle(.kitPress) : AnyShapeStyle(Color.clear))
       }
       .contentShape(shape)
       .opacity(isEnabled ? 1 : 0.4)
-      .kitHover { isHovered = $0 }
-      .animation(.kitFast, value: isHovered)
   }
 
   private var foreground: AnyShapeStyle {
     if configuration.role == .destructive { return AnyShapeStyle(Hue.red.text) }
-    if labeled || isHovered { return AnyShapeStyle(.kitLabel) }
+    if labeled { return AnyShapeStyle(.kitLabel) }
     return AnyShapeStyle(.kitSecondary)
   }
 }
@@ -283,7 +280,7 @@ struct ContBarCard<Content: View>: View {
 
 // MARK: - Tools
 
-/// A tool inside a tool group: 26pt (36 on touch), 9pt corners, a fill on hover and press.
+/// A tool inside a tool group: 26pt (36 on touch), 9pt corners, a fill while pressed or on.
 struct ContToolButtonStyle: ButtonStyle {
   var iconOnly = false
 
@@ -298,7 +295,6 @@ private struct ContToolButton: View {
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.isEnabled) private var isEnabled
   @Environment(\.contToolIsOn) private var isOn
-  @State private var isHovered = false
 
   var body: some View {
     let shape = RoundedRectangle(cornerRadius: ContMetrics.toolRadius(idiom), style: .continuous)
@@ -315,13 +311,9 @@ private struct ContToolButton: View {
       .background {
         if isOn || configuration.isPressed {
           shape.fill(.kitFill)
-        } else if isHovered && isEnabled {
-          shape.fill(.kitHover)
         }
       }
       .contentShape(shape)
-      .kitHover { isHovered = $0 }
-      .animation(.kitFast, value: isHovered)
   }
 }
 

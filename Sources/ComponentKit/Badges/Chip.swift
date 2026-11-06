@@ -197,7 +197,6 @@ public struct FilterToken: View {
   var onRemove: () -> Void
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.isEnabled) private var isEnabled
-  @State private var isHovered = false
 
   public init(
     _ title: some StringProtocol, systemImage: String? = "line.3.horizontal.decrease", hue: Hue = .accent,
@@ -236,14 +235,9 @@ public struct FilterToken: View {
         Image(systemName: "xmark")
           .font(.system(size: close * 0.45, weight: .bold))
           .frame(width: close, height: close)
-          .background {
-            RoundedRectangle(cornerRadius: radius - 3, style: .continuous)
-              .fill(isHovered ? AnyShapeStyle(hue.soft(0.22)) : AnyShapeStyle(Color.clear))
-          }
           .contentShape(Rectangle())
       }
       .buttonStyle(.plain)
-      .kitHover { isHovered = $0 }
       .accessibilityLabel("Remove")
     }
     .foregroundStyle(BadgeInk(hue: hue))
@@ -251,7 +245,6 @@ public struct FilterToken: View {
     .frame(height: height)
     .background(BadgeTint(hue: hue), in: RoundedRectangle(cornerRadius: radius, style: .continuous))
     .opacity(isEnabled ? 1 : 0.45)
-    .animation(.kitFast, value: isHovered)
     .accessibilityElement(children: .combine)
     .accessibilityAction(named: "Remove", onRemove)
   }

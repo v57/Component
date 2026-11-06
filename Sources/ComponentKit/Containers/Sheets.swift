@@ -366,7 +366,6 @@ private struct ContSheetButton: View {
   @Environment(\.colorScheme) private var scheme
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.isEnabled) private var isEnabled
-  @State private var isHovered = false
 
   var body: some View {
     let shape = RoundedRectangle(cornerRadius: SheetFooterButton.radius(idiom), style: .continuous)
@@ -379,12 +378,10 @@ private struct ContSheetButton: View {
       .frame(minHeight: SheetFooterButton.height(idiom))
       .background { shape.fill(SheetFooterButton.fill(scheme)) }
       .overlay {
-        shape.fill(configuration.isPressed ? AnyShapeStyle(.kitPress) : isHovered && isEnabled ? AnyShapeStyle(.kitHover) : AnyShapeStyle(Color.clear))
+        shape.fill(configuration.isPressed ? AnyShapeStyle(.kitPress) : AnyShapeStyle(Color.clear))
       }
       .opacity(isEnabled ? 1 : 0.45)
       .contentShape(shape)
-      .kitHover { isHovered = $0 }
-      .animation(.kitFast, value: isHovered)
   }
 }
 

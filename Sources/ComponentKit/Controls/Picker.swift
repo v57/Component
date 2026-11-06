@@ -33,7 +33,6 @@ public struct KitPicker<Value: Hashable>: View {
   @Environment(\.isEnabled) private var isEnabled
   @Environment(\.ctlPickerMaxWidth) private var maxWidth
   @FocusState private var isFocused: Bool
-  @State private var isHovered = false
   @State private var isOpen = false
 
   /// A picker over `segments` (titles, values, optional glyphs; disabled ones can't be picked).
@@ -85,7 +84,7 @@ public struct KitPicker<Value: Hashable>: View {
     .frame(minWidth: metrics.minWidth, minHeight: metrics.height)
     .background {
       shape.fill(.kitField)
-      if (isHovered || isOpen) && isEnabled { shape.fill(.kitHover) }
+      if isOpen && isEnabled { shape.fill(.kitHover) }
     }
     .contentShape(shape)
     .ctlIdealWidth(maxWidth)
@@ -108,8 +107,6 @@ public struct KitPicker<Value: Hashable>: View {
     .focused($isFocused)
     .focusEffectDisabled()
     .ctlFieldRing(isFocused, cornerRadius: metrics.radius)
-    .kitHover { isHovered = $0 }
-    .animation(.kitFast, value: isHovered)
     .accessibilityLabel(title)
     .accessibilityValue(current?.title ?? "")
   }
@@ -229,7 +226,6 @@ public struct KitMenuButton<Content: View>: View {
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.controlSize) private var controlSize
   @Environment(\.isEnabled) private var isEnabled
-  @State private var isHovered = false
   @State private var isOpen = false
 
   public init(
@@ -282,7 +278,7 @@ public struct KitMenuButton<Content: View>: View {
       CtlRaisedCard(cornerRadius: height * 0.3)
         .overlay {
           RoundedRectangle(cornerRadius: height * 0.3, style: .continuous)
-            .fill(Color.primary.opacity((isHovered || isOpen) && isEnabled ? 0.04 : 0))
+            .fill(Color.primary.opacity(isOpen && isEnabled ? 0.04 : 0))
         }
     }
     .contentShape(Rectangle())
@@ -291,8 +287,6 @@ public struct KitMenuButton<Content: View>: View {
     .focusEffectDisabled()
     .kitMenuTrigger(isPresented: $isOpen) { content }
     .opacity(isEnabled ? 1 : 0.45)
-    .kitHover { isHovered = $0 }
-    .animation(.kitFast, value: isHovered)
     .accessibilityLabel(title)
   }
 }

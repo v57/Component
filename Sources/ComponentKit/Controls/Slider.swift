@@ -45,7 +45,6 @@ public struct KitSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloa
   @Environment(\.kitSliderStyle) private var style
   @FocusState private var isFocused: Bool
   @State private var isDragging = false
-  @State private var isHovered = false
 
   /// A slider over `range`. `valueBubble` `.automatic` shows the value while dragging, `.visible` always,
   /// `.hidden` never; `format` writes it (a number by default).
@@ -91,7 +90,7 @@ public struct KitSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloa
           .shadow(color: .black.opacity(overlay ? 0.4 : 0.2), radius: 1.5, y: 1)
           .shadow(color: .black.opacity(overlay ? 0.3 : 0), radius: 4, y: 2)
           .frame(width: metrics.knobWidth, height: metrics.knobHeight)
-          .ctlFieldRing((isHovered || isDragging) && !isFocused, cornerRadius: metrics.knobHeight / 2, fades: true)
+          .ctlFieldRing(isDragging && !isFocused, cornerRadius: metrics.knobHeight / 2, fades: true)
           .ctlStandaloneRing(isFocused, cornerRadius: nil)
           .offset(x: center - metrics.knobWidth / 2)
         if showsBubble {
@@ -134,7 +133,6 @@ public struct KitSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloa
     .frame(height: metrics.height)
     .frame(minWidth: 96)
     .opacity(isEnabled ? 1 : 0.45)
-    .kitHover { isHovered = $0 }
     .focusable(isEnabled, interactions: .activate)
     .focused($isFocused)
     .focusEffectDisabled()
@@ -142,7 +140,6 @@ public struct KitSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloa
       nudge(press.key == .rightArrow || press.key == .upArrow ? 1 : -1)
     }
     .animation(.kitFast, value: showsBubble)
-    .animation(.kitFast, value: isHovered)
     #if os(tvOS)
     // No system slider on Apple TV: the kit's takes VoiceOver's swipes itself.
     .accessibilityElement()

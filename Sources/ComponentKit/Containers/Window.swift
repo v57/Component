@@ -247,7 +247,6 @@ public struct ResizableSplit<Main: View, Pane: View>: View {
   /// The pane's laid-out size along the split, which drags start from (it can be less than `width`).
   @State private var shownWidth: CGFloat = 0
   @State private var dragStart: CGFloat?
-  @State private var isHovered = false
 
   /// A pane at the leading or trailing edge, `width` wide by default.
   public init(
@@ -330,9 +329,9 @@ public struct ResizableSplit<Main: View, Pane: View>: View {
       .frame(width: vertical ? nil : 0, height: vertical ? 0 : nil)
       .overlay {
         ZStack {
-          if isDragging || isHovered {
+          if isDragging {
             Rectangle()
-              .fill(isDragging ? Hue.accent.fill : Hue.accent.soft(0.5))
+              .fill(Hue.accent.fill)
               .frame(width: vertical ? nil : 2, height: vertical ? 2 : nil)
               .transition(.opacity)
           } else if showsLine {
@@ -342,7 +341,6 @@ public struct ResizableSplit<Main: View, Pane: View>: View {
             .frame(width: vertical ? nil : 9, height: vertical ? 9 : nil)
             .contentShape(Rectangle())
             .contResizeCursor(vertical: vertical)
-            .kitHover { isHovered = $0 }
             #if !os(tvOS)
             .gesture(
               DragGesture(minimumDistance: 1, coordinateSpace: .global)
@@ -358,7 +356,6 @@ public struct ResizableSplit<Main: View, Pane: View>: View {
             #endif
             .onTapGesture(count: 2) { withKitAnimation { width = defaultWidth } }
         }
-        .animation(.kitFast, value: isHovered)
         .animation(.kitFast, value: isDragging)
       }
       .overlay(alignment: vertical ? .leading : .top) {

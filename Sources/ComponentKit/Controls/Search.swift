@@ -200,7 +200,6 @@ public struct SidebarSearchButton: View {
   @Namespace private var namespace
   @FocusState private var isFocused: Bool
   @FocusState private var buttonFocused: Bool
-  @State private var isHovered = false
 
   public init(text: Binding<String>, isSearching: Binding<Bool>, prompt: String = "Search") {
     _text = text
@@ -241,7 +240,7 @@ public struct SidebarSearchButton: View {
           withKitAnimation { isSearching = true }
         } label: {
           Image(systemName: "magnifyingglass")
-            .foregroundStyle(isHovered ? .kitLabel : .kitSecondary)
+            .foregroundStyle(.kitSecondary)
             .matchedGeometryEffect(id: "glass", in: namespace)
             .frame(width: size, height: size)
             .background {
@@ -253,7 +252,6 @@ public struct SidebarSearchButton: View {
         .focused($buttonFocused)
         .focusEffectDisabled()
         .ctlStandaloneRing(buttonFocused, cornerRadius: KitMetrics.radiusCard)
-        .kitHover { isHovered = $0 }
         .accessibilityLabel(prompt)
         .help(prompt)
       }
@@ -275,20 +273,15 @@ public struct SidebarSearchButton: View {
 struct CtlSearchCloseButton: View {
   let size: CGFloat
   let action: () -> Void
-  @State private var isHovered = false
 
   var body: some View {
     Button(action: action) {
       Image(systemName: "xmark")
         .font(.system(size: size * 0.5, weight: .semibold))
-        .foregroundStyle(isHovered ? .kitLabel : .kitSecondary)
+        .foregroundStyle(.kitSecondary)
         .frame(width: size, height: size)
-        .background {
-          RoundedRectangle(cornerRadius: 8, style: .continuous).fill(isHovered ? AnyShapeStyle(.kitFill) : AnyShapeStyle(.clear))
-        }
     }
     .buttonStyle(CtlPressStyle())
-    .kitHover { isHovered = $0 }
     .accessibilityLabel("Close Search")
   }
 }

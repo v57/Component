@@ -208,10 +208,9 @@ struct CtlSegmentLabel<Value: Hashable>: View {
   @Environment(\.ctlIsPressed) private var isPressed
   @Environment(\.isEnabled) private var isEnabled
   @Environment(\.kitToolbarIconOnly) private var toolbarIconOnly
-  @State private var isHovered = false
 
   var body: some View {
-    let isLit = isEnabled && (isHovered || isFocused || isPressed)
+    let isLit = isEnabled && (isFocused || isPressed)
     // In a compacted toolbar a segment with an icon shows the icon alone (the title stays for accessibility).
     let iconOnly = toolbarIconOnly && segment.systemImage != nil
     HStack(spacing: 5) {
@@ -260,7 +259,6 @@ struct CtlSegmentLabel<Value: Hashable>: View {
     .contentShape(Rectangle())
     .help(iconOnly ? segment.title : "")
     .accessibilityLabel(segment.title)
-    .kitHover { isHovered = $0 }
     .animation(.kitFast, value: isLit)
     .animation(.kitFast, value: isPressed)
   }

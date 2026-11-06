@@ -333,7 +333,6 @@ private struct SettingsSidebarRow: View {
   let pane: SettingsPaneInfo
   let isSelected: Bool
   let action: () -> Void
-  @State private var isHovered = false
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.kitWindowIsActive) private var isActive
 
@@ -351,14 +350,11 @@ private struct SettingsSidebarRow: View {
       .background {
         if isSelected {
           SurfaceShape(surface: .raised, cornerRadius: KitMetrics.radius)
-        } else if isHovered {
-          RoundedRectangle(cornerRadius: KitMetrics.radius, style: .continuous).fill(.kitHover)
         }
       }
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
-    .kitHover { isHovered = $0 }
     .accessibilityAddTraits(isSelected ? .isSelected : [])
   }
 }

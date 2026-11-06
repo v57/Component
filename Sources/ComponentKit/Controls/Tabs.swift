@@ -202,8 +202,8 @@ private struct CtlTabReorder: ViewModifier {
   }
 }
 
-/// A tab: the selected one is the raised card, a hovered one takes the hover fill; the close button (or the edited
-/// dot) sits in an 18pt slot at the end that is always there, so tabs never change width on hover.
+/// A tab: the selected one is the raised card; the close button (or the edited dot) sits in an 18pt slot at the end
+/// that is always there, so tabs never change width as the close button shows under the pointer.
 struct CtlTabView<ID: Hashable>: View {
   let tab: KitTab<ID>
   let isSelected: Bool
@@ -246,7 +246,7 @@ struct CtlTabView<ID: Hashable>: View {
     .kitFont(.callout)
     .fontWeight(.regular)
     .lineLimit(1)
-    .foregroundStyle(isSelected || isHovered ? .kitLabel : .kitSecondary)
+    .foregroundStyle(isSelected ? .kitLabel : .kitSecondary)
     .padding(
       EdgeInsets(
         top: 0,
@@ -258,14 +258,11 @@ struct CtlTabView<ID: Hashable>: View {
     .background {
       if isSelected {
         CtlRaisedCard(cornerRadius: radius).matchedGeometryEffect(id: "tab", in: namespace)
-      } else if isHovered {
-        RoundedRectangle(cornerRadius: radius, style: .continuous).fill(.kitHover)
       }
     }
     .ctlStandaloneRing(isFocused, cornerRadius: radius)
     .contentShape(Rectangle())
     .kitHover { isHovered = $0 }
-    .animation(.kitFast, value: isHovered)
   }
 
   @ViewBuilder
@@ -289,19 +286,14 @@ struct CtlTabCloseButton: View {
   let title: String
   let size: CGFloat
   let action: () -> Void
-  @State private var isHovered = false
 
   var body: some View {
     Button(action: action) {
       Image(systemName: "xmark")
         .font(.system(size: size * 0.5, weight: .semibold))
         .frame(width: size, height: size)
-        .background {
-          RoundedRectangle(cornerRadius: size * 0.28, style: .continuous).fill(isHovered ? AnyShapeStyle(.kitFill) : AnyShapeStyle(.clear))
-        }
     }
     .buttonStyle(CtlPressStyle())
-    .kitHover { isHovered = $0 }
     .accessibilityLabel("Close \(title)")
     .help("Close")
   }
@@ -391,7 +383,6 @@ struct CtlCrumb: View {
   let isCurrent: Bool
   @Environment(\.kitIdiom) private var idiom
   @FocusState private var isFocused: Bool
-  @State private var isHovered = false
 
   var body: some View {
     let radius: CGFloat = idiom.size(7, touch: 9)
@@ -410,21 +401,14 @@ struct CtlCrumb: View {
           .fontWeight(isCurrent ? .semibold : .regular)
           .truncationMode(.middle)
       }
-      .foregroundStyle(isCurrent || isHovered ? .kitLabel : .kitSecondary)
+      .foregroundStyle(isCurrent ? .kitLabel : .kitSecondary)
       .padding(.horizontal, idiom.size(6, touch: 8))
       .frame(height: idiom.size(24, touch: 32))
-      .background {
-        if isHovered && !isCurrent && item.action != nil {
-          RoundedRectangle(cornerRadius: radius, style: .continuous).fill(.kitField)
-        }
-      }
     }
     .buttonStyle(CtlPressStyle())
     .disabled(item.action == nil && !isCurrent)
     .focused($isFocused)
     .ctlStandaloneRing(isFocused, cornerRadius: radius)
-    .kitHover { isHovered = $0 }
-    .animation(.kitFast, value: isHovered)
     .accessibilityAddTraits(isCurrent ? .isSelected : [])
   }
 }

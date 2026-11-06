@@ -88,7 +88,6 @@ struct CtlChoiceCardBody<Content: View>: View {
   @Environment(\.ctlIsPressed) private var isPressed
   @Environment(\.isEnabled) private var isEnabled
   @Environment(\.kitChoiceCardStyle) private var style
-  @State private var isHovered = false
 
   var body: some View {
     let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
@@ -111,13 +110,11 @@ struct CtlChoiceCardBody<Content: View>: View {
           CtlRaisedCard(cornerRadius: radius, flat: isPressed)
         } else {
           shape.fill(.kitField)
-          if isEnabled && (isHovered || isPressed) { shape.fill(KitColor.ctlGhost) }
+          if isEnabled && isPressed { shape.fill(KitColor.ctlGhost) }
         }
       }
       .ctlFieldRing(isOn, cornerRadius: radius, fades: true)
       .scaleEffect(isPressed && isEnabled ? 0.98 : 1)
-      .kitHover { isHovered = $0 }
-      .animation(.kitFast, value: isHovered)
       .animation(.kitFast, value: isPressed)
   }
 }

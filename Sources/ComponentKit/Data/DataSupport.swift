@@ -41,7 +41,6 @@ private struct DataSoftButton: View {
   @Environment(\.controlSize) private var controlSize
   @Environment(\.isEnabled) private var isEnabled
   @Environment(\.kitIdiom) private var idiom
-  @State private var isHovered = false
 
   var body: some View {
     let small = controlSize == .small || controlSize == .mini
@@ -60,11 +59,9 @@ private struct DataSoftButton: View {
           shape.fill(.kitField)
         }
       }
-      .overlay { shape.fill(Color.primary.opacity(configuration.isPressed ? 0.1 : isHovered ? 0.04 : 0)) }
+      .overlay { shape.fill(Color.primary.opacity(configuration.isPressed ? 0.1 : 0)) }
       .opacity(isEnabled ? 1 : 0.45)
       .contentShape(shape)
-      .kitHover { isHovered = $0 }
-      .animation(.kitFast, value: isHovered)
   }
 }
 

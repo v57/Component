@@ -9,7 +9,7 @@ struct ButtonsPage: View {
   var body: some View {
     CatalogPage(page: .buttons) {
       SpecimenSection(
-        "Kinds", note: "Drawn by the kit. Hover and press them: hover adds a 4% wash, pressing 10%."
+        "Kinds", note: "Drawn by the kit. Press them: pressing adds a 10% wash."
       ) {
         Specimen(
           "Secondary, primary, plain, icon",
@@ -752,7 +752,7 @@ struct TabsPage: View {
   var body: some View {
     CatalogPage(page: .tabs) {
       SpecimenSection(
-        "Tab strip", note: "Close shows on the selected and hovered tab; a dot marks unsaved edits. Tab focuses, ← → move."
+        "Tab strip", note: "Close shows on the selected tab and under the pointer; a dot marks unsaved edits. Tab focuses, ← → move."
       ) {
         Specimen(
           "Editor tabs", ground: .window, padding: 0,
@@ -810,7 +810,7 @@ struct TabsPage: View {
             selection: .constant("a"))
         }
       }
-      SpecimenSection("Path bar", note: "The last crumb is current; others are quiet and take the field fill on hover.") {
+      SpecimenSection("Path bar", note: "The last crumb is current; the others are quiet.") {
         Specimen(
           "Crumbs with icons",
           code: """
@@ -1076,7 +1076,7 @@ struct StepperPage: View {
           }
         }
       }
-      SpecimenSection("Slider", note: "Hover rings the knob; dragging shows the value. Tab focuses, ← → move.") {
+      SpecimenSection("Slider", note: "Dragging rings the knob and shows the value. Tab focuses, ← → move.") {
         SpecimenGrid(minWidth: 300) {
           Specimen("Default", code: "KitSlider(\"Volume\", value: $volume)") {
             KitSlider("Volume", value: $volume)
@@ -1158,7 +1158,7 @@ struct ChoiceCardsPage: View {
 
   var body: some View {
     CatalogPage(page: .choiceCards) {
-      SpecimenSection("Pick one", note: "Picked lifts to a raised card with the half-accent ring; hover rises half-way.") {
+      SpecimenSection("Pick one", note: "Picked lifts to a raised card with the half-accent ring; pressing rises half-way.") {
         Specimen(
           "Choice cards",
           code: """

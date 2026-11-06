@@ -563,11 +563,10 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
     .fixedSize(horizontal: false, vertical: heightMode == .automatic)
     .background {
       RowGround(
-        selected: selected, striped: index % 2 == 1, hovered: hovered == row.id, state: state,
+        selected: selected, striped: index % 2 == 1, state: state,
         mergeTop: selected && previousSelected, mergeBottom: selected && nextSelected, active: isActive)
     }
     .kitDropTarget(dropRow == row.id, cornerRadius: KitMetrics.radiusSmall)
-    .kitHover { hovered = $0 ? row.id : (hovered == row.id ? nil : hovered) }
     .modifier(GridRowDrag(id: row.id, source: dragSource))
     .modifier(rowDrop(row))
     .modifier(GridRowMenu(ids: selected ? selection : [row.id], menu: menu))
@@ -955,7 +954,6 @@ enum KitGridDropLoader {
 private struct RowGround: View {
   let selected: Bool
   let striped: Bool
-  let hovered: Bool
   let state: KitGridRowState?
   let mergeTop: Bool
   let mergeBottom: Bool
@@ -971,9 +969,7 @@ private struct RowGround: View {
         .shadow(color: .black.opacity(scheme == .dark || !active ? 0 : 0.1), radius: 1, y: 0.5)
         .opacity(active ? 1 : 0.6)
     } else if let state, state != .edited {
-      shape.fill(state.hue.soft(hovered ? 0.18 : 0.12))
-    } else if hovered {
-      shape.fill(KitColor.rowHover)
+      shape.fill(state.hue.soft(0.12))
     } else if striped {
       shape.fill(.kitFillSoft)
     }
@@ -986,7 +982,6 @@ private struct ResizeHandle: View {
   let resize: (CGFloat) -> Void
   let reset: () -> Void
   @State private var start: CGFloat?
-  @State private var isHovered = false
 
   var body: some View {
     Rectangle()
@@ -996,11 +991,11 @@ private struct ResizeHandle: View {
         Rectangle()
           .fill(start != nil ? AnyShapeStyle(Hue.accent.fill) : AnyShapeStyle(.kitSeparator))
           .frame(width: start != nil ? 2 : 1, height: 16)
-          .opacity(start != nil || isHovered ? 1 : 0)
+          .opacity(start != nil ? 1 : 0)
       }
       .contentShape(Rectangle())
       .offset(x: 4.5)
-      .kitHover { isHovered = $0 }
+      .contResizeCursor()
       #if !os(tvOS)
       .gesture(
         DragGesture(minimumDistance: 1)

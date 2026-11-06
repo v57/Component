@@ -203,8 +203,8 @@ struct CtlCheckbox: View {
   }
 }
 
-/// A chip: on its own it sits on the field fill; on a track it is clear until hovered (the half-strength card) or
-/// on (the raised card with an accent dot). Pressing settles it (98%, flat).
+/// A chip: on its own it sits on the field fill; on a track it is clear until pressed or focused (the half-strength
+/// card) or on (the raised card with an accent dot). Pressing settles it (98%, flat).
 struct CtlChip<Label: View>: View {
   let isOn: Bool
   let isFocused: Bool
@@ -213,12 +213,11 @@ struct CtlChip<Label: View>: View {
   @Environment(\.ctlInChipTrack) private var inTrack
   @Environment(\.ctlIsPressed) private var isPressed
   @Environment(\.isEnabled) private var isEnabled
-  @State private var isHovered = false
 
   var body: some View {
     let radius = CtlChipMetrics.radius(idiom)
     let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-    let isLit = isEnabled && (isHovered || isPressed || (isFocused && inTrack))
+    let isLit = isEnabled && (isPressed || (isFocused && inTrack))
     HStack(spacing: 5) {
       if isOn {
         Circle().fill(Hue.accent.fill).frame(width: 6, height: 6)
@@ -244,7 +243,6 @@ struct CtlChip<Label: View>: View {
     // A chip on its own is a field, so it keeps the field ring; on a track the track wears it.
     .ctlFieldRing(isFocused && !inTrack, cornerRadius: radius)
     .scaleEffect(isPressed && isEnabled ? 0.98 : 1)
-    .kitHover { isHovered = $0 }
     .animation(.kitFast, value: isLit)
   }
 

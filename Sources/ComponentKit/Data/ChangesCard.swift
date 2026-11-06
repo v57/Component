@@ -99,7 +99,6 @@ public struct ChangeRow<Change: View>: View {
   var undo: (() -> Void)?
   var change: Change
   @Environment(\.kitIdiom) private var idiom
-  @State private var isHovered = false
 
   public init(
     _ kind: KitGridRowState, title: String, field: String? = nil, undo: (() -> Void)? = nil,
@@ -132,12 +131,6 @@ public struct ChangeRow<Change: View>: View {
     }
     .padding(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 2))
     .frame(minHeight: KitMetrics.tableRow(idiom))
-    .background {
-      RoundedRectangle(cornerRadius: KitMetrics.radius, style: .continuous)
-        .fill(isHovered ? AnyShapeStyle(.kitHover) : AnyShapeStyle(Color.clear))
-    }
-    .kitHover { isHovered = $0 }
-    .animation(.kitFast, value: isHovered)
     .accessibilityElement(children: .combine)
   }
 }

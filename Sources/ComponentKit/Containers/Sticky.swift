@@ -754,7 +754,6 @@ struct ContStickyCopyLine<Icon: View, Meta: View, Rows: View>: View {
   @ViewBuilder var icon: Icon
   @ViewBuilder var meta: Meta
   @ViewBuilder var rows: Rows
-  @State private var isHovered = false
   @Environment(\.contStickyScroll) private var scroll
   @Environment(\.kitIdiom) private var idiom
 
@@ -812,14 +811,7 @@ struct ContStickyCopyLine<Icon: View, Meta: View, Rows: View>: View {
     }
     .padding(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 0))
     .frame(minHeight: idiom.size(28, touch: 40))
-    .background {
-      if isHovered, !idiom.isTouch {
-        RoundedRectangle(cornerRadius: ContMetrics.rowRadius(idiom, compact: true), style: .continuous)
-          .fill(KitColor.rowHover)
-      }
-    }
     .contentShape(Rectangle())
-    .kitHover { isHovered = $0 }
     .onTapGesture { withKitAnimation { scroll?.action(id) } }
     .accessibilityElement(children: .contain)
     .accessibilityAction(named: Text("Show Section")) { scroll?.action(id) }

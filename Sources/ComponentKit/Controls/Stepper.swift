@@ -152,25 +152,20 @@ struct CtlStepperButtonLabel: View {
   let metrics: CtlStepperMetrics
   @Environment(\.ctlIsPressed) private var isPressed
   @Environment(\.isEnabled) private var isEnabled
-  @State private var isHovered = false
 
   var body: some View {
     let shape = RoundedRectangle(cornerRadius: metrics.radius, style: .continuous)
     Image(systemName: systemImage)
       .font(.system(size: metrics.button * 0.42, weight: .semibold))
-      .foregroundStyle(!isEnabled ? .kitTertiary : isHovered || isPressed || isFocused ? .kitLabel : .kitSecondary)
+      .foregroundStyle(!isEnabled ? .kitTertiary : isPressed || isFocused ? .kitLabel : .kitSecondary)
       .frame(width: metrics.buttonWidth, height: metrics.button)
       .background {
         if isEnabled && isPressed {
           shape.fill(.kitPress)
         } else if isEnabled && isFocused {
           shape.fill(KitColor.ctlGhost)
-        } else if isEnabled && isHovered {
-          shape.fill(.kitHover)
         }
       }
-      .kitHover { isHovered = $0 }
-      .animation(.kitFast, value: isHovered)
   }
 }
 

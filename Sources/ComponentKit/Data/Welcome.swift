@@ -389,7 +389,6 @@ public struct WelcomeAction: View {
   var detail: String?
   var systemImage: String
   var action: () -> Void
-  @State private var isHovered = false
 
   public init(_ title: String, detail: String? = nil, systemImage: String, action: @escaping () -> Void) {
     self.title = title
@@ -419,15 +418,9 @@ public struct WelcomeAction: View {
       }
       .padding(.horizontal, 10)
       .frame(minHeight: 52)
-      .background {
-        RoundedRectangle(cornerRadius: KitMetrics.radiusLarge, style: .continuous)
-          .fill(isHovered ? AnyShapeStyle(.kitHover) : AnyShapeStyle(Color.clear))
-      }
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
-    .kitHover { isHovered = $0 }
-    .animation(.kitFast, value: isHovered)
   }
 }
 
@@ -489,7 +482,6 @@ public struct RecentItem: View {
   @Environment(\.contRowIndent) private var indent
   @Environment(\.colorScheme) private var scheme
   @Environment(\.kitIdiom) private var idiom
-  @State private var isHovered = false
 
   public init(
     _ title: String, subtitle: String? = nil, date: String? = nil, status: String? = nil, statusHue: Hue = .gray,
@@ -562,12 +554,9 @@ public struct RecentItem: View {
     .background {
       if isSelected {
         SurfaceShape(surface: .raised, cornerRadius: KitMetrics.radiusLarge)
-      } else if isHovered {
-        RoundedRectangle(cornerRadius: KitMetrics.radiusLarge, style: .continuous).fill(.kitHover)
       }
     }
     .contentShape(Rectangle())
-    .kitHover { isHovered = $0 }
     .modifier(RecentItemTaps(isTouch: idiom.isTouch, open: { nav?.activate(id) ?? action() }, select: {
       withKitAnimation(.kitFast) { nav?.selected = id }
     }))
@@ -587,7 +576,6 @@ private struct RecentItemChevron: View {
   @Binding var isExpanded: Bool
   let title: String
   @Environment(\.kitIdiom) private var idiom
-  @State private var isHovered = false
 
   var body: some View {
     Button {
@@ -595,13 +583,12 @@ private struct RecentItemChevron: View {
     } label: {
       Image(systemName: "chevron.right")
         .font(.system(size: idiom.size(11, touch: 13), weight: .semibold))
-        .foregroundStyle(isHovered ? .kitLabel : .kitSecondary)
+        .foregroundStyle(.kitSecondary)
         .rotationEffect(.degrees(isExpanded ? 90 : 0))
         .frame(width: idiom.size(28, touch: 36), height: idiom.size(28, touch: 36))
         .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
-    .kitHover { isHovered = $0 }
     .accessibilityLabel(isExpanded ? "Collapse \(title)" : "Expand \(title)")
   }
 }

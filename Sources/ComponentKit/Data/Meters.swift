@@ -267,7 +267,6 @@ public struct LaneItem<Leading: View>: View {
   var isSelected: Bool
   var leading: Leading
   @Environment(\.kitWindowIsActive) private var isActive
-  @State private var isHovered = false
 
   public init(
     _ title: String, subtitle: String? = nil, subtitleHue: Hue? = nil, isSelected: Bool = false,
@@ -300,11 +299,8 @@ public struct LaneItem<Leading: View>: View {
         SurfaceShape(surface: .raised, cornerRadius: KitMetrics.radius)
       } else if isSelected {
         RoundedRectangle(cornerRadius: KitMetrics.radius, style: .continuous).fill(KitColor.raised).opacity(0.6)
-      } else if isHovered {
-        RoundedRectangle(cornerRadius: KitMetrics.radius, style: .continuous).fill(KitColor.rowHover)
       }
     }
-    .kitHover { isHovered = $0 }
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(isSelected ? .isSelected : [])
   }

@@ -393,7 +393,7 @@ public struct HunkCard: View {
     }
     .font(.system(size: 12, design: .monospaced))
     .frame(minHeight: 20)
-    .background { LineGround(line: line, selected: isSelected, hovered: isHovered) }
+    .background { LineGround(line: line, selected: isSelected) }
     .overlay(alignment: .leading) {
       if line.isChange, isHovered, let lineAction {
         StageLineButton(unstages: isStaged) { lineAction([line]) }.padding(.leading, 5)
@@ -513,7 +513,7 @@ public struct HunkCard: View {
           .frame(maxWidth: .infinity, alignment: .leading)
       }
       .frame(maxWidth: .infinity, minHeight: 20)
-      .background { LineGround(line: line, selected: isSelected, hovered: hovered == line.id) }
+      .background { LineGround(line: line, selected: isSelected) }
       .contentShape(Rectangle())
       .kitHover { inside in
         if inside { hovered = line.id } else if hovered == line.id { hovered = nil }
@@ -627,11 +627,10 @@ private struct WordMarkedText: View {
   }
 }
 
-/// A line's tint: added green, removed red (deeper under the pointer), the accent with a 3pt bar when selected.
+/// A line's tint: added green, removed red, the accent with a 3pt bar when selected.
 private struct LineGround: View {
   let line: DiffLine
   let selected: Bool
-  let hovered: Bool
 
   var body: some View {
     if selected {
@@ -639,8 +638,8 @@ private struct LineGround: View {
         .overlay(alignment: .leading) { Rectangle().fill(Hue.accent.fill).frame(width: 3) }
     } else {
       switch line.kind {
-      case .added: Rectangle().fill(Hue.green.soft(hovered ? 0.2 : 0.13))
-      case .removed: Rectangle().fill(Hue.red.soft(hovered ? 0.2 : 0.13))
+      case .added: Rectangle().fill(Hue.green.soft(0.13))
+      case .removed: Rectangle().fill(Hue.red.soft(0.13))
       case .context: Color.clear
       }
     }

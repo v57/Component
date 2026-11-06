@@ -461,8 +461,8 @@ private struct HoverEffectSection: View {
   var body: some View {
     SpecimenSection(
       "Hover",
-      note: "Tilts toward the pointer (a finger on iPhone and iPad) and lights where it is. A tile inside a card "
-        + "lights the card faintly. The light is only drawn while something is lit."
+      note: "Tilts toward a finger on iPhone and iPad and lights where it is; on the Mac a press lights it (the pointer "
+        + "doesn't). A tile inside a card lights the card faintly. The light is only drawn while something is lit."
     ) {
       SpecimenGrid(minWidth: 300) {
         Specimen(
