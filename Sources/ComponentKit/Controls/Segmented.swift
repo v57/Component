@@ -37,14 +37,20 @@ public struct KitSegment<Value: Hashable>: Identifiable {
   public var systemImage: String?
   public var count: Int?
   public var isEnabled: Bool
+  /// What picking it does, for a menu's preview panel (`KitMenuOptions`; see `kitMenuPreview`).
+  public var preview: String?
   public var id: Value { value }
 
-  public init(_ title: String, value: Value, systemImage: String? = nil, count: Int? = nil, isEnabled: Bool = true) {
+  public init(
+    _ title: String, value: Value, systemImage: String? = nil, count: Int? = nil, isEnabled: Bool = true,
+    preview: String? = nil
+  ) {
     self.title = title
     self.value = value
     self.systemImage = systemImage
     self.count = count
     self.isEnabled = isEnabled
+    self.preview = preview
   }
 }
 

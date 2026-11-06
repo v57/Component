@@ -873,9 +873,14 @@ public struct KitMenuOptions<Value: Hashable>: View {
     self.init(selection: selection, segments: options.map { KitSegment($0.0, value: $0.1) })
   }
 
+  /// Options as titled values, each with what picking it does for the menu's preview panel.
+  public init(selection: Binding<Value>, options: [(String, Value, String)]) {
+    self.init(selection: selection, segments: options.map { KitSegment($0.0, value: $0.1, preview: $0.2) })
+  }
+
   public var body: some View {
     ForEach(segments) { segment in
-      KitMenuRow(checked: segment.value == selection, trigger: { pick(segment.value) }) {
+      let row = KitMenuRow(checked: segment.value == selection, trigger: { pick(segment.value) }) {
         if let systemImage = segment.systemImage {
           Label(segment.title, systemImage: systemImage)
         } else {
@@ -883,6 +888,8 @@ public struct KitMenuOptions<Value: Hashable>: View {
         }
       }
       .disabled(!segment.isEnabled)
+      // Only a segment's own sentence replaces one set around the options.
+      if let preview = segment.preview { row.kitMenuPreview(preview) } else { row }
     }
   }
 
