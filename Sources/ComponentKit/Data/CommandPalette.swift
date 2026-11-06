@@ -116,6 +116,7 @@ public struct KitPalette<Scope: View, Content: View>: View {
       ScrollViewReader { proxy in
         ScrollView {
           LazyVStack(spacing: KitMetrics.gutter) { content }
+            .environment(\.dataPaletteLazyRows, true)
             .id(Self.top)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
         }
@@ -165,6 +166,8 @@ extension KitPalette where Scope == EmptyView {
 
 extension EnvironmentValues {
   @Entry var dataPaletteQuery: String = ""
+  /// The palette's results scroll: a group's rows are built as they come into view.
+  @Entry var dataPaletteLazyRows = false
 }
 
 /// A key hint in the palette's footer: keycaps and what they do.
@@ -218,10 +221,23 @@ public struct PaletteGroup<Accessory: View, Items: View>: View {
     self.items = items()
   }
 
+  @Environment(\.dataPaletteLazyRows) private var lazyRows
+
+  /// In the palette's scroll view the rows are lazy too: a group holds most results (Open Quickly's 60 files), and
+  /// all of them were built and measured on every keystroke.
   public var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      RichHeader(title, meta: meta, systemImage: systemImage, hue: hue, status: status) { accessory }
-      items
+    Group {
+      if lazyRows {
+        LazyVStack(alignment: .leading, spacing: 0) {
+          RichHeader(title, meta: meta, systemImage: systemImage, hue: hue, status: status) { accessory }
+          items
+        }
+      } else {
+        VStack(alignment: .leading, spacing: 0) {
+          RichHeader(title, meta: meta, systemImage: systemImage, hue: hue, status: status) { accessory }
+          items
+        }
+      }
     }
     .kitCard()
   }
