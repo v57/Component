@@ -19,6 +19,9 @@ public struct KitTab<ID: Hashable>: Identifiable {
   public var isPreview: Bool
   /// An icon view in place of the SF Symbol (a file's icon drawn as letters), about 14pt.
   public var icon: AnyView?
+  /// What the icon view shows (a file's URL), so the strip can tell an unchanged tab from a changed one: without it a
+  /// tab with an icon view is redrawn whenever the strip is.
+  public var iconID: AnyHashable?
 
   public init(
     id: ID, title: String, systemImage: String? = nil, hue: Hue? = nil, isEdited: Bool = false,
@@ -32,12 +35,22 @@ public struct KitTab<ID: Hashable>: Identifiable {
     self.isPreview = isPreview
   }
 
-  /// A tab with any icon view.
+  /// A tab with any icon view; `iconID` names what it shows (a file's URL), so switching tabs doesn't redraw the
+  /// others.
   public init<Icon: View>(
-    id: ID, title: String, isEdited: Bool = false, isPreview: Bool = false, @ViewBuilder icon: () -> Icon
+    id: ID, title: String, isEdited: Bool = false, isPreview: Bool = false, iconID: AnyHashable? = nil,
+    @ViewBuilder icon: () -> Icon
   ) {
     self.init(id: id, title: title, isEdited: isEdited, isPreview: isPreview)
     self.icon = AnyView(icon())
+    self.iconID = iconID
+  }
+
+  /// Whether the tab draws the same as `other` (an icon view without an `iconID` never does).
+  func drawsSame(as other: Self) -> Bool {
+    id == other.id && title == other.title && systemImage == other.systemImage && hue == other.hue
+      && isEdited == other.isEdited && isPreview == other.isPreview && (icon == nil) == (other.icon == nil)
+      && (icon == nil || (iconID != nil && iconID == other.iconID))
   }
 }
 
@@ -66,6 +79,8 @@ public struct KitTabStrip<ID: Hashable>: View {
   @Namespace private var namespace
   @State private var reorder = ContReorderState()
   @State private var list = UUID()
+  @State private var keys = CtlTabKeys.Handler()
+  @State private var actions = CtlTabActions<ID>()
 
   /// A tab strip; `onMove` lets the tabs reorder by dragging (it takes `.onMove`'s arguments, so
   /// `tabs.move(fromOffsets:toOffset:)` fits).
@@ -128,22 +143,26 @@ public struct KitTabStrip<ID: Hashable>: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding([.horizontal, .bottom], KitMetrics.gutter)
     .focusEffectDisabled()
-    .onKeyPress(keys: [.leftArrow, .rightArrow]) { press in moveFocus(press.key == .leftArrow ? -1 : 1) }
+    .modifier(CtlTabKeys(handler: keys.configured { moveFocus($0) }))
     .animation(.kit, value: selection)
   }
 
   private var row: some View {
-    HStack(spacing: idiom.size(4, touch: 6)) {
+    let actions = actions.configured(
+      select: { id in withKitAnimation { selection = id } }, close: onClose, menu: menu,
+      doubleClick: onDoubleClick, move: onMove)
+    return HStack(spacing: idiom.size(4, touch: 6)) {
       ForEach(Array((tabs.count > 1 ? tabs : []).enumerated()), id: \.element.id) { index, tab in
         CtlTabView(
           tab: tab, isSelected: tab.id == selection, isFocused: focus == tab.id, namespace: namespace,
-          select: { withKitAnimation { selection = tab.id } },
-          close: onClose.map { onClose in { onClose(tab.id) } }
+          actions: actions, closes: onClose != nil
         )
+        .equatable()
         .focused($focus, equals: tab.id)
-        .modifier(CtlTabExtras(id: tab.id, menu: menu, onDoubleClick: onDoubleClick))
         .modifier(
-          CtlTabReorder(list: AnyHashable(list), index: index, count: tabs.count, move: onMove, state: reorder))
+          CtlTabExtras(id: tab.id, actions: actions, hasMenu: menu != nil, hasDoubleClick: onDoubleClick != nil))
+        .modifier(
+          CtlTabReorder(list: list, index: index, count: tabs.count, actions: actions, moves: onMove != nil, state: reorder))
       }
       if let onAdd {
         Button("New Tab", systemImage: "plus", action: onAdd)
@@ -166,36 +185,86 @@ public struct KitTabStrip<ID: Hashable>: View {
   }
 }
 
+/// ← → move focus between the tabs. The handler is a box the strip fills as it updates, so the modifier (and the key
+/// handler it puts in the environment) stays the same as the selection changes: a new handler changed the environment
+/// of every tab, and each tab's buttons updated on every tab switch.
+private struct CtlTabKeys: ViewModifier {
+  @MainActor final class Handler {
+    var move: @MainActor (Int) -> KeyPress.Result = { _ in .ignored }
+
+    func configured(_ move: @escaping @MainActor (Int) -> KeyPress.Result) -> Self {
+      self.move = move
+      return self
+    }
+  }
+
+  let handler: Handler
+
+  func body(content: Content) -> some View {
+    content.onKeyPress(keys: [.leftArrow, .rightArrow]) { press in
+      handler.move(press.key == .leftArrow ? -1 : 1)
+    }
+  }
+}
+
+/// What the strip's tabs do, in a box the strip fills as it updates: the tabs and their modifiers hold the box, not
+/// the closures, so their inputs stay the same when the strip updates (new closures made every tab, its menu and its
+/// buttons update on every tab switch).
+@MainActor final class CtlTabActions<ID: Hashable> {
+  var select: (ID) -> Void = { _ in }
+  var close: ((ID) -> Void)?
+  var menu: ((ID) -> AnyView)?
+  var doubleClick: ((ID) -> Void)?
+  var move: ((IndexSet, Int) -> Void)?
+
+  func configured(
+    select: @escaping (ID) -> Void, close: ((ID) -> Void)?, menu: ((ID) -> AnyView)?,
+    doubleClick: ((ID) -> Void)?, move: ((IndexSet, Int) -> Void)?
+  ) -> Self {
+    self.select = select
+    self.close = close
+    self.menu = menu
+    self.doubleClick = doubleClick
+    self.move = move
+    return self
+  }
+}
+
 /// A tab's context menu and double click, when the strip has them.
 private struct CtlTabExtras<ID: Hashable>: ViewModifier {
   let id: ID
-  let menu: ((ID) -> AnyView)?
-  let onDoubleClick: ((ID) -> Void)?
+  let actions: CtlTabActions<ID>
+  let hasMenu: Bool
+  let hasDoubleClick: Bool
 
   func body(content: Content) -> some View {
     Group {
-      if let menu {
-        content.kitContextMenu { menu(id) }
+      if hasMenu {
+        content.kitContextMenu { actions.menu?(id) }
       } else {
         content
       }
     }
     .simultaneousGesture(
-      TapGesture(count: 2).onEnded { onDoubleClick?(id) }, including: onDoubleClick == nil ? .subviews : .all)
+      TapGesture(count: 2).onEnded { actions.doubleClick?(id) }, including: hasDoubleClick ? .all : .subviews)
   }
 }
 
 /// Dragging tabs to reorder them, when the strip takes `onMove`.
-private struct CtlTabReorder: ViewModifier {
-  let list: AnyHashable
+private struct CtlTabReorder<ID: Hashable>: ViewModifier {
+  let list: UUID
   let index: Int
   let count: Int
-  let move: ((IndexSet, Int) -> Void)?
+  let actions: CtlTabActions<ID>
+  let moves: Bool
   let state: ContReorderState
 
   func body(content: Content) -> some View {
-    if let move {
-      content.modifier(ContReorderRow(list: list, index: index, move: move, state: state, count: count, axis: .horizontal))
+    if moves {
+      content.modifier(
+        ContReorderRow(
+          list: AnyHashable(list), index: index, move: { [actions] in actions.move?($0, $1) }, state: state,
+          count: count, axis: .horizontal))
     } else {
       content
     }
@@ -204,20 +273,33 @@ private struct CtlTabReorder: ViewModifier {
 
 /// A tab: the selected one is the raised card; the close button (or the edited dot) sits in an 18pt slot at the end
 /// that is always there, so tabs never change width as the close button shows under the pointer.
-struct CtlTabView<ID: Hashable>: View {
+/// Equatable by what it draws (its actions are the strip's box), so a tab switch redraws only the two tabs it changes.
+struct CtlTabView<ID: Hashable>: View, Equatable {
+  nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+    MainActor.assumeIsolated {
+      lhs.isSelected == rhs.isSelected && lhs.isFocused == rhs.isFocused && lhs.namespace == rhs.namespace
+        && lhs.actions === rhs.actions && lhs.closes == rhs.closes && lhs.tab.drawsSame(as: rhs.tab)
+    }
+  }
+
   let tab: KitTab<ID>
   let isSelected: Bool
   let isFocused: Bool
   let namespace: Namespace.ID
-  let select: () -> Void
-  let close: (() -> Void)?
+  let actions: CtlTabActions<ID>
+  /// The strip closes tabs (`actions.close`).
+  let closes: Bool
+  private var close: (() -> Void)? {
+    guard closes else { return nil }
+    return { [actions, id = tab.id] in actions.close?(id) }
+  }
   @Environment(\.kitIdiom) private var idiom
   @State private var isHovered = false
 
   var body: some View {
     let radius: CGFloat = idiom.size(8, touch: 10)
     HStack(spacing: 6) {
-      Button(action: select) {
+      Button { actions.select(tab.id) } label: {
         HStack(spacing: 6) {
           if let icon = tab.icon {
             icon.frame(width: idiom.size(14, touch: 18), height: idiom.size(14, touch: 18))
