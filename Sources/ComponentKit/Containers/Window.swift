@@ -243,7 +243,7 @@ public struct ResizableSplit<Main: View, Pane: View>: View {
   let showsLine: Bool
   @ViewBuilder let main: Main
   @ViewBuilder let pane: Pane
-  @AppStorage private var width: Double
+  @KitStorage private var width: Double
   /// The pane's laid-out size along the split, which drags start from (it can be less than `width`).
   @State private var shownWidth: CGFloat = 0
   @State private var dragStart: CGFloat?
@@ -261,7 +261,7 @@ public struct ResizableSplit<Main: View, Pane: View>: View {
     self.showsLine = showsLine
     self.main = main()
     self.pane = pane()
-    _width = AppStorage(wrappedValue: Double(defaultWidth), autosaveName)
+    _width = KitStorage(wrappedValue: Double(defaultWidth), autosaveName)
   }
 
   /// A pane at the top or bottom edge (a console, a preview), `height` tall by default.
@@ -277,7 +277,7 @@ public struct ResizableSplit<Main: View, Pane: View>: View {
     self.showsLine = showsLine
     self.main = main()
     self.pane = pane()
-    _width = AppStorage(wrappedValue: Double(defaultHeight), autosaveName)
+    _width = KitStorage(wrappedValue: Double(defaultHeight), autosaveName)
   }
 
   private var isVertical: Bool { edge == .top || edge == .bottom }
