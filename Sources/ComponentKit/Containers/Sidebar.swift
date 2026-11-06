@@ -9,25 +9,63 @@ import SwiftUI
 // namespace, and every row selects itself on tap, draws the selection card (which glides between rows) and reorders
 // by dragging.
 
-/// What a sidebar publishes to its rows.
-struct ContSidebarSelection {
-  var value: AnyHashable?
-  var select: @MainActor (AnyHashable) -> Void
-  /// The sidebar holds keyboard focus (or is on a touch idiom, where there is no other focus).
-  var isFocused: Bool
-  var namespace: Namespace.ID
-  /// The container's double-click (and Return) action on a row's value.
-  var primaryAction: (@MainActor (AnyHashable) -> Void)? = nil
-  /// The rows selected together, in a container that selects several (`value` is then the last one clicked).
-  var values: Set<AnyHashable>? = nil
-  /// A click with modifiers on a row (or ⇧ with an arrow key), in a container that selects several.
-  var clicked: (@MainActor (AnyHashable, EventModifiers) -> Void)? = nil
-  /// What a right click on a row shows (`selectionContextMenu`), given the rows it acts on.
-  var menu: (@MainActor (Set<AnyHashable>) -> AnyView)? = nil
+/// What a sidebar (or list) publishes to its rows: one object for the container's life, so the environment value never
+/// changes. A row reads only its own selected state (`contains`), an observable entry per row, so moving the selection
+/// redraws the two rows it leaves and reaches, not every row: with a few hundred rows (a project's file tree) every
+/// selection change rebuilt them all, a long hitch. The container sets the closures on every update (`configure`) and
+/// moves the selection in an animated transaction after it (`sync`), so the selection card glides.
+@MainActor final class ContSidebarSelection {
+  /// One row's selected state.
+  @Observable @MainActor final class Row {
+    var isSelected: Bool
+    init(_ isSelected: Bool) { self.isSelected = isSelected }
+  }
 
+  /// What every selected row reads.
+  @Observable @MainActor final class Shared {
+    var isFocused = false
+    /// One selection card glides between rows; several stay where they are.
+    var glides = true
+  }
+
+  var select: @MainActor (AnyHashable) -> Void = { _ in }
+  var namespace: Namespace.ID?
+  /// The container's double-click (and Return) action on a row's value.
+  var primaryAction: (@MainActor (AnyHashable) -> Void)?
+  /// A click with modifiers on a row (or ⇧ with an arrow key), in a container that selects several.
+  var clicked: (@MainActor (AnyHashable, EventModifiers) -> Void)?
+  /// What a right click on a row shows (`selectionContextMenu`), given the rows it acts on.
+  var menu: (@MainActor (Set<AnyHashable>) -> AnyView)?
+  /// The selected value as the container last saw it (in a container that selects several, the last one clicked).
+  private(set) var value: AnyHashable?
+  /// The rows selected together, in a container that selects several.
+  private(set) var values: Set<AnyHashable>?
+  private var isFocusedNow = false
+  private var rows: [AnyHashable: Row] = [:]
+  private let shared = Shared()
+  /// The selected row's frame in the scroll view, as it last laid out (only the selected row reports it).
+  var shownRow: (value: AnyHashable, frame: CGRect)?
+  /// The part of the scroll view the rows show in (its bounds without the title bar and bottom bar).
+  var viewport: CGRect = .null
+
+  /// Whether `value`'s row is laid out wholly inside the viewport, so revealing it would not move anything.
+  func isShown(_ value: AnyHashable) -> Bool {
+    guard let shownRow, shownRow.value == value, !viewport.isNull else { return false }
+    return viewport.insetBy(dx: -1, dy: -1).contains(shownRow.frame)
+  }
+
+  /// The sidebar holds keyboard focus (or is on a touch idiom, where there is no other focus).
+  var isFocused: Bool { shared.isFocused }
+
+  var glideNamespace: Namespace.ID? { shared.glides ? namespace : nil }
+
+  /// Whether `row` is selected; a view that asks redraws when that row's state changes, and only then.
   func contains(_ row: AnyHashable?) -> Bool {
     guard let row else { return false }
-    return values?.contains(row) ?? (value == row)
+    if let entry = rows[row] { return entry.isSelected }
+    let entry = Row(isSelectedNow(row))
+    rows[row] = entry
+    return entry.isSelected
   }
 
   /// The rows a right click on `row` acts on: the whole selection when it's in it, else that row alone.
@@ -35,8 +73,65 @@ struct ContSidebarSelection {
     if let values, values.contains(row) { values } else { [row] }
   }
 
-  /// One selection card glides between rows; several stay where they are.
-  var glideNamespace: Namespace.ID? { (values?.count ?? 0) > 1 ? nil : namespace }
+  /// Takes the container's state on each of its updates. Rows that read it change only in `sync()`.
+  func configure(
+    value: AnyHashable?, values: Set<AnyHashable>?, isFocused: Bool, select: @escaping @MainActor (AnyHashable) -> Void,
+    namespace: Namespace.ID, primaryAction: (@MainActor (AnyHashable) -> Void)?,
+    clicked: (@MainActor (AnyHashable, EventModifiers) -> Void)?, menu: (@MainActor (Set<AnyHashable>) -> AnyView)?
+  ) {
+    self.value = value
+    self.values = values
+    isFocusedNow = isFocused
+    self.select = select
+    self.namespace = namespace
+    self.primaryAction = primaryAction
+    self.clicked = clicked
+    self.menu = menu
+  }
+
+  /// `configure`, returning the object for the environment.
+  func configured(
+    value: AnyHashable?, values: Set<AnyHashable>?, isFocused: Bool, select: @escaping @MainActor (AnyHashable) -> Void,
+    namespace: Namespace.ID, primaryAction: (@MainActor (AnyHashable) -> Void)?,
+    clicked: (@MainActor (AnyHashable, EventModifiers) -> Void)?, menu: (@MainActor (Set<AnyHashable>) -> AnyView)?
+  ) -> Self {
+    configure(
+      value: value, values: values, isFocused: isFocused, select: select, namespace: namespace,
+      primaryAction: primaryAction, clicked: clicked, menu: menu)
+    return self
+  }
+
+  /// Moves the rows to the configured selection and focus: only rows whose state changed redraw.
+  func sync() {
+    for (row, entry) in rows {
+      let selected = isSelectedNow(row)
+      if entry.isSelected != selected { entry.isSelected = selected }
+    }
+    if shared.isFocused != isFocusedNow { shared.isFocused = isFocusedNow }
+    let glides = (values?.count ?? 0) <= 1
+    if shared.glides != glides { shared.glides = glides }
+  }
+
+  private func isSelectedNow(_ row: AnyHashable) -> Bool {
+    values?.contains(row) ?? (value == row)
+  }
+}
+
+/// Moves a container's rows to its selection after each change, in the kit's animation (the card glides).
+struct ContSelectionSync: ViewModifier {
+  let selection: ContSidebarSelection
+  let value: AnyHashable?
+  let values: Set<AnyHashable>?
+  let isFocused: Bool
+
+  func body(content: Content) -> some View {
+    content
+      .environment(\.contSidebarSelection, selection)
+      .onAppear { selection.sync() }
+      .onChange(of: value) { withKitAnimation { selection.sync() } }
+      .onChange(of: values) { withKitAnimation { selection.sync() } }
+      .onChange(of: isFocused) { withKitAnimation { selection.sync() } }
+  }
 }
 
 /// A container's selection of several rows, whatever their type.
@@ -199,6 +294,8 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   private var multi: ContMultiSelection?
   private var selectionMenu: (@MainActor (Set<AnyHashable>) -> AnyView)?
   @State private var clicks = ContRowClicks()
+  @State private var rowSelection = ContSidebarSelection()
+  @State private var keyboard = ContRowKeyboardInputs()
   private let searchText: Binding<String>?
   private let searchPrompt: String
   private let isSearching: Binding<Bool>?
@@ -208,6 +305,7 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   private var statusView: AnyView?
   private var returnAction: (@MainActor () -> Void)?
   private var primary: (@MainActor (AnyHashable) -> Void)?
+  private var reveals = false
   @FocusState private var focused: Bool
   @Namespace private var namespace
   @State private var reorder = ContReorderState()
@@ -302,17 +400,15 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     // blurs them there; the bar's cards carry their own shadows over the rows, and a fade of the sidebar's ground
     // softens both edges.
     return ScrollView {
-      // The sections' rows are lazy stacks of their own, so a card nearing the screen comes a few rows at a time.
-      KitLazyStack(alignment: .leading, spacing: spacing) {
-        content
-      }
-      // Touch: rows finish building while the list rests, so the first scroll through them builds none.
-      .environment(\.contLazyKeepsBuilt, idiom.isTouch)
-      // Sticky sections (`.kitSticky`) report their places in the stack's space.
-      .contStickyStack()
-      .padding(.horizontal, inset)
-      // The ends' gaps are padding, not safe area, so the bars' fades end at the bars.
-      .padding(EdgeInsets(top: 2, leading: 0, bottom: inset, trailing: 0))
+      ContSidebarStack(content: content, spacing: spacing, inset: inset, keepsBuilt: idiom.isTouch)
+    }
+    // The part the rows show in, under the title bar and above the bottom bar (both safe area here).
+    .onGeometryChange(for: CGRect.self) { proxy in
+      let insets = proxy.safeAreaInsets
+      return CGRect(
+        x: 0, y: insets.top, width: proxy.size.width, height: max(proxy.size.height - insets.top - insets.bottom, 0))
+    } action: { [rowSelection] in
+      rowSelection.viewport = $0
     }
     // Stuck sections stack under the title bar and over the bottom bar; a stuck title scrolls to its section.
     // The bottom bar keeps its own gap above its cards.
@@ -324,9 +420,10 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     .focused($focused)
     .modifier(
       ContRowKeyboard(
-        current: selection, select: select, onReturn: returnAction, onPrimary: primary,
-        scroll: { value, anchor in proxy.scrollTo(ContRowScrollID(value: value), anchor: anchor) }, clicks: clicks,
-        extend: multi.map { clicks.extend(in: $0) }))
+        inputs: keyboard.configured(
+          current: selection, select: select, onReturn: returnAction, onPrimary: primary,
+          scroll: { value, anchor in proxy.scrollTo(ContRowScrollID(value: value), anchor: anchor) }, clicks: clicks,
+          extend: multi.map { clicks.extend(in: $0) })))
     // A click on a row focuses the sidebar, like a click into a `List`.
     .simultaneousGesture(TapGesture().onEnded { focused = true })
     // No system scroll edge under the title bar; the bottom bar as an inset.
@@ -393,17 +490,43 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     // the split view fixes the column's width (about 200pt in a three-column portrait, an app's own 220pt):
     // held wider than the column, the cards ran past both of its edges, with no gutter at the screen's edge.
     .frame(minWidth: idiom.isTouch ? nil : KitMetrics.sidebarMinWidth(idiom))
-    .environment(
-      \.contSidebarSelection,
-      ContSidebarSelection(
-        value: selection, select: select, isFocused: focused || idiom.isTouch || appearsActive, namespace: namespace,
-        primaryAction: primary, values: values, clicked: clicked, menu: selectionMenu)
-    )
+    .modifier(
+      ContSelectionSync(
+        selection: rowSelection.configured(
+          value: selection, values: values, isFocused: focused || idiom.isTouch || appearsActive, select: select,
+          namespace: namespace, primaryAction: primary, clicked: clicked, menu: selectionMenu),
+        value: selection, values: values, isFocused: focused || idiom.isTouch || appearsActive))
     .environment(\.contReorderState, reorder)
+    .onChange(of: selection) { _, value in
+      guard reveals, let value else { return }
+      // After the change has drawn, so a row that comes into the list with it is there to scroll to. Not animated:
+      // each frame of an animated scroll planned every lazy stack in the sidebar again. A row already in view is left
+      // alone: a scroll, even one that doesn't move, updated the whole window again (about 9 ms).
+      DispatchQueue.main.async { [rowSelection] in
+        guard !rowSelection.isShown(value) else { return }
+        proxy.scrollTo(ContRowScrollID(value: value))
+      }
+    }
     // The selection card glides to the newly selected row, and settles or goes flat as focus comes and goes.
     .animation(.kit, value: selection)
     .animation(.kit, value: values)
     .animation(.kit, value: focused)
+  }
+
+  /// Scrolls the selected row into view whenever the selection changes, also from outside the sidebar (a tab, a search,
+  /// a file opened elsewhere); a row already in view stays where it is.
+  ///
+  /// ```swift
+  /// KitSidebar(selection: $file) { … }
+  ///   .revealsSelection()
+  /// ```
+  ///
+  /// Use it instead of a `ScrollViewReader` around the sidebar: the reader builds its content again each time the
+  /// sidebar's rows change what it can scroll to, every row with it.
+  public func revealsSelection(_ reveals: Bool = true) -> Self {
+    var sidebar = self
+    sidebar.reveals = reveals
+    return sidebar
   }
 
   private var showsBar: Bool {
@@ -1020,10 +1143,15 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
   }
 
   public var body: some View {
-    if isCopy {
-      copyBody
-    } else {
-      rowBody
+    // One view to the stack around it whatever the row draws: a row's conditionals (and its modifiers') made its part
+    // of the stack's view list look changed each time its body ran, and the lazy stack (`Group(subviews:)`) resolved
+    // every row again, on each new selection.
+    ZStack {
+      if isCopy {
+        copyBody
+      } else {
+        rowBody
+      }
     }
   }
 
@@ -1178,6 +1306,13 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
         SurfaceShape(surface: .raised, cornerRadius: radius).opacity(isActive ? 1 : 0.6)
       }
       if isSelected {
+        // Where the selected row is, so revealing it can tell whether it's in view already. Here, on the selected
+        // row only and outside the gliding card (whose frame moves with the glide).
+        if let rowValue, let selection {
+          Color.clear.onGeometryChange(for: CGRect.self) { $0.frame(in: .scrollView) } action: { frame in
+            selection.shownRow = (rowValue, frame)
+          }
+        }
         Group {
           if isEmphasized {
             SurfaceShape(surface: .raised, cornerRadius: radius)
@@ -1549,5 +1684,29 @@ private struct ContSidebarColumn: ViewModifier {
   func body(content: Content) -> some View {
     content.navigationSplitViewColumnWidth(
       min: KitMetrics.sidebarMinWidth(idiom), ideal: KitMetrics.sidebarWidth, max: KitMetrics.sidebarMaxWidth(idiom))
+  }
+}
+
+/// The sidebar's rows in their lazy stack: a view of its own, with inputs that stay the same as the selection changes.
+/// In the sidebar's body (which runs again for every new selection) the stack's environment and modifiers were made
+/// again each time, and every section resolved its rows again: a tab switch in Code re-created 800 row views.
+private struct ContSidebarStack<Content: View>: View {
+  let content: Content
+  let spacing: CGFloat
+  let inset: CGFloat
+  let keepsBuilt: Bool
+
+  var body: some View {
+    // The sections' rows are lazy stacks of their own, so a card nearing the screen comes a few rows at a time.
+    KitLazyStack(alignment: .leading, spacing: spacing) {
+      content
+    }
+    // Touch: rows finish building while the list rests, so the first scroll through them builds none.
+    .environment(\.contLazyKeepsBuilt, keepsBuilt)
+    // Sticky sections (`.kitSticky`) report their places in the stack's space.
+    .contStickyStack()
+    .padding(.horizontal, inset)
+    // The ends' gaps are padding, not safe area, so the bars' fades end at the bars.
+    .padding(EdgeInsets(top: 2, leading: 0, bottom: inset, trailing: 0))
   }
 }

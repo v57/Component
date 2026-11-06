@@ -742,8 +742,9 @@ private let tree = [
   @Test("A right click on a selected row acts on the whole selection, on another row on that row")
   func menuTargets() {
     @Namespace var namespace
-    let selection = ContSidebarSelection(
-      value: "a", select: { _ in }, isFocused: true, namespace: namespace, values: set("a", "b"))
+    let selection = ContSidebarSelection().configured(
+      value: "a", values: set("a", "b"), isFocused: true, select: { _ in }, namespace: namespace, primaryAction: nil,
+      clicked: nil, menu: nil)
     #expect(selection.targets(of: "b") == set("a", "b"))
     #expect(selection.targets(of: "c") == set("c"))
     #expect(selection.contains("a"))

@@ -39,6 +39,8 @@ public struct KitList<Content: View>: View {
   private var multi: ContMultiSelection?
   private var selectionMenu: (@MainActor (Set<AnyHashable>) -> AnyView)?
   @State private var clicks = ContRowClicks()
+  @State private var rowSelection = ContSidebarSelection()
+  @State private var keyboard = ContRowKeyboardInputs()
   private let content: Content
   private var returnAction: (@MainActor () -> Void)?
   private var primary: (@MainActor (AnyHashable) -> Void)?
@@ -148,16 +150,17 @@ public struct KitList<Content: View>: View {
     .focused($focused)
     .modifier(
       ContRowKeyboard(
-        current: selection, select: select, onReturn: returnAction, onPrimary: primary,
-        scroll: { value, anchor in proxy.scrollTo(ContRowScrollID(value: value), anchor: anchor) }, clicks: clicks,
-        extend: multi.map { clicks.extend(in: $0) }))
+        inputs: keyboard.configured(
+          current: selection, select: select, onReturn: returnAction, onPrimary: primary,
+          scroll: { value, anchor in proxy.scrollTo(ContRowScrollID(value: value), anchor: anchor) }, clicks: clicks,
+          extend: multi.map { clicks.extend(in: $0) })))
     .modifier(ContListTapFocus(focused: $focused, selection: selection))
-    .environment(
-      \.contSidebarSelection,
-      ContSidebarSelection(
-        value: selection, select: select, isFocused: focused || idiom.isTouch || appearsActive, namespace: namespace,
-        primaryAction: primary, values: values, clicked: clicked, menu: selectionMenu)
-    )
+    .modifier(
+      ContSelectionSync(
+        selection: rowSelection.configured(
+          value: selection, values: values, isFocused: focused || idiom.isTouch || appearsActive, select: select,
+          namespace: namespace, primaryAction: primary, clicked: clicked, menu: selectionMenu),
+        value: selection, values: values, isFocused: focused || idiom.isTouch || appearsActive))
     .animation(.kit, value: selection)
     .animation(.kit, value: values)
     .animation(.kit, value: focused)

@@ -270,10 +270,24 @@ struct ContStickyTable: Equatable, @unchecked Sendable {
 /// What a sticky item tells the section inside it.
 struct ContStickyContext: Equatable, @unchecked Sendable {
   var id: AnyHashable
-  var state: ContStickyState?
+  /// Whether it's stuck, in a box: the views that draw it differently read it, and the context stays the same value
+  /// as it sticks and comes free. As a value it changed the environment of every view inside the item, and a
+  /// sidebar's section built all its rows again each time it stuck or came free (on every scroll to a row).
+  let box: ContStickyStateBox
   var scroll: ContStickyScroll?
   /// What its copy in the bottom dock shows.
   var bottom: KitStickyBottom = .none
+
+  @MainActor var state: ContStickyState? { box.state }
+
+  static func == (a: Self, b: Self) -> Bool {
+    a.id == b.id && a.box === b.box && a.scroll == b.scroll && a.bottom == b.bottom
+  }
+}
+
+/// A sticky item's stuck state, observed by the views that read it.
+@MainActor @Observable final class ContStickyStateBox {
+  var state: ContStickyState?
 }
 
 /// Scrolls the host to a sticky item (a click on its stuck title).
@@ -546,7 +560,8 @@ private struct ContStickyClear: Equatable {
 struct ContStickyItemModifier: ViewModifier {
   let id: AnyHashable
   let sticky: ContSticky
-  @State private var state: ContStickyState?
+  @State private var box = ContStickyStateBox()
+  private var state: ContStickyState? { box.state }
   /// Bumped to draw again after a change SwiftUI may have dropped (see `ContStickyHost.redrawSoon`).
   @State private var revision = 0
   /// The item's frame and top in the scroll view as of the last frame: not state, which a screen's first frame can
@@ -562,7 +577,7 @@ struct ContStickyItemModifier: ViewModifier {
       let keyed = ContStickyKeyed(table: table, id: id)
       // What reads geometry sits outside the offset: inside it, frames move with it, and the offset would follow.
       content
-        .environment(\.contStickyContext, ContStickyContext(id: id, state: state, scroll: scroll, bottom: sticky.bottom))
+        .environment(\.contStickyContext, ContStickyContext(id: id, box: box, scroll: scroll, bottom: sticky.bottom))
         // The section's title measures itself from here, so the offset of the whole doesn't move it.
         .coordinateSpace(.named(ContStickyTable.itemSpace))
         .visualEffect { effect, proxy in
@@ -641,7 +656,7 @@ extension ContStickyItemModifier {
     }
     if visible.isPresent { registry?.setDocked(id, isDocked) }
     if new != state {
-      state = new
+      box.state = new
       redrawSoon()
     }
   }

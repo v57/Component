@@ -5,12 +5,21 @@ import SwiftUI
 // → opens or goes to the first child, Return).
 
 /// A row's disclosure: its open state, or a leaf's empty slot (so icons in a tree line up).
-struct ContRowDisclosure {
+struct ContRowDisclosure: Equatable {
   /// `nil`: a leaf in a tree, which keeps the chevron's slot.
   var isExpanded: Binding<Bool>?
   /// Opens or closes the row with everything inside it (an ⌥-click on the chevron); `nil` where the row's children
   /// aren't known (then ⌥-click opens or closes the row alone).
   var setRecursively: ((Bool) -> Void)? = nil
+  /// The `KitOutline` item it opens: two disclosures of one item in the same state are equal, so an outline built
+  /// again leaves its rows alone (its bindings and closures are new each time, the state they reach the same).
+  var id: AnyHashable? = nil
+
+  static func == (a: Self, b: Self) -> Bool {
+    guard let id = a.id, id == b.id else { return false }
+    return a.isExpanded?.wrappedValue == b.isExpanded?.wrappedValue && (a.isExpanded == nil) == (b.isExpanded == nil)
+      && (a.setRecursively == nil) == (b.setRecursively == nil)
+  }
 
   /// Opens or closes the row; with ⌥ held, everything inside it too, as in Finder and Xcode.
   @MainActor func toggle() {
@@ -230,8 +239,10 @@ private struct ContOutlineNode<Element: Identifiable, RowContent: View>: View {
     let children = children
     let disclosure =
       kids == nil
-      ? ContRowDisclosure(isExpanded: nil)
-      : ContRowDisclosure(isExpanded: isOpen) { open in expansion.setRecursively(item, open: open, children: children) }
+      ? ContRowDisclosure(isExpanded: nil, id: AnyHashable(id))
+      : ContRowDisclosure(
+        isExpanded: isOpen, setRecursively: { open in expansion.setRecursively(item, open: open, children: children) },
+        id: AnyHashable(id))
     row(item)
       .environment(\.contRowIndent, level)
       .environment(\.contRowDisclosure, kids == nil && !reservesLeafSlot ? nil : disclosure)
@@ -355,18 +366,50 @@ struct ContRowScrollID: Hashable {
 
 /// Arrow keys and Return over the rows of a `KitSidebar` or `KitList`. The selection scrolls into view as it moves;
 /// at the last row built so far (the rows past it are lazy), the list scrolls on to build them and the move goes on.
-struct ContRowKeyboard: ViewModifier {
-  let current: AnyHashable?
-  let select: @MainActor (AnyHashable) -> Void
-  let onReturn: (@MainActor () -> Void)?
-  var onPrimary: (@MainActor (AnyHashable) -> Void)? = nil
+/// What `ContRowKeyboard` acts with: the selected row and what selecting, Return and scrolling do.
+@MainActor final class ContRowKeyboardInputs {
+  var current: AnyHashable?
+  var select: @MainActor (AnyHashable) -> Void = { _ in }
+  var onReturn: (@MainActor () -> Void)?
+  var onPrimary: (@MainActor (AnyHashable) -> Void)?
   /// Scrolls the row with this value into view: to `anchor`, or as little as it takes (`nil`).
-  var scroll: (@MainActor (AnyHashable, UnitPoint?) -> Void)? = nil
+  var scroll: (@MainActor (AnyHashable, UnitPoint?) -> Void)?
   /// A selection of several rows: it learns the rows' order here, for ⇧-click ranges.
-  var clicks: ContRowClicks? = nil
+  var clicks: ContRowClicks?
   /// ⇧↑↓ in a selection of several: the range grows to the row.
-  var extend: (@MainActor (AnyHashable) -> Void)? = nil
+  var extend: (@MainActor (AnyHashable) -> Void)?
+
+  /// Takes the container's current values (from its body) and returns itself.
+  func configured(
+    current: AnyHashable?, select: @escaping @MainActor (AnyHashable) -> Void, onReturn: (@MainActor () -> Void)?,
+    onPrimary: (@MainActor (AnyHashable) -> Void)?, scroll: (@MainActor (AnyHashable, UnitPoint?) -> Void)?,
+    clicks: ContRowClicks?, extend: (@MainActor (AnyHashable) -> Void)?
+  ) -> Self {
+    self.current = current
+    self.select = select
+    self.onReturn = onReturn
+    self.onPrimary = onPrimary
+    self.scroll = scroll
+    self.clicks = clicks
+    self.extend = extend
+    return self
+  }
+}
+
+struct ContRowKeyboard: ViewModifier {
+  /// What the keys act with, in a box the container fills as it updates: the modifier stays the same value as the
+  /// selection changes, and so do its key handlers. New handlers changed the environment of everything inside, and
+  /// every lazy stack in a sidebar resolved its rows again on each new selection.
+  let inputs: ContRowKeyboardInputs
   @State private var rows: [ContRowNavItem] = []
+
+  private var current: AnyHashable? { inputs.current }
+  private var select: @MainActor (AnyHashable) -> Void { inputs.select }
+  private var onReturn: (@MainActor () -> Void)? { inputs.onReturn }
+  private var onPrimary: (@MainActor (AnyHashable) -> Void)? { inputs.onPrimary }
+  private var scroll: (@MainActor (AnyHashable, UnitPoint?) -> Void)? { inputs.scroll }
+  private var clicks: ContRowClicks? { inputs.clicks }
+  private var extend: (@MainActor (AnyHashable) -> Void)? { inputs.extend }
 
   func body(content: Content) -> some View {
     content

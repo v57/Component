@@ -1,10 +1,17 @@
 import SwiftUI
 
 /// What `.kitRename` hands the row below it.
-struct ContRename {
+struct ContRename: Equatable {
   var isRenaming: Binding<Bool>
   var text: Binding<String>?
   var commit: @MainActor (String) -> Void
+
+  /// Two that aren't renaming are the same: its bindings and closure are new each time the row is built, and a row
+  /// that isn't renaming uses none of them (the row was built again, every time, for nothing). While renaming, it
+  /// always changes.
+  static func == (a: Self, b: Self) -> Bool {
+    !a.isRenaming.wrappedValue && !b.isRenaming.wrappedValue
+  }
 }
 
 extension EnvironmentValues {

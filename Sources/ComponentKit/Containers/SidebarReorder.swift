@@ -1195,11 +1195,11 @@ struct ContOutsideSlot: View {
         }
       }
       .offset(y: state.offset(list, at: index))
-      .preference(
-        key: ContDropHintKey.self,
-        value: state.hint.map {
-          ContDropHintValue(title: $0, lift: state.hintLift, pointer: ContPlatform.hasPointer ? nil : state.pointer)
-        })
+      .modifier(
+        ContDropHintPublisher(
+          value: state.hint.map {
+            ContDropHintValue(title: $0, lift: state.hintLift, pointer: ContPlatform.hasPointer ? nil : state.pointer)
+          }))
       .padding(.vertical, ContReorderDropDelegate.reach)
       .contentShape(Rectangle())
       .onDrop(of: delegate.outside?.types ?? [], delegate: target)
@@ -1256,11 +1256,13 @@ private struct ContDraggedRowSlot: ViewModifier {
       .offset(x: axis == .horizontal ? offset : 0, y: axis == .vertical ? offset : 0)
       // Where the drop goes, above the drag image, drawn by the window's root over everything
       // (`ContDropHintOverlay`): the folder it names may be out of sight.
-      .preference(
-        key: ContDropHintKey.self,
-        value: isSlot
-          ? state.hint.map { ContDropHintValue(title: $0, lift: state.hintLift, pointer: ContPlatform.hasPointer ? nil : state.pointer) }
-          : nil)
+      .modifier(
+        ContDropHintPublisher(
+          value: isSlot
+            ? state.hint.map {
+              ContDropHintValue(title: $0, lift: state.hintLift, pointer: ContPlatform.hasPointer ? nil : state.pointer)
+            }
+            : nil))
   }
 
   @ViewBuilder
@@ -1320,30 +1322,70 @@ struct ContDropHintValue: Equatable {
   var pointer: CGPoint?
 }
 
-struct ContDropHintKey: PreferenceKey {
-  static let defaultValue: ContDropHintValue? = nil
-  static func reduce(value: inout ContDropHintValue?, nextValue: () -> ContDropHintValue?) {
-    value = value ?? nextValue()
+/// The drop hint the window's root draws (`ContDropHintOverlay`), set by the row that is the drag's slot. A box in the
+/// environment rather than a preference: every reorderable row published one, and combining them up the tree took
+/// tens of milliseconds whenever a sidebar's rows were built (a project opened).
+@MainActor @Observable final class ContDropHintBox {
+  private(set) var value: ContDropHintValue?
+  @ObservationIgnored private var owner: UUID?
+
+  /// `row`'s hint; nil clears it when `row` set the one shown (the slot moves on to another row in any order).
+  func set(_ value: ContDropHintValue?, from row: UUID) {
+    if let value {
+      owner = row
+      if self.value != value { self.value = value }
+    } else if owner == row {
+      owner = nil
+      if self.value != nil { self.value = nil }
+    }
+  }
+}
+
+extension EnvironmentValues {
+  @Entry var contDropHintBox: ContDropHintBox? = nil
+}
+
+/// Hands a row's drop hint to the window's root.
+private struct ContDropHintPublisher: ViewModifier {
+  let value: ContDropHintValue?
+  @State private var id = UUID()
+  @Environment(\.contDropHintBox) private var box
+
+  func body(content: Content) -> some View {
+    content
+      .onChange(of: value) { _, value in box?.set(value, from: id) }
+      .onAppear { if let value { box?.set(value, from: id) } }
+      .onDisappear { box?.set(nil, from: id) }
   }
 }
 
 /// Draws the drop's name above the drag image, over the whole window, following the pointer every frame where the
 /// platform gives it (the Mac): the drop's own updates stop wherever no row is under the pointer. On the kit's root.
 struct ContDropHintOverlay: ViewModifier {
+  @State private var box = ContDropHintBox()
+
   func body(content: Content) -> some View {
-    content.overlayPreferenceValue(ContDropHintKey.self) { hint in
-      if let hint {
-        GeometryReader { proxy in
-          TimelineView(.animation) { _ in
-            let pointer = hint.pointer ?? ContPlatform.pointerInWindow ?? .zero
-            let origin = proxy.frame(in: .global).origin
-            ContDropHint(title: hint.title)
-              .position(x: pointer.x - origin.x, y: pointer.y - hint.lift - origin.y - 20)
-          }
+    content
+      .environment(\.contDropHintBox, box)
+      .overlay { ContDropHintLayer(box: box) }
+  }
+}
+
+private struct ContDropHintLayer: View {
+  let box: ContDropHintBox
+
+  var body: some View {
+    if let hint = box.value {
+      GeometryReader { proxy in
+        TimelineView(.animation) { _ in
+          let pointer = hint.pointer ?? ContPlatform.pointerInWindow ?? .zero
+          let origin = proxy.frame(in: .global).origin
+          ContDropHint(title: hint.title)
+            .position(x: pointer.x - origin.x, y: pointer.y - hint.lift - origin.y - 20)
         }
-        .allowsHitTesting(false)
-        .transition(.opacity)
       }
+      .allowsHitTesting(false)
+      .transition(.opacity)
     }
   }
 }

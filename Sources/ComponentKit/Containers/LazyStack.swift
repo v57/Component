@@ -77,7 +77,7 @@ public struct KitLazyStack<Content: View>: View {
       if #available(macOS 15, iOS 18, *) {
         // Sticky views (`.kitSticky`) stick here too.
         Group(subviews: content) { subviews in
-          if subviews.isEmpty, let empty {
+          if let empty, subviews.isEmpty {
             empty
           } else {
             VStack(alignment: alignment, spacing: spacing) {
@@ -117,9 +117,11 @@ private struct ContLazyStack<Content: View>: View {
 
   var body: some View {
     Group(subviews: content) { subviews in
-      if subviews.isEmpty, let empty {
+      // Counted once: each of `isEmpty` and `count` walked a search's thousands of matches.
+      let count = subviews.count
+      if count == 0, let empty {
         empty
-      } else if subviews.count > ContLazyModel.rowLimit {
+      } else if count > ContLazyModel.rowLimit {
         // Thousands of views (a search's matches in one section): each item would cost on every plan and every
         // layout, so they go in a `LazyVStack`, which lays out only what it built.
         LazyVStack(alignment: alignment, spacing: spacing) {
