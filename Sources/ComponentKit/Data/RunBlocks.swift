@@ -17,6 +17,9 @@ import SwiftUI
 public struct RunBlocks<Content: View>: View {
   var selection: Binding<String?>?
   var content: Content
+  /// Kept across updates, so a block's environment changes only when the selected run does (a new binding each
+  /// update, as the output streamed, updated every block).
+  @State private var select = DataRunSelect()
 
   /// A track of runs; with `selection`, clicking a block selects it (its `id`).
   public init(selection: Binding<String?>? = nil, @ViewBuilder content: () -> Content) {
@@ -29,12 +32,28 @@ public struct RunBlocks<Content: View>: View {
     KitLazyStack(alignment: .leading, spacing: 2) { content }
       .padding(4)
       .background(.kitField, in: RoundedRectangle(cornerRadius: KitMetrics.radiusCard, style: .continuous))
-      .environment(\.dataRunSelection, selection)
+      .environment(\.dataRunSelected, selection?.wrappedValue)
+      .environment(\.dataRunSelect, selection.map { select.configured($0) })
   }
 }
 
+/// Selects a run on a `RunBlocks` track: the track's binding, in a box that stays the same object.
+@MainActor final class DataRunSelect {
+  private var selection: Binding<String?>?
+
+  func configured(_ selection: Binding<String?>) -> Self {
+    self.selection = selection
+    return self
+  }
+
+  func select(_ id: String) { selection?.wrappedValue = id }
+}
+
 extension EnvironmentValues {
-  @Entry var dataRunSelection: Binding<String?>? = nil
+  /// The selected run's id.
+  @Entry var dataRunSelected: String? = nil
+  /// Selects a run; `nil` where the track has no selection.
+  @Entry var dataRunSelect: DataRunSelect? = nil
 }
 
 /// One run on a `RunBlocks` track. `status` drives its live icon and chip: `.working(progress:)` fills the ring
@@ -54,7 +73,8 @@ public struct RunBlock: View {
   var output: String
   var stop: (() -> Void)?
   @State private var expanded: Bool?
-  @Environment(\.dataRunSelection) private var selection
+  @Environment(\.dataRunSelected) private var selected
+  @Environment(\.dataRunSelect) private var select
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.colorScheme) private var scheme
 
@@ -76,7 +96,7 @@ public struct RunBlock: View {
     self.stop = stop
   }
 
-  private var isSelected: Bool { selection?.wrappedValue == id }
+  private var isSelected: Bool { select != nil && selected == id }
   /// Passed runs fold to their header; everything else shows its output.
   private var isExpanded: Bool { expanded ?? (status != .done) }
 
@@ -94,7 +114,7 @@ public struct RunBlock: View {
       if isSelected { SurfaceShape(surface: .raised, cornerRadius: KitMetrics.radius) }
     }
     .contentShape(Rectangle())
-    .onTapGesture { withKitAnimation(.kitFast) { selection?.wrappedValue = id } }
+    .onTapGesture { withKitAnimation(.kitFast) { select?.select(id) } }
     .animation(.kit, value: isExpanded)
     .animation(.kit, value: status)
     .accessibilityElement(children: .contain)
@@ -128,7 +148,7 @@ public struct RunBlock: View {
     .contentShape(Rectangle())
     .onTapGesture {
       withKitAnimation {
-        selection?.wrappedValue = id
+        select?.select(id)
         if !output.isEmpty { expanded = !isExpanded }
       }
     }
