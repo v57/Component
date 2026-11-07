@@ -93,6 +93,8 @@ struct KitMenuPreviewPanel: View {
         .font(.system(size: 12 * idiom.scale))
         .lineSpacing(2)
         .foregroundStyle(item.isDanger ? AnyShapeStyle(Hue.red.text) : AnyShapeStyle(.kitLabel))
+        // It wraps wherever the menu hangs: a menu on a toolbar's title (one line there) inherits its line limit.
+        .lineLimit(nil)
         .fixedSize(horizontal: false, vertical: true)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
