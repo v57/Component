@@ -229,6 +229,17 @@ enum KitGridLayout {
     return base.dropLast() + [last]
   }
 
+  /// The column under `x` in a row whose columns are `widths` wide after a `leading` gutter (the gutter counts as the
+  /// first column, anything past the end as the last).
+  static func column(at x: CGFloat, widths: [CGFloat], leading: CGFloat = 0) -> Int {
+    var edge = leading
+    for (index, width) in widths.enumerated() {
+      edge += width
+      if x < edge { return index }
+    }
+    return max(widths.count - 1, 0)
+  }
+
   /// The column `offset` steps from `current`, clamped.
   static func column(_ current: Int?, by offset: Int, count: Int) -> Int? {
     guard count > 0 else { return nil }
@@ -561,6 +572,20 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
     }
     .frame(minHeight: rowHeight, maxHeight: heightMode == .automatic ? nil : rowHeight)
     .fixedSize(horizontal: false, vertical: heightMode == .automatic)
+    // The row's taps, its column found from where the click lands: two gestures per cell made a table of 30 rows and
+    // 6 columns build 360 of them, and AppKit walks every one after each layout (the title bar's drag region). tvOS
+    // has no spatial taps: its cells keep their own.
+    #if !os(tvOS)
+      .contentShape(Rectangle())
+      .onTapGesture(count: 2) { location in
+        let index = KitGridLayout.column(at: location.x, widths: widths, leading: gutter)
+        activate(row, column: index)
+      }
+      .simultaneousGesture(
+        SpatialTapGesture().onEnded {
+          click(row, column: KitGridLayout.column(at: $0.location.x, widths: widths, leading: gutter))
+        })
+    #endif
     .background {
       RowGround(
         selected: selected, striped: index % 2 == 1, state: state,
@@ -616,16 +641,21 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
     }
     .frame(width: width, alignment: column.frameAlignment)
     .frame(maxHeight: .infinity)
-    .contentShape(Rectangle())
-    .onTapGesture(count: 2) {
-      focus(row, column: index, extending: false)
-      if column.edit != nil, interaction == .cells {
-        beginEditing(row, column)
-      } else {
-        primaryAction?(selection)
-      }
+    #if os(tvOS)
+      .contentShape(Rectangle())
+      .onTapGesture(count: 2) { activate(row, column: index) }
+      .simultaneousGesture(TapGesture().onEnded { click(row, column: index) })
+    #endif
+  }
+
+  /// A double click on a cell: edits it when it edits in place, else runs the primary action on the selection.
+  private func activate(_ row: Row, column index: Int) {
+    focus(row, column: index, extending: false)
+    if columns[index].edit != nil, interaction == .cells {
+      beginEditing(row, columns[index])
+    } else {
+      primaryAction?(selection)
     }
-    .simultaneousGesture(TapGesture().onEnded { click(row, column: index) })
   }
 
   @ViewBuilder

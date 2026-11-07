@@ -88,6 +88,19 @@ import Testing
   #expect(KitGridLayout.widths([], available: 100).isEmpty)
 }
 
+@Test func gridClickFindsItsColumn() {
+  let widths: [CGFloat] = [60, 100, 80]
+  #expect(KitGridLayout.column(at: 0, widths: widths) == 0)
+  #expect(KitGridLayout.column(at: 59, widths: widths) == 0)
+  #expect(KitGridLayout.column(at: 60, widths: widths) == 1)
+  #expect(KitGridLayout.column(at: 200, widths: widths) == 2)
+  #expect(KitGridLayout.column(at: 500, widths: widths) == 2)
+  // The state gutter belongs to the first column.
+  #expect(KitGridLayout.column(at: 10, widths: widths, leading: 30) == 0)
+  #expect(KitGridLayout.column(at: 95, widths: widths, leading: 30) == 1)
+  #expect(KitGridLayout.column(at: 10, widths: []) == 0)
+}
+
 @Test func gridColumnMovesClamp() {
   #expect(KitGridLayout.column(nil, by: 1, count: 3) == 0)
   #expect(KitGridLayout.column(nil, by: -1, count: 3) == 2)
