@@ -122,12 +122,13 @@ public struct KitLanguagesSettings: View {
 // MARK: - The scene's side
 
 extension View {
-  /// For each scene's root: rebuilds the scene when the app's strings change (a language downloaded, updated or
-  /// removed, so every text shows it at once), and asks once, after the window appears, whether to download the
+  /// For each scene's root, inside `componentKit(accent:)`: rebuilds the scene when the app's strings change (a
+  /// language downloaded, updated or removed, so every text shows it at once; the scene's view state starts over, as
+  /// after reopening the window), and asks once, after the window appears, whether to download the
   /// app's language when the app runs in one it doesn't include.
   ///
   /// ```swift
-  /// WindowGroup { ContentView().kitLanguages() }
+  /// WindowGroup { ContentView().kitLanguages().componentKit(accent: .blue) }
   /// ```
   public func kitLanguages() -> some View { modifier(KitLanguagesModifier()) }
 }
@@ -170,7 +171,16 @@ struct KitLanguagesModifier: ViewModifier {
   }
 }
 
-enum KitLanguages {
+/// The app's languages beyond the ones it ships (PlatformLanguages' `LanguagePacks`).
+public enum KitLanguages {
+  /// Names the app's sources in v57/Localizations, its own strings first, then its kits', and uses the downloaded
+  /// translation of the app's language. Call first in the App's `init`, before any text shows.
+  ///
+  /// ```swift
+  /// init() { KitLanguages.start(sources: ["Markdown", "MarkdownKit", "ComponentKit", "VaultUI"]) }
+  /// ```
+  @MainActor public static func start(sources: [String]) { LanguagePacks.start(sources: sources) }
+
   static var appName: String {
     Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
       ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
