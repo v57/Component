@@ -504,6 +504,17 @@ struct ContWindowMinimum: Layout {
   func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
     for subview in subviews { subview.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size)) }
   }
+
+  // No alignment guides of its own: the default asks the content's, which lays it out at the size asked about, and a
+  // stack around it (Shell's sidebar column, under the inset's smallest-size pass) asked that of a scroll view each
+  // time anything in the sidebar changed: it laid out every row again (about 25 ms each second in Shell).
+  func explicitAlignment(
+    of guide: HorizontalAlignment, in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
+  ) -> CGFloat? { nil }
+
+  func explicitAlignment(
+    of guide: VerticalAlignment, in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
+  ) -> CGFloat? { nil }
 }
 
 extension View {
