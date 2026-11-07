@@ -156,11 +156,20 @@ public struct KitOneTimeCode: View {
   private func row(left: TimeInterval, current: String?, seconds: Bool) -> some View {
     HStack(spacing: 6) {
       if seconds {
-        Text("\(Int(left.rounded(.up))) s")
+        // A label of constant size, the count drawn over it: a text whose content changes each second is measured
+        // again with every view around it (an inspector page laid out once a second while it sat open).
+        Text(verbatim: period >= 10 ? "00 s" : "0 s")
           .kitFont(.caption)
           .monospacedDigit()
-          .contentTransition(.numericText(countsDown: true))
           .fixedSize()
+          .hidden()
+          .overlay(alignment: .trailing) {
+            Text("\(Int(left.rounded(.up))) s")
+              .kitFont(.caption)
+              .monospacedDigit()
+              .contentTransition(.numericText(countsDown: true))
+              .fixedSize()
+          }
       }
       LiveIcon(
         systemImage: "clock", hue: left <= 5 ? .orange : .accent,
