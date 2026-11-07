@@ -182,7 +182,8 @@ extension View {
     systemImage: String? = nil, hue: Hue = .accent, status: WorkStatus = .idle,
     alignment: HorizontalAlignment = .trailing, @ViewBuilder content: () -> Content
   ) -> some View {
-    safeAreaInset(edge: .bottom, spacing: 0) {
+    // Filling the pane, the content isn't asked for its smallest size (a scroll view answers by laying out every row).
+    contFillsProposal().safeAreaInset(edge: .bottom, spacing: 0) {
       StatusBar(systemImage: systemImage, hue: hue, status: status, alignment: alignment, content: content)
     }
   }
@@ -202,7 +203,7 @@ extension View {
     alignment: HorizontalAlignment = .trailing, @ViewBuilder content: () -> Content
   ) -> some View {
     let content = content()
-    return safeAreaInset(edge: .bottom, spacing: 0) {
+    return contFillsProposal().safeAreaInset(edge: .bottom, spacing: 0) {
       if isPresented {
         StatusBar(systemImage: systemImage, hue: hue, status: status, alignment: alignment) { content }
           .transition(.opacity)

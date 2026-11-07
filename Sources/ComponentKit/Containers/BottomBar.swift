@@ -21,7 +21,8 @@ extension View {
     let color: KitColor = ground == .content ? .window : .panel
     let bar = ContSidebarBar(
       searchText: searchText, prompt: prompt, toggle: nil, labeled: true, actions: actions)
-    return contEdgeBar(.bottom) {
+    // Filling the pane, the content isn't asked for its smallest size (a scroll view answers by laying out every row).
+    return contFillsProposal().contEdgeBar(.bottom) {
       bar
         .environment(\.contBarGround, color)
         .background { ContEdgeFade(edge: .bottom, ground: color) }

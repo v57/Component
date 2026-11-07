@@ -357,6 +357,9 @@ private struct ContTopBar<Bar: View>: ViewModifier {
   func body(content: Content) -> some View {
     content
       .overlayPreferenceValue(ContPaneKey.self) { panes in ContTopBarFade(panes: panes) }
+      // The page fills the pane: the inset asks it for its smallest size first, which a scroll view in it answers by
+      // laying out every row (100 ms of opening Git's History).
+      .contFillsProposal()
       .contEdgeBar(.top) { bar }
     #if os(macOS)
       .ignoresSafeArea(.container, edges: .top)
