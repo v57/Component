@@ -55,7 +55,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
   case buttons, toggles, segmented, menus, tabs, fields, search, stepper, keycaps, choiceCards = "choice-cards"
   case counts, chips, refs, lineCounts = "line-counts", avatars
   case sections, sidebar, stickySections = "sticky-sections", toolbar, window, inspector, forms, sheets, feedback, tooltips, dragDrop = "drag-drop"
-  case grid, changes, diffs, runBlocks = "run-blocks", palette, welcome, settings, meters, secrets
+  case grid, changes, diffs, runBlocks = "run-blocks", palette, welcome, settings, meters, secrets, pages
   case gitApp = "git", databaseApp = "database", shellApp = "shell", markdownApp = "markdown"
   case settingsApp = "settings-app", welcomeApp = "welcome-app", longList = "long-list"
   case longSection = "long-section"
@@ -71,7 +71,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     case .counts, .chips, .refs, .lineCounts, .avatars: .badges
     case .sections, .sidebar, .stickySections, .toolbar, .window, .inspector, .forms, .sheets, .feedback, .tooltips, .dragDrop:
       .containers
-    case .grid, .changes, .diffs, .runBlocks, .palette, .welcome, .settings, .meters, .secrets: .data
+    case .grid, .changes, .diffs, .runBlocks, .palette, .welcome, .settings, .meters, .secrets, .pages: .data
     case .gitApp, .databaseApp, .shellApp, .markdownApp, .settingsApp, .welcomeApp, .longList, .longSection, .allComponents:
       .scenarios
     }
@@ -124,6 +124,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     case .settings: "Settings"
     case .meters: "Meters & Lanes"
     case .secrets: "Secrets & Codes"
+    case .pages: "Pages & Documents"
     case .gitApp: "Git"
     case .databaseApp: "Database"
     case .shellApp: "Shell"
@@ -183,6 +184,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     case .settings: "gearshape"
     case .meters: "chart.bar.xaxis"
     case .secrets: "key"
+    case .pages: "doc.on.doc"
     case .gitApp: "arrow.triangle.branch"
     case .databaseApp: "cylinder.split.1x2"
     case .shellApp: "apple.terminal"
@@ -243,6 +245,7 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
     case .settings: "The settings window with shared panes"
     case .meters: "Stacked meters, meter tiles and board lanes"
     case .secrets: "Secrets, one-time codes, safety codes, QR codes, files and text conflicts"
+    case .pages: "Scanned pages as paper, document cards, page strips, the page viewer, cropping and shared copies"
     case .gitApp: "Sidebar sections, history and an inspector"
     case .databaseApp: "Browse a table, edit it, review the changes"
     case .shellApp: "Quick actions over a project's runs"

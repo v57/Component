@@ -51,6 +51,7 @@ struct PageContent: View {
     case .settings: SettingsPage()
     case .meters: MetersPage()
     case .secrets: SecretsPage()
+    case .pages: DocumentPagesPage()
     case .gitApp: GitScenarioPage()
     case .databaseApp: DatabaseScenarioPage()
     case .shellApp: ShellScenarioPage()

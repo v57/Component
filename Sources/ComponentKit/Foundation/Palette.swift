@@ -134,6 +134,17 @@ extension KitColor {
   static let rowUnfocused = KitColor(.black(0.09), .white(0.14))
   static let scrim = KitColor(.black(0.18), .black(0.4))
   static let highlight = KitColor(.white(0), .white(0.08))
+
+  // Pages (content, not chrome: paper stays light in dark, where the whole sheet is dimmed instead)
+  static let paper = KitColor(RGBA(0xfbfaf6), RGBA(0xfbfaf6))
+  static let paperBehind = KitColor(RGBA(0xe4e1d9), RGBA(0xc9c6be))
+  static let paperBehindFar = KitColor(RGBA(0xd9d6ce), RGBA(0xaeaba4))
+  static let paperEdge = KitColor(.black(0.14), .white(0.12))
+  static let paperLines = KitColor(RGBA(0x8c8c8c, 0.35), RGBA(0x8c8c8c, 0.35))
+  /// A part hidden from a shared copy.
+  static let redaction = KitColor(RGBA(0x1c1c1e), RGBA(0x1c1c1e))
+  /// A shared copy's watermark.
+  static let watermark = KitColor(RGBA(0xc41e28, 0.34), RGBA(0xc41e28, 0.34))
 }
 
 extension ShapeStyle where Self == KitColor {
