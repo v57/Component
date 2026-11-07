@@ -944,7 +944,7 @@ struct WindowPage: View {
             VStack(alignment: .leading, spacing: 2) {
               Text("All Notes").kitFont(.headline).padding(.horizontal, 12).padding(.top, 14).padding(.bottom, 6)
               ForEach(["Trip to Lisbon", "Packing list", "Ideas"], id: \.self) { title in
-                SidebarRow(title, subtitle: "Edited today", systemImage: "doc.text")
+                SidebarRow("\(title)", subtitle: "Edited today", systemImage: "doc.text")
               }
               Spacer()
             }
@@ -1822,7 +1822,7 @@ struct TooltipsPage: View {
           VStack(alignment: .leading, spacing: 60) {
             ToolGroup(iconOnly: true) {
               Button("Fetch", systemImage: "arrow.clockwise") { fetch.start() }
-                .kitHelp("Fetch", shortcut: "⌥⌘F", meta: fetch.status == .idle ? "Fetched 2 hr ago" : fetch.label, systemImage: "arrow.clockwise", status: fetch.status)
+                .kitHelp("Fetch", shortcut: "⌥⌘F", meta: fetch.status == .idle ? "Fetched 2 hr ago" : "\(fetch.label)", systemImage: "arrow.clockwise", status: fetch.status)
               Button("Pull", systemImage: "arrow.down") {}
                 .kitHelp("Pull", shortcut: "⇧⌘P", meta: "1 behind origin/main", systemImage: "arrow.down")
               Button("Push", systemImage: "arrow.up") {}
@@ -1944,7 +1944,7 @@ struct DragDropPage: View {
                     .kitContextMenu { Button("Copy \(city)", systemImage: "doc.on.doc") {} }
                 }
               }
-              SidebarRow("Inbox", subtitle: dropped.isEmpty ? "Drop a city here" : dropped.joined(separator: ", "), systemImage: "tray") {
+              SidebarRow("Inbox", subtitle: dropped.isEmpty ? "Drop a city here" : "\(dropped.joined(separator: ", "))", systemImage: "tray") {
                 Count(dropped.count)
               }
               .kitDropTarget(isTargeted)

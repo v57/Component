@@ -1043,7 +1043,7 @@ struct SearchPage: View {
     live.isEmpty ? [] : cities.filter { $0.localizedCaseInsensitiveContains(live) }
   }
 
-  private var liveCount: String? {
+  private var liveCount: LocalizedStringKey? {
     liveStatus == .done ? (matches.count == 1 ? "1 city" : "\(matches.count) cities") : nil
   }
 }

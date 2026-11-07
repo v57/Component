@@ -500,7 +500,7 @@ struct ShellScenarioPage: View {
             }
             PaletteGroup(project.capitalized, meta: ["Swift package", "Package.swift"], systemImage: "shippingbox", hue: .orange) {
               ForEach(actions, id: \.0) { title, image, hue, command in
-                PaletteItem(title, systemImage: image, hue: hue, detail: command, note: title == "Test" && build.status.isWorking ? "Stops Build first" : nil) {
+                PaletteItem("\(title)", systemImage: image, hue: hue, detail: command, note: title == "Test" && build.status.isWorking ? "Stops Build first" : nil) {
                   run(title)
                 }
               }
@@ -593,7 +593,7 @@ struct MarkdownScenarioPage: View {
     KitSidebar(selection: $selected, searchText: $search) {
       KitSection("Notes", meta: "\(notes.count) notes", systemImage: "doc.text", hue: .red) {
         ForEach(notes.filter { search.isEmpty || $0.0.localizedCaseInsensitiveContains(search) }, id: \.0) { note in
-          SidebarRow(value: note.0, note.0, subtitle: "Edited today", systemImage: "doc.text")
+          SidebarRow(value: note.0, "\(note.0)", subtitle: "Edited today", systemImage: "doc.text")
         }
       } accessory: {
         Button("New Note", systemImage: "plus") {

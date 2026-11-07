@@ -118,7 +118,7 @@ struct FormGapSpecimens: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: KitMetrics.gutter)], spacing: KitMetrics.gutter) {
               ForEach([("PostgreSQL", "PG", Hue.blue), ("SQLite", "SQ", Hue.teal)], id: \.0) { name, letters, hue in
                 ChoiceCard(
-                  name, subtitle: "Port 5432", letters: letters, hue: hue,
+                  "\(name)", subtitle: "Port 5432", letters: letters, hue: hue,
                   isOn: Binding(get: { engine == name }, set: { if $0 { engine = name } }))
               }
             }

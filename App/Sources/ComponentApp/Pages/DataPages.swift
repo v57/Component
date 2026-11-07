@@ -1132,7 +1132,7 @@ struct SecretsPage: View {
   @State private var scanning = false
   @State private var scanned: String?
   @State private var screenCodes: [String] = []
-  @State private var mineChoice: String?
+  @State private var mineChoice: LocalizedStringKey?
   @State private var selection: Set<String> = ["Estimated payments.numbers"]
 
   /// A stand-in for a TOTP: six digits that change every 30 seconds (the catalog has no secret to hash).
