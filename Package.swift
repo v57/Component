@@ -2,12 +2,19 @@
 
 import PackageDescription
 
+// PlatformLanguages (Settings ▸ Languages, kitLanguages()) is v57/Platform: GitHub's main branch, or the checkout next
+// to this one with `V57_LOCAL=1` (an <App>-Local.xcworkspace lists ../Platform instead).
+let platform: Package.Dependency = Context.environment["V57_LOCAL"] == nil
+  ? .package(url: "https://github.com/v57/Platform.git", branch: "main") : .package(path: "../Platform")
+
 let package = Package(
   name: "Component", platforms: [.macOS(.v14), .iOS(.v17), .tvOS(.v18), .visionOS(.v2)],
   products: [.library(name: "ComponentKit", targets: ["ComponentKit"])],
+  dependencies: [platform],
   targets: [
     .target(
       name: "ComponentKit",
+      dependencies: [.product(name: "PlatformLanguages", package: "Platform")],
       // Release builds leave out Swift 6's dynamic actor-isolation checks: a runtime call (swift_task_isCurrentExecutor)
       // at the start of each MainActor closure handed to SwiftUI, about 1,000 of them, 7% of the kit's code. Debug
       // keeps them, so a closure that runs off the main thread still traps there.

@@ -963,6 +963,7 @@ struct SampleSettings: View {
           }
         }
       }
+      SettingsPane("Languages", systemImage: "globe", hue: .green, section: "v57") { KitLanguagesSettings() }
       SettingsPane("Updates", systemImage: "arrow.down.circle", hue: .blue, section: "v57", value: autoUpdate ? "Daily" : "Off") {
         FormCard(footer: "Updates come from GitHub Releases. Nothing is checked unless you turn it on.") {
           FormRow("Check automatically", help: "Once a day", systemImage: "clock.arrow.circlepath", hue: .blue) {

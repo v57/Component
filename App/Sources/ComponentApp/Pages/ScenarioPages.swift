@@ -705,7 +705,7 @@ struct SettingsScenarioPage: View {
   var body: some View {
     ScenarioPage(
       page: .settingsApp, height: 560,
-      note: "Every pane is form cards; Updates, iCloud and About are the shared panes every v57 app lists under “v57”.",
+      note: "Every pane is form cards; Languages, Updates, iCloud and About are the shared panes every v57 app lists under “v57”.",
       code: """
         Settings {
           KitSettings(selection: $pane) {
@@ -719,6 +719,7 @@ struct SettingsScenarioPage: View {
             SettingsPane("Editor", systemImage: "character.cursor.ibeam", hue: .orange) {
               FormCard("Text") { FormRow("Font size", systemImage: "textformat.size") { KitStepper(value: $size, in: 9...24, unit: "pt") } }
             }
+            SettingsPane("Languages", systemImage: "globe", hue: .green, section: "v57") { KitLanguagesSettings() }
             SettingsPane("Updates", systemImage: "arrow.down.circle", hue: .blue, section: "v57") { UpdatesSettings() }
             SettingsPane("iCloud", systemImage: "icloud", hue: .teal, section: "v57") { VaultSettings() }
             SettingsPane("About", systemImage: "info", section: "v57") { AboutSettings() }
