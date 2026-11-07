@@ -402,6 +402,8 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     return ScrollView {
       ContSidebarStack(content: content, spacing: spacing, inset: inset, keepsBuilt: idiom.isTouch)
     }
+    // The bottom bar's inset asks for the smallest size first, which a scroll view answers by laying out every row.
+    .contFillsProposal()
     // The part the rows show in, under the title bar and above the bottom bar (both safe area here).
     .onGeometryChange(for: CGRect.self) { proxy in
       let insets = proxy.safeAreaInsets

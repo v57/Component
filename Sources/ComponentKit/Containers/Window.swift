@@ -468,3 +468,48 @@ enum ContSplit {
   .frame(width: 720, height: 360)
   .componentKit()
 }
+
+extension View {
+  /// The smallest size of a window's content, without measuring the content for it.
+  ///
+  /// A window's hosting view asks its content for its smallest and largest size whenever the content changes, to set
+  /// the window's limits. With `.frame(minWidth:minHeight:)` at the root that lays out the whole window again at its
+  /// smallest size on every update (tens of milliseconds when a project's window is built). This answers the limits
+  /// itself and lays the content out only at the window's real size.
+  ///
+  /// ```swift
+  /// WindowGroup { ContentView().kitWindowMinimum(width: 640, height: 400) }
+  /// ```
+  public func kitWindowMinimum(width: CGFloat, height: CGFloat) -> some View {
+    ContWindowMinimum(width: width, height: height) { self }
+  }
+}
+
+/// Answers a size proposal with the proposal itself, no smaller than the minimum; only an unspecified proposal (the
+/// ideal size, asked when a window opens) measures the content.
+struct ContWindowMinimum: Layout {
+  var width: CGFloat = 0
+  var height: CGFloat = 0
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    guard let proposedWidth = proposal.width, let proposedHeight = proposal.height else {
+      let ideal = subviews.first?.sizeThatFits(proposal) ?? .zero
+      return CGSize(
+        width: max(proposal.width ?? ideal.width, width), height: max(proposal.height ?? ideal.height, height))
+    }
+    return CGSize(width: max(proposedWidth, width), height: max(proposedHeight, height))
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    for subview in subviews { subview.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size)) }
+  }
+}
+
+extension View {
+  /// Takes the size it's offered without measuring its content for it: for a scroll view, which fills what it's
+  /// offered anyway, under a safe-area inset (a bottom bar), whose layout asks for the smallest size first: a scroll
+  /// view answers that by laying out all its content (a whole sidebar, each time a project opens).
+  func contFillsProposal() -> some View {
+    ContWindowMinimum { self }
+  }
+}
