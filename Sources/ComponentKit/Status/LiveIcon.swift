@@ -159,14 +159,14 @@ public struct LiveIcon<Content: View>: View {
     .accessibilityLabel(Self.label(status))
   }
 
-  static func label(_ status: WorkStatus) -> String {
+  static func label(_ status: WorkStatus) -> KitString {
     switch status {
-    case .idle: ""
-    case .waiting: "Waiting"
-    case .working(let p): p.map { "\(Int($0 * 100)) percent" } ?? "Working"
-    case .paused: "Paused"
-    case .done: "Done"
-    case .failed(let message): message ?? "Failed"
+    case .idle: .empty
+    case .waiting: KitString("Waiting")
+    case .working(let p): p.map { KitString("\(Int($0 * 100)) percent") } ?? KitString("Working")
+    case .paused: KitString("Paused")
+    case .done: KitString("Done")
+    case .failed(let message): KitString(verbatim: message) ?? KitString("Failed")
     }
   }
 }

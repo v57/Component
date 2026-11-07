@@ -18,9 +18,9 @@ import SwiftUI
 /// KitCopyButton("Copy Code", value: code?.userCode ?? "", copiedWhen: code?.userCode).buttonStyle(.kit)
 /// ```
 public struct KitCopyButton: View {
-  var title: String
+  var title: KitString
   var systemImage: String?
-  var copiedTitle: String
+  var copiedTitle: KitString
   var value: () -> String
   var isSecret: Bool
   var copiedWhen: AnyHashable?
@@ -28,10 +28,32 @@ public struct KitCopyButton: View {
   @State private var showsCopied = false
 
   /// `value` is read when the button is pressed. `copiedWhen`: the app copied the value itself; the button shows
-  /// "Copied" when it appears with it and each time it changes to another non-nil value.
+  /// "Copied" when it appears with it and each time it changes to another non-nil value. The titles are keys
+  /// (literals), looked up in the app's strings.
   public init(
-    _ title: String = "Copy", systemImage: String? = nil, copiedTitle: String = "Copied",
+    _ title: LocalizedStringKey = "Copy", systemImage: String? = nil, copiedTitle: LocalizedStringKey = "Copied",
     value: @autoclosure @escaping () -> String, isSecret: Bool = false, copiedWhen: AnyHashable? = nil
+  ) {
+    self.init(
+      title: KitString(title), systemImage: systemImage, copiedTitle: KitString(copiedTitle), value: value,
+      isSecret: isSecret, copiedWhen: copiedWhen)
+  }
+
+  /// The same with strings shown as they are; a `nil` title is the kit's.
+  @_disfavoredOverload
+  public init(
+    _ title: String? = nil, systemImage: String? = nil, copiedTitle: String? = nil,
+    value: @autoclosure @escaping () -> String, isSecret: Bool = false, copiedWhen: AnyHashable? = nil
+  ) {
+    self.init(
+      title: KitString(verbatim: title) ?? KitString("Copy"), systemImage: systemImage,
+      copiedTitle: KitString(verbatim: copiedTitle) ?? KitString("Copied"), value: value, isSecret: isSecret,
+      copiedWhen: copiedWhen)
+  }
+
+  init(
+    title: KitString, systemImage: String?, copiedTitle: KitString, value: @escaping () -> String, isSecret: Bool,
+    copiedWhen: AnyHashable?
   ) {
     self.title = title
     self.systemImage = systemImage

@@ -114,7 +114,19 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
   /// }
   /// .emptyState("Nothing matches “\(search)”.", systemImage: "magnifyingglass")
   /// ```
-  public func emptyState(_ message: String, systemImage: String? = nil) -> Self {
+  ///
+  /// The message is a key (a literal), looked up in the app's strings.
+  public func emptyState(_ message: LocalizedStringKey, systemImage: String? = nil) -> Self {
+    emptyState(message: KitString(message), systemImage: systemImage)
+  }
+
+  /// The same with a message shown as it is.
+  @_disfavoredOverload
+  public func emptyState(_ message: some StringProtocol, systemImage: String? = nil) -> Self {
+    emptyState(message: KitString(verbatim: String(message)), systemImage: systemImage)
+  }
+
+  func emptyState(message: KitString, systemImage: String?) -> Self {
     var section = self
     section.emptyView = AnyView(ContSectionEmptyLine(message: message, systemImage: systemImage))
     return section
@@ -140,9 +152,24 @@ public struct KitSection<Icon: View, Meta: View, Content: View, Accessory: View>
   /// KitSection("Notes", meta: ["12 notes", "iCloud"], systemImage: "note.text") { … }
   ///   .headerHelp("Notes", meta: "Files in iCloud Drive, encrypted.")
   /// ```
+  ///
+  /// The title and meta are keys (literals), looked up in the app's strings.
   public func headerHelp(
-    _ title: String, meta: String? = nil, systemImage: String? = nil, hue: Hue = .accent
+    _ title: LocalizedStringKey, meta: LocalizedStringKey? = nil, systemImage: String? = nil, hue: Hue = .accent
   ) -> Self {
+    headerHelp(title: KitString(title), meta: KitString(meta), systemImage: systemImage, hue: hue)
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public func headerHelp(
+    _ title: some StringProtocol, meta: String? = nil, systemImage: String? = nil, hue: Hue = .accent
+  ) -> Self {
+    headerHelp(
+      title: KitString(verbatim: String(title)), meta: KitString(verbatim: meta), systemImage: systemImage, hue: hue)
+  }
+
+  func headerHelp(title: KitString, meta: KitString?, systemImage: String?, hue: Hue) -> Self {
     var section = self
     section.headerHelp = ContSectionHelp(title: title, meta: meta, systemImage: systemImage, hue: hue)
     return section
@@ -370,8 +397,8 @@ private struct SectionHeaderMenu: ViewModifier {
 
 /// A section header's tooltip.
 struct ContSectionHelp {
-  var title: String
-  var meta: String?
+  var title: KitString
+  var meta: KitString?
   var systemImage: String?
   var hue: Hue
 }
@@ -382,7 +409,7 @@ private struct SectionHeaderHelp: ViewModifier {
 
   func body(content: Content) -> some View {
     if let help {
-      content.kitHelp(help.title, meta: help.meta, systemImage: help.systemImage, hue: help.hue)
+      content.kitHelp(title: help.title, meta: help.meta, systemImage: help.systemImage, hue: help.hue)
     } else {
       content
     }
@@ -391,7 +418,7 @@ private struct SectionHeaderHelp: ViewModifier {
 
 /// A section's empty line: a quiet caption where the rows go, lined up with their titles.
 struct ContSectionEmptyLine: View {
-  let message: String
+  let message: KitString
   let systemImage: String?
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.kitSectionStyle) private var style
@@ -432,60 +459,121 @@ private struct SectionHeaderAccessibility: ViewModifier {
 
 // MARK: - Convenience
 
+// Each shape comes twice: a title that is a key (a literal, looked up in the app's strings) and, disfavored, a title
+// shown as it is. Both forward to the internal `title: KitString` init of their shape. Meta lines are data (counts,
+// names) and stay strings.
+
 extension KitSection where Icon == LiveIcon<Image>, Meta == MetaLine {
-  /// A section with an SF Symbol tile (carrying `status`), a meta line of parts and trailing actions.
+  /// A section with an SF Symbol tile (carrying `status`), a meta line of parts and trailing actions. The title is a
+  /// key (a literal), looked up in the app's strings.
+  public init(
+    _ title: LocalizedStringKey, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, isExpanded: Binding<Bool>? = nil, @ViewBuilder content: () -> Content,
+    @ViewBuilder accessory: () -> Accessory
+  ) {
+    self.init(
+      title: KitString(title), meta: meta, systemImage: systemImage, hue: hue, status: status, isExpanded: isExpanded,
+      content: content, accessory: accessory)
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
   public init(
     _ title: some StringProtocol, meta: [String] = [], systemImage: String, hue: Hue = .accent,
     status: WorkStatus = .idle, isExpanded: Binding<Bool>? = nil, @ViewBuilder content: () -> Content,
     @ViewBuilder accessory: () -> Accessory
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), meta: meta, systemImage: systemImage, hue: hue, status: status,
+      isExpanded: isExpanded, content: content, accessory: accessory)
+  }
+
+  /// A section with a one-part meta line and trailing actions, titled by a key (a literal).
+  public init(
+    _ title: LocalizedStringKey, meta: String, systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, isExpanded: Binding<Bool>? = nil, @ViewBuilder content: () -> Content,
+    @ViewBuilder accessory: () -> Accessory
+  ) {
+    self.init(
+      title: KitString(title), meta: [meta], systemImage: systemImage, hue: hue, status: status,
+      isExpanded: isExpanded, content: content, accessory: accessory)
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, meta: String, systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, isExpanded: Binding<Bool>? = nil, @ViewBuilder content: () -> Content,
+    @ViewBuilder accessory: () -> Accessory
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), meta: [meta], systemImage: systemImage, hue: hue, status: status,
+      isExpanded: isExpanded, content: content, accessory: accessory)
+  }
+
+  init(
+    title: KitString, meta: [String], systemImage: String, hue: Hue, status: WorkStatus, isExpanded: Binding<Bool>?,
+    @ViewBuilder content: () -> Content, @ViewBuilder accessory: () -> Accessory
   ) {
     self.init(
       Text(title), isExpanded: isExpanded, content: content,
       icon: { LiveIcon(systemImage: systemImage, hue: hue, status: status, size: 24) }, meta: { MetaLine(meta) },
       accessory: accessory)
   }
-
-  /// A section with a one-part meta line and trailing actions.
-  public init(
-    _ title: some StringProtocol, meta: String, systemImage: String, hue: Hue = .accent,
-    status: WorkStatus = .idle, isExpanded: Binding<Bool>? = nil, @ViewBuilder content: () -> Content,
-    @ViewBuilder accessory: () -> Accessory
-  ) {
-    self.init(
-      title, meta: [meta], systemImage: systemImage, hue: hue, status: status, isExpanded: isExpanded,
-      content: content, accessory: accessory)
-  }
 }
 
 extension KitSection where Icon == LiveIcon<Image>, Meta == MetaLine, Accessory == EmptyView {
-  /// A section with an SF Symbol tile and a meta line of parts.
+  /// A section with an SF Symbol tile and a meta line of parts, titled by a key (a literal).
   ///
   /// ```swift
   /// KitSection("Remotes", meta: ["origin", "fetched 2 hr ago"], systemImage: "cloud") { … }
   /// ```
   public init(
+    _ title: LocalizedStringKey, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, isExpanded: Binding<Bool>? = nil, @ViewBuilder content: () -> Content
+  ) {
+    self.init(
+      title: KitString(title), meta: meta, systemImage: systemImage, hue: hue, status: status, isExpanded: isExpanded,
+      content: content, accessory: { EmptyView() })
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
+  public init(
     _ title: some StringProtocol, meta: [String] = [], systemImage: String, hue: Hue = .accent,
     status: WorkStatus = .idle, isExpanded: Binding<Bool>? = nil, @ViewBuilder content: () -> Content
   ) {
     self.init(
-      title, meta: meta, systemImage: systemImage, hue: hue, status: status, isExpanded: isExpanded,
-      content: content, accessory: { EmptyView() })
+      title: KitString(verbatim: String(title)), meta: meta, systemImage: systemImage, hue: hue, status: status,
+      isExpanded: isExpanded, content: content, accessory: { EmptyView() })
   }
 
-  /// A section with an SF Symbol tile and a one-part meta line.
+  /// A section with an SF Symbol tile and a one-part meta line, titled by a key (a literal).
+  public init(
+    _ title: LocalizedStringKey, meta: String, systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, isExpanded: Binding<Bool>? = nil, @ViewBuilder content: () -> Content
+  ) {
+    self.init(
+      title: KitString(title), meta: [meta], systemImage: systemImage, hue: hue, status: status,
+      isExpanded: isExpanded, content: content, accessory: { EmptyView() })
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
   public init(
     _ title: some StringProtocol, meta: String, systemImage: String, hue: Hue = .accent,
     status: WorkStatus = .idle, isExpanded: Binding<Bool>? = nil, @ViewBuilder content: () -> Content
   ) {
     self.init(
-      title, meta: [meta], systemImage: systemImage, hue: hue, status: status, isExpanded: isExpanded,
-      content: content, accessory: { EmptyView() })
+      title: KitString(verbatim: String(title)), meta: [meta], systemImage: systemImage, hue: hue, status: status,
+      isExpanded: isExpanded, content: content, accessory: { EmptyView() })
   }
 }
 
 extension KitSection where Icon == SizedLiveIcon {
   /// A section with an SF Symbol tile sized for the idiom (carrying `status`), any meta view (a live status line,
-  /// counts in colour, a progress line) and trailing actions.
+  /// counts in colour, a progress line) and trailing actions. The title is a key (a literal), looked up in the app's
+  /// strings.
   ///
   /// ```swift
   /// KitSection("Sessions", systemImage: "terminal", status: sync) {
@@ -497,9 +585,30 @@ extension KitSection where Icon == SizedLiveIcon {
   /// }
   /// ```
   public init(
+    _ title: LocalizedStringKey, systemImage: String, hue: Hue = .accent, status: WorkStatus = .idle,
+    isExpanded: Binding<Bool>? = nil, @ViewBuilder content: () -> Content, @ViewBuilder meta: () -> Meta,
+    @ViewBuilder accessory: () -> Accessory
+  ) {
+    self.init(
+      title: KitString(title), systemImage: systemImage, hue: hue, status: status, isExpanded: isExpanded,
+      content: content, meta: meta, accessory: accessory)
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
+  public init(
     _ title: some StringProtocol, systemImage: String, hue: Hue = .accent, status: WorkStatus = .idle,
     isExpanded: Binding<Bool>? = nil, @ViewBuilder content: () -> Content, @ViewBuilder meta: () -> Meta,
     @ViewBuilder accessory: () -> Accessory
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), systemImage: systemImage, hue: hue, status: status,
+      isExpanded: isExpanded, content: content, meta: meta, accessory: accessory)
+  }
+
+  init(
+    title: KitString, systemImage: String, hue: Hue, status: WorkStatus, isExpanded: Binding<Bool>?,
+    @ViewBuilder content: () -> Content, @ViewBuilder meta: () -> Meta, @ViewBuilder accessory: () -> Accessory
   ) {
     self.init(
       Text(title), isExpanded: isExpanded, content: content,
@@ -509,24 +618,35 @@ extension KitSection where Icon == SizedLiveIcon {
 }
 
 extension KitSection where Icon == SizedLiveIcon, Accessory == EmptyView {
-  /// A section with an SF Symbol tile sized for the idiom and any meta view.
+  /// A section with an SF Symbol tile sized for the idiom and any meta view, titled by a key (a literal).
   ///
   /// ```swift
   /// KitSection("Agents", systemImage: "person.2", status: connection) { … } meta: { ConnectionLine(state) }
   /// ```
   public init(
+    _ title: LocalizedStringKey, systemImage: String, hue: Hue = .accent, status: WorkStatus = .idle,
+    isExpanded: Binding<Bool>? = nil, @ViewBuilder content: () -> Content, @ViewBuilder meta: () -> Meta
+  ) {
+    self.init(
+      title: KitString(title), systemImage: systemImage, hue: hue, status: status, isExpanded: isExpanded,
+      content: content, meta: meta, accessory: { EmptyView() })
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
+  public init(
     _ title: some StringProtocol, systemImage: String, hue: Hue = .accent, status: WorkStatus = .idle,
     isExpanded: Binding<Bool>? = nil, @ViewBuilder content: () -> Content, @ViewBuilder meta: () -> Meta
   ) {
     self.init(
-      title, systemImage: systemImage, hue: hue, status: status, isExpanded: isExpanded, content: content,
-      meta: meta, accessory: { EmptyView() })
+      title: KitString(verbatim: String(title)), systemImage: systemImage, hue: hue, status: status,
+      isExpanded: isExpanded, content: content, meta: meta, accessory: { EmptyView() })
   }
 }
 
 extension KitSection where Icon == SizedLiveIcon, Meta == MetaLine {
   /// A section whose tile holds any glyph (a drawn `BranchGlyph`, an image) instead of an SF Symbol, with a meta line
-  /// of parts and trailing actions.
+  /// of parts and trailing actions. The title is a key (a literal), looked up in the app's strings.
   ///
   /// ```swift
   /// KitSection("Branches", meta: ["3 local", "1 merged"], hue: .orange, glyph: { BranchGlyph() }) {
@@ -536,9 +656,30 @@ extension KitSection where Icon == SizedLiveIcon, Meta == MetaLine {
   /// }
   /// ```
   public init<Glyph: View>(
+    _ title: LocalizedStringKey, meta: [String] = [], hue: Hue = .accent, status: WorkStatus = .idle,
+    isExpanded: Binding<Bool>? = nil, @ViewBuilder glyph: () -> Glyph, @ViewBuilder content: () -> Content,
+    @ViewBuilder accessory: () -> Accessory
+  ) {
+    self.init(
+      title: KitString(title), meta: meta, hue: hue, status: status, isExpanded: isExpanded, glyph: glyph,
+      content: content, accessory: accessory)
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
+  public init<Glyph: View>(
     _ title: some StringProtocol, meta: [String] = [], hue: Hue = .accent, status: WorkStatus = .idle,
     isExpanded: Binding<Bool>? = nil, @ViewBuilder glyph: () -> Glyph, @ViewBuilder content: () -> Content,
     @ViewBuilder accessory: () -> Accessory
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), meta: meta, hue: hue, status: status, isExpanded: isExpanded,
+      glyph: glyph, content: content, accessory: accessory)
+  }
+
+  init<Glyph: View>(
+    title: KitString, meta: [String], hue: Hue, status: WorkStatus, isExpanded: Binding<Bool>?,
+    @ViewBuilder glyph: () -> Glyph, @ViewBuilder content: () -> Content, @ViewBuilder accessory: () -> Accessory
   ) {
     let icon = SizedLiveIcon(hue: hue, status: status, size: .section, glyph: glyph)
     self.init(
@@ -548,31 +689,63 @@ extension KitSection where Icon == SizedLiveIcon, Meta == MetaLine {
 }
 
 extension KitSection where Icon == SizedLiveIcon, Meta == MetaLine, Accessory == EmptyView {
-  /// A section whose tile holds any glyph, with a meta line of parts.
+  /// A section whose tile holds any glyph, with a meta line of parts, titled by a key (a literal).
   ///
   /// ```swift
   /// KitSection("Branches", meta: ["3 local"], glyph: { BranchGlyph() }) { … }
   /// ```
   public init<Glyph: View>(
+    _ title: LocalizedStringKey, meta: [String] = [], hue: Hue = .accent, status: WorkStatus = .idle,
+    isExpanded: Binding<Bool>? = nil, @ViewBuilder glyph: () -> Glyph, @ViewBuilder content: () -> Content
+  ) {
+    self.init(
+      title: KitString(title), meta: meta, hue: hue, status: status, isExpanded: isExpanded, glyph: glyph,
+      content: content, accessory: { EmptyView() })
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
+  public init<Glyph: View>(
     _ title: some StringProtocol, meta: [String] = [], hue: Hue = .accent, status: WorkStatus = .idle,
     isExpanded: Binding<Bool>? = nil, @ViewBuilder glyph: () -> Glyph, @ViewBuilder content: () -> Content
   ) {
     self.init(
-      title, meta: meta, hue: hue, status: status, isExpanded: isExpanded, glyph: glyph, content: content,
-      accessory: { EmptyView() })
+      title: KitString(verbatim: String(title)), meta: meta, hue: hue, status: status, isExpanded: isExpanded,
+      glyph: glyph, content: content, accessory: { EmptyView() })
   }
 }
 
 extension KitSection where Icon == SizedLiveIcon {
-  /// A section whose tile holds any glyph, with any meta view and trailing actions.
+  /// A section whose tile holds any glyph, with any meta view and trailing actions, titled by a key (a literal).
   ///
   /// ```swift
   /// KitSection("Remotes", hue: .blue, glyph: { BranchGlyph() }) { … } meta: { FetchLine(state) } accessory: { … }
   /// ```
   public init<Glyph: View>(
+    _ title: LocalizedStringKey, hue: Hue = .accent, status: WorkStatus = .idle, isExpanded: Binding<Bool>? = nil,
+    @ViewBuilder glyph: () -> Glyph, @ViewBuilder content: () -> Content, @ViewBuilder meta: () -> Meta,
+    @ViewBuilder accessory: () -> Accessory
+  ) {
+    self.init(
+      title: KitString(title), hue: hue, status: status, isExpanded: isExpanded, glyph: glyph, content: content,
+      meta: meta, accessory: accessory)
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
+  public init<Glyph: View>(
     _ title: some StringProtocol, hue: Hue = .accent, status: WorkStatus = .idle, isExpanded: Binding<Bool>? = nil,
     @ViewBuilder glyph: () -> Glyph, @ViewBuilder content: () -> Content, @ViewBuilder meta: () -> Meta,
     @ViewBuilder accessory: () -> Accessory
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), hue: hue, status: status, isExpanded: isExpanded, glyph: glyph,
+      content: content, meta: meta, accessory: accessory)
+  }
+
+  init<Glyph: View>(
+    title: KitString, hue: Hue, status: WorkStatus, isExpanded: Binding<Bool>?, @ViewBuilder glyph: () -> Glyph,
+    @ViewBuilder content: () -> Content, @ViewBuilder meta: () -> Meta, @ViewBuilder accessory: () -> Accessory
   ) {
     let icon = SizedLiveIcon(hue: hue, status: status, size: .section, glyph: glyph)
     self.init(Text(title), isExpanded: isExpanded, content: content, icon: { icon }, meta: meta, accessory: accessory)
@@ -580,14 +753,25 @@ extension KitSection where Icon == SizedLiveIcon {
 }
 
 extension KitSection where Icon == SizedLiveIcon, Accessory == EmptyView {
-  /// A section whose tile holds any glyph, with any meta view.
+  /// A section whose tile holds any glyph, with any meta view, titled by a key (a literal).
+  public init<Glyph: View>(
+    _ title: LocalizedStringKey, hue: Hue = .accent, status: WorkStatus = .idle, isExpanded: Binding<Bool>? = nil,
+    @ViewBuilder glyph: () -> Glyph, @ViewBuilder content: () -> Content, @ViewBuilder meta: () -> Meta
+  ) {
+    self.init(
+      title: KitString(title), hue: hue, status: status, isExpanded: isExpanded, glyph: glyph, content: content,
+      meta: meta, accessory: { EmptyView() })
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
   public init<Glyph: View>(
     _ title: some StringProtocol, hue: Hue = .accent, status: WorkStatus = .idle, isExpanded: Binding<Bool>? = nil,
     @ViewBuilder glyph: () -> Glyph, @ViewBuilder content: () -> Content, @ViewBuilder meta: () -> Meta
   ) {
     self.init(
-      title, hue: hue, status: status, isExpanded: isExpanded, glyph: glyph, content: content, meta: meta,
-      accessory: { EmptyView() })
+      title: KitString(verbatim: String(title)), hue: hue, status: status, isExpanded: isExpanded, glyph: glyph,
+      content: content, meta: meta, accessory: { EmptyView() })
   }
 }
 

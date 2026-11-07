@@ -297,7 +297,7 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   @State private var rowSelection = ContSidebarSelection()
   @State private var keyboard = ContRowKeyboardInputs()
   private let searchText: Binding<String>?
-  private let searchPrompt: String
+  private let searchPrompt: KitString
   private let isSearching: Binding<Bool>?
   private let columnVisibility: Binding<NavigationSplitViewVisibility>?
   private let content: Content
@@ -317,15 +317,8 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
   #endif
 
-  /// A sidebar whose rows select an optional value.
-  ///
-  /// - Parameters:
-  ///   - searchText: shows the search button in the bottom bar; it opens into the search line bound to this text.
-  ///   - isSearching: whether the search line is open, to open it from code (⌘F) or know when it closes.
-  ///   - columnVisibility: the split view's visibility, for the bar's sidebar toggle. On the Mac the toggle works
-  ///     without it (through the window's split view); on iPad and iPhone it shows only when this is given.
-  public init<Selection: Hashable & Sendable>(
-    selection: Binding<Selection?>, searchText: Binding<String>? = nil, searchPrompt: String = "Search",
+  init<Selection: Hashable & Sendable>(
+    selection: Binding<Selection?>, searchText: Binding<String>?, searchPrompt: KitString,
     isSearching: Binding<Bool>? = nil, columnVisibility: Binding<NavigationSplitViewVisibility>? = nil,
     @ViewBuilder content: () -> Content, @ViewBuilder bottomBar: () -> BottomBar
   ) {
@@ -341,17 +334,8 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     self.bottomBar = bottomBar()
   }
 
-  /// A sidebar whose rows select several values: ⌘-click adds or removes a row, ⇧-click (and ⇧↑↓) selects a range.
-  /// Act on them with `selectionContextMenu`.
-  ///
-  /// ```swift
-  /// KitSidebar(selection: $notes) { … }
-  ///   .selectionContextMenu { (notes: Set<Note.ID>) in
-  ///     Button("Delete \(notes.count) Notes", role: .destructive) { delete(notes) }
-  ///   }
-  /// ```
-  public init<Selection: Hashable & Sendable>(
-    selection: Binding<Set<Selection>>, searchText: Binding<String>? = nil, searchPrompt: String = "Search",
+  init<Selection: Hashable & Sendable>(
+    selection: Binding<Set<Selection>>, searchText: Binding<String>?, searchPrompt: KitString,
     isSearching: Binding<Bool>? = nil, columnVisibility: Binding<NavigationSplitViewVisibility>? = nil,
     @ViewBuilder content: () -> Content, @ViewBuilder bottomBar: () -> BottomBar
   ) {
@@ -366,10 +350,9 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     self.bottomBar = bottomBar()
   }
 
-  /// A sidebar whose rows select a value that is always set.
   @_disfavoredOverload
-  public init<Selection: Hashable & Sendable>(
-    selection: Binding<Selection>, searchText: Binding<String>? = nil, searchPrompt: String = "Search",
+  init<Selection: Hashable & Sendable>(
+    selection: Binding<Selection>, searchText: Binding<String>?, searchPrompt: KitString,
     isSearching: Binding<Bool>? = nil, columnVisibility: Binding<NavigationSplitViewVisibility>? = nil,
     @ViewBuilder content: () -> Content, @ViewBuilder bottomBar: () -> BottomBar
   ) {
@@ -383,6 +366,93 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     self.columnVisibility = columnVisibility
     self.content = content()
     self.bottomBar = bottomBar()
+  }
+
+  /// A sidebar whose rows select an optional value. The prompt is a key (a literal), looked up in the app's strings.
+  ///
+  /// - Parameters:
+  ///   - searchText: shows the search button in the bottom bar; it opens into the search line bound to this text.
+  ///   - isSearching: whether the search line is open, to open it from code (⌘F) or know when it closes.
+  ///   - columnVisibility: the split view's visibility, for the bar's sidebar toggle. On the Mac the toggle works
+  ///     without it (through the window's split view); on iPad and iPhone it shows only when this is given.
+  public init<Selection: Hashable & Sendable>(
+    selection: Binding<Selection?>, searchText: Binding<String>? = nil, searchPrompt: LocalizedStringKey = "Search",
+    isSearching: Binding<Bool>? = nil, columnVisibility: Binding<NavigationSplitViewVisibility>? = nil,
+    @ViewBuilder content: () -> Content, @ViewBuilder bottomBar: () -> BottomBar
+  ) {
+    self.init(
+      selection: selection, searchText: searchText, searchPrompt: KitString(searchPrompt), isSearching: isSearching,
+      columnVisibility: columnVisibility, content: content, bottomBar: bottomBar)
+  }
+
+  /// The same with the prompt a string shown as it is (`nil`: the kit's "Search").
+  @_disfavoredOverload
+  public init<Selection: Hashable & Sendable>(
+    selection: Binding<Selection?>, searchText: Binding<String>? = nil, searchPrompt: String? = nil,
+    isSearching: Binding<Bool>? = nil, columnVisibility: Binding<NavigationSplitViewVisibility>? = nil,
+    @ViewBuilder content: () -> Content, @ViewBuilder bottomBar: () -> BottomBar
+  ) {
+    self.init(
+      selection: selection, searchText: searchText,
+      searchPrompt: KitString(verbatim: searchPrompt) ?? KitString("Search"), isSearching: isSearching,
+      columnVisibility: columnVisibility, content: content, bottomBar: bottomBar)
+  }
+
+  /// A sidebar whose rows select several values: ⌘-click adds or removes a row, ⇧-click (and ⇧↑↓) selects a range.
+  /// Act on them with `selectionContextMenu`.
+  ///
+  /// ```swift
+  /// KitSidebar(selection: $notes) { … }
+  ///   .selectionContextMenu { (notes: Set<Note.ID>) in
+  ///     Button("Delete \(notes.count) Notes", role: .destructive) { delete(notes) }
+  ///   }
+  /// ```
+  public init<Selection: Hashable & Sendable>(
+    selection: Binding<Set<Selection>>, searchText: Binding<String>? = nil, searchPrompt: LocalizedStringKey = "Search",
+    isSearching: Binding<Bool>? = nil, columnVisibility: Binding<NavigationSplitViewVisibility>? = nil,
+    @ViewBuilder content: () -> Content, @ViewBuilder bottomBar: () -> BottomBar
+  ) {
+    self.init(
+      selection: selection, searchText: searchText, searchPrompt: KitString(searchPrompt), isSearching: isSearching,
+      columnVisibility: columnVisibility, content: content, bottomBar: bottomBar)
+  }
+
+  /// The same with the prompt a string shown as it is (`nil`: the kit's "Search").
+  @_disfavoredOverload
+  public init<Selection: Hashable & Sendable>(
+    selection: Binding<Set<Selection>>, searchText: Binding<String>? = nil, searchPrompt: String? = nil,
+    isSearching: Binding<Bool>? = nil, columnVisibility: Binding<NavigationSplitViewVisibility>? = nil,
+    @ViewBuilder content: () -> Content, @ViewBuilder bottomBar: () -> BottomBar
+  ) {
+    self.init(
+      selection: selection, searchText: searchText,
+      searchPrompt: KitString(verbatim: searchPrompt) ?? KitString("Search"), isSearching: isSearching,
+      columnVisibility: columnVisibility, content: content, bottomBar: bottomBar)
+  }
+
+  /// A sidebar whose rows select a value that is always set. Not disfavored (the string one is): with an optional
+  /// binding the optional selection's initializer still wins, as the more specific one.
+  public init<Selection: Hashable & Sendable>(
+    selection: Binding<Selection>, searchText: Binding<String>? = nil, searchPrompt: LocalizedStringKey = "Search",
+    isSearching: Binding<Bool>? = nil, columnVisibility: Binding<NavigationSplitViewVisibility>? = nil,
+    @ViewBuilder content: () -> Content, @ViewBuilder bottomBar: () -> BottomBar
+  ) {
+    self.init(
+      selection: selection, searchText: searchText, searchPrompt: KitString(searchPrompt), isSearching: isSearching,
+      columnVisibility: columnVisibility, content: content, bottomBar: bottomBar)
+  }
+
+  /// The same with the prompt a string shown as it is (`nil`: the kit's "Search").
+  @_disfavoredOverload
+  public init<Selection: Hashable & Sendable>(
+    selection: Binding<Selection>, searchText: Binding<String>? = nil, searchPrompt: String? = nil,
+    isSearching: Binding<Bool>? = nil, columnVisibility: Binding<NavigationSplitViewVisibility>? = nil,
+    @ViewBuilder content: () -> Content, @ViewBuilder bottomBar: () -> BottomBar
+  ) {
+    self.init(
+      selection: selection, searchText: searchText,
+      searchPrompt: KitString(verbatim: searchPrompt) ?? KitString("Search"), isSearching: isSearching,
+      columnVisibility: columnVisibility, content: content, bottomBar: bottomBar)
   }
 
   public var body: some View {
@@ -618,34 +688,73 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
 extension KitSidebar where BottomBar == EmptyView {
   /// A sidebar whose rows select several values, with no actions of its own in the bottom bar.
   public init<Selection: Hashable & Sendable>(
-    selection: Binding<Set<Selection>>, searchText: Binding<String>? = nil, searchPrompt: String = "Search",
+    selection: Binding<Set<Selection>>, searchText: Binding<String>? = nil, searchPrompt: LocalizedStringKey = "Search",
     isSearching: Binding<Bool>? = nil, columnVisibility: Binding<NavigationSplitViewVisibility>? = nil,
     @ViewBuilder content: () -> Content
   ) {
     self.init(
-      selection: selection, searchText: searchText, searchPrompt: searchPrompt, isSearching: isSearching,
+      selection: selection, searchText: searchText, searchPrompt: KitString(searchPrompt), isSearching: isSearching,
+      columnVisibility: columnVisibility, content: content, bottomBar: { EmptyView() })
+  }
+
+  /// The same with the prompt a string shown as it is (`nil`: the kit's "Search").
+  @_disfavoredOverload
+  public init<Selection: Hashable & Sendable>(
+    selection: Binding<Set<Selection>>, searchText: Binding<String>? = nil, searchPrompt: String? = nil,
+    isSearching: Binding<Bool>? = nil, columnVisibility: Binding<NavigationSplitViewVisibility>? = nil,
+    @ViewBuilder content: () -> Content
+  ) {
+    self.init(
+      selection: selection, searchText: searchText,
+      searchPrompt: KitString(verbatim: searchPrompt) ?? KitString("Search"), isSearching: isSearching,
       columnVisibility: columnVisibility, content: content, bottomBar: { EmptyView() })
   }
 
   /// A sidebar with no actions of its own in the bottom bar (the search button and the toggle still show).
   public init<Selection: Hashable & Sendable>(
-    selection: Binding<Selection?>, searchText: Binding<String>? = nil, searchPrompt: String = "Search",
+    selection: Binding<Selection?>, searchText: Binding<String>? = nil, searchPrompt: LocalizedStringKey = "Search",
     isSearching: Binding<Bool>? = nil, columnVisibility: Binding<NavigationSplitViewVisibility>? = nil,
     @ViewBuilder content: () -> Content
   ) {
     self.init(
-      selection: selection, searchText: searchText, searchPrompt: searchPrompt, isSearching: isSearching,
+      selection: selection, searchText: searchText, searchPrompt: KitString(searchPrompt), isSearching: isSearching,
       columnVisibility: columnVisibility, content: content, bottomBar: { EmptyView() })
   }
 
+  /// The same with the prompt a string shown as it is (`nil`: the kit's "Search").
   @_disfavoredOverload
   public init<Selection: Hashable & Sendable>(
-    selection: Binding<Selection>, searchText: Binding<String>? = nil, searchPrompt: String = "Search",
+    selection: Binding<Selection?>, searchText: Binding<String>? = nil, searchPrompt: String? = nil,
     isSearching: Binding<Bool>? = nil, columnVisibility: Binding<NavigationSplitViewVisibility>? = nil,
     @ViewBuilder content: () -> Content
   ) {
     self.init(
-      selection: selection, searchText: searchText, searchPrompt: searchPrompt, isSearching: isSearching,
+      selection: selection, searchText: searchText,
+      searchPrompt: KitString(verbatim: searchPrompt) ?? KitString("Search"), isSearching: isSearching,
+      columnVisibility: columnVisibility, content: content, bottomBar: { EmptyView() })
+  }
+
+  /// A sidebar whose rows select a value that is always set, with no actions of its own in the bottom bar.
+  public init<Selection: Hashable & Sendable>(
+    selection: Binding<Selection>, searchText: Binding<String>? = nil, searchPrompt: LocalizedStringKey = "Search",
+    isSearching: Binding<Bool>? = nil, columnVisibility: Binding<NavigationSplitViewVisibility>? = nil,
+    @ViewBuilder content: () -> Content
+  ) {
+    self.init(
+      selection: selection, searchText: searchText, searchPrompt: KitString(searchPrompt), isSearching: isSearching,
+      columnVisibility: columnVisibility, content: content, bottomBar: { EmptyView() })
+  }
+
+  /// The same with the prompt a string shown as it is (`nil`: the kit's "Search").
+  @_disfavoredOverload
+  public init<Selection: Hashable & Sendable>(
+    selection: Binding<Selection>, searchText: Binding<String>? = nil, searchPrompt: String? = nil,
+    isSearching: Binding<Bool>? = nil, columnVisibility: Binding<NavigationSplitViewVisibility>? = nil,
+    @ViewBuilder content: () -> Content
+  ) {
+    self.init(
+      selection: selection, searchText: searchText,
+      searchPrompt: KitString(verbatim: searchPrompt) ?? KitString("Search"), isSearching: isSearching,
       columnVisibility: columnVisibility, content: content, bottomBar: { EmptyView() })
   }
 }
@@ -845,7 +954,7 @@ private struct ContShowSidebarItem: ToolbarContent {
 /// one card at the end. While searching, the search line (the controls' `SidebarSearchButton`) takes the whole bar.
 struct ContSidebarBar<Actions: View>: View {
   let searchText: Binding<String>?
-  let prompt: String
+  let prompt: KitString
   var isSearching: Binding<Bool>? = nil
   let toggle: (@MainActor () -> Void)?
   var status: AnyView? = nil
@@ -934,8 +1043,8 @@ struct ContSidebarBar<Actions: View>: View {
 /// Renaming in place: `.kitRename(isRenaming:text:onCommit:)` turns the title into a field.
 public struct SidebarRow<Icon: View, Trailing: View>: View {
   let value: AnyHashable?
-  let title: String
-  let subtitle: String?
+  let title: KitString
+  let subtitle: KitString?
   let icon: Icon
   let trailing: Trailing
   var titleText: Text?
@@ -964,8 +1073,9 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
   @Environment(\.contStickyCopy) private var isCopy
 
   init(
-    value: AnyHashable?, title: String, subtitle: String?, progress: Double? = nil, secondaryProgress: Double? = nil,
-    isExpanded: Binding<Bool>? = nil, @ViewBuilder icon: () -> Icon, @ViewBuilder trailing: () -> Trailing
+    value: AnyHashable?, title: KitString, subtitle: KitString?, progress: Double? = nil,
+    secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil, @ViewBuilder icon: () -> Icon,
+    @ViewBuilder trailing: () -> Trailing
   ) {
     self.value = value
     self.title = title
@@ -977,25 +1087,51 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
     self.trailing = trailing()
   }
 
-  /// A row that selects `value`, with any icon and trailing views.
+  /// A row that selects `value`, with any icon and trailing views; titled by keys (literals), looked up in the app's
+  /// strings.
   public init<Value: Hashable>(
-    value: Value, _ title: String, subtitle: String? = nil, progress: Double? = nil,
+    value: Value, _ title: LocalizedStringKey, subtitle: LocalizedStringKey? = nil, progress: Double? = nil,
     secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil, @ViewBuilder icon: () -> Icon,
     @ViewBuilder trailing: () -> Trailing
   ) {
     self.init(
-      value: AnyHashable(value), title: title, subtitle: subtitle, progress: progress,
+      value: AnyHashable(value), title: KitString(title), subtitle: KitString(subtitle), progress: progress,
       secondaryProgress: secondaryProgress, isExpanded: isExpanded, icon: icon, trailing: trailing)
   }
 
-  /// A row with any icon and trailing views; it selects the value given by `.kitTag(_:)`.
+  /// The same with strings shown as they are (a file's name, a branch).
+  @_disfavoredOverload
+  public init<Value: Hashable>(
+    value: Value, _ title: some StringProtocol, subtitle: String? = nil, progress: Double? = nil,
+    secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil, @ViewBuilder icon: () -> Icon,
+    @ViewBuilder trailing: () -> Trailing
+  ) {
+    self.init(
+      value: AnyHashable(value), title: KitString(verbatim: String(title)), subtitle: KitString(verbatim: subtitle),
+      progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded, icon: icon, trailing: trailing)
+  }
+
+  /// A row with any icon and trailing views; it selects the value given by `.kitTag(_:)`. Titled by keys (literals),
+  /// looked up in the app's strings.
   public init(
-    _ title: String, subtitle: String? = nil, progress: Double? = nil, secondaryProgress: Double? = nil,
+    _ title: LocalizedStringKey, subtitle: LocalizedStringKey? = nil, progress: Double? = nil,
+    secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil, @ViewBuilder icon: () -> Icon,
+    @ViewBuilder trailing: () -> Trailing
+  ) {
+    self.init(
+      value: nil, title: KitString(title), subtitle: KitString(subtitle), progress: progress,
+      secondaryProgress: secondaryProgress, isExpanded: isExpanded, icon: icon, trailing: trailing)
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, subtitle: String? = nil, progress: Double? = nil, secondaryProgress: Double? = nil,
     isExpanded: Binding<Bool>? = nil, @ViewBuilder icon: () -> Icon, @ViewBuilder trailing: () -> Trailing
   ) {
     self.init(
-      value: nil, title: title, subtitle: subtitle, progress: progress, secondaryProgress: secondaryProgress,
-      isExpanded: isExpanded, icon: icon, trailing: trailing)
+      value: nil, title: KitString(verbatim: String(title)), subtitle: KitString(verbatim: subtitle),
+      progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded, icon: icon, trailing: trailing)
   }
 
   // MARK: Chained options
@@ -1197,12 +1333,12 @@ public struct SidebarRow<Icon: View, Trailing: View>: View {
     let disclosure = disclosure
     HStack(spacing: compact ? 6 : idiom.size(8, touch: 12)) {
       if let disclosure {
-        ContDisclosureButton(disclosure: disclosure, title: title)
+        ContDisclosureButton(disclosure: disclosure, title: title.string)
       }
       icon
       VStack(alignment: .leading, spacing: compact ? 0 : 1) {
         if isRenaming, let rename {
-          ContRenameField(title: title, rename: rename)
+          ContRenameField(title: title.string, rename: rename)
         } else {
           HStack(spacing: 6) {
             (titleText ?? Text(title))
@@ -1416,146 +1552,306 @@ private struct ContSelectionGlide: ViewModifier {
 }
 
 extension SidebarRow where Icon == RowTile {
-  /// A row that selects `value`, with an SF Symbol tile (gray, the accent on the selected row, or `hue`).
-  public init<Value: Hashable>(
-    value: Value, _ title: String, subtitle: String? = nil, systemImage: String, hue: Hue? = nil,
-    status: WorkStatus = .idle, progress: Double? = nil, secondaryProgress: Double? = nil,
-    isExpanded: Binding<Bool>? = nil, @ViewBuilder trailing: () -> Trailing
+  init(
+    value: AnyHashable?, title: KitString, subtitle: KitString?, systemImage: String, hue: Hue?, status: WorkStatus,
+    progress: Double?, secondaryProgress: Double?, isExpanded: Binding<Bool>?, @ViewBuilder trailing: () -> Trailing
   ) {
     self.init(
-      value: value, title, subtitle: subtitle, progress: progress, secondaryProgress: secondaryProgress,
+      value: value, title: title, subtitle: subtitle, progress: progress, secondaryProgress: secondaryProgress,
       isExpanded: isExpanded, icon: { RowTile(systemImage: systemImage, hue: hue, status: status) },
       trailing: trailing)
     progressStatus = status
   }
 
-  /// A row with an SF Symbol tile; it selects the value given by `.kitTag(_:)`.
-  public init(
-    _ title: String, subtitle: String? = nil, systemImage: String, hue: Hue? = nil, status: WorkStatus = .idle,
-    progress: Double? = nil, secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil,
-    @ViewBuilder trailing: () -> Trailing
+  /// A row that selects `value`, with an SF Symbol tile (gray, the accent on the selected row, or `hue`); titled by
+  /// keys (literals), looked up in the app's strings.
+  public init<Value: Hashable>(
+    value: Value, _ title: LocalizedStringKey, subtitle: LocalizedStringKey? = nil, systemImage: String,
+    hue: Hue? = nil, status: WorkStatus = .idle, progress: Double? = nil, secondaryProgress: Double? = nil,
+    isExpanded: Binding<Bool>? = nil, @ViewBuilder trailing: () -> Trailing
   ) {
     self.init(
-      title, subtitle: subtitle, progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded,
-      icon: { RowTile(systemImage: systemImage, hue: hue, status: status) }, trailing: trailing)
-    progressStatus = status
+      value: AnyHashable(value), title: KitString(title), subtitle: KitString(subtitle), systemImage: systemImage,
+      hue: hue, status: status, progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded,
+      trailing: trailing)
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init<Value: Hashable>(
+    value: Value, _ title: some StringProtocol, subtitle: String? = nil, systemImage: String, hue: Hue? = nil,
+    status: WorkStatus = .idle, progress: Double? = nil, secondaryProgress: Double? = nil,
+    isExpanded: Binding<Bool>? = nil, @ViewBuilder trailing: () -> Trailing
+  ) {
+    self.init(
+      value: AnyHashable(value), title: KitString(verbatim: String(title)), subtitle: KitString(verbatim: subtitle),
+      systemImage: systemImage, hue: hue, status: status, progress: progress, secondaryProgress: secondaryProgress,
+      isExpanded: isExpanded, trailing: trailing)
+  }
+
+  /// A row with an SF Symbol tile; it selects the value given by `.kitTag(_:)`. Titled by keys (literals), looked up
+  /// in the app's strings.
+  public init(
+    _ title: LocalizedStringKey, subtitle: LocalizedStringKey? = nil, systemImage: String, hue: Hue? = nil,
+    status: WorkStatus = .idle, progress: Double? = nil, secondaryProgress: Double? = nil,
+    isExpanded: Binding<Bool>? = nil, @ViewBuilder trailing: () -> Trailing
+  ) {
+    self.init(
+      value: nil, title: KitString(title), subtitle: KitString(subtitle), systemImage: systemImage, hue: hue,
+      status: status, progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded,
+      trailing: trailing)
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, subtitle: String? = nil, systemImage: String, hue: Hue? = nil,
+    status: WorkStatus = .idle, progress: Double? = nil, secondaryProgress: Double? = nil,
+    isExpanded: Binding<Bool>? = nil, @ViewBuilder trailing: () -> Trailing
+  ) {
+    self.init(
+      value: nil, title: KitString(verbatim: String(title)), subtitle: KitString(verbatim: subtitle),
+      systemImage: systemImage, hue: hue, status: status, progress: progress, secondaryProgress: secondaryProgress,
+      isExpanded: isExpanded, trailing: trailing)
   }
 }
 
 extension SidebarRow where Icon == RowTile, Trailing == EmptyView {
-  /// A row that selects `value`, with an SF Symbol tile.
+  /// A row that selects `value`, with an SF Symbol tile; titled by keys (literals), looked up in the app's strings.
   ///
   /// ```swift
   /// SidebarRow(value: Page.history, "History", systemImage: "clock")
   /// ```
   public init<Value: Hashable>(
-    value: Value, _ title: String, subtitle: String? = nil, systemImage: String, hue: Hue? = nil,
+    value: Value, _ title: LocalizedStringKey, subtitle: LocalizedStringKey? = nil, systemImage: String,
+    hue: Hue? = nil, status: WorkStatus = .idle, progress: Double? = nil, secondaryProgress: Double? = nil,
+    isExpanded: Binding<Bool>? = nil
+  ) {
+    self.init(
+      value: AnyHashable(value), title: KitString(title), subtitle: KitString(subtitle), systemImage: systemImage,
+      hue: hue, status: status, progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded
+    ) { EmptyView() }
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init<Value: Hashable>(
+    value: Value, _ title: some StringProtocol, subtitle: String? = nil, systemImage: String, hue: Hue? = nil,
     status: WorkStatus = .idle, progress: Double? = nil, secondaryProgress: Double? = nil,
     isExpanded: Binding<Bool>? = nil
   ) {
     self.init(
-      value: value, title, subtitle: subtitle, systemImage: systemImage, hue: hue, status: status,
-      progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded
+      value: AnyHashable(value), title: KitString(verbatim: String(title)), subtitle: KitString(verbatim: subtitle),
+      systemImage: systemImage, hue: hue, status: status, progress: progress, secondaryProgress: secondaryProgress,
+      isExpanded: isExpanded
     ) { EmptyView() }
   }
 
-  /// A row with an SF Symbol tile; it selects the value given by `.kitTag(_:)`.
+  /// A row with an SF Symbol tile; it selects the value given by `.kitTag(_:)`. Titled by keys (literals), looked up
+  /// in the app's strings.
   public init(
-    _ title: String, subtitle: String? = nil, systemImage: String, hue: Hue? = nil, status: WorkStatus = .idle,
-    progress: Double? = nil, secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil
+    _ title: LocalizedStringKey, subtitle: LocalizedStringKey? = nil, systemImage: String, hue: Hue? = nil,
+    status: WorkStatus = .idle, progress: Double? = nil, secondaryProgress: Double? = nil,
+    isExpanded: Binding<Bool>? = nil
   ) {
     self.init(
-      title, subtitle: subtitle, systemImage: systemImage, hue: hue, status: status, progress: progress,
-      secondaryProgress: secondaryProgress, isExpanded: isExpanded
+      value: nil, title: KitString(title), subtitle: KitString(subtitle), systemImage: systemImage, hue: hue,
+      status: status, progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded
+    ) { EmptyView() }
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, subtitle: String? = nil, systemImage: String, hue: Hue? = nil,
+    status: WorkStatus = .idle, progress: Double? = nil, secondaryProgress: Double? = nil,
+    isExpanded: Binding<Bool>? = nil
+  ) {
+    self.init(
+      value: nil, title: KitString(verbatim: String(title)), subtitle: KitString(verbatim: subtitle),
+      systemImage: systemImage, hue: hue, status: status, progress: progress, secondaryProgress: secondaryProgress,
+      isExpanded: isExpanded
     ) { EmptyView() }
   }
 }
 
+// The glyph rows' key initializers aren't disfavored and their string ones are: a trailing closure alone still goes
+// to the `icon:` initializers (they win the tie), while a literal title with `glyph:` goes to the key one.
 extension SidebarRow where Icon == RowTile {
-  /// A row that selects `value`, with a tile around any glyph (a drawn `BranchGlyph`, an image) and trailing views.
-  ///
-  /// ```swift
-  /// SidebarRow(value: branch.id, branch.name, hue: .green, glyph: { BranchGlyph() }) { Count(branch.ahead) }
-  /// ```
-  @_disfavoredOverload
-  public init<Value: Hashable, Glyph: View>(
-    value: Value, _ title: String, subtitle: String? = nil, hue: Hue? = nil, status: WorkStatus = .idle,
-    progress: Double? = nil, secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil,
-    @ViewBuilder glyph: () -> Glyph, @ViewBuilder trailing: () -> Trailing
-  ) {
-    let tile = RowTile(hue: hue, status: status, glyph: glyph)
-    self.init(
-      value: value, title, subtitle: subtitle, progress: progress, secondaryProgress: secondaryProgress,
-      isExpanded: isExpanded, icon: { tile }, trailing: trailing)
-    progressStatus = status
-  }
-
-  /// A row with a tile around any glyph and trailing views; it selects the value given by `.kitTag(_:)`.
-  @_disfavoredOverload
-  public init<Glyph: View>(
-    _ title: String, subtitle: String? = nil, hue: Hue? = nil, status: WorkStatus = .idle, progress: Double? = nil,
-    secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil, @ViewBuilder glyph: () -> Glyph,
+  init<Glyph: View>(
+    value: AnyHashable?, title: KitString, subtitle: KitString?, hue: Hue?, status: WorkStatus, progress: Double?,
+    secondaryProgress: Double?, isExpanded: Binding<Bool>?, @ViewBuilder glyph: () -> Glyph,
     @ViewBuilder trailing: () -> Trailing
   ) {
     let tile = RowTile(hue: hue, status: status, glyph: glyph)
     self.init(
-      title, subtitle: subtitle, progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded,
-      icon: { tile }, trailing: trailing)
+      value: value, title: title, subtitle: subtitle, progress: progress, secondaryProgress: secondaryProgress,
+      isExpanded: isExpanded, icon: { tile }, trailing: trailing)
     progressStatus = status
+  }
+
+  /// A row that selects `value`, with a tile around any glyph (a drawn `BranchGlyph`, an image) and trailing views;
+  /// titled by keys (literals), looked up in the app's strings.
+  ///
+  /// ```swift
+  /// SidebarRow(value: branch.id, branch.name, hue: .green, glyph: { BranchGlyph() }) { Count(branch.ahead) }
+  /// ```
+  public init<Value: Hashable, Glyph: View>(
+    value: Value, _ title: LocalizedStringKey, subtitle: LocalizedStringKey? = nil, hue: Hue? = nil,
+    status: WorkStatus = .idle, progress: Double? = nil, secondaryProgress: Double? = nil,
+    isExpanded: Binding<Bool>? = nil, @ViewBuilder glyph: () -> Glyph, @ViewBuilder trailing: () -> Trailing
+  ) {
+    self.init(
+      value: AnyHashable(value), title: KitString(title), subtitle: KitString(subtitle), hue: hue, status: status,
+      progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded, glyph: glyph,
+      trailing: trailing)
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init<Value: Hashable, Glyph: View>(
+    value: Value, _ title: some StringProtocol, subtitle: String? = nil, hue: Hue? = nil, status: WorkStatus = .idle,
+    progress: Double? = nil, secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil,
+    @ViewBuilder glyph: () -> Glyph, @ViewBuilder trailing: () -> Trailing
+  ) {
+    self.init(
+      value: AnyHashable(value), title: KitString(verbatim: String(title)), subtitle: KitString(verbatim: subtitle),
+      hue: hue, status: status, progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded,
+      glyph: glyph, trailing: trailing)
+  }
+
+  /// A row with a tile around any glyph and trailing views; it selects the value given by `.kitTag(_:)`. Titled by
+  /// keys (literals), looked up in the app's strings.
+  public init<Glyph: View>(
+    _ title: LocalizedStringKey, subtitle: LocalizedStringKey? = nil, hue: Hue? = nil, status: WorkStatus = .idle,
+    progress: Double? = nil, secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil,
+    @ViewBuilder glyph: () -> Glyph, @ViewBuilder trailing: () -> Trailing
+  ) {
+    self.init(
+      value: nil, title: KitString(title), subtitle: KitString(subtitle), hue: hue, status: status,
+      progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded, glyph: glyph,
+      trailing: trailing)
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init<Glyph: View>(
+    _ title: some StringProtocol, subtitle: String? = nil, hue: Hue? = nil, status: WorkStatus = .idle,
+    progress: Double? = nil, secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil,
+    @ViewBuilder glyph: () -> Glyph, @ViewBuilder trailing: () -> Trailing
+  ) {
+    self.init(
+      value: nil, title: KitString(verbatim: String(title)), subtitle: KitString(verbatim: subtitle), hue: hue,
+      status: status, progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded, glyph: glyph,
+      trailing: trailing)
   }
 }
 
 extension SidebarRow where Icon == RowTile, Trailing == EmptyView {
-  /// A row that selects `value`, with a tile around any glyph.
+  /// A row that selects `value`, with a tile around any glyph; titled by keys (literals), looked up in the app's
+  /// strings.
   ///
   /// ```swift
   /// SidebarRow(value: branch.id, branch.name, glyph: { BranchGlyph() })
   /// ```
+  public init<Value: Hashable, Glyph: View>(
+    value: Value, _ title: LocalizedStringKey, subtitle: LocalizedStringKey? = nil, hue: Hue? = nil,
+    status: WorkStatus = .idle, progress: Double? = nil, secondaryProgress: Double? = nil,
+    isExpanded: Binding<Bool>? = nil, @ViewBuilder glyph: () -> Glyph
+  ) {
+    self.init(
+      value: AnyHashable(value), title: KitString(title), subtitle: KitString(subtitle), hue: hue, status: status,
+      progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded, glyph: glyph
+    ) { EmptyView() }
+  }
+
+  /// The same with strings shown as they are.
   @_disfavoredOverload
   public init<Value: Hashable, Glyph: View>(
-    value: Value, _ title: String, subtitle: String? = nil, hue: Hue? = nil, status: WorkStatus = .idle,
+    value: Value, _ title: some StringProtocol, subtitle: String? = nil, hue: Hue? = nil, status: WorkStatus = .idle,
     progress: Double? = nil, secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil,
     @ViewBuilder glyph: () -> Glyph
   ) {
     self.init(
-      value: value, title, subtitle: subtitle, hue: hue, status: status, progress: progress,
-      secondaryProgress: secondaryProgress, isExpanded: isExpanded, glyph: glyph
+      value: AnyHashable(value), title: KitString(verbatim: String(title)), subtitle: KitString(verbatim: subtitle),
+      hue: hue, status: status, progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded,
+      glyph: glyph
     ) { EmptyView() }
   }
 
-  /// A row with a tile around any glyph; it selects the value given by `.kitTag(_:)`.
-  @_disfavoredOverload
+  /// A row with a tile around any glyph; it selects the value given by `.kitTag(_:)`. Titled by keys (literals),
+  /// looked up in the app's strings.
   public init<Glyph: View>(
-    _ title: String, subtitle: String? = nil, hue: Hue? = nil, status: WorkStatus = .idle, progress: Double? = nil,
-    secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil, @ViewBuilder glyph: () -> Glyph
+    _ title: LocalizedStringKey, subtitle: LocalizedStringKey? = nil, hue: Hue? = nil, status: WorkStatus = .idle,
+    progress: Double? = nil, secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil,
+    @ViewBuilder glyph: () -> Glyph
   ) {
     self.init(
-      title, subtitle: subtitle, hue: hue, status: status, progress: progress, secondaryProgress: secondaryProgress,
-      isExpanded: isExpanded, glyph: glyph
+      value: nil, title: KitString(title), subtitle: KitString(subtitle), hue: hue, status: status,
+      progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded, glyph: glyph
+    ) { EmptyView() }
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init<Glyph: View>(
+    _ title: some StringProtocol, subtitle: String? = nil, hue: Hue? = nil, status: WorkStatus = .idle,
+    progress: Double? = nil, secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil,
+    @ViewBuilder glyph: () -> Glyph
+  ) {
+    self.init(
+      value: nil, title: KitString(verbatim: String(title)), subtitle: KitString(verbatim: subtitle), hue: hue,
+      status: status, progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded, glyph: glyph
     ) { EmptyView() }
   }
 }
 
 extension SidebarRow where Trailing == EmptyView {
-  /// A row that selects `value`, with any icon (`Tile(letters:)`, an avatar…).
+  /// A row that selects `value`, with any icon (`Tile(letters:)`, an avatar…); titled by keys (literals), looked up
+  /// in the app's strings.
   public init<Value: Hashable>(
-    value: Value, _ title: String, subtitle: String? = nil, progress: Double? = nil,
+    value: Value, _ title: LocalizedStringKey, subtitle: LocalizedStringKey? = nil, progress: Double? = nil,
     secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil, @ViewBuilder icon: () -> Icon
   ) {
     self.init(
-      value: value, title, subtitle: subtitle, progress: progress, secondaryProgress: secondaryProgress,
-      isExpanded: isExpanded, icon: icon
+      value: AnyHashable(value), title: KitString(title), subtitle: KitString(subtitle), progress: progress,
+      secondaryProgress: secondaryProgress, isExpanded: isExpanded, icon: icon
     ) { EmptyView() }
   }
 
-  /// A row with any icon; it selects the value given by `.kitTag(_:)`.
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init<Value: Hashable>(
+    value: Value, _ title: some StringProtocol, subtitle: String? = nil, progress: Double? = nil,
+    secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil, @ViewBuilder icon: () -> Icon
+  ) {
+    self.init(
+      value: AnyHashable(value), title: KitString(verbatim: String(title)), subtitle: KitString(verbatim: subtitle),
+      progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded, icon: icon
+    ) { EmptyView() }
+  }
+
+  /// A row with any icon; it selects the value given by `.kitTag(_:)`. Titled by keys (literals), looked up in the
+  /// app's strings.
   public init(
-    _ title: String, subtitle: String? = nil, progress: Double? = nil, secondaryProgress: Double? = nil,
+    _ title: LocalizedStringKey, subtitle: LocalizedStringKey? = nil, progress: Double? = nil,
+    secondaryProgress: Double? = nil, isExpanded: Binding<Bool>? = nil, @ViewBuilder icon: () -> Icon
+  ) {
+    self.init(
+      value: nil, title: KitString(title), subtitle: KitString(subtitle), progress: progress,
+      secondaryProgress: secondaryProgress, isExpanded: isExpanded, icon: icon
+    ) { EmptyView() }
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, subtitle: String? = nil, progress: Double? = nil, secondaryProgress: Double? = nil,
     isExpanded: Binding<Bool>? = nil, @ViewBuilder icon: () -> Icon
   ) {
     self.init(
-      title, subtitle: subtitle, progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded,
-      icon: icon
+      value: nil, title: KitString(verbatim: String(title)), subtitle: KitString(verbatim: subtitle),
+      progress: progress, secondaryProgress: secondaryProgress, isExpanded: isExpanded, icon: icon
     ) { EmptyView() }
   }
 }

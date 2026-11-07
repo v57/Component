@@ -88,10 +88,12 @@ public struct Keycaps: View {
     return result
   }
 
-  nonisolated static let names: [String: String] = [
-    "⌘": "Command", "⇧": "Shift", "⌥": "Option", "⌃": "Control", "↩": "Return", "⏎": "Return", "⇥": "Tab",
-    "⌫": "Delete", "⌦": "Forward Delete", "⎋": "Escape", "esc": "Escape", "↑": "Up Arrow", "↓": "Down Arrow",
-    "←": "Left Arrow", "→": "Right Arrow", "␣": "Space", "⇪": "Caps Lock",
+  nonisolated static let names: [String: KitString] = [
+    "⌘": KitString("Command"), "⇧": KitString("Shift"), "⌥": KitString("Option"), "⌃": KitString("Control"),
+    "↩": KitString("Return"), "⏎": KitString("Return"), "⇥": KitString("Tab"), "⌫": KitString("Delete"),
+    "⌦": KitString("Forward Delete"), "⎋": KitString("Escape"), "esc": KitString("Escape"),
+    "↑": KitString("Up Arrow"), "↓": KitString("Down Arrow"), "←": KitString("Left Arrow"),
+    "→": KitString("Right Arrow"), "␣": KitString("Space"), "⇪": KitString("Caps Lock"),
   ]
 
   /// A key as this platform writes it: the Mac's symbols, or their names on Windows and Linux, where ⌘ shortcuts
@@ -142,7 +144,7 @@ public struct Keycaps: View {
 
   /// How VoiceOver reads a key or a shortcut: "Shift Command F".
   nonisolated static func spoken(_ key: String) -> String {
-    if let name = names[key.lowercased()] { return name }
+    if let name = names[key.lowercased()] { return name.string }
     let keys = split(key)
     return keys.count > 1 ? keys.map(spoken).joined(separator: " ") : key
   }
@@ -155,10 +157,17 @@ public struct Keycaps: View {
 /// KeyHints([("⌘↩", "runs"), ("Tab", "completes"), ("⇧⌘F", "find in project"), ("esc", "closes")])
 /// ```
 public struct KeyHints: View {
-  var hints: [(keys: String, action: String)]
+  var hints: [(keys: String, action: KitString)]
 
-  public init(_ hints: [(String, String)]) {
-    self.hints = hints.map { (keys: $0.0, action: $0.1) }
+  /// Hints whose actions are keys (literals), looked up in the app's strings; the keys are shown as they are.
+  public init(_ hints: [(String, LocalizedStringKey)]) {
+    self.hints = hints.map { (keys: $0.0, action: KitString($0.1)) }
+  }
+
+  /// The same with actions shown as they are.
+  @_disfavoredOverload
+  public init(_ hints: [(String, some StringProtocol)]) {
+    self.hints = hints.map { (keys: $0.0, action: KitString(verbatim: String($0.1))) }
   }
 
   public var body: some View {

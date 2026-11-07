@@ -51,14 +51,25 @@ extension View {
     modifier(CtlFieldModifier(status: status, mono: mono, trailing: trailing()))
   }
 
-  /// Says what is wrong with a field in red text under it; `nil` shows nothing. Pair it with `status: .error`.
+  /// Says what is wrong with a field in red text under it; `nil` shows nothing. Pair it with `status: .error`. The
+  /// message is a key (a literal), looked up in the app's strings.
   ///
   /// ```swift
   /// TextField("Repository URL", text: $url)
   ///   .kitField(status: urlError == nil ? .none : .error)
   ///   .kitFieldError(urlError)
   /// ```
+  public func kitFieldError(_ message: LocalizedStringKey?) -> some View {
+    kitFieldError(message: KitString(message))
+  }
+
+  /// The same with a message shown as it is (one the app put together or localized).
+  @_disfavoredOverload
   public func kitFieldError(_ message: String?) -> some View {
+    kitFieldError(message: KitString(verbatim: message))
+  }
+
+  func kitFieldError(message: KitString?) -> some View {
     VStack(alignment: .leading, spacing: 4) {
       self
       if let message {
@@ -92,11 +103,22 @@ extension View {
 /// FormRow("Description", systemImage: "text.alignleft", field: KitMultilineField("Description", text: $details))
 /// ```
 public struct KitMultilineField: View {
-  let prompt: String
+  let prompt: KitString
   @Binding var text: String
   let lines: ClosedRange<Int>
 
-  public init(_ prompt: String, text: Binding<String>, lines: ClosedRange<Int> = 3...14) {
+  /// A field prompted by a key (a literal), looked up in the app's strings.
+  public init(_ prompt: LocalizedStringKey, text: Binding<String>, lines: ClosedRange<Int> = 3...14) {
+    self.init(prompt: KitString(prompt), text: text, lines: lines)
+  }
+
+  /// The same with a prompt shown as it is.
+  @_disfavoredOverload
+  public init(_ prompt: some StringProtocol, text: Binding<String>, lines: ClosedRange<Int> = 3...14) {
+    self.init(prompt: KitString(verbatim: String(prompt)), text: text, lines: lines)
+  }
+
+  init(prompt: KitString, text: Binding<String>, lines: ClosedRange<Int>) {
     self.prompt = prompt
     self._text = text
     self.lines = lines
@@ -104,7 +126,7 @@ public struct KitMultilineField: View {
 
   public var body: some View {
     #if os(tvOS)
-      TextField(prompt, text: $text)
+      TextField(prompt, text: $text, prompt: nil)
     #else
       // The text view takes the height of this hidden text; the space keeps a last empty line's height.
       Text(text + " ")

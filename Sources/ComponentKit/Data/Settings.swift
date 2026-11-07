@@ -125,7 +125,7 @@ public struct KitSettings<Content: View, Footer: View>: View {
     VStack(alignment: .leading, spacing: 2) {
       ForEach(sections, id: \.self) { section in
         if !section.isEmpty {
-          Text(section)
+          Text(sectionTitle(section))
             .kitFont(.sectionHeader)
             .padding(EdgeInsets(top: 14, leading: 10, bottom: 4, trailing: 0))
         }
@@ -156,6 +156,11 @@ public struct KitSettings<Content: View, Footer: View>: View {
     return seen.sorted { $0.isEmpty && !$1.isEmpty }
   }
 
+  /// A section's name in the app's language.
+  private func sectionTitle(_ section: String) -> KitString {
+    panes.first { $0.section == section }?.sectionTitle ?? KitString(verbatim: section)
+  }
+
   private func move(by offset: Int) -> KeyPress.Result {
     let ordered = sections.flatMap { section in panes.filter { $0.section == section }.map(\.id) }
     guard let next = DataNav.moved(current?.id, by: offset, in: ordered) else { return .ignored }
@@ -171,7 +176,7 @@ public struct KitSettings<Content: View, Footer: View>: View {
       VStack(alignment: .leading, spacing: KitMetrics.gutter) {
         ForEach(sections, id: \.self) { section in
           if !section.isEmpty {
-            Text(section).kitFont(.sectionHeader).padding(.leading, 10).padding(.top, 6)
+            Text(sectionTitle(section)).kitFont(.sectionHeader).padding(.leading, 10).padding(.top, 6)
           }
           VStack(spacing: 0) {
             ForEach(panes.filter { $0.section == section }) { pane in
@@ -203,7 +208,7 @@ public struct KitSettings<Content: View, Footer: View>: View {
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       .contEdgeBar(.top) {
         HStack(spacing: 8) {
-          Text(current?.title ?? "")
+          Text(current?.title ?? .empty)
             .kitFont(.headline)
             .contentTransition(.opacity)
         }
@@ -260,13 +265,15 @@ private struct SettingsTitleBarCleared: ViewModifier {
   }
 }
 
-struct SettingsPaneInfo: Identifiable, Hashable {
+struct SettingsPaneInfo: Identifiable, Equatable {
   var id: String
-  var title: String
+  var title: KitString
   var systemImage: String
   var hue: Hue
+  /// The section's words as written, which group the panes; `sectionTitle` is how it shows.
   var section: String
-  var value: String?
+  var sectionTitle: KitString
+  var value: KitString?
 }
 
 /// What `SettingsPhonePane` shows, behind one reference on purpose: a new box per `KitSettings` body, so the pushed
@@ -296,8 +303,8 @@ private struct SettingsPhonePane: View {
       .background(.kitWindow)
       .kitPane(.content)
       .kitToolbar(
-        pane?.title ?? "", meta: ["Settings"], systemImage: pane?.systemImage ?? "gearshape",
-        hue: pane?.hue ?? .gray
+        pane?.title ?? .empty, meta: [KitString("Settings").string], systemImage: pane?.systemImage ?? "gearshape",
+        hue: pane?.hue ?? .gray, status: .idle
       ) {}
   }
 }
@@ -337,7 +344,7 @@ private struct SettingsPhoneRow: View {
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
-    .accessibilityValue(pane.value ?? "")
+    .accessibilityValue(pane.value.map { Text($0) } ?? Text(verbatim: ""))
   }
 }
 
@@ -399,13 +406,36 @@ public struct SettingsPane<Content: View>: View {
   @Environment(\.dataRendersFlat) private var flat
   @Environment(\.kitIdiom) private var idiom
 
+  /// A pane whose title, section and value are keys (literals), looked up in the app's strings. Without an `id` the
+  /// pane is selected by its title as written (`"General"` in every language).
   public init(
-    _ title: String, systemImage: String, hue: Hue = .gray, section: String? = nil, value: String? = nil,
-    id: String? = nil, @ViewBuilder content: () -> Content
+    _ title: LocalizedStringKey, systemImage: String, hue: Hue = .gray, section: LocalizedStringKey? = nil,
+    value: LocalizedStringKey? = nil, id: String? = nil, @ViewBuilder content: () -> Content
+  ) {
+    self.init(
+      title: KitString(title), systemImage: systemImage, hue: hue, section: KitString(section),
+      value: KitString(value), id: id, content: content())
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, systemImage: String, hue: Hue = .gray, section: String? = nil,
+    value: String? = nil, id: String? = nil, @ViewBuilder content: () -> Content
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), systemImage: systemImage, hue: hue,
+      section: KitString(verbatim: section), value: KitString(verbatim: value), id: id, content: content())
+  }
+
+  init(
+    title: KitString, systemImage: String, hue: Hue, section: KitString?, value: KitString?, id: String?,
+    content: Content
   ) {
     self.info = SettingsPaneInfo(
-      id: id ?? title, title: title, systemImage: systemImage, hue: hue, section: section ?? "", value: value)
-    self.content = content()
+      id: id ?? title.sourceText, title: title, systemImage: systemImage, hue: hue,
+      section: section?.sourceText ?? "", sectionTitle: section ?? .empty, value: value)
+    self.content = content
   }
 
   public var body: some View {

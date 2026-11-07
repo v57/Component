@@ -4,19 +4,50 @@ import SwiftUI
 
 /// One part of a meter: what it is, how much, its hue and glyph, and the value as text ("214.2 GB").
 public struct MeterSegment: Identifiable, Hashable, Sendable {
-  public var label: String
+  var labelText: KitString
   public var value: Double
   public var hue: Hue
   public var systemImage: String?
   public var valueText: String?
   public var id: String { label }
 
-  public init(_ label: String, value: Double, hue: Hue, systemImage: String? = nil, valueText: String? = nil) {
-    self.label = label
+  /// The label as a string: a key's localized text, or the string as it was given.
+  public var label: String {
+    get { labelText.string }
+    set { labelText = KitString(verbatim: newValue) }
+  }
+
+  /// A part labelled by a key (a literal), looked up in the app's strings; `valueText` is shown as it is.
+  public init(
+    _ label: LocalizedStringKey, value: Double, hue: Hue, systemImage: String? = nil, valueText: String? = nil
+  ) {
+    self.init(label: KitString(label), value: value, hue: hue, systemImage: systemImage, valueText: valueText)
+  }
+
+  /// The same with a label shown as it is (a folder's name, or text the app localized).
+  @_disfavoredOverload
+  public init(
+    _ label: some StringProtocol, value: Double, hue: Hue, systemImage: String? = nil, valueText: String? = nil
+  ) {
+    self.init(
+      label: KitString(verbatim: String(label)), value: value, hue: hue, systemImage: systemImage,
+      valueText: valueText)
+  }
+
+  init(label: KitString, value: Double, hue: Hue, systemImage: String?, valueText: String?) {
+    self.labelText = label
     self.value = value
     self.hue = hue
     self.systemImage = systemImage
     self.valueText = valueText
+  }
+
+  public func hash(into hasher: inout Hasher) {
+    hasher.combine(labelText.sourceText)
+    hasher.combine(value)
+    hasher.combine(hue)
+    hasher.combine(systemImage)
+    hasher.combine(valueText)
   }
 }
 
@@ -107,7 +138,7 @@ public struct MeterLegend: View {
   private func row(_ segment: MeterSegment, quiet: Bool) -> some View {
     HStack(spacing: 10) {
       Tile(systemImage: segment.systemImage ?? "circle.fill", hue: segment.hue, size: 22)
-      Text(segment.label)
+      Text(segment.labelText)
         .foregroundStyle(quiet ? AnyShapeStyle(.kitSecondary) : AnyShapeStyle(.kitLabel))
         .lineLimit(1)
       Spacer(minLength: 8)
@@ -128,18 +159,48 @@ public struct MeterLegend: View {
 /// MeterTile("Scanning", value: "1,204", systemImage: "magnifyingglass", progress: nil)
 /// ```
 public struct MeterTile: View {
-  var label: String
+  var label: KitString
   var value: String
   var systemImage: String
   var hue: Hue
   var status: WorkStatus
 
-  /// `progress` 0…1 fills the ring, `nil` turns the arc.
-  public init(_ label: String, value: String, systemImage: String, hue: Hue = .accent, progress: Double?) {
-    self.init(label, value: value, systemImage: systemImage, hue: hue, status: .working(progress: progress))
+  /// `progress` 0…1 fills the ring, `nil` turns the arc. The label is a key (a literal), looked up in the app's
+  /// strings; the value is shown as it is.
+  public init(
+    _ label: LocalizedStringKey, value: String, systemImage: String, hue: Hue = .accent, progress: Double?
+  ) {
+    self.init(
+      label: KitString(label), value: value, systemImage: systemImage, hue: hue, status: .working(progress: progress))
   }
 
-  public init(_ label: String, value: String, systemImage: String, hue: Hue = .accent, status: WorkStatus) {
+  /// The same with a label shown as it is.
+  @_disfavoredOverload
+  public init(
+    _ label: some StringProtocol, value: String, systemImage: String, hue: Hue = .accent, progress: Double?
+  ) {
+    self.init(
+      label: KitString(verbatim: String(label)), value: value, systemImage: systemImage, hue: hue,
+      status: .working(progress: progress))
+  }
+
+  /// A tile whose label is a key (a literal), looked up in the app's strings; the value is shown as it is.
+  public init(
+    _ label: LocalizedStringKey, value: String, systemImage: String, hue: Hue = .accent, status: WorkStatus
+  ) {
+    self.init(label: KitString(label), value: value, systemImage: systemImage, hue: hue, status: status)
+  }
+
+  /// The same with a label shown as it is.
+  @_disfavoredOverload
+  public init(
+    _ label: some StringProtocol, value: String, systemImage: String, hue: Hue = .accent, status: WorkStatus
+  ) {
+    self.init(
+      label: KitString(verbatim: String(label)), value: value, systemImage: systemImage, hue: hue, status: status)
+  }
+
+  init(label: KitString, value: String, systemImage: String, hue: Hue, status: WorkStatus) {
     self.label = label
     self.value = value
     self.systemImage = systemImage
@@ -181,7 +242,7 @@ extension Hue {
 /// }
 /// ```
 public struct Lane<Accessory: View, Items: View>: View {
-  var title: String
+  var title: KitString
   var count: Int?
   var meta: [String]
   var systemImage: String
@@ -190,9 +251,30 @@ public struct Lane<Accessory: View, Items: View>: View {
   var accessory: Accessory
   var items: Items
 
+  /// A lane titled by a key (a literal), looked up in the app's strings; `meta` lines are shown as they are.
   public init(
-    _ title: String, count: Int? = nil, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    _ title: LocalizedStringKey, count: Int? = nil, meta: [String] = [], systemImage: String, hue: Hue = .accent,
     status: WorkStatus = .idle, @ViewBuilder accessory: () -> Accessory, @ViewBuilder items: () -> Items
+  ) {
+    self.init(
+      title: KitString(title), count: count, meta: meta, systemImage: systemImage, hue: hue, status: status,
+      accessory: accessory(), items: items())
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, count: Int? = nil, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, @ViewBuilder accessory: () -> Accessory, @ViewBuilder items: () -> Items
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), count: count, meta: meta, systemImage: systemImage, hue: hue,
+      status: status, accessory: accessory(), items: items())
+  }
+
+  init(
+    title: KitString, count: Int?, meta: [String], systemImage: String, hue: Hue, status: WorkStatus,
+    accessory: Accessory, items: Items
   ) {
     self.title = title
     self.count = count
@@ -200,8 +282,8 @@ public struct Lane<Accessory: View, Items: View>: View {
     self.systemImage = systemImage
     self.hue = hue
     self.status = status
-    self.accessory = accessory()
-    self.items = items()
+    self.accessory = accessory
+    self.items = items
   }
 
   public var body: some View {
@@ -243,13 +325,25 @@ public struct LaneBoard<Content: View>: View {
 }
 
 extension Lane where Accessory == EmptyView {
+  /// A lane titled by a key (a literal), looked up in the app's strings, with nothing at its header's end.
   public init(
-    _ title: String, count: Int? = nil, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    _ title: LocalizedStringKey, count: Int? = nil, meta: [String] = [], systemImage: String, hue: Hue = .accent,
     status: WorkStatus = .idle, @ViewBuilder items: () -> Items
   ) {
     self.init(
-      title, count: count, meta: meta, systemImage: systemImage, hue: hue, status: status,
-      accessory: { EmptyView() }, items: items)
+      title: KitString(title), count: count, meta: meta, systemImage: systemImage, hue: hue, status: status,
+      accessory: EmptyView(), items: items())
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, count: Int? = nil, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, @ViewBuilder items: () -> Items
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), count: count, meta: meta, systemImage: systemImage, hue: hue,
+      status: status, accessory: EmptyView(), items: items())
   }
 }
 

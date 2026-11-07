@@ -89,12 +89,13 @@ public struct RefChip: View {
     var accessibilityText: String {
       let kindName =
         switch kind {
-        case .branch: isCurrent ? "current branch" : "branch"
-        case .remote: "remote branch"
-        case .tag: "tag"
-        case .head: "HEAD"
+        case .branch: isCurrent ? KitString("current branch") : KitString("branch")
+        case .remote: KitString("remote branch")
+        case .tag: KitString("tag")
+        case .head: KitString(verbatim: "HEAD")
         }
-      return "\(name), \(kindName)\(hasUpstream ? ", same as upstream" : "")"
+      let upstream = hasUpstream ? KitString(", same as upstream").string : ""
+      return "\(name), \(kindName.string)\(upstream)"
     }
   }
 

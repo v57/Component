@@ -61,7 +61,7 @@ extension EnvironmentValues {
 /// message as a chip and keeps the output open, `.paused` reads as Stopped. Output lines starting `error:` or
 /// `warning:` (or containing them after a location) are marked.
 public struct RunBlock: View {
-  var name: String?
+  var name: KitString?
   var command: String
   var id: String
   var systemImage: String
@@ -78,14 +78,37 @@ public struct RunBlock: View {
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.colorScheme) private var scheme
 
+  /// A run named by a key (a literal), looked up in the app's strings; the command, figures and output are shown as
+  /// they are. Without an `id` the run is known by its name as written and its command.
+  public init(
+    _ name: LocalizedStringKey? = nil, command: String, id: String? = nil, systemImage: String = "terminal",
+    hue: Hue = .accent, status: WorkStatus, progress: String? = nil, duration: String? = nil,
+    warnings: String? = nil, output: String = "", stop: (() -> Void)? = nil
+  ) {
+    self.init(
+      name: KitString(name), command: command, id: id, systemImage: systemImage, hue: hue, status: status,
+      progress: progress, duration: duration, warnings: warnings, output: output, stop: stop)
+  }
+
+  /// The same with a name shown as it is.
+  @_disfavoredOverload
   public init(
     _ name: String? = nil, command: String, id: String? = nil, systemImage: String = "terminal",
     hue: Hue = .accent, status: WorkStatus, progress: String? = nil, duration: String? = nil,
     warnings: String? = nil, output: String = "", stop: (() -> Void)? = nil
   ) {
+    self.init(
+      name: KitString(verbatim: name), command: command, id: id, systemImage: systemImage, hue: hue, status: status,
+      progress: progress, duration: duration, warnings: warnings, output: output, stop: stop)
+  }
+
+  init(
+    name: KitString?, command: String, id: String?, systemImage: String, hue: Hue, status: WorkStatus,
+    progress: String?, duration: String?, warnings: String?, output: String, stop: (() -> Void)?
+  ) {
     self.name = name
     self.command = command
-    self.id = id ?? [name, command].compactMap { $0 }.joined(separator: " ")
+    self.id = id ?? [name?.sourceText, command].compactMap { $0 }.joined(separator: " ")
     self.systemImage = systemImage
     self.hue = hue
     self.status = status
@@ -134,8 +157,8 @@ public struct RunBlock: View {
         .truncationMode(.tail)
         .frame(maxWidth: .infinity, alignment: .leading)
       if let warnings { Count(warnings, .attention) }
-      if case .failed(let message) = status { Chip(message ?? "Failed", hue: .red) }
-      if case .paused = status { Chip("Stopped") }
+      if case .failed(let message) = status { Chip(message.map { Text(verbatim: $0) } ?? Text("Failed"), hue: .red) }
+      if case .paused = status { Chip(Text("Stopped")) }
       if let figures { Count(figures) }
       if status.isWorking, let stop {
         Button("Stop", systemImage: "stop.fill", action: stop)
@@ -153,7 +176,8 @@ public struct RunBlock: View {
       }
     }
     .accessibilityAddTraits(.isButton)
-    .accessibilityHint(output.isEmpty ? "" : isExpanded ? "Folds the output" : "Shows the output")
+    .accessibilityHint(
+      output.isEmpty ? Text(verbatim: "") : isExpanded ? Text("Folds the output") : Text("Shows the output"))
   }
 
   /// "31 of 48 · 12 s".

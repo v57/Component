@@ -85,14 +85,25 @@ public struct KitProgressBar: View {
 /// ```
 public struct KitProgressEstimate: View {
   var status: WorkStatus
-  var line: String?
+  var line: KitString?
   var startedAt: Date?
   var secondary: Double?
   var hue: Hue
   @Environment(\.kitIdiom) private var idiom
 
-  /// The bar and `line`, the app's own estimate ("12 of 40 · about 3 min left").
+  /// The bar and `line`, the app's own estimate ("12 of 40 · about 3 min left"), a key (a literal) looked up in the
+  /// app's strings.
+  public init(status: WorkStatus, line: LocalizedStringKey?, secondary: Double? = nil, hue: Hue = .accent) {
+    self.init(status: status, line: KitString(line), secondary: secondary, hue: hue)
+  }
+
+  /// The same with a line shown as it is.
+  @_disfavoredOverload
   public init(status: WorkStatus, line: String?, secondary: Double? = nil, hue: Hue = .accent) {
+    self.init(status: status, line: KitString(verbatim: line), secondary: secondary, hue: hue)
+  }
+
+  init(status: WorkStatus, line: KitString?, secondary: Double?, hue: Hue) {
     self.status = status
     self.line = line
     self.secondary = secondary
@@ -101,7 +112,7 @@ public struct KitProgressEstimate: View {
 
   /// The bar and the time left, estimated from `startedAt` and the progress.
   public init(status: WorkStatus, startedAt: Date, secondary: Double? = nil, hue: Hue = .accent) {
-    self.init(status: status, line: nil, secondary: secondary, hue: hue)
+    self.init(status: status, line: KitString?.none, secondary: secondary, hue: hue)
     self.startedAt = startedAt
   }
 
@@ -118,7 +129,7 @@ public struct KitProgressEstimate: View {
     }
   }
 
-  private func label(_ text: String) -> some View {
+  private func label(_ text: KitString) -> some View {
     Text(text)
       .kitFont(.caption)
       .monospacedDigit()
@@ -128,22 +139,22 @@ public struct KitProgressEstimate: View {
   }
 
   /// What the line says without an estimate.
-  nonisolated static func fallback(_ status: WorkStatus) -> String {
+  nonisolated static func fallback(_ status: WorkStatus) -> KitString {
     switch status {
-    case .working: "Estimating…"
-    case .paused: "Paused"
-    case .waiting: "Waiting"
-    case .failed(let message): message ?? "Failed"
-    case .done, .idle: ""
+    case .working: KitString("Estimating…")
+    case .paused: KitString("Paused")
+    case .waiting: KitString("Waiting")
+    case .failed(let message): KitString(verbatim: message) ?? KitString("Failed")
+    case .done, .idle: .empty
     }
   }
 
   /// The time left: what the work took so far over the share done, less the time so far; "Estimating…" until 2% is
   /// done.
-  nonisolated static func estimate(status: WorkStatus, startedAt: Date, now: Date) -> String {
+  nonisolated static func estimate(status: WorkStatus, startedAt: Date, now: Date) -> KitString {
     guard let progress = status.progress, progress >= 0.02, progress < 1 else { return fallback(status) }
     let elapsed = now.timeIntervalSince(startedAt)
-    return KitDuration.timeLeft(elapsed / progress - elapsed)
+    return KitString(verbatim: KitDuration.timeLeft(elapsed / progress - elapsed))
   }
 }
 

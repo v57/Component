@@ -31,7 +31,14 @@ public struct Chip: View {
   @Environment(\.isEnabled) private var isEnabled
   @Environment(\.kitMoreContrast) private var moreContrast
 
-  /// A chip with a title, an optional leading SF Symbol and the hue of its meaning.
+  /// A chip with a title, an optional leading SF Symbol and the hue of its meaning. The title is a key (a literal),
+  /// looked up in the app's strings.
+  public init(_ title: LocalizedStringKey, systemImage: String? = nil, hue: Hue? = nil, style: Style = .soft) {
+    self.init(Text(title), systemImage: systemImage, hue: hue, style: style)
+  }
+
+  /// The same with a title shown as it is (a name, a status word, a type).
+  @_disfavoredOverload
   public init(_ title: some StringProtocol, systemImage: String? = nil, hue: Hue? = nil, style: Style = .soft) {
     self.init(Text(title), systemImage: systemImage, hue: hue, style: style)
   }

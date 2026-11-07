@@ -32,16 +32,31 @@ public struct KitLineIssue: Hashable, Sendable {
 public struct KitLineEditor: View {
   @Binding var text: String
   var issues: [Int: KitLineIssue]
-  var placeholder: String?
+  var placeholder: KitString?
   var font: KitFont
   @Environment(\.self) private var environment
   @Environment(\.kitIdiom) private var idiom
   /// iPhone and iPad: the height the text view last measured (SwiftUI doesn't ask a UIKit view again as it grows).
   @State private var height: CGFloat?
 
+  /// An editor whose placeholder is a key (a literal), looked up in the app's strings; the issues' messages are shown
+  /// as they are.
+  public init(
+    text: Binding<String>, issues: [Int: KitLineIssue] = [:], placeholder: LocalizedStringKey? = nil,
+    font: KitFont = .code
+  ) {
+    self.init(text: text, issues: issues, placeholder: KitString(placeholder), font: font)
+  }
+
+  /// The same with a placeholder shown as it is.
+  @_disfavoredOverload
   public init(
     text: Binding<String>, issues: [Int: KitLineIssue] = [:], placeholder: String? = nil, font: KitFont = .code
   ) {
+    self.init(text: text, issues: issues, placeholder: KitString(verbatim: placeholder), font: font)
+  }
+
+  init(text: Binding<String>, issues: [Int: KitLineIssue], placeholder: KitString?, font: KitFont) {
     self._text = text
     self.issues = issues
     self.placeholder = placeholder
@@ -68,7 +83,7 @@ public struct KitLineEditor: View {
       #if !os(tvOS)
       TextEditor(text: $text).kitFont(font).frame(minHeight: 80)
       #else
-      KitCodeBlock(text, font: font, placeholder: placeholder)
+      KitCodeBlock(source: .text(text), font: font, placeholder: placeholder)
       #endif
       ForEach(issues.keys.sorted(), id: \.self) { line in
         if let issue = issues[line] {
@@ -89,7 +104,7 @@ public struct KitLineEditor: View {
           message: $0.message, text: PlatformColor($0.hue.text.resolve(in: environment)),
           tint: PlatformColor($0.hue.soft(0.09).resolve(in: environment)))
       },
-      placeholder: placeholder,
+      placeholder: placeholder?.string,
       font: .monospacedSystemFont(ofSize: size, weight: .regular),
       numberFont: .monospacedDigitSystemFont(ofSize: size - 1, weight: .regular),
       messageFont: .systemFont(ofSize: KitFont.caption.pointSize(scale: 1, idiom: idiom)),

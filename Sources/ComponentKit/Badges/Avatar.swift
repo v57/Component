@@ -258,11 +258,11 @@ public struct Avatar: View {
 
   private var accessibilityText: String {
     var parts = [name]
-    if kind == .agent, status != .idle { parts.append(LiveIcon<EmptyView>.label(status)) }
+    if kind == .agent, status != .idle { parts.append(LiveIcon<EmptyView>.label(status).string) }
     switch presence {
-    case .online: parts.append("online")
-    case .away: parts.append("away")
-    case .offline: parts.append("offline")
+    case .online: parts.append(KitString("online").string)
+    case .away: parts.append(KitString("away").string)
+    case .offline: parts.append(KitString("offline").string)
     case nil: break
     }
     return parts.joined(separator: ", ")

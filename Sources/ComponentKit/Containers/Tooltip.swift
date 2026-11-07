@@ -24,13 +24,28 @@ extension View {
   /// ```swift
   /// Text("Ln 12, Col 4").kitHelp("Go to Line", shortcut: "⌘L", edge: .top)
   /// ```
+  ///
+  /// The title and meta are keys (literals), looked up in the app's strings; the shortcut is keys as they are.
   public func kitHelp(
-    _ title: String, shortcut: String? = nil, meta: String? = nil, systemImage: String? = nil,
+    _ title: LocalizedStringKey, shortcut: String? = nil, meta: LocalizedStringKey? = nil, systemImage: String? = nil,
     hue: Hue = .accent, status: WorkStatus = .idle, edge: VerticalEdge? = nil
   ) -> some View {
     modifier(
       ContHelpModifier(
-        title: title, shortcut: shortcut, meta: meta, systemImage: systemImage, hue: hue, status: status, edge: edge))
+        title: KitString(title), shortcut: shortcut, meta: KitString(meta), systemImage: systemImage, hue: hue,
+        status: status, edge: edge))
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public func kitHelp(
+    _ title: some StringProtocol, shortcut: String? = nil, meta: String? = nil, systemImage: String? = nil,
+    hue: Hue = .accent, status: WorkStatus = .idle, edge: VerticalEdge? = nil
+  ) -> some View {
+    modifier(
+      ContHelpModifier(
+        title: KitString(verbatim: String(title)), shortcut: shortcut, meta: KitString(verbatim: meta),
+        systemImage: systemImage, hue: hue, status: status, edge: edge))
   }
 
   /// The kit's tooltip with more under its header, past a hairline: a list of what a group holds, a few facts in
@@ -44,15 +59,40 @@ extension View {
   ///     }
   ///   }
   /// ```
+  ///
+  /// The title and meta are keys (literals), looked up in the app's strings.
   public func kitHelp<Detail: View>(
-    _ title: String, shortcut: String? = nil, meta: String? = nil, systemImage: String? = nil,
+    _ title: LocalizedStringKey, shortcut: String? = nil, meta: LocalizedStringKey? = nil, systemImage: String? = nil,
     hue: Hue = .accent, status: WorkStatus = .idle, edge: VerticalEdge? = nil,
     @ViewBuilder detail: () -> Detail
   ) -> some View {
     modifier(
       ContHelpModifier(
-        title: title, shortcut: shortcut, meta: meta, systemImage: systemImage, hue: hue, status: status, edge: edge,
-        detail: AnyView(detail())))
+        title: KitString(title), shortcut: shortcut, meta: KitString(meta), systemImage: systemImage, hue: hue,
+        status: status, edge: edge, detail: AnyView(detail())))
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public func kitHelp<Detail: View>(
+    _ title: some StringProtocol, shortcut: String? = nil, meta: String? = nil, systemImage: String? = nil,
+    hue: Hue = .accent, status: WorkStatus = .idle, edge: VerticalEdge? = nil,
+    @ViewBuilder detail: () -> Detail
+  ) -> some View {
+    modifier(
+      ContHelpModifier(
+        title: KitString(verbatim: String(title)), shortcut: shortcut, meta: KitString(verbatim: meta),
+        systemImage: systemImage, hue: hue, status: status, edge: edge, detail: AnyView(detail())))
+  }
+
+  /// The kit's tooltip for text the kit already holds.
+  func kitHelp(
+    title: KitString, meta: KitString? = nil, shortcut: String? = nil, systemImage: String? = nil,
+    hue: Hue = .accent, status: WorkStatus = .idle, edge: VerticalEdge? = nil
+  ) -> some View {
+    modifier(
+      ContHelpModifier(
+        title: title, shortcut: shortcut, meta: meta, systemImage: systemImage, hue: hue, status: status, edge: edge))
   }
 }
 
@@ -69,9 +109,9 @@ private final class ContTooltipRest {
 }
 
 private struct ContHelpModifier: ViewModifier {
-  let title: String
+  let title: KitString
   let shortcut: String?
-  let meta: String?
+  let meta: KitString?
   let systemImage: String?
   let hue: Hue
   let status: WorkStatus
@@ -120,10 +160,10 @@ private struct ContHelpModifier: ViewModifier {
             .accessibilityHidden(true)
           }
         }
-        .accessibilityHint([meta, shortcut].compactMap { $0 }.joined(separator: ", "))
+        .accessibilityHint([meta?.string, shortcut].compactMap { $0 }.joined(separator: ", "))
         .onAppear {
           // For captures: once the window's columns have settled, as they have under a pointer.
-          guard KitLaunchOptions.shownTooltip == title else { return }
+          guard KitLaunchOptions.shownTooltip == title.string else { return }
           DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { isShown = true }
         }
         .onDisappear { hide() }
@@ -139,8 +179,8 @@ private struct ContHelpModifier: ViewModifier {
         .anchorPreference(key: ContTooltipKey.self, value: .bounds) { [isShown, card, id] bounds in
           isShown ? [ContTooltip(id: id, card: card, anchor: bounds, edge: edge)] : []
         }
-        .accessibilityHint([meta, shortcut].compactMap { $0 }.joined(separator: ", "))
-        .onAppear { if KitLaunchOptions.shownTooltip == title { isShown = true } }
+        .accessibilityHint([meta?.string, shortcut].compactMap { $0 }.joined(separator: ", "))
+        .onAppear { if KitLaunchOptions.shownTooltip == title.string { isShown = true } }
         .onDisappear { hide() }
     } else {
       content
@@ -160,8 +200,8 @@ private struct ContHelpModifier: ViewModifier {
           }
         }
         .zIndex(isShown ? 100 : 0)
-        .accessibilityHint([meta, shortcut].compactMap { $0 }.joined(separator: ", "))
-        .onAppear { if KitLaunchOptions.shownTooltip == title { isShown = true } }
+        .accessibilityHint([meta?.string, shortcut].compactMap { $0 }.joined(separator: ", "))
+        .onAppear { if KitLaunchOptions.shownTooltip == title.string { isShown = true } }
         .onDisappear { hide() }
     }
     #endif
@@ -414,9 +454,9 @@ enum ContTooltipGeometry {
 
 /// The tooltip's card: a rich header at its smallest, the shortcut as keys, and any detail under a hairline.
 struct ContTooltipCard: View {
-  let title: String
+  let title: KitString
   let shortcut: String?
-  let meta: String?
+  let meta: KitString?
   let systemImage: String?
   let hue: Hue
   let status: WorkStatus
@@ -461,12 +501,18 @@ struct ContTooltipCard: View {
 
 #Preview("Tooltip") {
   VStack(alignment: .leading, spacing: 12) {
-    ContTooltipCard(title: "Pull", shortcut: "⇧⌘P", meta: "1 behind origin/main", systemImage: "arrow.down", hue: .accent, status: .idle)
-    ContTooltipCard(title: "Fetch", shortcut: nil, meta: "Fetching origin…", systemImage: "arrow.clockwise", hue: .accent, status: .working)
-    ContTooltipCard(title: "Push", shortcut: "⌘P", meta: "Nothing to push", systemImage: "arrow.up", hue: .gray, status: .idle)
     ContTooltipCard(
-      title: "v57", shortcut: nil, meta: "~/Developer/v57 · 12 repositories", systemImage: "folder", hue: .orange,
-      status: .idle,
+      title: KitString("Pull"), shortcut: "⇧⌘P", meta: KitString("1 behind origin/main"), systemImage: "arrow.down",
+      hue: .accent, status: .idle)
+    ContTooltipCard(
+      title: KitString("Fetch"), shortcut: nil, meta: KitString("Fetching origin…"), systemImage: "arrow.clockwise",
+      hue: .accent, status: .working)
+    ContTooltipCard(
+      title: KitString("Push"), shortcut: "⌘P", meta: KitString("Nothing to push"), systemImage: "arrow.up",
+      hue: .gray, status: .idle)
+    ContTooltipCard(
+      title: KitString(verbatim: "v57"), shortcut: nil, meta: KitString(verbatim: "~/Developer/v57 · 12 repositories"),
+      systemImage: "folder", hue: .orange, status: .idle,
       detail: AnyView(
         Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 3) {
           GridRow { Text("Code"); SyncCounts(changes: 1).gridColumnAlignment(.trailing) }

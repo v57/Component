@@ -75,7 +75,7 @@ public struct KitFileCell: View {
         .truncationMode(.middle)
     }
     .accessibilityElement(children: .combine)
-    .accessibilityLabel(kind == .folder ? "\(name), folder" : name)
+    .accessibilityLabel(kind == .folder ? Text("\(name), folder") : Text(verbatim: name))
   }
 }
 
@@ -126,7 +126,7 @@ public struct TextConflict: View {
     let digits = max(2, String(side.lines.count).count)
     return VStack(alignment: .leading, spacing: 6) {
       HStack(spacing: 6) {
-        Chip(side.label, hue: hue).controlSize(.small)
+        Chip(Text(side.labelText), hue: hue).controlSize(.small)
         if let ref = side.ref { Text(ref).kitFont(.caption).lineLimit(1) }
       }
       VStack(alignment: .leading, spacing: 0) {
@@ -150,7 +150,7 @@ public struct TextConflict: View {
     .background(.kitFillSoft, in: shape)
     .overlay(shape.strokeBorder(.kitSeparator, lineWidth: 0.5))
     .accessibilityElement(children: .contain)
-    .accessibilityLabel(side.label)
+    .accessibilityLabel(side.labelText)
   }
 
   /// `line` with the character ranges in `ranges` in bold.

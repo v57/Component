@@ -14,10 +14,58 @@ extension View {
   ///   KitSafetyCode(groups: ["702", "115"], columns: 2)
   /// } action: { approve() }
   /// ```
+  ///
+  /// The title, message and button are keys (literals), looked up in the app's strings.
   public func kitDialog<Content: View>(
-    _ title: String, isPresented: Binding<Bool>, message: String? = nil, systemImage: String = "questionmark.circle",
-    hue: Hue? = nil, confirm: String, role: ButtonRole? = nil, @ViewBuilder content: () -> Content,
+    _ title: LocalizedStringKey, isPresented: Binding<Bool>, message: LocalizedStringKey? = nil,
+    systemImage: String = "questionmark.circle", hue: Hue? = nil, confirm: LocalizedStringKey, role: ButtonRole? = nil,
+    @ViewBuilder content: () -> Content, action: @escaping @MainActor () -> Void
+  ) -> some View {
+    kitDialog(
+      title: KitString(title), isPresented: isPresented, message: KitString(message), systemImage: systemImage,
+      hue: hue, confirm: KitString(confirm), role: role, content: content, action: action)
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public func kitDialog<Content: View>(
+    _ title: some StringProtocol, isPresented: Binding<Bool>, message: String? = nil,
+    systemImage: String = "questionmark.circle", hue: Hue? = nil, confirm: some StringProtocol,
+    role: ButtonRole? = nil, @ViewBuilder content: () -> Content, action: @escaping @MainActor () -> Void
+  ) -> some View {
+    kitDialog(
+      title: KitString(verbatim: String(title)), isPresented: isPresented, message: KitString(verbatim: message),
+      systemImage: systemImage, hue: hue, confirm: KitString(verbatim: String(confirm)), role: role, content: content,
+      action: action)
+  }
+
+  /// A dialog with only the title and message, titled by keys (literals), looked up in the app's strings.
+  public func kitDialog(
+    _ title: LocalizedStringKey, isPresented: Binding<Bool>, message: LocalizedStringKey? = nil,
+    systemImage: String = "questionmark.circle", hue: Hue? = nil, confirm: LocalizedStringKey, role: ButtonRole? = nil,
     action: @escaping @MainActor () -> Void
+  ) -> some View {
+    kitDialog(
+      title: KitString(title), isPresented: isPresented, message: KitString(message), systemImage: systemImage,
+      hue: hue, confirm: KitString(confirm), role: role, content: { EmptyView() }, action: action)
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public func kitDialog(
+    _ title: some StringProtocol, isPresented: Binding<Bool>, message: String? = nil,
+    systemImage: String = "questionmark.circle", hue: Hue? = nil, confirm: some StringProtocol,
+    role: ButtonRole? = nil, action: @escaping @MainActor () -> Void
+  ) -> some View {
+    kitDialog(
+      title: KitString(verbatim: String(title)), isPresented: isPresented, message: KitString(verbatim: message),
+      systemImage: systemImage, hue: hue, confirm: KitString(verbatim: String(confirm)), role: role,
+      content: { EmptyView() }, action: action)
+  }
+
+  func kitDialog<Content: View>(
+    title: KitString, isPresented: Binding<Bool>, message: KitString?, systemImage: String, hue: Hue?,
+    confirm: KitString, role: ButtonRole?, @ViewBuilder content: () -> Content, action: @escaping @MainActor () -> Void
   ) -> some View {
     modifier(
       KitDialogModifier(
@@ -26,25 +74,15 @@ extension View {
           title: title, message: message, systemImage: systemImage, hue: hue ?? (role == .destructive ? .red : .accent),
           confirm: confirm, role: role, content: AnyView(content()), action: action)))
   }
-
-  /// A dialog with only the title and message.
-  public func kitDialog(
-    _ title: String, isPresented: Binding<Bool>, message: String? = nil, systemImage: String = "questionmark.circle",
-    hue: Hue? = nil, confirm: String, role: ButtonRole? = nil, action: @escaping @MainActor () -> Void
-  ) -> some View {
-    kitDialog(
-      title, isPresented: isPresented, message: message, systemImage: systemImage, hue: hue, confirm: confirm,
-      role: role, content: { EmptyView() }, action: action)
-  }
 }
 
 /// The dialog's card: what every platform shows.
 struct KitDialogCard: View {
-  let title: String
-  let message: String?
+  let title: KitString
+  let message: KitString?
   let systemImage: String
   let hue: Hue
-  let confirm: String
+  let confirm: KitString
   let role: ButtonRole?
   let content: AnyView
   let action: @MainActor () -> Void
@@ -176,8 +214,8 @@ private struct KitDialogSheetGround: View {
 
 #Preview("Dialog") {
   KitDialogCard(
-    title: "Approve ThinkPad X1?", message: "Windows · wants to join Home Hub", systemImage: "checkmark.shield",
-    hue: .accent, confirm: "Approve", role: nil,
+    title: KitString("Approve ThinkPad X1?"), message: KitString("Windows · wants to join Home Hub"),
+    systemImage: "checkmark.shield", hue: .accent, confirm: KitString("Approve"), role: nil,
     content: AnyView(KitSafetyCode(groups: ["702", "115"], columns: 2)), action: {}
   )
   .background(RoundedRectangle(cornerRadius: KitMetrics.radiusOverlay).fill(.kitPanel))

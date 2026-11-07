@@ -122,14 +122,21 @@ extension View {
     environment(\.kitMenuForcedHighlight, isHighlighted)
   }
 
-  /// A second line under a menu row's title, in small type: what the row works on, in a few words.
+  /// A second line under a menu row's title, in small type: what the row works on, in a few words. The line is a key
+  /// (a literal), looked up in the app's strings.
   ///
   /// ```swift
   /// Button("Filter", systemImage: "line.3.horizontal.decrease") { add(.filter) }
   ///   .kitMenuDetail("Keep only matching documents")
   /// ```
+  public func kitMenuDetail(_ detail: LocalizedStringKey?) -> some View {
+    environment(\.kitMenuDetail, KitString(detail))
+  }
+
+  /// The same with a line shown as it is.
+  @_disfavoredOverload
   public func kitMenuDetail(_ detail: String?) -> some View {
-    environment(\.kitMenuDetail, detail)
+    environment(\.kitMenuDetail, KitString(verbatim: detail))
   }
 
   /// What picking this row will do, in a sentence, for the panel at the menu's end: shown while the row is
@@ -144,15 +151,38 @@ extension View {
   /// ```
   ///
   /// `isDanger` makes the sentence red for a row that isn't destructive itself but loses something (Force Push).
-  public func kitMenuPreview(_ text: String?, isDanger: Bool = false) -> some View {
-    environment(\.kitMenuPreview, text.map { KitMenuPreviewItem(text: $0, isDanger: isDanger) })
+  /// The sentence is a key (a literal), looked up in the app's strings.
+  public func kitMenuPreview(_ text: LocalizedStringKey?, isDanger: Bool = false) -> some View {
+    kitMenuPreview(text: KitString(text), isDanger: isDanger)
   }
 
-  /// The row's sentence with a small picture above it (what happens to a branch).
+  /// The same with a sentence shown as it is.
+  @_disfavoredOverload
+  public func kitMenuPreview(_ text: String?, isDanger: Bool = false) -> some View {
+    kitMenuPreview(text: KitString(verbatim: text), isDanger: isDanger)
+  }
+
+  func kitMenuPreview(text: KitString?, isDanger: Bool = false) -> some View {
+    environment(\.kitMenuPreview, text.map { KitMenuPreviewItem(label: $0, isDanger: isDanger) })
+  }
+
+  /// The row's sentence with a small picture above it (what happens to a branch), the sentence a key (a literal),
+  /// looked up in the app's strings.
   public func kitMenuPreview<Picture: View>(
-    _ text: String, isDanger: Bool = false, @ViewBuilder picture: () -> Picture
+    _ text: LocalizedStringKey, isDanger: Bool = false, @ViewBuilder picture: () -> Picture
   ) -> some View {
-    environment(\.kitMenuPreview, KitMenuPreviewItem(text: text, picture: AnyView(picture()), isDanger: isDanger))
+    environment(
+      \.kitMenuPreview, KitMenuPreviewItem(label: KitString(text), picture: AnyView(picture()), isDanger: isDanger))
+  }
+
+  /// The same with a sentence shown as it is.
+  @_disfavoredOverload
+  public func kitMenuPreview<Picture: View>(
+    _ text: some StringProtocol, isDanger: Bool = false, @ViewBuilder picture: () -> Picture
+  ) -> some View {
+    environment(
+      \.kitMenuPreview,
+      KitMenuPreviewItem(label: KitString(verbatim: String(text)), picture: AnyView(picture()), isDanger: isDanger))
   }
 
   /// The words a menu's `KitMenuFilter` matches this row by, and what kind of thing it is, said at the row's end
@@ -161,25 +191,48 @@ extension View {
   /// ```swift
   /// ForEach(tools) { tool in Button(tool.name) { pick(tool) }.kitMenuFilter(tool.name, kind: "Tool") }
   /// ```
-  public func kitMenuFilter(_ text: String, kind: String? = nil) -> some View {
-    environment(\.kitMenuFilter, KitMenuFilterText(text: text, kind: kind))
+  ///
+  /// The words and the kind are keys (literals), looked up in the app's strings.
+  public func kitMenuFilter(_ text: LocalizedStringKey, kind: LocalizedStringKey? = nil) -> some View {
+    environment(\.kitMenuFilter, KitMenuFilterText(text: KitString(text).string, kind: KitString(kind)))
+  }
+
+  /// The same with words and a kind shown as they are (a name).
+  @_disfavoredOverload
+  public func kitMenuFilter(_ text: some StringProtocol, kind: String? = nil) -> some View {
+    environment(\.kitMenuFilter, KitMenuFilterText(text: String(text), kind: KitString(verbatim: kind)))
   }
 }
 
 /// A row's sentence for the menu's preview panel.
 struct KitMenuPreviewItem {
-  var text: String
+  var label: KitString
   var picture: AnyView? = nil
   var isDanger = false
+
+  init(label: KitString, picture: AnyView? = nil, isDanger: Bool = false) {
+    self.label = label
+    self.picture = picture
+    self.isDanger = isDanger
+  }
+
+  /// A sentence shown as it is.
+  init(text: String, picture: AnyView? = nil, isDanger: Bool = false) {
+    self.init(label: KitString(verbatim: text), picture: picture, isDanger: isDanger)
+  }
+
+  /// The sentence as a string: a key's localized text, or the string as it was given.
+  var text: String { label.string }
 }
 
 struct KitMenuFilterText: Equatable {
+  /// The words to match, as a string (a key already looked up).
   var text: String
-  var kind: String?
+  var kind: KitString?
 }
 
 extension EnvironmentValues {
-  @Entry var kitMenuDetail: String? = nil
+  @Entry var kitMenuDetail: KitString? = nil
   @Entry var kitMenuPreview: KitMenuPreviewItem? = nil
   @Entry var kitMenuFilter: KitMenuFilterText? = nil
   @Entry var kitMenuHint: String? = nil
@@ -623,7 +676,8 @@ struct KitMenuRow<Label: View>: View {
     let metrics = KitMenuMetrics(idiom)
     let destructive = role == .destructive
     // While filtering, the row says what kind of thing it is (a tool, a library) where its hint was.
-    let end = model?.isFiltering == true ? (filter?.kind ?? hint) : hint
+    let kind = model?.isFiltering == true ? filter?.kind : nil
+    let end: Text? = kind.map { Text($0) } ?? hint.map { Text(Self.textPresentation($0)) }
     let hasEnd = isSubmenu || isHeader || checked != nil || model?.hasCheckColumn == true
     return HStack(spacing: metrics.iconGap) {
       if !hasIcon && model?.hasIconColumn == true {
@@ -646,7 +700,7 @@ struct KitMenuRow<Label: View>: View {
       }
       Spacer(minLength: 8)
       if let end {
-        Text(Self.textPresentation(end))
+        end
           .font(.system(size: metrics.hintFont))
           .monospacedDigit()
           .foregroundStyle(.kitSecondary)
@@ -696,7 +750,7 @@ struct KitMenuRow<Label: View>: View {
     }
     .onChange(of: hasIcon) { register() }
     .onChange(of: hint) { register() }
-    .onChange(of: preview?.text) { register() }
+    .onChange(of: preview?.label) { register() }
     .onChange(of: filter) { register() }
     .onDisappear { model?.remove(id) }
     .accessibilityElement(children: .combine)
@@ -868,28 +922,47 @@ public struct KitMenuOptions<Value: Hashable>: View {
     self.segments = segments
   }
 
-  /// Options as titled values.
-  public init(selection: Binding<Value>, options: [(String, Value)]) {
+  /// Options as values titled by keys (literals), looked up in the app's strings.
+  public init(selection: Binding<Value>, options: [(LocalizedStringKey, Value)]) {
     self.init(selection: selection, segments: options.map { KitSegment($0.0, value: $0.1) })
   }
 
-  /// Options as titled values, each with what picking it does for the menu's preview panel.
-  public init(selection: Binding<Value>, options: [(String, Value, String)]) {
+  /// The same with titles shown as they are.
+  @_disfavoredOverload
+  public init(selection: Binding<Value>, options: [(some StringProtocol, Value)]) {
+    self.init(
+      selection: selection, segments: options.map { KitSegment(label: KitString(verbatim: String($0.0)), value: $0.1) })
+  }
+
+  /// Options as titled values, each with what picking it does for the menu's preview panel; the titles and sentences
+  /// are keys (literals), looked up in the app's strings.
+  public init(selection: Binding<Value>, options: [(LocalizedStringKey, Value, LocalizedStringKey)]) {
     self.init(selection: selection, segments: options.map { KitSegment($0.0, value: $0.1, preview: $0.2) })
+  }
+
+  /// The same with titles and sentences shown as they are.
+  @_disfavoredOverload
+  public init(selection: Binding<Value>, options: [(some StringProtocol, Value, some StringProtocol)]) {
+    self.init(
+      selection: selection,
+      segments: options.map {
+        KitSegment(
+          label: KitString(verbatim: String($0.0)), value: $0.1, preview: KitString(verbatim: String($0.2)))
+      })
   }
 
   public var body: some View {
     ForEach(segments) { segment in
       let row = KitMenuRow(checked: segment.value == selection, trigger: { pick(segment.value) }) {
         if let systemImage = segment.systemImage {
-          Label(segment.title, systemImage: systemImage)
+          Label(segment.label, systemImage: systemImage)
         } else {
-          Text(segment.title)
+          Text(segment.label)
         }
       }
       .disabled(!segment.isEnabled)
       // Only a segment's own sentence replaces one set around the options.
-      if let preview = segment.preview { row.kitMenuPreview(preview) } else { row }
+      if let preview = segment.previewLabel { row.kitMenuPreview(text: preview) } else { row }
     }
   }
 
@@ -918,7 +991,7 @@ extension KitMenuOptions where Value: KitOption {
 /// KitSubmenu("All Libraries", value: "\(libraries.count)") { ForEach(libraries) { … } }
 /// ```
 public struct KitSubmenu<Content: View>: View {
-  var title: String
+  var title: KitString
   var value: String?
   var systemImage: String?
   var content: Content
@@ -932,7 +1005,23 @@ public struct KitSubmenu<Content: View>: View {
   @State private var rowGeometry = KitMenuRowGeometry()
   @State private var childSize: CGSize = .zero
 
-  public init(_ title: String, value: String? = nil, systemImage: String? = nil, @ViewBuilder content: () -> Content) {
+  /// A submenu titled by a key (a literal), looked up in the app's strings; `value` is shown as it is.
+  public init(
+    _ title: LocalizedStringKey, value: String? = nil, systemImage: String? = nil, @ViewBuilder content: () -> Content
+  ) {
+    self.init(title: KitString(title), value: value, systemImage: systemImage, content: content)
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, value: String? = nil, systemImage: String? = nil,
+    @ViewBuilder content: () -> Content
+  ) {
+    self.init(title: KitString(verbatim: String(title)), value: value, systemImage: systemImage, content: content)
+  }
+
+  init(title: KitString, value: String?, systemImage: String?, @ViewBuilder content: () -> Content) {
     self.title = title
     self.value = value
     self.systemImage = systemImage
@@ -1042,12 +1131,29 @@ public struct KitSubmenu<Content: View>: View {
 /// KitMenuFooter("3 files", subtitle: "Dropped on build-mac", message: "Upload needs a folder open.", systemImage: "doc.on.doc")
 /// ```
 public struct KitMenuFooter: View {
-  var title: String
-  var subtitle: String?
-  var message: String?
+  var title: KitString
+  var subtitle: KitString?
+  var message: KitString?
   var systemImage: String
 
-  public init(_ title: String, subtitle: String? = nil, message: String? = nil, systemImage: String) {
+  /// A footer whose texts are keys (literals), looked up in the app's strings.
+  public init(
+    _ title: LocalizedStringKey, subtitle: LocalizedStringKey? = nil, message: LocalizedStringKey? = nil,
+    systemImage: String
+  ) {
+    self.init(
+      title: KitString(title), subtitle: KitString(subtitle), message: KitString(message), systemImage: systemImage)
+  }
+
+  /// The same with strings shown as they are (a file's name, a device's).
+  @_disfavoredOverload
+  public init(_ title: some StringProtocol, subtitle: String? = nil, message: String? = nil, systemImage: String) {
+    self.init(
+      title: KitString(verbatim: String(title)), subtitle: KitString(verbatim: subtitle),
+      message: KitString(verbatim: message), systemImage: systemImage)
+  }
+
+  init(title: KitString, subtitle: KitString?, message: KitString?, systemImage: String) {
     self.title = title
     self.subtitle = subtitle
     self.message = message
@@ -1091,11 +1197,22 @@ public struct KitMenuFooter: View {
 /// KitMenuSection("iPhone Simulators", value: "iOS 27.2") { … }
 /// ```
 public struct KitMenuSection<Content: View>: View {
-  var title: String
+  var title: KitString
   var value: String?
   var content: Content
 
-  public init(_ title: String, value: String? = nil, @ViewBuilder content: () -> Content) {
+  /// A section titled by a key (a literal), looked up in the app's strings; `value` is shown as it is.
+  public init(_ title: LocalizedStringKey, value: String? = nil, @ViewBuilder content: () -> Content) {
+    self.init(title: KitString(title), value: value, content: content)
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
+  public init(_ title: some StringProtocol, value: String? = nil, @ViewBuilder content: () -> Content) {
+    self.init(title: KitString(verbatim: String(title)), value: value, content: content)
+  }
+
+  init(title: KitString, value: String?, @ViewBuilder content: () -> Content) {
     self.title = title
     self.value = value
     self.content = content()
@@ -1109,7 +1226,7 @@ public struct KitMenuSection<Content: View>: View {
 
 /// A section's header: its title in small semibold type at the rows' edge, and a quiet word at its end.
 struct KitMenuSectionHeader: View {
-  var title: String
+  var title: KitString
   var value: String? = nil
   @Environment(\.kitMenuModel) private var model
   @Environment(\.kitIdiom) private var idiom
@@ -1157,17 +1274,37 @@ struct KitMenuSectionHeader: View {
 /// KitMenuShare("Share a Copy…") { [try? exportCopy()].compactMap { $0 } }
 /// ```
 public struct KitMenuShare: View {
-  var title: String
+  var title: KitString
   var systemImage: String
   var items: () -> [Any]
   @Environment(\.kitMenuModel) private var model
 
-  public init(_ title: String = "Share…", systemImage: String = "square.and.arrow.up", items: [Any]) {
-    self.init(title, systemImage: systemImage) { items }
+  /// A row titled by a key (a literal), looked up in the app's strings.
+  public init(_ title: LocalizedStringKey = "Share…", systemImage: String = "square.and.arrow.up", items: [Any]) {
+    self.init(title: KitString(title), systemImage: systemImage) { items }
   }
 
-  /// A row whose items `prepare` makes when it is picked.
-  public init(_ title: String = "Share…", systemImage: String = "square.and.arrow.up", prepare: @escaping () -> [Any]) {
+  /// The same with a title shown as it is; a `nil` title is the kit's.
+  @_disfavoredOverload
+  public init(_ title: String? = nil, systemImage: String = "square.and.arrow.up", items: [Any]) {
+    self.init(title: KitString(verbatim: title) ?? KitString("Share…"), systemImage: systemImage) { items }
+  }
+
+  /// A row whose items `prepare` makes when it is picked, titled by a key (a literal), looked up in the app's strings.
+  public init(
+    _ title: LocalizedStringKey = "Share…", systemImage: String = "square.and.arrow.up",
+    prepare: @escaping () -> [Any]
+  ) {
+    self.init(title: KitString(title), systemImage: systemImage, prepare: prepare)
+  }
+
+  /// The same with a title shown as it is; a `nil` title is the kit's.
+  @_disfavoredOverload
+  public init(_ title: String? = nil, systemImage: String = "square.and.arrow.up", prepare: @escaping () -> [Any]) {
+    self.init(title: KitString(verbatim: title) ?? KitString("Share…"), systemImage: systemImage, prepare: prepare)
+  }
+
+  init(title: KitString, systemImage: String, prepare: @escaping () -> [Any]) {
     self.title = title
     self.systemImage = systemImage
     self.items = prepare

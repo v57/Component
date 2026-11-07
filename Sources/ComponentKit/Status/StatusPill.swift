@@ -41,8 +41,18 @@ public struct KitStatusPill<Icon: View, Content: View>: View {
 }
 
 extension KitStatusPill where Icon == LiveIcon<Image>, Content == Text {
-  /// A 20pt live icon and a line.
-  public init(_ title: String, systemImage: String, hue: Hue = .accent, status: WorkStatus = .idle) {
+  /// A 20pt live icon and a line, a key (a literal) looked up in the app's strings.
+  public init(_ title: LocalizedStringKey, systemImage: String, hue: Hue = .accent, status: WorkStatus = .idle) {
+    self.init(title: KitString(title), systemImage: systemImage, hue: hue, status: status)
+  }
+
+  /// The same with a line shown as it is.
+  @_disfavoredOverload
+  public init(_ title: some StringProtocol, systemImage: String, hue: Hue = .accent, status: WorkStatus = .idle) {
+    self.init(title: KitString(verbatim: String(title)), systemImage: systemImage, hue: hue, status: status)
+  }
+
+  init(title: KitString, systemImage: String, hue: Hue, status: WorkStatus) {
     self.init(icon: { LiveIcon(systemImage: systemImage, hue: hue, status: status, size: 20) }, content: { Text(title) })
   }
 }

@@ -13,18 +13,31 @@ import SwiftUI
 /// ```
 public struct KitNeverContacts: View {
   var app: String
-  var message: String?
+  var message: KitString?
 
+  /// The promise for `app` (its name, shown as it is); `message` is a key (a literal), looked up in the app's strings.
+  public init(_ app: String, message: LocalizedStringKey? = nil) {
+    self.init(app: app, message: KitString(message))
+  }
+
+  /// The same with a message shown as it is.
+  @_disfavoredOverload
   public init(_ app: String, message: String? = nil) {
+    self.init(app: app, message: KitString(verbatim: message))
+  }
+
+  init(app: String, message: KitString?) {
     self.app = app
     self.message = message
   }
 
   public var body: some View {
     FormRow(
-      "Nothing goes to us",
-      help: message ?? "\(app) sends no requests to our servers, advertisers or trackers, and has no analytics.",
-      systemImage: "hand.raised", hue: .green)
+      title: KitString("Nothing goes to us"),
+      help: message
+        ?? KitString("\(app) sends no requests to our servers, advertisers or trackers, and has no analytics."),
+      systemImage: "hand.raised", hue: .green, error: nil, status: .idle, control: { EmptyView() },
+      field: { EmptyView() })
   }
 }
 
@@ -41,20 +54,36 @@ public struct KitNeverContacts: View {
 /// ```
 public struct KitPrivacyParties<Content: View>: View {
   var app: String
-  var message: String?
-  var footer: String?
+  var message: KitString?
+  var footer: KitString?
   @ViewBuilder var content: Content
 
+  /// The card for `app` (its name, shown as it is); `message` and `footer` are keys (literals), looked up in the app's
+  /// strings.
+  public init(
+    _ app: String, message: LocalizedStringKey? = nil, footer: LocalizedStringKey? = nil,
+    @ViewBuilder content: () -> Content
+  ) {
+    self.init(app: app, message: KitString(message), footer: KitString(footer), content: content())
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
   public init(_ app: String, message: String? = nil, footer: String? = nil, @ViewBuilder content: () -> Content) {
+    self.init(
+      app: app, message: KitString(verbatim: message), footer: KitString(verbatim: footer), content: content())
+  }
+
+  init(app: String, message: KitString?, footer: KitString?, content: Content) {
     self.app = app
     self.message = message
     self.footer = footer
-    self.content = content()
+    self.content = content
   }
 
   public var body: some View {
-    FormCard("What \(app) sends", footer: footer) {
-      KitNeverContacts(app, message: message)
+    FormCard(title: KitString("What \(app) sends"), footer: footer) {
+      KitNeverContacts(app: app, message: message)
       content
     }
   }
@@ -70,13 +99,32 @@ public struct KitPrivacyParties<Content: View>: View {
 ///   why: "It needs your sign-in to do what you asked.")
 /// ```
 public struct KitPrivacyParty: View {
-  var name: String
+  var name: KitString
   var systemImage: String
   var hue: Hue
-  var when: String
-  var why: String
+  var when: KitString
+  var why: KitString
 
-  public init(_ name: String, systemImage: String, hue: Hue = .gray, when: String, why: String) {
+  /// A party named and described by keys (literals), looked up in the app's strings.
+  public init(
+    _ name: LocalizedStringKey, systemImage: String, hue: Hue = .gray, when: LocalizedStringKey,
+    why: LocalizedStringKey
+  ) {
+    self.init(name: KitString(name), systemImage: systemImage, hue: hue, when: KitString(when), why: KitString(why))
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    _ name: some StringProtocol, systemImage: String, hue: Hue = .gray, when: some StringProtocol,
+    why: some StringProtocol
+  ) {
+    self.init(
+      name: KitString(verbatim: String(name)), systemImage: systemImage, hue: hue,
+      when: KitString(verbatim: String(when)), why: KitString(verbatim: String(why)))
+  }
+
+  init(name: KitString, systemImage: String, hue: Hue, when: KitString, why: KitString) {
     self.name = name
     self.systemImage = systemImage
     self.hue = hue
@@ -85,7 +133,9 @@ public struct KitPrivacyParty: View {
   }
 
   public var body: some View {
-    FormRow(name, help: when, systemImage: systemImage, hue: hue)
+    FormRow(
+      title: name, help: when, systemImage: systemImage, hue: hue, error: nil, status: .idle,
+      control: { EmptyView() }, field: { EmptyView() })
       .detail {
         Text(why)
           .kitFont(.caption)
@@ -108,21 +158,38 @@ public struct KitPrivacyParty: View {
 /// ```
 public struct KitSecurityComparison<Content: View>: View {
   var app: String
-  var title: String
-  var footer: String?
+  var title: KitString
+  var footer: KitString?
   @ViewBuilder var content: Content
 
+  /// The comparison for `app` (its name, shown as it is); `title` and `footer` are keys (literals), looked up in the
+  /// app's strings.
   public init(
-    _ app: String, title: String = "Next to other apps", footer: String? = nil, @ViewBuilder content: () -> Content
+    _ app: String, title: LocalizedStringKey = "Next to other apps", footer: LocalizedStringKey? = nil,
+    @ViewBuilder content: () -> Content
   ) {
+    self.init(app: app, title: KitString(title), footer: KitString(footer), content: content())
+  }
+
+  /// The same with strings shown as they are; a `nil` title is the kit's.
+  @_disfavoredOverload
+  public init(
+    _ app: String, title: String? = nil, footer: String? = nil, @ViewBuilder content: () -> Content
+  ) {
+    self.init(
+      app: app, title: KitString(verbatim: title) ?? KitString("Next to other apps"),
+      footer: KitString(verbatim: footer), content: content())
+  }
+
+  init(app: String, title: KitString, footer: KitString?, content: Content) {
     self.app = app
     self.title = title
     self.footer = footer
-    self.content = content()
+    self.content = content
   }
 
   public var body: some View {
-    FormCard(title, footer: footer) {
+    FormCard(title: title, footer: footer) {
       content.environment(\.kitComparisonApp, app)
     }
   }
@@ -131,16 +198,36 @@ public struct KitSecurityComparison<Content: View>: View {
 /// One thing compared in `KitSecurityComparison`: what this app does (`here`, under the app's name), then what each
 /// other app does. A row can name several apps that do the same: `("Tower, GitKraken", "…")`.
 public struct KitComparisonRow: View {
-  var title: String
+  var title: KitString
   var systemImage: String
   var hue: Hue
-  var here: String
-  var others: [(app: String, text: String)]
+  var here: KitString
+  var others: [(app: String, text: KitString)]
   @Environment(\.kitComparisonApp) private var app
 
+  /// A row whose title and texts are keys (literals), looked up in the app's strings; the other apps' names are
+  /// shown as they are.
   public init(
-    _ title: String, systemImage: String, hue: Hue = .green, here: String, others: [(app: String, text: String)]
+    _ title: LocalizedStringKey, systemImage: String, hue: Hue = .green, here: LocalizedStringKey,
+    others: [(app: String, text: LocalizedStringKey)]
   ) {
+    self.init(
+      title: KitString(title), systemImage: systemImage, hue: hue, here: KitString(here),
+      others: others.map { ($0.app, KitString($0.text)) })
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, systemImage: String, hue: Hue = .green, here: some StringProtocol,
+    others: [(app: String, text: some StringProtocol)]
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), systemImage: systemImage, hue: hue,
+      here: KitString(verbatim: String(here)), others: others.map { ($0.app, KitString(verbatim: String($0.text))) })
+  }
+
+  init(title: KitString, systemImage: String, hue: Hue, here: KitString, others: [(app: String, text: KitString)]) {
     self.title = title
     self.systemImage = systemImage
     self.hue = hue
@@ -149,7 +236,9 @@ public struct KitComparisonRow: View {
   }
 
   public var body: some View {
-    FormRow(title, systemImage: systemImage, hue: hue)
+    FormRow(
+      title: title, help: nil, systemImage: systemImage, hue: hue, error: nil, status: .idle,
+      control: { EmptyView() }, field: { EmptyView() })
       .detail {
         VStack(alignment: .leading, spacing: 6) {
           KitComparisonLine(app: app, text: here, isHere: true)
@@ -164,7 +253,7 @@ public struct KitComparisonRow: View {
 /// An app's name over what it does.
 private struct KitComparisonLine: View {
   let app: String
-  let text: String
+  let text: KitString
   let isHere: Bool
 
   var body: some View {

@@ -10,7 +10,7 @@ import SwiftUI
 /// KitStepper("Zoom", value: $zoom, in: 0.5...2, step: 0.25) { "\(Int($0 * 100))%" }
 /// ```
 public struct KitStepper<V: Strideable>: View {
-  var title: String
+  var title: KitString
   @Binding var value: V
   var range: ClosedRange<V>
   var step: V.Stride
@@ -19,20 +19,51 @@ public struct KitStepper<V: Strideable>: View {
   @Environment(\.isEnabled) private var isEnabled
   @FocusState private var focus: CtlStepperPart?
 
-  /// A stepper whose value reads as a number, followed by `unit` when there is one ("13 pt").
+  /// A stepper whose value reads as a number, followed by `unit` when there is one ("13 pt"). The title and unit are
+  /// keys (literals), looked up in the app's strings.
   public init(
-    _ title: String = "", value: Binding<V>, in range: ClosedRange<V>, step: V.Stride = 1, unit: String? = nil
+    _ title: LocalizedStringKey? = nil, value: Binding<V>, in range: ClosedRange<V>, step: V.Stride = 1,
+    unit: LocalizedStringKey? = nil
   ) {
-    self.init(title, value: value, in: range, step: step) { value in
+    self.init(title: KitString(title) ?? .empty, value: value, in: range, step: step, unit: KitString(unit))
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    _ title: String? = nil, value: Binding<V>, in range: ClosedRange<V>, step: V.Stride = 1, unit: String? = nil
+  ) {
+    self.init(
+      title: KitString(verbatim: title) ?? .empty, value: value, in: range, step: step, unit: KitString(verbatim: unit))
+  }
+
+  init(title: KitString, value: Binding<V>, in range: ClosedRange<V>, step: V.Stride, unit: KitString?) {
+    self.init(title: title, value: value, in: range, step: step) { value in
       let number = CtlNumberText.string(value)
-      return unit.map { "\(number) \($0)" } ?? number
+      return unit.map { "\(number) \($0.string)" } ?? number
     }
   }
 
-  /// A stepper that shows its value as `format` returns it.
+  /// A stepper that shows its value as `format` returns it, titled by a key (a literal), looked up in the app's
+  /// strings.
   public init(
-    _ title: String = "", value: Binding<V>, in range: ClosedRange<V>, step: V.Stride = 1,
+    _ title: LocalizedStringKey? = nil, value: Binding<V>, in range: ClosedRange<V>, step: V.Stride = 1,
     format: @escaping (V) -> String
+  ) {
+    self.init(title: KitString(title) ?? .empty, value: value, in: range, step: step, format: format)
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, value: Binding<V>, in range: ClosedRange<V>, step: V.Stride = 1,
+    format: @escaping (V) -> String
+  ) {
+    self.init(title: KitString(verbatim: String(title)), value: value, in: range, step: step, format: format)
+  }
+
+  init(
+    title: KitString, value: Binding<V>, in range: ClosedRange<V>, step: V.Stride, format: @escaping (V) -> String
   ) {
     self.title = title
     _value = value
@@ -73,7 +104,7 @@ public struct KitStepper<V: Strideable>: View {
     .accessibilityAdjustableAction { direction in step(up: direction == .increment) }
     #else
     .accessibilityRepresentation {
-      Stepper(title, value: $value, in: range, step: step)
+      Stepper(value: $value, in: range, step: step) { Text(title) }
     }
     #endif
     .accessibilityValue(format(value))

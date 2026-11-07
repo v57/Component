@@ -18,53 +18,59 @@ public struct KitLanguagesSettings: View {
   public init() {}
 
   public var body: some View {
-    FormCard("Language", footer: languageFooter) {
+    FormCard(title: KitString("Language"), footer: languageFooter) {
       #if os(Windows) || os(Linux)
-        FormRow("\(KitLanguages.appName)'s language", systemImage: "globe", stacked: { AppLanguagePicker() })
+        FormRow(
+          title: KitString("\(KitLanguages.appName)'s language"), value: nil, help: nil, systemImage: "globe",
+          hue: .accent, error: nil, stacked: { AppLanguagePicker() })
       #else
         FormRow(
-          "\(KitLanguages.appName)'s language", help: current.map { "\($0.ownName) · \($0.name)" },
-          systemImage: "globe"
-        ) {
-          #if os(macOS) || os(iOS) || os(visionOS)
-            Button("Change…") { KitDesktop.open(KitLanguages.systemSettings) }.buttonStyle(.kit)
-          #endif
-        }
+          title: KitString("\(KitLanguages.appName)'s language"),
+          help: KitString(verbatim: current.map { "\($0.ownName) · \($0.name)" }), systemImage: "globe", hue: .accent,
+          error: nil, status: .idle,
+          control: {
+            #if os(macOS) || os(iOS) || os(visionOS)
+              Button("Change…") { KitDesktop.open(KitLanguages.systemSettings) }.buttonStyle(.kit)
+            #endif
+          }, field: { EmptyView() })
       #endif
     }
-    FormCard("Languages", footer: listFooter) {
+    FormCard(title: KitString("Languages"), footer: listFooter) {
       ForEach(packs.languages) { language in
         row(language)
       }
       FormRow(
-        packs.checked == nil ? "Find more languages" : "Checked \(Self.time(packs.checked!))",
-        help: "Reads the list of translations from GitHub", systemImage: "arrow.triangle.2.circlepath",
-        error: failures[""], status: checking ? .working : .idle
-      ) {
-        Button(packs.checked == nil ? "Check" : "Check Again") { check() }
-          .buttonStyle(.kit)
-          .disabled(checking)
-      }
+        title: packs.checked == nil ? KitString("Find more languages") : KitString("Checked \(Self.time(packs.checked!))"),
+        help: KitString("Reads the list of translations from GitHub"), systemImage: "arrow.triangle.2.circlepath",
+        hue: .accent, error: KitString(verbatim: failures[""]), status: checking ? .working : .idle,
+        control: {
+          Button(packs.checked == nil ? "Check" : "Check Again") { check() }
+            .buttonStyle(.kit)
+            .disabled(checking)
+        }, field: { EmptyView() })
     }
   }
 
   private var current: LanguagePacks.Language? { packs.languages.first { $0.isActive } }
 
-  private var languageFooter: String {
+  private var languageFooter: KitString {
     #if os(Windows) || os(Linux)
-      "Applies the next time you open \(KitLanguages.appName)."
+      KitString("Applies the next time you open \(KitLanguages.appName).")
     #else
-      "\(KitLanguages.appName) follows the language set for it in the system's settings."
+      KitString("\(KitLanguages.appName) follows the language set for it in the system's settings.")
     #endif
   }
 
-  private var listFooter: String {
-    "Translations come from github.com/v57/Localizations. Every line is checked before it's used; one that doesn't "
-      + "fit shows in English."
+  private var listFooter: KitString {
+    KitString(
+      """
+      Translations come from github.com/v57/Localizations. Every line is checked before it's used; one that doesn't \
+      fit shows in English.
+      """)
   }
 
   @ViewBuilder private func row(_ language: LanguagePacks.Language) -> some View {
-    let help = [language.name, Self.detail(language.state)].compactMap { $0 }.joined(separator: " · ")
+    let help = [language.name, Self.detail(language.state)?.string].compactMap { $0 }.joined(separator: " · ")
     FormRow(
       language.ownName, help: help, systemImage: language.isActive ? "checkmark.circle" : "character.bubble",
       hue: language.isActive ? .accent : .gray, error: failures[language.code],
@@ -72,7 +78,7 @@ public struct KitLanguagesSettings: View {
     ) {
       switch language.state {
       case .included:
-        Chip("Included", style: .quiet)
+        Chip(Text("Included"), style: .quiet)
       case .available:
         Button("Download") { download(language.code) }.buttonStyle(.kit)
       case .downloading:
@@ -88,13 +94,13 @@ public struct KitLanguagesSettings: View {
     }
   }
 
-  private static func detail(_ state: LanguagePacks.State) -> String? {
+  private static func detail(_ state: LanguagePacks.State) -> KitString? {
     switch state {
     case .included: nil
-    case .available(let bytes): bytes.map(KitLanguages.size)
-    case .downloading: "Downloading…"
+    case .available(let bytes): bytes.map { KitString(verbatim: KitLanguages.size($0)) }
+    case .downloading: KitString("Downloading…")
     case .downloaded(let bytes, let updateAvailable):
-      updateAvailable ? "Update available" : "Downloaded · \(KitLanguages.size(bytes))"
+      updateAvailable ? KitString("Update available") : KitString("Downloaded · \(KitLanguages.size(bytes))")
     }
   }
 
@@ -142,16 +148,19 @@ struct KitLanguagesModifier: ViewModifier {
     content
       .id(packs.revision)
       .kitDialog(
-        "Show \(KitLanguages.appName) in \(offer?.ownName ?? "")?",
+        title: KitString("Show \(KitLanguages.appName) in \(offer?.ownName ?? "")?"),
         isPresented: Binding(get: { offer != nil }, set: { if !$0 { offer = nil } }),
-        message: offerMessage, systemImage: "globe", confirm: "Download"
+        message: offerMessage, systemImage: "globe", hue: nil, confirm: KitString("Download"), role: nil,
+        content: { EmptyView() }
       ) {
         guard let code = offer?.code else { return }
         Task {
           do { try await packs.download(code) } catch { failure = error.localizedDescription }
         }
       }
-      .kitNotice("Couldn't Download the Translation", message: $failure)
+      .kitNotice(
+        title: KitString("Couldn't Download the Translation"), message: $failure,
+        systemImage: "exclamationmark.triangle", hue: .orange, buttons: [])
       .task {
         guard packs.offer != nil else { return }
         // After the window: the question comes from the app, not before it.
@@ -162,12 +171,16 @@ struct KitLanguagesModifier: ViewModifier {
       }
   }
 
-  private var offerMessage: String {
-    guard let offer else { return "" }
+  private var offerMessage: KitString {
+    guard let offer else { return .empty }
     var size = ""
     if case .available(let bytes?) = offer.state { size = " (\(KitLanguages.size(bytes)))" }
-    return "\(KitLanguages.appName) comes in English and a few languages. Download its \(offer.name) translation"
-      + "\(size) from GitHub? You can do it later in Settings ▸ Languages."
+    return KitString(
+      """
+      \(KitLanguages.appName) comes in English and a few languages. Download its \(offer.name) translation\(size) \
+      from GitHub? You can do it later in Settings ▸ Languages.
+      """
+    )
   }
 }
 

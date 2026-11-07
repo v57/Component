@@ -15,17 +15,38 @@ import SwiftUI
 /// }
 /// ```
 public struct Banner<Actions: View>: View {
-  var title: String
-  var message: String?
+  var title: KitString
+  var message: KitString?
   var systemImage: String
   var hue: Hue
   var onDismiss: (() -> Void)?
   @ViewBuilder var actions: Actions
   @Environment(\.kitIdiom) private var idiom
 
+  /// A banner whose title and message are keys (literals), looked up in the app's strings.
   public init(
-    _ title: String, message: String? = nil, systemImage: String = "info.circle", hue: Hue = .blue,
+    _ title: LocalizedStringKey, message: LocalizedStringKey? = nil, systemImage: String = "info.circle",
+    hue: Hue = .blue, onDismiss: (() -> Void)? = nil, @ViewBuilder actions: () -> Actions
+  ) {
+    self.init(
+      title: KitString(title), message: KitString(message), systemImage: systemImage, hue: hue, onDismiss: onDismiss,
+      actions: actions)
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, message: String? = nil, systemImage: String = "info.circle", hue: Hue = .blue,
     onDismiss: (() -> Void)? = nil, @ViewBuilder actions: () -> Actions
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), message: KitString(verbatim: message), systemImage: systemImage,
+      hue: hue, onDismiss: onDismiss, actions: actions)
+  }
+
+  init(
+    title: KitString, message: KitString?, systemImage: String, hue: Hue, onDismiss: (() -> Void)?,
+    @ViewBuilder actions: () -> Actions
   ) {
     self.title = title
     self.message = message
@@ -69,12 +90,26 @@ public struct Banner<Actions: View>: View {
 }
 
 extension Banner where Actions == EmptyView {
-  /// A banner with no actions.
+  /// A banner with no actions, whose title and message are keys (literals), looked up in the app's strings.
   public init(
-    _ title: String, message: String? = nil, systemImage: String = "info.circle", hue: Hue = .blue,
+    _ title: LocalizedStringKey, message: LocalizedStringKey? = nil, systemImage: String = "info.circle",
+    hue: Hue = .blue, onDismiss: (() -> Void)? = nil
+  ) {
+    self.init(
+      title: KitString(title), message: KitString(message), systemImage: systemImage, hue: hue, onDismiss: onDismiss
+    ) { EmptyView() }
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, message: String? = nil, systemImage: String = "info.circle", hue: Hue = .blue,
     onDismiss: (() -> Void)? = nil
   ) {
-    self.init(title, message: message, systemImage: systemImage, hue: hue, onDismiss: onDismiss) { EmptyView() }
+    self.init(
+      title: KitString(verbatim: String(title)), message: KitString(verbatim: message), systemImage: systemImage,
+      hue: hue, onDismiss: onDismiss
+    ) { EmptyView() }
   }
 }
 
@@ -84,20 +119,45 @@ extension Banner where Actions == EmptyView {
 /// `showToast` (installed by `.kitToasts()`).
 public struct Toast: Identifiable {
   public let id = UUID()
-  public var message: String
+  var text: KitString
   public var systemImage: String?
   public var undo: (@MainActor () -> Void)?
-  /// A follow-up action besides Undo ("Push", "Publish", "Show"): its title and what it does.
-  public var actionTitle: String?
+  var actionLabel: KitString?
   public var action: (@MainActor () -> Void)?
   /// How long it stays (the pointer resting on it keeps it).
   public var duration: Duration
 
+  /// The message as a string: a key's localized text, or the string as it was given.
+  public var message: String {
+    get { text.string }
+    set { text = KitString(verbatim: newValue) }
+  }
+
+  /// A follow-up action besides Undo ("Push", "Publish", "Show"): its title and what it does.
+  public var actionTitle: String? {
+    get { actionLabel?.string }
+    set { actionLabel = KitString(verbatim: newValue) }
+  }
+
+  /// A toast whose message is a key (a literal), looked up in the app's strings.
   public init(
-    _ message: String, systemImage: String? = nil, duration: Duration = .seconds(4),
+    _ message: LocalizedStringKey, systemImage: String? = nil, duration: Duration = .seconds(4),
     undo: (@MainActor () -> Void)? = nil
   ) {
-    self.message = message
+    self.init(text: KitString(message), systemImage: systemImage, duration: duration, undo: undo)
+  }
+
+  /// The same with a message shown as it is.
+  @_disfavoredOverload
+  public init(
+    _ message: some StringProtocol, systemImage: String? = nil, duration: Duration = .seconds(4),
+    undo: (@MainActor () -> Void)? = nil
+  ) {
+    self.init(text: KitString(verbatim: String(message)), systemImage: systemImage, duration: duration, undo: undo)
+  }
+
+  init(text: KitString, systemImage: String?, duration: Duration, undo: (@MainActor () -> Void)?) {
+    self.text = text
     self.systemImage = systemImage
     self.duration = duration
     self.undo = undo
@@ -108,12 +168,27 @@ public struct Toast: Identifiable {
   /// ```swift
   /// showToast(Toast("Committed 3 files", systemImage: "checkmark", action: "Push") { push() })
   /// ```
+  ///
+  /// The message and the action's title are keys (literals), looked up in the app's strings.
   public init(
-    _ message: String, systemImage: String? = nil, duration: Duration = .seconds(6), action title: String,
-    undo: (@MainActor () -> Void)? = nil, perform: @escaping @MainActor () -> Void
+    _ message: LocalizedStringKey, systemImage: String? = nil, duration: Duration = .seconds(6),
+    action title: LocalizedStringKey, undo: (@MainActor () -> Void)? = nil,
+    perform: @escaping @MainActor () -> Void
   ) {
-    self.init(message, systemImage: systemImage, duration: duration, undo: undo)
-    self.actionTitle = title
+    self.init(text: KitString(message), systemImage: systemImage, duration: duration, undo: undo)
+    self.actionLabel = KitString(title)
+    self.action = perform
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    _ message: some StringProtocol, systemImage: String? = nil, duration: Duration = .seconds(6),
+    action title: some StringProtocol, undo: (@MainActor () -> Void)? = nil,
+    perform: @escaping @MainActor () -> Void
+  ) {
+    self.init(text: KitString(verbatim: String(message)), systemImage: systemImage, duration: duration, undo: undo)
+    self.actionLabel = KitString(verbatim: String(title))
     self.action = perform
   }
 }
@@ -124,8 +199,14 @@ public struct ShowToastAction {
 
   @MainActor public func callAsFunction(_ toast: Toast) { handler(toast) }
 
-  /// Shows a toast with just a message.
-  @MainActor public func callAsFunction(_ message: String, systemImage: String? = nil) {
+  /// Shows a toast with just a message, a key (a literal) looked up in the app's strings.
+  @MainActor public func callAsFunction(_ message: LocalizedStringKey, systemImage: String? = nil) {
+    handler(Toast(message, systemImage: systemImage))
+  }
+
+  /// The same with a message shown as it is.
+  @_disfavoredOverload
+  @MainActor public func callAsFunction(_ message: some StringProtocol, systemImage: String? = nil) {
     handler(Toast(message, systemImage: systemImage))
   }
 }
@@ -215,7 +296,7 @@ public struct ToastView: View {
           .background { RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Hue.gray.soft(0.16)) }
           .accessibilityHidden(true)
       }
-      Text(toast.message)
+      Text(toast.text)
         .kitFont(.body)
         .lineLimit(1)
       if let undo = toast.undo {
@@ -227,7 +308,7 @@ public struct ToastView: View {
         .controlSize(.small)
         .fontWeight(toast.action == nil ? .semibold : .medium)
       }
-      if let title = toast.actionTitle, let action = toast.action {
+      if let title = toast.actionLabel, let action = toast.action {
         Button(title) {
           action()
           dismiss()
@@ -281,16 +362,36 @@ public struct ToastView: View {
 /// root's minimum height is the window's, so a message held at its full height would cut the window's content).
 public struct EmptyState<Actions: View>: View {
   var systemImage: String
-  var title: String?
-  var message: String?
+  var title: KitString?
+  var message: KitString?
   var status: WorkStatus
   var detail: AnyView?
   @ViewBuilder var actions: Actions
   @Environment(\.kitWindowIsActive) private var isActive
 
-  /// `title` may be left out for a plain loading state (`status: .working`).
+  /// `title` may be left out for a plain loading state (`status: .working`). The title and message are keys
+  /// (literals), looked up in the app's strings.
+  public init(
+    systemImage: String, title: LocalizedStringKey? = nil, message: LocalizedStringKey? = nil,
+    status: WorkStatus = .idle, @ViewBuilder actions: () -> Actions
+  ) {
+    self.init(
+      systemImage: systemImage, title: KitString(title), message: KitString(message), status: status, actions: actions)
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
   public init(
     systemImage: String, title: String? = nil, message: String? = nil, status: WorkStatus = .idle,
+    @ViewBuilder actions: () -> Actions
+  ) {
+    self.init(
+      systemImage: systemImage, title: KitString(verbatim: title), message: KitString(verbatim: message),
+      status: status, actions: actions)
+  }
+
+  init(
+    systemImage: String, title: KitString?, message: KitString?, status: WorkStatus,
     @ViewBuilder actions: () -> Actions
   ) {
     self.systemImage = systemImage
@@ -301,12 +402,26 @@ public struct EmptyState<Actions: View>: View {
   }
 
   /// An empty state with `detail` under the message at its own size (a pairing code, a QR code), then the actions,
-  /// which are small buttons (`actions: {}` for none).
+  /// which are small buttons (`actions: {}` for none). The title and message are keys (literals), looked up in the
+  /// app's strings.
+  public init<Detail: View>(
+    systemImage: String, title: LocalizedStringKey? = nil, message: LocalizedStringKey? = nil,
+    status: WorkStatus = .idle, @ViewBuilder detail: () -> Detail, @ViewBuilder actions: () -> Actions
+  ) {
+    self.init(
+      systemImage: systemImage, title: KitString(title), message: KitString(message), status: status, actions: actions)
+    self.detail = AnyView(detail())
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
   public init<Detail: View>(
     systemImage: String, title: String? = nil, message: String? = nil, status: WorkStatus = .idle,
     @ViewBuilder detail: () -> Detail, @ViewBuilder actions: () -> Actions
   ) {
-    self.init(systemImage: systemImage, title: title, message: message, status: status, actions: actions)
+    self.init(
+      systemImage: systemImage, title: KitString(verbatim: title), message: KitString(verbatim: message),
+      status: status, actions: actions)
     self.detail = AnyView(detail())
   }
 
@@ -361,8 +476,23 @@ public struct EmptyState<Actions: View>: View {
 
 extension EmptyState where Actions == EmptyView {
   /// `title` may be left out for a plain loading state: `EmptyState(systemImage: "doc.text", status: .working)`.
+  /// The title and message are keys (literals), looked up in the app's strings.
+  public init(
+    systemImage: String, title: LocalizedStringKey? = nil, message: LocalizedStringKey? = nil,
+    status: WorkStatus = .idle
+  ) {
+    self.init(systemImage: systemImage, title: KitString(title), message: KitString(message), status: status) {
+      EmptyView()
+    }
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
   public init(systemImage: String, title: String? = nil, message: String? = nil, status: WorkStatus = .idle) {
-    self.init(systemImage: systemImage, title: title, message: message, status: status) { EmptyView() }
+    self.init(
+      systemImage: systemImage, title: KitString(verbatim: title), message: KitString(verbatim: message),
+      status: status
+    ) { EmptyView() }
   }
 }
 

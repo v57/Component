@@ -41,13 +41,30 @@ extension View {
   ///   .kitDropTarget(isTargeted, label: "Drop to download", systemImage: "arrow.down", cornerRadius: KitMetrics.radiusWindow)
   ///   .onDrop(of: [.fileURL, .url], isTargeted: $isTargeted) { providers in … }
   /// ```
+  ///
+  /// The label is a key (a literal), looked up in the app's strings.
   public func kitDropTarget(
-    _ isTargeted: Bool, label: String, systemImage: String, cornerRadius: CGFloat = KitMetrics.radius
+    _ isTargeted: Bool, label: LocalizedStringKey, systemImage: String, cornerRadius: CGFloat = KitMetrics.radius
+  ) -> some View {
+    kitDropTarget(isTargeted, label: KitString(label), systemImage: systemImage, cornerRadius: cornerRadius)
+  }
+
+  /// The same with a label shown as it is.
+  @_disfavoredOverload
+  public func kitDropTarget(
+    _ isTargeted: Bool, label: some StringProtocol, systemImage: String, cornerRadius: CGFloat = KitMetrics.radius
+  ) -> some View {
+    kitDropTarget(
+      isTargeted, label: KitString(verbatim: String(label)), systemImage: systemImage, cornerRadius: cornerRadius)
+  }
+
+  func kitDropTarget(
+    _ isTargeted: Bool, label: KitString, systemImage: String, cornerRadius: CGFloat
   ) -> some View {
     kitDropTarget(isTargeted, cornerRadius: cornerRadius)
       .overlay {
         if isTargeted {
-          KitDropLabel(label, systemImage: systemImage).transition(.opacity)
+          KitDropLabel(title: label, systemImage: systemImage).transition(.opacity)
         }
       }
       .animation(.kit, value: isTargeted)
@@ -61,11 +78,22 @@ extension View {
 /// .overlay { if isTargeted { KitDropLabel("Drop to Play", systemImage: "play.fill") } }
 /// ```
 public struct KitDropLabel: View {
-  var title: String
+  var title: KitString
   var systemImage: String
   @Environment(\.kitIdiom) private var idiom
 
-  public init(_ title: String, systemImage: String) {
+  /// A label whose title is a key (a literal), looked up in the app's strings.
+  public init(_ title: LocalizedStringKey, systemImage: String) {
+    self.init(title: KitString(title), systemImage: systemImage)
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
+  public init(_ title: some StringProtocol, systemImage: String) {
+    self.init(title: KitString(verbatim: String(title)), systemImage: systemImage)
+  }
+
+  init(title: KitString, systemImage: String) {
     self.title = title
     self.systemImage = systemImage
   }

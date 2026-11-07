@@ -43,7 +43,7 @@ public struct KitPagePreview: View {
       }
       .padding(.trailing, pages > 1 ? 6 : 0)
       .padding(.bottom, pages > 1 ? 6 : 0)
-      .accessibilityLabel(pages > 1 ? "\(pages) pages" : "Page")
+      .accessibilityLabel(pages > 1 ? Text("\(pages) pages") : Text("Page"))
   }
 
   private var sheet: some View {
@@ -568,7 +568,9 @@ public struct KitPageCrop: View {
                     }
                 )
                 #endif
-                .accessibilityLabel(["Top left corner", "Top right corner", "Bottom right corner", "Bottom left corner"][index])
+                .accessibilityLabel(
+                  [Text("Top left corner"), Text("Top right corner"), Text("Bottom right corner"),
+                   Text("Bottom left corner")][index])
             }
           }
           .coordinateSpace(name: "crop")

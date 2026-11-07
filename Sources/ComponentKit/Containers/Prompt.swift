@@ -18,36 +18,89 @@ public struct KitPromptField: Sendable {
     case plain, username, password, newPassword, oneTimeCode, email, url
   }
 
-  public var label: String
-  public var placeholder: String?
-  public var help: String?
+  var labelText: KitString
+  var placeholderText: KitString?
+  var helpText: KitString?
   public var systemImage: String
   public var isSecure: Bool
   public var content: Content
   /// Monospaced text without autocorrection (keys, ids, paths).
   public var isMono: Bool
 
+  /// The label as a string: a key's localized text, or the string as it was given.
+  public var label: String {
+    get { labelText.string }
+    set { labelText = KitString(verbatim: newValue) }
+  }
+
+  /// The placeholder as a string: a key's localized text, or the string as it was given.
+  public var placeholder: String? {
+    get { placeholderText?.string }
+    set { placeholderText = KitString(verbatim: newValue) }
+  }
+
+  /// The help line as a string: a key's localized text, or the string as it was given.
+  public var help: String? {
+    get { helpText?.string }
+    set { helpText = KitString(verbatim: newValue) }
+  }
+
+  /// A field whose label, placeholder and help are keys (literals), looked up in the app's strings.
   public init(
-    _ label: String = "Name", placeholder: String? = nil, help: String? = nil,
+    _ label: LocalizedStringKey = "Name", placeholder: LocalizedStringKey? = nil, help: LocalizedStringKey? = nil,
     systemImage: String = "character.cursor.ibeam", isSecure: Bool = false, content: Content = .plain,
     mono: Bool = false
   ) {
-    self.label = label
-    self.placeholder = placeholder
-    self.help = help
+    self.init(
+      label: KitString(label), placeholder: KitString(placeholder), help: KitString(help), systemImage: systemImage,
+      isSecure: isSecure, content: content, mono: mono)
+  }
+
+  /// The same with strings shown as they are; a `nil` label is the kit's.
+  @_disfavoredOverload
+  public init(
+    _ label: String? = nil, placeholder: String? = nil, help: String? = nil,
+    systemImage: String = "character.cursor.ibeam", isSecure: Bool = false, content: Content = .plain,
+    mono: Bool = false
+  ) {
+    self.init(
+      label: KitString(verbatim: label) ?? KitString("Name"), placeholder: KitString(verbatim: placeholder),
+      help: KitString(verbatim: help), systemImage: systemImage, isSecure: isSecure, content: content, mono: mono)
+  }
+
+  init(
+    label: KitString, placeholder: KitString?, help: KitString?, systemImage: String, isSecure: Bool,
+    content: Content, mono: Bool
+  ) {
+    self.labelText = label
+    self.placeholderText = placeholder
+    self.helpText = help
     self.systemImage = systemImage
     self.isSecure = isSecure
     self.content = content
     self.isMono = mono
   }
 
-  /// A field that hides what is typed: a password AutoFill can fill (`content: .newPassword` to suggest one).
+  /// A field that hides what is typed: a password AutoFill can fill (`content: .newPassword` to suggest one). The
+  /// label, placeholder and help are keys (literals), looked up in the app's strings.
   public static func secure(
-    _ label: String = "Password", placeholder: String? = nil, help: String? = nil,
+    _ label: LocalizedStringKey = "Password", placeholder: LocalizedStringKey? = nil,
+    help: LocalizedStringKey? = nil, systemImage: String = "ellipsis.rectangle", content: Content = .password
+  ) -> KitPromptField {
+    KitPromptField(
+      label: KitString(label), placeholder: KitString(placeholder), help: KitString(help), systemImage: systemImage,
+      isSecure: true, content: content, mono: false)
+  }
+
+  /// The same with strings shown as they are; a `nil` label is the kit's.
+  @_disfavoredOverload
+  public static func secure(
+    _ label: String? = nil, placeholder: String? = nil, help: String? = nil,
     systemImage: String = "ellipsis.rectangle", content: Content = .password
   ) -> KitPromptField {
     KitPromptField(
-      label, placeholder: placeholder, help: help, systemImage: systemImage, isSecure: true, content: content)
+      label: KitString(verbatim: label) ?? KitString("Password"), placeholder: KitString(verbatim: placeholder),
+      help: KitString(verbatim: help), systemImage: systemImage, isSecure: true, content: content, mono: false)
   }
 }
 
@@ -71,10 +124,37 @@ extension View {
   /// ```
   ///
   /// - Parameter footnote: a line under the field's card (what the value is used for).
+  ///
+  /// The title, message, footnote and button are keys (literals), looked up in the app's strings.
   public func kitPrompt(
-    _ title: String, isPresented: Binding<Bool>, text: Binding<String>, message: String? = nil,
+    _ title: LocalizedStringKey, isPresented: Binding<Bool>, text: Binding<String>,
+    message: LocalizedStringKey? = nil, systemImage: String = "pencil", hue: Hue = .accent,
+    field: KitPromptField = KitPromptField(), footnote: LocalizedStringKey? = nil, confirm: LocalizedStringKey,
+    action: @escaping @MainActor (String) throws -> Void
+  ) -> some View {
+    kitPrompt(
+      title: KitString(title), isPresented: isPresented, text: text, message: KitString(message),
+      systemImage: systemImage, hue: hue, field: field, footnote: KitString(footnote), confirm: KitString(confirm),
+      action: action)
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public func kitPrompt(
+    _ title: some StringProtocol, isPresented: Binding<Bool>, text: Binding<String>, message: String? = nil,
     systemImage: String = "pencil", hue: Hue = .accent, field: KitPromptField = KitPromptField(),
-    footnote: String? = nil, confirm: String, action: @escaping @MainActor (String) throws -> Void
+    footnote: String? = nil, confirm: some StringProtocol, action: @escaping @MainActor (String) throws -> Void
+  ) -> some View {
+    kitPrompt(
+      title: KitString(verbatim: String(title)), isPresented: isPresented, text: text,
+      message: KitString(verbatim: message), systemImage: systemImage, hue: hue, field: field,
+      footnote: KitString(verbatim: footnote), confirm: KitString(verbatim: String(confirm)), action: action)
+  }
+
+  func kitPrompt(
+    title: KitString, isPresented: Binding<Bool>, text: Binding<String>, message: KitString?, systemImage: String,
+    hue: Hue, field: KitPromptField, footnote: KitString?, confirm: KitString,
+    action: @escaping @MainActor (String) throws -> Void
   ) -> some View {
     kitSheet(isPresented: isPresented) {
       ContPrompt(
@@ -137,13 +217,13 @@ private struct ContPromptMono: ViewModifier {
 }
 
 struct ContPrompt: View {
-  let title: String
-  let message: String?
+  let title: KitString
+  let message: KitString?
   let systemImage: String
   let hue: Hue
   let field: KitPromptField
-  let footnote: String?
-  let confirm: String
+  let footnote: KitString?
+  let confirm: KitString
   @Binding var text: String
   let action: @MainActor (String) throws -> Void
   let dismiss: @MainActor () -> Void
@@ -157,8 +237,10 @@ struct ContPrompt: View {
 
   var body: some View {
     KitSheet(title: title, meta: message, systemImage: systemImage, hue: hue, width: 420) {
-      FormCard(footer: footnote) {
-        FormRow(field.label, help: field.help, systemImage: field.systemImage, hue: hue, field: input)
+      FormCard(title: nil, footer: footnote) {
+        FormRow(
+          title: field.labelText, help: field.helpText, systemImage: field.systemImage, hue: hue, error: nil,
+          status: .idle, control: { EmptyView() }, field: { input })
       }
     } footer: {
       if let error {
@@ -179,12 +261,12 @@ struct ContPrompt: View {
   }
 
   @ViewBuilder private var input: some View {
-    let placeholder = field.placeholder ?? field.label
+    let placeholder = field.placeholderText ?? field.labelText
     Group {
       if field.isSecure {
-        SecureField(placeholder, text: $text)
+        SecureField(text: $text) { Text(placeholder) }
       } else {
-        TextField(placeholder, text: $text)
+        TextField(placeholder, text: $text, prompt: nil)
       }
     }
     .modifier(ContPromptContent(content: field.content, isMono: field.isMono))
@@ -209,8 +291,8 @@ struct ContPrompt: View {
 #Preview("Prompt") {
   @Previewable @State var name = "Notes.md"
   ContPrompt(
-    title: "Rename", message: "“Notes.md”", systemImage: "pencil", hue: .accent, field: KitPromptField(),
-    footnote: nil, confirm: "Rename", text: $name, action: { _ in }, dismiss: {}
+    title: KitString("Rename"), message: KitString(verbatim: "“Notes.md”"), systemImage: "pencil", hue: .accent,
+    field: KitPromptField(), footnote: nil, confirm: KitString("Rename"), text: $name, action: { _ in }, dismiss: {}
   )
   .padding()
   .componentKit()

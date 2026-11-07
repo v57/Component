@@ -10,24 +10,48 @@ import SwiftUI
 /// KitStatCard("Devices", value: "6", systemImage: "laptopcomputer", hue: .gray, detail: "5 online · 1 waiting")
 /// ```
 public struct KitStatCard: View {
-  var label: String
+  var label: KitString
   var value: String
   var systemImage: String
   var hue: Hue
   var delta: String?
   var deltaHue: Hue
-  var detail: String?
+  var detail: KitString?
   var sparkline: [Double]
   var action: (@MainActor () -> Void)?
   @Environment(\.kitIdiom) private var idiom
 
+  /// The label and `detail` are keys (literals), looked up in the app's strings; `value` and `delta` are shown as they
+  /// are.
+  ///
   /// - Parameters:
   ///   - delta: a change shown after the value ("+8%"), in `deltaHue` (green by default; red for a change for the worse).
   ///   - sparkline: recent values, oldest first; two or more draw a line with a soft fill under it.
   ///   - action: makes the card a button (it opens the page the number comes from).
   public init(
-    _ label: String, value: String, systemImage: String, hue: Hue = .accent, delta: String? = nil,
+    _ label: LocalizedStringKey, value: String, systemImage: String, hue: Hue = .accent, delta: String? = nil,
+    deltaHue: Hue = .green, detail: LocalizedStringKey? = nil, sparkline: [Double] = [],
+    action: (@MainActor () -> Void)? = nil
+  ) {
+    self.init(
+      label: KitString(label), value: value, systemImage: systemImage, hue: hue, delta: delta, deltaHue: deltaHue,
+      detail: KitString(detail), sparkline: sparkline, action: action)
+  }
+
+  /// The same with a label and detail shown as they are.
+  @_disfavoredOverload
+  public init(
+    _ label: some StringProtocol, value: String, systemImage: String, hue: Hue = .accent, delta: String? = nil,
     deltaHue: Hue = .green, detail: String? = nil, sparkline: [Double] = [], action: (@MainActor () -> Void)? = nil
+  ) {
+    self.init(
+      label: KitString(verbatim: String(label)), value: value, systemImage: systemImage, hue: hue, delta: delta,
+      deltaHue: deltaHue, detail: KitString(verbatim: detail), sparkline: sparkline, action: action)
+  }
+
+  init(
+    label: KitString, value: String, systemImage: String, hue: Hue, delta: String?, deltaHue: Hue,
+    detail: KitString?, sparkline: [Double], action: (@MainActor () -> Void)?
   ) {
     self.label = label
     self.value = value

@@ -21,30 +21,60 @@ public struct KitCodeBlock: View {
   var maxHeight: CGFloat?
   var followsEnd: Bool
   var font: KitFont
-  var placeholder: String?
+  var placeholder: KitString?
   @Environment(\.kitIdiom) private var idiom
   @State private var contentHeight: CGFloat = 0
 
-  /// One text, selectable as a whole. `placeholder` shows, quiet, while `text` is empty.
+  /// One text, selectable as a whole, shown as it is. `placeholder` shows, quiet, while `text` is empty: a key (a
+  /// literal), looked up in the app's strings.
+  public init(
+    _ text: String, wraps: Bool = true, maxHeight: CGFloat? = nil, followsEnd: Bool = false, font: KitFont = .mono,
+    placeholder: LocalizedStringKey? = nil
+  ) {
+    self.init(
+      source: .text(text), wraps: wraps, maxHeight: maxHeight, followsEnd: followsEnd, font: font,
+      placeholder: KitString(placeholder))
+  }
+
+  /// The same with a placeholder shown as it is.
+  @_disfavoredOverload
   public init(
     _ text: String, wraps: Bool = true, maxHeight: CGFloat? = nil, followsEnd: Bool = false, font: KitFont = .mono,
     placeholder: String? = nil
   ) {
-    self.source = .text(text)
-    self.wraps = wraps
-    self.maxHeight = maxHeight
-    self.followsEnd = followsEnd
-    self.font = font
-    self.placeholder = placeholder
+    self.init(
+      source: .text(text), wraps: wraps, maxHeight: maxHeight, followsEnd: followsEnd, font: font,
+      placeholder: KitString(verbatim: placeholder))
   }
 
   /// A log, one view per line built lazily (thousands of lines stay cheap), each line selectable. `hue` colours a
-  /// line (`nil`: the label colour), e.g. errors red.
+  /// line (`nil`: the label colour), e.g. errors red. The placeholder is a key (a literal), looked up in the app's
+  /// strings.
+  public init(
+    lines: [String], wraps: Bool = true, maxHeight: CGFloat? = nil, followsEnd: Bool = false, font: KitFont = .mono,
+    placeholder: LocalizedStringKey? = nil, hue: ((String) -> Hue?)? = nil
+  ) {
+    self.init(
+      source: .lines(lines, hue: hue), wraps: wraps, maxHeight: maxHeight, followsEnd: followsEnd, font: font,
+      placeholder: KitString(placeholder))
+  }
+
+  /// The same with a placeholder shown as it is.
+  @_disfavoredOverload
   public init(
     lines: [String], wraps: Bool = true, maxHeight: CGFloat? = nil, followsEnd: Bool = false, font: KitFont = .mono,
     placeholder: String? = nil, hue: ((String) -> Hue?)? = nil
   ) {
-    self.source = .lines(lines, hue: hue)
+    self.init(
+      source: .lines(lines, hue: hue), wraps: wraps, maxHeight: maxHeight, followsEnd: followsEnd, font: font,
+      placeholder: KitString(verbatim: placeholder))
+  }
+
+  init(
+    source: Source, wraps: Bool = true, maxHeight: CGFloat? = nil, followsEnd: Bool = false, font: KitFont = .mono,
+    placeholder: KitString?
+  ) {
+    self.source = source
     self.wraps = wraps
     self.maxHeight = maxHeight
     self.followsEnd = followsEnd

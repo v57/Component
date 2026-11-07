@@ -24,11 +24,11 @@ public enum KitGridRowState: Hashable, Sendable {
     }
   }
 
-  var title: String {
+  var title: KitString {
     switch self {
-    case .edited: "Edited"
-    case .deleted: "Deleted"
-    case .inserted: "New"
+    case .edited: KitString("Edited")
+    case .deleted: KitString("Deleted")
+    case .inserted: KitString("New")
     }
   }
 }
@@ -59,7 +59,7 @@ public struct KitGridColumn<Row>: Identifiable {
   }
 
   public let id: String
-  public var title: String
+  var label: KitString
   /// A type or kind shown as a small chip after the title ("jsonb").
   public var detail: String?
   /// A glyph before the title (a key for the primary key).
@@ -71,48 +71,85 @@ public struct KitGridColumn<Row>: Identifiable {
   let cell: ((Row) -> AnyView)?
   let edit: ((Row, String) -> Void)?
 
-  /// A text column; `edit` makes it editable in place (Return or a double click on the focused cell).
-  public init(
-    _ title: String, id: String? = nil, detail: String? = nil, systemImage: String? = nil, width: CGFloat = 120,
-    alignment: Alignment = .leading, mono: Bool = false, value: @escaping (Row) -> String?,
-    edit: ((Row, String) -> Void)? = nil
-  ) {
-    self.id = id ?? title
-    self.title = title
-    self.detail = detail
-    self.systemImage = systemImage
-    self.width = width
-    self.alignment = alignment
-    self.isMono = mono
-    self.value = value
-    self.cell = nil
-    self.edit = edit
+  /// The header's title as a string: a key's localized text, or the string as it was given.
+  public var title: String {
+    get { label.string }
+    set { label = KitString(verbatim: newValue) }
   }
 
-  /// A text column read from a key path (`nil` draws the NULL chip).
+  /// A text column; `edit` makes it editable in place (Return or a double click on the focused cell). The title is a
+  /// key (a literal), looked up in the app's strings; without an `id` the column is known by its title as written.
   public init(
-    _ title: String, _ keyPath: KeyPath<Row, String?>, id: String? = nil, detail: String? = nil,
+    _ title: LocalizedStringKey, id: String? = nil, detail: String? = nil, systemImage: String? = nil,
+    width: CGFloat = 120, alignment: Alignment = .leading, mono: Bool = false, value: @escaping (Row) -> String?,
+    edit: ((Row, String) -> Void)? = nil
+  ) {
+    self.init(
+      label: KitString(title), id: id, detail: detail, systemImage: systemImage, width: width, alignment: alignment,
+      mono: mono, value: value, cell: nil, edit: edit)
+  }
+
+  /// The same with a title shown as it is (a database's column name).
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, id: String? = nil, detail: String? = nil, systemImage: String? = nil,
+    width: CGFloat = 120, alignment: Alignment = .leading, mono: Bool = false, value: @escaping (Row) -> String?,
+    edit: ((Row, String) -> Void)? = nil
+  ) {
+    self.init(
+      label: KitString(verbatim: String(title)), id: id, detail: detail, systemImage: systemImage, width: width,
+      alignment: alignment, mono: mono, value: value, cell: nil, edit: edit)
+  }
+
+  /// A text column read from a key path (`nil` draws the NULL chip), titled by a key (a literal).
+  public init(
+    _ title: LocalizedStringKey, _ keyPath: KeyPath<Row, String?>, id: String? = nil, detail: String? = nil,
     systemImage: String? = nil, width: CGFloat = 120, alignment: Alignment = .leading, mono: Bool = false,
     edit: ((Row, String) -> Void)? = nil
   ) {
     self.init(
-      title, id: id, detail: detail, systemImage: systemImage, width: width, alignment: alignment, mono: mono,
-      value: { $0[keyPath: keyPath] }, edit: edit)
+      label: KitString(title), id: id, detail: detail, systemImage: systemImage, width: width, alignment: alignment,
+      mono: mono, value: { $0[keyPath: keyPath] }, cell: nil, edit: edit)
   }
 
-  /// A text column read from a key path.
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
   public init(
-    _ title: String, _ keyPath: KeyPath<Row, String>, id: String? = nil, detail: String? = nil,
+    _ title: some StringProtocol, _ keyPath: KeyPath<Row, String?>, id: String? = nil, detail: String? = nil,
     systemImage: String? = nil, width: CGFloat = 120, alignment: Alignment = .leading, mono: Bool = false,
     edit: ((Row, String) -> Void)? = nil
   ) {
     self.init(
-      title, id: id, detail: detail, systemImage: systemImage, width: width, alignment: alignment, mono: mono,
-      value: { $0[keyPath: keyPath] }, edit: edit)
+      label: KitString(verbatim: String(title)), id: id, detail: detail, systemImage: systemImage, width: width,
+      alignment: alignment, mono: mono, value: { $0[keyPath: keyPath] }, cell: nil, edit: edit)
+  }
+
+  /// A text column read from a key path, titled by a key (a literal).
+  public init(
+    _ title: LocalizedStringKey, _ keyPath: KeyPath<Row, String>, id: String? = nil, detail: String? = nil,
+    systemImage: String? = nil, width: CGFloat = 120, alignment: Alignment = .leading, mono: Bool = false,
+    edit: ((Row, String) -> Void)? = nil
+  ) {
+    self.init(
+      label: KitString(title), id: id, detail: detail, systemImage: systemImage, width: width, alignment: alignment,
+      mono: mono, value: { $0[keyPath: keyPath] }, cell: nil, edit: edit)
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, _ keyPath: KeyPath<Row, String>, id: String? = nil, detail: String? = nil,
+    systemImage: String? = nil, width: CGFloat = 120, alignment: Alignment = .leading, mono: Bool = false,
+    edit: ((Row, String) -> Void)? = nil
+  ) {
+    self.init(
+      label: KitString(verbatim: String(title)), id: id, detail: detail, systemImage: systemImage, width: width,
+      alignment: alignment, mono: mono, value: { $0[keyPath: keyPath] }, cell: nil, edit: edit)
   }
 
   /// A column that draws any view per row and still edits as text: `value` is the text the field starts from,
-  /// `edit` gets what was typed (Return or a double click on the focused cell, as a text column).
+  /// `edit` gets what was typed (Return or a double click on the focused cell, as a text column). The title is a key
+  /// (a literal), looked up in the app's strings.
   ///
   /// ```swift
   /// KitGridColumn<Order>("status", width: 110, value: { $0.status }, edit: { store.set(\.status, $1, of: $0) }) { order in
@@ -120,37 +157,62 @@ public struct KitGridColumn<Row>: Identifiable {
   /// }
   /// ```
   public init<Content: View>(
-    _ title: String, id: String? = nil, detail: String? = nil, systemImage: String? = nil, width: CGFloat = 120,
-    alignment: Alignment = .leading, mono: Bool = false, value: @escaping (Row) -> String?,
+    _ title: LocalizedStringKey, id: String? = nil, detail: String? = nil, systemImage: String? = nil,
+    width: CGFloat = 120, alignment: Alignment = .leading, mono: Bool = false, value: @escaping (Row) -> String?,
     edit: @escaping (Row, String) -> Void, @ViewBuilder content: @escaping (Row) -> Content
   ) {
-    self.id = id ?? title
-    self.title = title
+    self.init(
+      label: KitString(title), id: id, detail: detail, systemImage: systemImage, width: width, alignment: alignment,
+      mono: mono, value: value, cell: { AnyView(content($0)) }, edit: edit)
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
+  public init<Content: View>(
+    _ title: some StringProtocol, id: String? = nil, detail: String? = nil, systemImage: String? = nil,
+    width: CGFloat = 120, alignment: Alignment = .leading, mono: Bool = false, value: @escaping (Row) -> String?,
+    edit: @escaping (Row, String) -> Void, @ViewBuilder content: @escaping (Row) -> Content
+  ) {
+    self.init(
+      label: KitString(verbatim: String(title)), id: id, detail: detail, systemImage: systemImage, width: width,
+      alignment: alignment, mono: mono, value: value, cell: { AnyView(content($0)) }, edit: edit)
+  }
+
+  /// A column that draws any view per row (chips, links, a JSON preview), titled by a key (a literal).
+  public init<Content: View>(
+    _ title: LocalizedStringKey, id: String? = nil, detail: String? = nil, systemImage: String? = nil,
+    width: CGFloat = 120, alignment: Alignment = .leading, @ViewBuilder content: @escaping (Row) -> Content
+  ) {
+    self.init(
+      label: KitString(title), id: id, detail: detail, systemImage: systemImage, width: width, alignment: alignment,
+      mono: false, value: nil, cell: { AnyView(content($0)) }, edit: nil)
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
+  public init<Content: View>(
+    _ title: some StringProtocol, id: String? = nil, detail: String? = nil, systemImage: String? = nil,
+    width: CGFloat = 120, alignment: Alignment = .leading, @ViewBuilder content: @escaping (Row) -> Content
+  ) {
+    self.init(
+      label: KitString(verbatim: String(title)), id: id, detail: detail, systemImage: systemImage, width: width,
+      alignment: alignment, mono: false, value: nil, cell: { AnyView(content($0)) }, edit: nil)
+  }
+
+  init(
+    label: KitString, id: String?, detail: String?, systemImage: String?, width: CGFloat, alignment: Alignment,
+    mono: Bool, value: ((Row) -> String?)?, cell: ((Row) -> AnyView)?, edit: ((Row, String) -> Void)?
+  ) {
+    self.id = id ?? label.sourceText
+    self.label = label
     self.detail = detail
     self.systemImage = systemImage
     self.width = width
     self.alignment = alignment
     self.isMono = mono
     self.value = value
-    self.cell = { AnyView(content($0)) }
+    self.cell = cell
     self.edit = edit
-  }
-
-  /// A column that draws any view per row (chips, links, a JSON preview).
-  public init<Content: View>(
-    _ title: String, id: String? = nil, detail: String? = nil, systemImage: String? = nil, width: CGFloat = 120,
-    alignment: Alignment = .leading, @ViewBuilder content: @escaping (Row) -> Content
-  ) {
-    self.id = id ?? title
-    self.title = title
-    self.detail = detail
-    self.systemImage = systemImage
-    self.width = width
-    self.alignment = alignment
-    self.isMono = false
-    self.value = nil
-    self.cell = { AnyView(content($0)) }
-    self.edit = nil
   }
 
   var frameAlignment: SwiftUI.Alignment { alignment == .trailing ? .trailing : .leading }
@@ -526,7 +588,7 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
         if let image = column.systemImage {
           Image(systemName: image).font(.system(size: 9, weight: .semibold))
         }
-        Text(column.title).lineLimit(1)
+        Text(column.label).lineLimit(1)
         if let detail = column.detail { Chip(detail, style: .quiet) }
         if sorted {
           Image(systemName: "chevron.down")
@@ -542,7 +604,7 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
-    .accessibilityLabel(column.title)
+    .accessibilityLabel(column.label)
     .accessibilityHint(sorted ? (sort?.ascending == false ? "Sorted descending" : "Sorted ascending") : "Sort")
     .overlay(alignment: .trailing) {
       if resizable { ResizeHandle(width: width) { resized[column.id] = max(40, $0) } reset: { resized[column.id] = nil } }
@@ -597,7 +659,7 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
     .modifier(GridRowMenu(ids: selected ? selection : [row.id], menu: menu))
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(selected ? .isSelected : [])
-    .accessibilityValue(state?.title ?? "")
+    .accessibilityValue(state.map { Text($0.title) } ?? Text(verbatim: ""))
   }
 
   private func cell(
@@ -617,7 +679,7 @@ public struct KitGrid<Row: Identifiable, Footer: View>: View {
           .padding(.horizontal, 2)
       }
       if focused, editing {
-        TextField(column.title, text: $draft)
+        TextField(column.label, text: $draft, prompt: nil)
           .textFieldStyle(.plain)
           .font(cellFont(column))
           .multilineTextAlignment(column.alignment == .trailing ? .trailing : .leading)

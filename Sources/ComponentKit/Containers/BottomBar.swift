@@ -14,9 +14,28 @@ extension View {
   ///     Button("Share", systemImage: "square.and.arrow.up") { … }.labelStyle(.iconOnly)
   ///   }
   /// ```
+  ///
+  /// The prompt is a key (a literal), looked up in the app's strings.
   public func kitBottomBar<Actions: View>(
-    searchText: Binding<String>? = nil, prompt: String = "Search", ground: PaneGround = .content,
+    searchText: Binding<String>? = nil, prompt: LocalizedStringKey = "Search", ground: PaneGround = .content,
     @ViewBuilder actions: () -> Actions
+  ) -> some View {
+    kitBottomBar(searchText: searchText, prompt: KitString(prompt), ground: ground, actions: actions)
+  }
+
+  /// The same with the prompt a string shown as it is (`nil`: the kit's "Search").
+  @_disfavoredOverload
+  public func kitBottomBar<Actions: View>(
+    searchText: Binding<String>? = nil, prompt: String? = nil, ground: PaneGround = .content,
+    @ViewBuilder actions: () -> Actions
+  ) -> some View {
+    kitBottomBar(
+      searchText: searchText, prompt: KitString(verbatim: prompt) ?? KitString("Search"), ground: ground,
+      actions: actions)
+  }
+
+  func kitBottomBar<Actions: View>(
+    searchText: Binding<String>?, prompt: KitString, ground: PaneGround, @ViewBuilder actions: () -> Actions
   ) -> some View {
     let color: KitColor = ground == .content ? .window : .panel
     let bar = ContSidebarBar(
@@ -29,10 +48,21 @@ extension View {
     }
   }
 
-  /// A pushed iPhone screen's bar with only the search button and a status line (no actions).
+  /// A pushed iPhone screen's bar with only the search button and a status line (no actions); the prompt is a key
+  /// (a literal), looked up in the app's strings.
   public func kitBottomBar(
-    searchText: Binding<String>?, prompt: String = "Search", ground: PaneGround = .content
+    searchText: Binding<String>?, prompt: LocalizedStringKey = "Search", ground: PaneGround = .content
   ) -> some View {
-    kitBottomBar(searchText: searchText, prompt: prompt, ground: ground) { EmptyView() }
+    kitBottomBar(searchText: searchText, prompt: KitString(prompt), ground: ground) { EmptyView() }
+  }
+
+  /// The same with the prompt a string shown as it is (`nil`: the kit's "Search").
+  @_disfavoredOverload
+  public func kitBottomBar(
+    searchText: Binding<String>?, prompt: String? = nil, ground: PaneGround = .content
+  ) -> some View {
+    kitBottomBar(
+      searchText: searchText, prompt: KitString(verbatim: prompt) ?? KitString("Search"), ground: ground
+    ) { EmptyView() }
   }
 }

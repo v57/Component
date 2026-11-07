@@ -25,7 +25,7 @@ import SwiftUI
 /// ```
 public struct KitPalette<Scope: View, Content: View>: View {
   @Binding var query: String
-  var prompt: String
+  var prompt: KitString
   var status: WorkStatus
   var hints: [PaletteHint]
   var maxHeight: CGFloat
@@ -40,11 +40,32 @@ public struct KitPalette<Scope: View, Content: View>: View {
   @Environment(\.kitIdiom) private var idiom
 
   /// A palette; `focusesOnAppear` false leaves the search field unfocused when it shows (a palette embedded in a
-  /// page rather than summoned).
+  /// page rather than summoned). The prompt is a key (a literal), looked up in the app's strings.
   public init(
-    query: Binding<String>, prompt: String = "Search", status: WorkStatus = .idle,
+    query: Binding<String>, prompt: LocalizedStringKey = "Search", status: WorkStatus = .idle,
     hints: [PaletteHint] = PaletteHint.standard, maxHeight: CGFloat = 440, dismiss: (() -> Void)? = nil,
     focusesOnAppear: Bool = true, @ViewBuilder scope: () -> Scope, @ViewBuilder content: () -> Content
+  ) {
+    self.init(
+      query: query, prompt: KitString(prompt), status: status, hints: hints, maxHeight: maxHeight, dismiss: dismiss,
+      focusesOnAppear: focusesOnAppear, scope: scope(), content: content())
+  }
+
+  /// The same with a prompt shown as it is; a `nil` prompt is the kit's.
+  @_disfavoredOverload
+  public init(
+    query: Binding<String>, prompt: String? = nil, status: WorkStatus = .idle,
+    hints: [PaletteHint] = PaletteHint.standard, maxHeight: CGFloat = 440, dismiss: (() -> Void)? = nil,
+    focusesOnAppear: Bool = true, @ViewBuilder scope: () -> Scope, @ViewBuilder content: () -> Content
+  ) {
+    self.init(
+      query: query, prompt: KitString(verbatim: prompt) ?? KitString("Search"), status: status, hints: hints,
+      maxHeight: maxHeight, dismiss: dismiss, focusesOnAppear: focusesOnAppear, scope: scope(), content: content())
+  }
+
+  init(
+    query: Binding<String>, prompt: KitString, status: WorkStatus, hints: [PaletteHint], maxHeight: CGFloat,
+    dismiss: (() -> Void)?, focusesOnAppear: Bool, scope: Scope, content: Content
   ) {
     self._query = query
     self.prompt = prompt
@@ -53,8 +74,8 @@ public struct KitPalette<Scope: View, Content: View>: View {
     self.maxHeight = maxHeight
     self.dismiss = dismiss
     self.focusesOnAppear = focusesOnAppear
-    self.scope = scope()
-    self.content = content()
+    self.scope = scope
+    self.content = content
   }
 
   public var body: some View {
@@ -77,7 +98,7 @@ public struct KitPalette<Scope: View, Content: View>: View {
   private var searchLine: some View {
     HStack(spacing: 8) {
       scope
-      TextField(prompt, text: $query)
+      TextField(prompt, text: $query, prompt: nil)
         .textFieldStyle(.plain)
         .font(.system(size: idiom.size(17, touch: 20)))
         .focused($isFocused)
@@ -138,7 +159,7 @@ public struct KitPalette<Scope: View, Content: View>: View {
       ForEach(hints) { hint in
         HStack(spacing: 6) {
           HStack(spacing: 2) { ForEach(hint.keys, id: \.self) { Keycaps($0) } }
-          Text(hint.label)
+          Text(hint.labelText)
         }
       }
       Spacer(minLength: 0)
@@ -152,15 +173,28 @@ public struct KitPalette<Scope: View, Content: View>: View {
 }
 
 extension KitPalette where Scope == EmptyView {
-  /// A palette without a scope pop-up.
+  /// A palette without a scope pop-up; the prompt is a key (a literal), looked up in the app's strings.
   public init(
-    query: Binding<String>, prompt: String = "Search", status: WorkStatus = .idle,
+    query: Binding<String>, prompt: LocalizedStringKey = "Search", status: WorkStatus = .idle,
     hints: [PaletteHint] = PaletteHint.standard, maxHeight: CGFloat = 440, dismiss: (() -> Void)? = nil,
     focusesOnAppear: Bool = true, @ViewBuilder content: () -> Content
   ) {
     self.init(
-      query: query, prompt: prompt, status: status, hints: hints, maxHeight: maxHeight, dismiss: dismiss,
-      focusesOnAppear: focusesOnAppear, scope: { EmptyView() }, content: content)
+      query: query, prompt: KitString(prompt), status: status, hints: hints, maxHeight: maxHeight, dismiss: dismiss,
+      focusesOnAppear: focusesOnAppear, scope: EmptyView(), content: content())
+  }
+
+  /// The same with a prompt shown as it is; a `nil` prompt is the kit's.
+  @_disfavoredOverload
+  public init(
+    query: Binding<String>, prompt: String? = nil, status: WorkStatus = .idle,
+    hints: [PaletteHint] = PaletteHint.standard, maxHeight: CGFloat = 440, dismiss: (() -> Void)? = nil,
+    focusesOnAppear: Bool = true, @ViewBuilder content: () -> Content
+  ) {
+    self.init(
+      query: query, prompt: KitString(verbatim: prompt) ?? KitString("Search"), status: status, hints: hints,
+      maxHeight: maxHeight, dismiss: dismiss, focusesOnAppear: focusesOnAppear, scope: EmptyView(),
+      content: content())
   }
 }
 
@@ -177,12 +211,31 @@ extension EnvironmentValues {
 /// ```
 public struct PaletteHint: Identifiable, Hashable, Sendable {
   public var keys: [String]
-  public var label: String
-  public var id: String { label }
+  var labelText: KitString
+  public var id: String { labelText.sourceText }
 
-  public init(_ keys: [String], _ label: String) {
+  /// What the keys do, as a string: a key's localized text, or the string as it was given.
+  public var label: String {
+    get { labelText.string }
+    set { labelText = KitString(verbatim: newValue) }
+  }
+
+  /// A hint whose label is a key (a literal), looked up in the app's strings; the keys are shown as they are.
+  public init(_ keys: [String], _ label: LocalizedStringKey) {
     self.keys = keys
-    self.label = label
+    self.labelText = KitString(label)
+  }
+
+  /// The same with a label shown as it is.
+  @_disfavoredOverload
+  public init(_ keys: [String], _ label: some StringProtocol) {
+    self.keys = keys
+    self.labelText = KitString(verbatim: String(label))
+  }
+
+  public func hash(into hasher: inout Hasher) {
+    hasher.combine(keys)
+    hasher.combine(labelText.sourceText)
   }
 
   /// ↑↓ Move, ↩ Open, esc Close.
@@ -200,7 +253,7 @@ public struct PaletteHint: Identifiable, Hashable, Sendable {
 /// }
 /// ```
 public struct PaletteGroup<Accessory: View, Items: View>: View {
-  var title: String
+  var title: KitString
   var meta: [String]
   var systemImage: String
   var hue: Hue
@@ -208,17 +261,38 @@ public struct PaletteGroup<Accessory: View, Items: View>: View {
   var accessory: Accessory
   var items: Items
 
+  /// A group titled by a key (a literal), looked up in the app's strings; `meta` lines are shown as they are.
   public init(
-    _ title: String, meta: [String] = [], systemImage: String, hue: Hue = .accent, status: WorkStatus = .idle,
-    @ViewBuilder accessory: () -> Accessory, @ViewBuilder items: () -> Items
+    _ title: LocalizedStringKey, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, @ViewBuilder accessory: () -> Accessory, @ViewBuilder items: () -> Items
+  ) {
+    self.init(
+      title: KitString(title), meta: meta, systemImage: systemImage, hue: hue, status: status, accessory: accessory(),
+      items: items())
+  }
+
+  /// The same with a title shown as it is (a project's name).
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, @ViewBuilder accessory: () -> Accessory, @ViewBuilder items: () -> Items
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), meta: meta, systemImage: systemImage, hue: hue, status: status,
+      accessory: accessory(), items: items())
+  }
+
+  init(
+    title: KitString, meta: [String], systemImage: String, hue: Hue, status: WorkStatus, accessory: Accessory,
+    items: Items
   ) {
     self.title = title
     self.meta = meta
     self.systemImage = systemImage
     self.hue = hue
     self.status = status
-    self.accessory = accessory()
-    self.items = items()
+    self.accessory = accessory
+    self.items = items
   }
 
   @Environment(\.dataPaletteLazyRows) private var lazyRows
@@ -229,27 +303,46 @@ public struct PaletteGroup<Accessory: View, Items: View>: View {
     Group {
       if lazyRows {
         LazyVStack(alignment: .leading, spacing: 0) {
-          RichHeader(title, meta: meta, systemImage: systemImage, hue: hue, status: status) { accessory }
+          header
           items
         }
       } else {
         VStack(alignment: .leading, spacing: 0) {
-          RichHeader(title, meta: meta, systemImage: systemImage, hue: hue, status: status) { accessory }
+          header
           items
         }
       }
     }
     .kitCard()
   }
+
+  private var header: some View {
+    RichHeader(
+      Text(title), icon: { SizedLiveIcon(systemImage: systemImage, hue: hue, status: status, size: .section) },
+      meta: { MetaLine(meta) }, accessory: { accessory })
+  }
 }
 
 extension PaletteGroup where Accessory == EmptyView {
+  /// A group titled by a key (a literal), looked up in the app's strings, with no pop-up.
   public init(
-    _ title: String, meta: [String] = [], systemImage: String, hue: Hue = .accent, status: WorkStatus = .idle,
-    @ViewBuilder items: () -> Items
+    _ title: LocalizedStringKey, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, @ViewBuilder items: () -> Items
   ) {
-    self.init(title, meta: meta, systemImage: systemImage, hue: hue, status: status, accessory: { EmptyView() },
-      items: items)
+    self.init(
+      title: KitString(title), meta: meta, systemImage: systemImage, hue: hue, status: status, accessory: EmptyView(),
+      items: items())
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, @ViewBuilder items: () -> Items
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), meta: meta, systemImage: systemImage, hue: hue, status: status,
+      accessory: EmptyView(), items: items())
   }
 }
 
@@ -268,7 +361,7 @@ extension PaletteGroup where Accessory == EmptyView {
 /// PaletteItem(file.name, subtitle: file.folder, matches: match.positions, icon: { FileIcon(file) }) { open(file) }
 /// ```
 public struct PaletteItem: View {
-  var title: String
+  var title: KitString
   var id: String
   var systemImage: String
   var hue: Hue
@@ -277,10 +370,10 @@ public struct PaletteItem: View {
   var subtitleMatches: [Int]?
   var icon: AnyView?
   var detail: String?
-  var note: String?
+  var note: KitString?
   var shortcut: String?
   var status: WorkStatus
-  var returnLabel: String?
+  var returnLabel: KitString?
   var isEnabled: Bool
   var action: () -> Void
   @Environment(DataNavModel.self) private var nav: DataNavModel?
@@ -288,14 +381,72 @@ public struct PaletteItem: View {
   @Environment(\.kitIdiom) private var idiom
   @State private var isHovered = false
 
+  /// A result whose title, note and `returnLabel` are keys (literals), looked up in the app's strings; `subtitle`,
+  /// `detail` and `shortcut` are shown as they are.
   public init(
-    _ title: String, id: String? = nil, systemImage: String, hue: Hue = .accent, subtitle: String? = nil,
+    _ title: LocalizedStringKey, id: String? = nil, systemImage: String, hue: Hue = .accent, subtitle: String? = nil,
+    matches: [Int]? = nil, subtitleMatches: [Int]? = nil, detail: String? = nil,
+    note: LocalizedStringKey? = nil, shortcut: String? = nil, status: WorkStatus = .idle,
+    returnLabel: LocalizedStringKey? = nil, isEnabled: Bool = true, action: @escaping () -> Void
+  ) {
+    self.init(
+      title: KitString(title), id: id, systemImage: systemImage, hue: hue, subtitle: subtitle, matches: matches,
+      subtitleMatches: subtitleMatches, detail: detail, note: KitString(note), shortcut: shortcut, status: status,
+      returnLabel: KitString(returnLabel), isEnabled: isEnabled, action: action)
+  }
+
+  /// The same with strings shown as they are (a file's name, text the app localized).
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, id: String? = nil, systemImage: String, hue: Hue = .accent, subtitle: String? = nil,
     matches: [Int]? = nil, subtitleMatches: [Int]? = nil, detail: String? = nil,
     note: String? = nil, shortcut: String? = nil, status: WorkStatus = .idle, returnLabel: String? = nil,
     isEnabled: Bool = true, action: @escaping () -> Void
   ) {
+    self.init(
+      title: KitString(verbatim: String(title)), id: id, systemImage: systemImage, hue: hue, subtitle: subtitle,
+      matches: matches, subtitleMatches: subtitleMatches, detail: detail, note: KitString(verbatim: note),
+      shortcut: shortcut, status: status, returnLabel: KitString(verbatim: returnLabel), isEnabled: isEnabled,
+      action: action)
+  }
+
+  /// A result with any icon view (a file's icon drawn as letters, an avatar), 20pt; the title, note and
+  /// `returnLabel` are keys (literals), looked up in the app's strings.
+  public init<Icon: View>(
+    _ title: LocalizedStringKey, id: String? = nil, subtitle: String? = nil, matches: [Int]? = nil,
+    subtitleMatches: [Int]? = nil, detail: String? = nil, note: LocalizedStringKey? = nil, shortcut: String? = nil,
+    returnLabel: LocalizedStringKey? = nil, isEnabled: Bool = true, @ViewBuilder icon: () -> Icon,
+    action: @escaping () -> Void
+  ) {
+    self.init(
+      title: KitString(title), id: id, systemImage: "", subtitle: subtitle, matches: matches,
+      subtitleMatches: subtitleMatches, detail: detail, note: KitString(note), shortcut: shortcut,
+      returnLabel: KitString(returnLabel), isEnabled: isEnabled, action: action)
+    self.icon = AnyView(icon())
+  }
+
+  /// A result with any icon view, 20pt (a file's icon drawn as letters, an avatar), with strings shown as they are.
+  @_disfavoredOverload
+  public init<Icon: View>(
+    _ title: some StringProtocol, id: String? = nil, subtitle: String? = nil, matches: [Int]? = nil,
+    subtitleMatches: [Int]? = nil, detail: String? = nil, note: String? = nil, shortcut: String? = nil,
+    returnLabel: String? = nil, isEnabled: Bool = true, @ViewBuilder icon: () -> Icon,
+    action: @escaping () -> Void
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), id: id, systemImage: "", subtitle: subtitle, matches: matches,
+      subtitleMatches: subtitleMatches, detail: detail, note: KitString(verbatim: note), shortcut: shortcut,
+      returnLabel: KitString(verbatim: returnLabel), isEnabled: isEnabled, action: action)
+    self.icon = AnyView(icon())
+  }
+
+  init(
+    title: KitString, id: String?, systemImage: String, hue: Hue = .accent, subtitle: String?, matches: [Int]?,
+    subtitleMatches: [Int]?, detail: String?, note: KitString?, shortcut: String?, status: WorkStatus = .idle,
+    returnLabel: KitString?, isEnabled: Bool, action: @escaping () -> Void
+  ) {
     self.title = title
-    self.id = id ?? title + (subtitle ?? "") + (detail ?? "")
+    self.id = id ?? title.sourceText + (subtitle ?? "") + (detail ?? "")
     self.systemImage = systemImage
     self.hue = hue
     self.subtitle = subtitle
@@ -308,19 +459,6 @@ public struct PaletteItem: View {
     self.returnLabel = returnLabel
     self.isEnabled = isEnabled
     self.action = action
-  }
-
-  /// A result with any icon view (a file's icon drawn as letters, an avatar), 20pt.
-  public init<Icon: View>(
-    _ title: String, id: String? = nil, subtitle: String? = nil, matches: [Int]? = nil,
-    subtitleMatches: [Int]? = nil, detail: String? = nil, note: String? = nil, shortcut: String? = nil,
-    returnLabel: String? = nil, isEnabled: Bool = true, @ViewBuilder icon: () -> Icon,
-    action: @escaping () -> Void
-  ) {
-    self.init(
-      title, id: id, systemImage: "", subtitle: subtitle, matches: matches, subtitleMatches: subtitleMatches,
-      detail: detail, note: note, shortcut: shortcut, returnLabel: returnLabel, isEnabled: isEnabled, action: action)
-    self.icon = AnyView(icon())
   }
 
   private var isSelected: Bool { nav?.selected == id }
@@ -338,7 +476,8 @@ public struct PaletteItem: View {
       }
       .opacity(isEnabled ? 1 : 0.45)
       VStack(alignment: .leading, spacing: 1) {
-        Text(matches.map { PaletteMatch.marked(title, offsets: $0) } ?? PaletteMatch.marked(title, query: query))
+        let shown = title.string
+        Text(matches.map { PaletteMatch.marked(shown, offsets: $0) } ?? PaletteMatch.marked(shown, query: query))
           .foregroundStyle(isEnabled ? AnyShapeStyle(.kitLabel) : AnyShapeStyle(.kitTertiary))
           .lineLimit(1)
         if let subtitle {

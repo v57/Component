@@ -58,7 +58,27 @@ public struct KitHuePicker: View {
       .contentShape(Circle())
     }
     .buttonStyle(CtlPressStyle())
-    .accessibilityLabel(hue.map { $0.rawValue.capitalized } ?? "No color")
+    .accessibilityLabel(hue?.ctlName ?? KitString("No color"))
     .accessibilityAddTraits(isSelected ? .isSelected : [])
+  }
+}
+
+extension Hue {
+  /// The hue's name, as VoiceOver reads a swatch.
+  fileprivate var ctlName: KitString {
+    switch self {
+    case .accent: KitString("Accent")
+    case .blue: KitString("Blue")
+    case .green: KitString("Green")
+    case .orange: KitString("Orange")
+    case .red: KitString("Red")
+    case .yellow: KitString("Yellow")
+    case .teal: KitString("Teal")
+    case .indigo: KitString("Indigo")
+    case .purple: KitString("Purple")
+    case .pink: KitString("Pink")
+    case .brown: KitString("Brown")
+    case .gray: KitString("Gray")
+    }
   }
 }

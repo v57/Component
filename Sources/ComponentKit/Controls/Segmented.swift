@@ -32,25 +32,57 @@ extension KitOption {
 /// ])
 /// ```
 public struct KitSegment<Value: Hashable>: Identifiable {
-  public var title: String
+  var label: KitString
   public var value: Value
   public var systemImage: String?
   public var count: Int?
   public var isEnabled: Bool
-  /// What picking it does, for a menu's preview panel (`KitMenuOptions`; see `kitMenuPreview`).
-  public var preview: String?
+  var previewLabel: KitString?
   public var id: Value { value }
 
+  /// The title as a string: a key's localized text, or the string as it was given.
+  public var title: String {
+    get { label.string }
+    set { label = KitString(verbatim: newValue) }
+  }
+
+  /// What picking it does, for a menu's preview panel (`KitMenuOptions`; see `kitMenuPreview`).
+  public var preview: String? {
+    get { previewLabel?.string }
+    set { previewLabel = KitString(verbatim: newValue) }
+  }
+
+  /// A segment titled by a key (a literal), looked up in the app's strings.
   public init(
-    _ title: String, value: Value, systemImage: String? = nil, count: Int? = nil, isEnabled: Bool = true,
+    _ title: LocalizedStringKey, value: Value, systemImage: String? = nil, count: Int? = nil, isEnabled: Bool = true,
+    preview: LocalizedStringKey? = nil
+  ) {
+    self.init(
+      label: KitString(title), value: value, systemImage: systemImage, count: count, isEnabled: isEnabled,
+      preview: KitString(preview))
+  }
+
+  /// A segment titled by a string shown as it is (a name, or text the app localized).
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, value: Value, systemImage: String? = nil, count: Int? = nil, isEnabled: Bool = true,
     preview: String? = nil
   ) {
-    self.title = title
+    self.init(
+      label: KitString(verbatim: String(title)), value: value, systemImage: systemImage, count: count, isEnabled: isEnabled,
+      preview: KitString(verbatim: preview))
+  }
+
+  init(
+    label: KitString, value: Value, systemImage: String? = nil, count: Int? = nil, isEnabled: Bool = true,
+    preview: KitString? = nil
+  ) {
+    self.label = label
     self.value = value
     self.systemImage = systemImage
     self.count = count
     self.isEnabled = isEnabled
-    self.preview = preview
+    self.previewLabel = preview
   }
 }
 
@@ -100,8 +132,14 @@ public struct KitSegmented<Value: Hashable>: View {
     self.segments = segments
   }
 
-  /// A segmented control over titled values.
-  public init(selection: Binding<Value>, options: [(String, Value)]) {
+  /// A segmented control over values titled by keys (literals), looked up in the app's strings.
+  public init(selection: Binding<Value>, options: [(LocalizedStringKey, Value)]) {
+    self.init(selection: selection, segments: options.map { KitSegment($0.0, value: $0.1) })
+  }
+
+  /// A segmented control over values titled by strings shown as they are.
+  @_disfavoredOverload
+  public init(selection: Binding<Value>, options: [(some StringProtocol, Value)]) {
     self.init(selection: selection, segments: options.map { KitSegment($0.0, value: $0.1) })
   }
 
@@ -224,7 +262,7 @@ struct CtlSegmentLabel<Value: Hashable>: View {
         Image(systemName: systemImage).imageScale(.small)
       }
       if !iconOnly {
-        CtlStableWeightText(segment.title, bold: isSelected)
+        CtlStableWeightText(segment.label, bold: isSelected)
       }
       if let count = segment.count {
         Text(count, format: .number)
@@ -263,8 +301,8 @@ struct CtlSegmentLabel<Value: Hashable>: View {
     .scaleEffect(isPressed && isEnabled ? 0.98 : 1)
     #endif
     .contentShape(Rectangle())
-    .help(iconOnly ? segment.title : "")
-    .accessibilityLabel(segment.title)
+    .help(iconOnly ? segment.label : .empty)
+    .accessibilityLabel(segment.label)
     .animation(.kitFast, value: isLit)
     .animation(.kitFast, value: isPressed)
   }
@@ -281,13 +319,15 @@ struct CtlSegmentLabel<Value: Hashable>: View {
 
 /// Text that keeps the width of its semibold form, so a segment doesn't change width when it becomes selected.
 struct CtlStableWeightText: View {
-  var text: String
+  var text: KitString
   var bold: Bool
 
-  init(_ text: String, bold: Bool) {
+  init(_ text: KitString, bold: Bool) {
     self.text = text
     self.bold = bold
   }
+
+  init(_ text: String, bold: Bool) { self.init(KitString(verbatim: text), bold: bold) }
 
   var body: some View {
     ZStack {

@@ -12,19 +12,42 @@ import SwiftUI
 /// }
 /// ```
 public struct ChangesCard<Meta: View, Rows: View>: View {
-  var title: String
+  var title: KitString
   var count: Int
   var systemImage: String
-  var reviewTitle: String
+  var reviewTitle: KitString
   var discardAll: (() -> Void)?
   var review: (() -> Void)?
   var meta: Meta
   var rows: Rows
 
+  /// A changes card whose title and review button are keys (literals), looked up in the app's strings.
   public init(
-    _ title: String = "Changes", count: Int, systemImage: String = "pencil", reviewTitle: String = "Review and Save",
+    _ title: LocalizedStringKey = "Changes", count: Int, systemImage: String = "pencil",
+    reviewTitle: LocalizedStringKey = "Review and Save", discardAll: (() -> Void)? = nil,
+    review: (() -> Void)? = nil, @ViewBuilder meta: () -> Meta, @ViewBuilder rows: () -> Rows
+  ) {
+    self.init(
+      title: KitString(title), count: count, systemImage: systemImage, reviewTitle: KitString(reviewTitle),
+      discardAll: discardAll, review: review, meta: meta(), rows: rows())
+  }
+
+  /// The same with strings shown as they are; a `nil` one is the kit's.
+  @_disfavoredOverload
+  public init(
+    _ title: String? = nil, count: Int, systemImage: String = "pencil", reviewTitle: String? = nil,
     discardAll: (() -> Void)? = nil, review: (() -> Void)? = nil, @ViewBuilder meta: () -> Meta,
     @ViewBuilder rows: () -> Rows
+  ) {
+    self.init(
+      title: KitString(verbatim: title) ?? KitString("Changes"), count: count, systemImage: systemImage,
+      reviewTitle: KitString(verbatim: reviewTitle) ?? KitString("Review and Save"), discardAll: discardAll,
+      review: review, meta: meta(), rows: rows())
+  }
+
+  init(
+    title: KitString, count: Int, systemImage: String, reviewTitle: KitString, discardAll: (() -> Void)?,
+    review: (() -> Void)?, meta: Meta, rows: Rows
   ) {
     self.title = title
     self.count = count
@@ -32,8 +55,8 @@ public struct ChangesCard<Meta: View, Rows: View>: View {
     self.reviewTitle = reviewTitle
     self.discardAll = discardAll
     self.review = review
-    self.meta = meta()
-    self.rows = rows()
+    self.meta = meta
+    self.rows = rows
   }
 
   public var body: some View {
@@ -65,7 +88,7 @@ public struct ChangesCard<Meta: View, Rows: View>: View {
         Button("Discard All", action: discardAll).buttonStyle(.kitPlain)
       }
       if let review {
-        Button(reviewTitle, action: review).buttonStyle(.kitPrimary)
+        Button(action: review) { Text(reviewTitle) }.buttonStyle(.kitPrimary)
       }
     }
     .controlSize(.small)
@@ -74,15 +97,29 @@ public struct ChangesCard<Meta: View, Rows: View>: View {
 }
 
 extension ChangesCard where Meta == MetaLine {
-  /// A changes card whose meta is a line of parts joined with " · ".
+  /// A changes card whose meta is a line of parts joined with " · " (shown as they are); the title and review
+  /// button are keys (literals), looked up in the app's strings.
   public init(
-    _ title: String = "Changes", count: Int, meta: [String], systemImage: String = "pencil",
-    reviewTitle: String = "Review and Save", discardAll: (() -> Void)? = nil, review: (() -> Void)? = nil,
+    _ title: LocalizedStringKey = "Changes", count: Int, meta: [String], systemImage: String = "pencil",
+    reviewTitle: LocalizedStringKey = "Review and Save", discardAll: (() -> Void)? = nil, review: (() -> Void)? = nil,
     @ViewBuilder rows: () -> Rows
   ) {
     self.init(
-      title, count: count, systemImage: systemImage, reviewTitle: reviewTitle, discardAll: discardAll, review: review,
-      meta: { MetaLine(meta) }, rows: rows)
+      title: KitString(title), count: count, systemImage: systemImage, reviewTitle: KitString(reviewTitle),
+      discardAll: discardAll, review: review, meta: MetaLine(meta), rows: rows())
+  }
+
+  /// The same with strings shown as they are; a `nil` one is the kit's.
+  @_disfavoredOverload
+  public init(
+    _ title: String? = nil, count: Int, meta: [String], systemImage: String = "pencil",
+    reviewTitle: String? = nil, discardAll: (() -> Void)? = nil, review: (() -> Void)? = nil,
+    @ViewBuilder rows: () -> Rows
+  ) {
+    self.init(
+      title: KitString(verbatim: title) ?? KitString("Changes"), count: count, systemImage: systemImage,
+      reviewTitle: KitString(verbatim: reviewTitle) ?? KitString("Review and Save"), discardAll: discardAll,
+      review: review, meta: MetaLine(meta), rows: rows())
   }
 }
 

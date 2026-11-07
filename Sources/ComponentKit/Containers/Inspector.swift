@@ -52,7 +52,7 @@ public struct KitInspector<Content: View>: View {
 /// }
 /// ```
 public struct InspectorHeader<Tags: View>: View {
-  var title: String
+  var title: KitString
   var meta: [String]
   var systemImage: String
   var hue: Hue
@@ -60,11 +60,30 @@ public struct InspectorHeader<Tags: View>: View {
   @ViewBuilder var tags: Tags
   @Environment(\.kitIdiom) private var idiom
 
+  /// A header titled by a key (a literal), looked up in the app's strings; the meta parts are shown as they are.
+  public init(
+    _ title: LocalizedStringKey, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, @ViewBuilder tags: () -> Tags
+  ) {
+    self.init(title: KitString(title), meta: meta, systemImage: systemImage, hue: hue, status: status, tags: tags)
+  }
+
+  /// The same with the title a string shown as it is.
+  @_disfavoredOverload
   public init(
     _ title: some StringProtocol, meta: [String] = [], systemImage: String, hue: Hue = .accent,
     status: WorkStatus = .idle, @ViewBuilder tags: () -> Tags
   ) {
-    self.title = String(title)
+    self.init(
+      title: KitString(verbatim: String(title)), meta: meta, systemImage: systemImage, hue: hue, status: status,
+      tags: tags)
+  }
+
+  init(
+    title: KitString, meta: [String], systemImage: String, hue: Hue, status: WorkStatus,
+    @ViewBuilder tags: () -> Tags
+  ) {
+    self.title = title
     self.meta = meta
     self.systemImage = systemImage
     self.hue = hue
@@ -97,12 +116,23 @@ public struct InspectorHeader<Tags: View>: View {
 }
 
 extension InspectorHeader where Tags == EmptyView {
-  /// A header with no tags.
+  /// A header with no tags, titled by a key (a literal), looked up in the app's strings.
+  public init(
+    _ title: LocalizedStringKey, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle
+  ) {
+    self.init(title: KitString(title), meta: meta, systemImage: systemImage, hue: hue, status: status) { EmptyView() }
+  }
+
+  /// The same with the title a string shown as it is.
+  @_disfavoredOverload
   public init(
     _ title: some StringProtocol, meta: [String] = [], systemImage: String, hue: Hue = .accent,
     status: WorkStatus = .idle
   ) {
-    self.init(title, meta: meta, systemImage: systemImage, hue: hue, status: status) { EmptyView() }
+    self.init(
+      title: KitString(verbatim: String(title)), meta: meta, systemImage: systemImage, hue: hue, status: status
+    ) { EmptyView() }
   }
 }
 
@@ -122,15 +152,26 @@ extension InspectorHeader where Tags == EmptyView {
 /// InspectorRow("result") { Text(describe(result)).kitFont(.monoSmall) }.wraps(alignment: .leading)
 /// ```
 public struct InspectorRow<Value: View>: View {
-  var key: String
+  var key: KitString
   var copyText: String?
   var wrapAlignment: HorizontalAlignment?
   @ViewBuilder var value: Value
   @State private var isHovered = false
   @Environment(\.kitIdiom) private var idiom
 
-  /// A row with any value view; `copyText` is what Copy puts on the pasteboard (none: no Copy).
-  public init(_ key: String, copyText: String? = nil, @ViewBuilder value: () -> Value) {
+  /// A row with any value view; `copyText` is what Copy puts on the pasteboard (none: no Copy). The key is a key (a
+  /// literal), looked up in the app's strings.
+  public init(_ key: LocalizedStringKey, copyText: String? = nil, @ViewBuilder value: () -> Value) {
+    self.init(key: KitString(key), copyText: copyText, value: value)
+  }
+
+  /// The same with the key a string shown as it is (a column's name).
+  @_disfavoredOverload
+  public init(_ key: some StringProtocol, copyText: String? = nil, @ViewBuilder value: () -> Value) {
+    self.init(key: KitString(verbatim: String(key)), copyText: copyText, value: value)
+  }
+
+  init(key: KitString, copyText: String?, @ViewBuilder value: () -> Value) {
     self.key = key
     self.copyText = copyText
     self.value = value()
@@ -181,7 +222,7 @@ public struct InspectorRow<Value: View>: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.kitLabel)
-        .accessibilityLabel("Copy \(key)")
+        .accessibilityLabel("Copy \(key.string)")
         .transition(.opacity)
         .padding(.trailing, -2)
       }
@@ -242,9 +283,16 @@ private struct InspectorCopyMenu: ViewModifier {
 }
 
 extension InspectorRow where Value == Text {
-  /// A row with a text value, copyable by default.
-  public init(_ key: String, value: String, copyable: Bool = true) {
-    self.init(key, copyText: copyable ? value : nil) { Text(value) }
+  /// A row with a text value (shown as it is), copyable by default; the key is a key (a literal), looked up in the
+  /// app's strings.
+  public init(_ key: LocalizedStringKey, value: String, copyable: Bool = true) {
+    self.init(key: KitString(key), copyText: copyable ? value : nil) { Text(value) }
+  }
+
+  /// The same with the key a string shown as it is (a column's name).
+  @_disfavoredOverload
+  public init(_ key: some StringProtocol, value: String, copyable: Bool = true) {
+    self.init(key: KitString(verbatim: String(key)), copyText: copyable ? value : nil) { Text(value) }
   }
 }
 

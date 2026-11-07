@@ -30,8 +30,8 @@ import SwiftUI
 /// }
 /// ```
 public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
-  var title: String
-  var meta: String?
+  var title: KitString
+  var meta: KitString?
   var isMetaError: Bool
   var width: CGFloat?
   var topAligned: Bool
@@ -55,8 +55,29 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
 
   /// A sheet with any icon (a thing's own tile, an avatar). `width` applies on the Mac (and 80pt wider on iPad, over
   /// the window); `onClose` adds the round close button at the header's end (for panels without a Cancel button).
+  /// The title and meta are keys (literals), looked up in the app's strings.
   public init(
-    title: String, meta: String? = nil, width: CGFloat? = 460, onClose: (() -> Void)? = nil,
+    title: LocalizedStringKey, meta: LocalizedStringKey? = nil, width: CGFloat? = 460, onClose: (() -> Void)? = nil,
+    @ViewBuilder icon: () -> Icon, @ViewBuilder content: () -> Content, @ViewBuilder footer: () -> Footer
+  ) {
+    self.init(
+      title: KitString(title), meta: KitString(meta), width: width, onClose: onClose, icon: icon, content: content,
+      footer: footer)
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    title: some StringProtocol, meta: String? = nil, width: CGFloat? = 460, onClose: (() -> Void)? = nil,
+    @ViewBuilder icon: () -> Icon, @ViewBuilder content: () -> Content, @ViewBuilder footer: () -> Footer
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), meta: KitString(verbatim: meta), width: width, onClose: onClose,
+      icon: icon, content: content, footer: footer)
+  }
+
+  init(
+    title: KitString, meta: KitString?, width: CGFloat?, onClose: (() -> Void)? = nil,
     @ViewBuilder icon: () -> Icon, @ViewBuilder content: () -> Content, @ViewBuilder footer: () -> Footer
   ) {
     self.title = title
@@ -209,9 +230,32 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
 }
 
 extension KitSheet where Icon == LiveIcon<Image> {
-  /// A sheet with an SF Symbol tile; `status` puts the header's tile to work.
+  /// A sheet with an SF Symbol tile; `status` puts the header's tile to work. The title and meta are keys
+  /// (literals), looked up in the app's strings.
   public init(
-    title: String, meta: String? = nil, systemImage: String, hue: Hue = .accent, status: WorkStatus = .idle,
+    title: LocalizedStringKey, meta: LocalizedStringKey? = nil, systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, width: CGFloat? = 460, onClose: (() -> Void)? = nil,
+    @ViewBuilder content: () -> Content, @ViewBuilder footer: () -> Footer
+  ) {
+    self.init(
+      title: KitString(title), meta: KitString(meta), systemImage: systemImage, hue: hue, status: status,
+      width: width, onClose: onClose, content: content, footer: footer)
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    title: some StringProtocol, meta: String? = nil, systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, width: CGFloat? = 460, onClose: (() -> Void)? = nil,
+    @ViewBuilder content: () -> Content, @ViewBuilder footer: () -> Footer
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), meta: KitString(verbatim: meta), systemImage: systemImage, hue: hue,
+      status: status, width: width, onClose: onClose, content: content, footer: footer)
+  }
+
+  init(
+    title: KitString, meta: KitString?, systemImage: String, hue: Hue, status: WorkStatus = .idle,
     width: CGFloat? = 460, onClose: (() -> Void)? = nil, @ViewBuilder content: () -> Content,
     @ViewBuilder footer: () -> Footer
   ) {
@@ -223,14 +267,27 @@ extension KitSheet where Icon == LiveIcon<Image> {
 }
 
 extension KitSheet where Icon == LiveIcon<Image>, Footer == EmptyView {
-  /// A sheet (or panel) with no footer bar.
+  /// A sheet (or panel) with no footer bar. The title and meta are keys (literals), looked up in the app's strings.
   public init(
-    title: String, meta: String? = nil, systemImage: String, hue: Hue = .accent, status: WorkStatus = .idle,
-    width: CGFloat? = 460, onClose: (() -> Void)? = nil, @ViewBuilder content: () -> Content
+    title: LocalizedStringKey, meta: LocalizedStringKey? = nil, systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, width: CGFloat? = 460, onClose: (() -> Void)? = nil,
+    @ViewBuilder content: () -> Content
   ) {
     self.init(
-      title: title, meta: meta, systemImage: systemImage, hue: hue, status: status, width: width, onClose: onClose,
-      content: content, footer: { EmptyView() })
+      title: KitString(title), meta: KitString(meta), systemImage: systemImage, hue: hue, status: status,
+      width: width, onClose: onClose, content: content, footer: { EmptyView() })
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    title: some StringProtocol, meta: String? = nil, systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, width: CGFloat? = 460, onClose: (() -> Void)? = nil,
+    @ViewBuilder content: () -> Content
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), meta: KitString(verbatim: meta), systemImage: systemImage, hue: hue,
+      status: status, width: width, onClose: onClose, content: content, footer: { EmptyView() })
   }
 }
 
@@ -240,13 +297,28 @@ extension KitSheet where Icon == LiveIcon<Image>, Footer == EmptyView {
 /// SheetStatus("Checking the URL…", systemImage: "link", status: .working)
 /// ```
 public struct SheetStatus: View {
-  var text: String
+  var text: KitString
   var systemImage: String
   var hue: Hue
   var status: WorkStatus
   @Environment(\.kitIdiom) private var idiom
 
-  public init(_ text: String, systemImage: String = "checkmark", hue: Hue = .accent, status: WorkStatus = .idle) {
+  /// A status line that is a key (a literal), looked up in the app's strings.
+  public init(
+    _ text: LocalizedStringKey, systemImage: String = "checkmark", hue: Hue = .accent, status: WorkStatus = .idle
+  ) {
+    self.init(text: KitString(text), systemImage: systemImage, hue: hue, status: status)
+  }
+
+  /// The same with a string shown as it is.
+  @_disfavoredOverload
+  public init(
+    _ text: some StringProtocol, systemImage: String = "checkmark", hue: Hue = .accent, status: WorkStatus = .idle
+  ) {
+    self.init(text: KitString(verbatim: String(text)), systemImage: systemImage, hue: hue, status: status)
+  }
+
+  init(text: KitString, systemImage: String, hue: Hue, status: WorkStatus) {
     self.text = text
     self.systemImage = systemImage
     self.hue = hue
@@ -397,10 +469,33 @@ extension View {
   /// .kitConfirmation("Delete harbor?", isPresented: $confirming, message: "Its worktree and stashes go too.",
   ///                  systemImage: "trash", confirm: "Delete") { delete(harbor) }
   /// ```
+  ///
+  /// The title, message and button are keys (literals), looked up in the app's strings.
   public func kitConfirmation(
-    _ title: String, isPresented: Binding<Bool>, message: String? = nil,
-    systemImage: String = "exclamationmark.triangle", confirm: String, role: ButtonRole? = .destructive,
+    _ title: LocalizedStringKey, isPresented: Binding<Bool>, message: LocalizedStringKey? = nil,
+    systemImage: String = "exclamationmark.triangle", confirm: LocalizedStringKey, role: ButtonRole? = .destructive,
     action: @escaping @MainActor () -> Void
+  ) -> some View {
+    kitConfirmation(
+      title: KitString(title), isPresented: isPresented, message: KitString(message), systemImage: systemImage,
+      confirm: KitString(confirm), role: role, action: action)
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public func kitConfirmation(
+    _ title: some StringProtocol, isPresented: Binding<Bool>, message: String? = nil,
+    systemImage: String = "exclamationmark.triangle", confirm: some StringProtocol, role: ButtonRole? = .destructive,
+    action: @escaping @MainActor () -> Void
+  ) -> some View {
+    kitConfirmation(
+      title: KitString(verbatim: String(title)), isPresented: isPresented, message: KitString(verbatim: message),
+      systemImage: systemImage, confirm: KitString(verbatim: String(confirm)), role: role, action: action)
+  }
+
+  func kitConfirmation(
+    title: KitString, isPresented: Binding<Bool>, message: KitString?, systemImage: String, confirm: KitString,
+    role: ButtonRole?, action: @escaping @MainActor () -> Void
   ) -> some View {
     kitSheet(isPresented: isPresented) {
       ContConfirmation(
@@ -417,16 +512,37 @@ extension View {
 /// ```
 public struct KitConfirmationButton: Identifiable {
   public let id = UUID()
-  public var title: String
+  var label: KitString
   public var role: ButtonRole?
   /// The one Return presses, drawn filled; by default the last button.
   public var isDefault: Bool
   var action: @MainActor () -> Void
 
+  /// The title as a string: a key's localized text, or the string as it was given.
+  public var title: String {
+    get { label.string }
+    set { label = KitString(verbatim: newValue) }
+  }
+
+  /// A button titled by a key (a literal), looked up in the app's strings.
   public init(
-    _ title: String, role: ButtonRole? = nil, isDefault: Bool = false, action: @escaping @MainActor () -> Void
+    _ title: LocalizedStringKey, role: ButtonRole? = nil, isDefault: Bool = false,
+    action: @escaping @MainActor () -> Void
   ) {
-    self.title = title
+    self.init(label: KitString(title), role: role, isDefault: isDefault, action: action)
+  }
+
+  /// The same with a string shown as it is.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, role: ButtonRole? = nil, isDefault: Bool = false,
+    action: @escaping @MainActor () -> Void
+  ) {
+    self.init(label: KitString(verbatim: String(title)), role: role, isDefault: isDefault, action: action)
+  }
+
+  init(label: KitString, role: ButtonRole?, isDefault: Bool, action: @escaping @MainActor () -> Void) {
+    self.label = label
     self.role = role
     self.isDefault = isDefault
     self.action = action
@@ -445,9 +561,31 @@ extension View {
   ///   KitConfirmationButton("Force Delete", role: .destructive, isDefault: true) { forceDelete() },
   /// ])
   /// ```
+  ///
+  /// The title and message are keys (literals), looked up in the app's strings.
   public func kitConfirmation(
-    _ title: String, isPresented: Binding<Bool>, message: String? = nil,
+    _ title: LocalizedStringKey, isPresented: Binding<Bool>, message: LocalizedStringKey? = nil,
     systemImage: String = "exclamationmark.triangle", hue: Hue? = nil, buttons: [KitConfirmationButton]
+  ) -> some View {
+    kitConfirmation(
+      title: KitString(title), isPresented: isPresented, message: KitString(message), systemImage: systemImage,
+      hue: hue, buttons: buttons)
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public func kitConfirmation(
+    _ title: some StringProtocol, isPresented: Binding<Bool>, message: String? = nil,
+    systemImage: String = "exclamationmark.triangle", hue: Hue? = nil, buttons: [KitConfirmationButton]
+  ) -> some View {
+    kitConfirmation(
+      title: KitString(verbatim: String(title)), isPresented: isPresented, message: KitString(verbatim: message),
+      systemImage: systemImage, hue: hue, buttons: buttons)
+  }
+
+  func kitConfirmation(
+    title: KitString, isPresented: Binding<Bool>, message: KitString?, systemImage: String, hue: Hue?,
+    buttons: [KitConfirmationButton]
   ) -> some View {
     kitSheet(isPresented: isPresented) {
       ContMultiConfirmation(
@@ -458,8 +596,8 @@ extension View {
 }
 
 struct ContMultiConfirmation: View {
-  let title: String
-  let message: String?
+  let title: KitString
+  let message: KitString?
   let systemImage: String
   let hue: Hue?
   let buttons: [KitConfirmationButton]
@@ -484,14 +622,14 @@ struct ContMultiConfirmation: View {
           .keyboardShortcut(.cancelAction)
         ForEach(buttons) { button in
           if button.id == defaultID {
-            Button(button.title, role: button.role) {
+            Button(button.label, role: button.role) {
               button.action()
               close()
             }
             .buttonStyle(.kitPrimary)
             .keyboardShortcut(.defaultAction)
           } else {
-            Button(button.title, role: button.role) {
+            Button(button.label, role: button.role) {
               button.action()
               close()
             }
@@ -504,10 +642,10 @@ struct ContMultiConfirmation: View {
 }
 
 struct ContConfirmation: View {
-  let title: String
-  let message: String?
+  let title: KitString
+  let message: KitString?
   let systemImage: String
-  let confirm: String
+  let confirm: KitString
   let role: ButtonRole?
   let action: @MainActor () -> Void
   let dismiss: @MainActor () -> Void
@@ -556,10 +694,12 @@ struct ContConfirmation: View {
       Button("Clone") {}.buttonStyle(.kitPrimary)
     }
     ContConfirmation(
-      title: "Delete harbor?", message: "Its worktree and 2 stashes are deleted too. This can't be undone.",
-      systemImage: "trash", confirm: "Delete", role: .destructive, action: {}, dismiss: {})
+      title: KitString("Delete harbor?"),
+      message: KitString("Its worktree and 2 stashes are deleted too. This can't be undone."),
+      systemImage: "trash", confirm: KitString("Delete"), role: .destructive, action: {}, dismiss: {})
     ContMultiConfirmation(
-      title: "Delete feature/login?", message: "It isn't merged into main.", systemImage: "trash", hue: nil,
+      title: KitString("Delete feature/login?"), message: KitString("It isn't merged into main."),
+      systemImage: "trash", hue: nil,
       buttons: [
         KitConfirmationButton("Delete Local and Remote", role: .destructive) {},
         KitConfirmationButton("Force Delete", role: .destructive) {},

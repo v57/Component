@@ -13,7 +13,7 @@ import SwiftUI
 /// KitSecretValue(isRevealed: $showsPassword) { password }
 /// ```
 public struct KitSecretValue: View {
-  var label: String
+  var label: KitString
   var value: () -> String?
   var isRevealedBinding: Binding<Bool>?
   var allowsCopy: Bool
@@ -28,22 +28,46 @@ public struct KitSecretValue: View {
   /// A secret read on demand (from the keychain).
   ///
   /// - Parameters:
-  ///   - label: what the secret is, for VoiceOver and the buttons' help ("Show Password").
+  ///   - label: what the secret is, for VoiceOver and the buttons' help ("Show Password"): a key (a literal), looked
+  ///     up in the app's strings.
   ///   - isRevealed: shows or hides it from outside (a ⌥ shortcut); without it the view keeps its own.
   ///   - copies: whether Copy is offered.
   public init(
-    label: String = "Password", isRevealed: Binding<Bool>? = nil, copies: Bool = true,
+    label: LocalizedStringKey = "Password", isRevealed: Binding<Bool>? = nil, copies: Bool = true,
     value: @escaping () -> String?
   ) {
+    self.init(label: KitString(label), isRevealed: isRevealed, copies: copies, value: value)
+  }
+
+  /// The same with a label shown as it is; a `nil` label is the kit's.
+  @_disfavoredOverload
+  public init(
+    label: String? = nil, isRevealed: Binding<Bool>? = nil, copies: Bool = true, value: @escaping () -> String?
+  ) {
+    self.init(
+      label: KitString(verbatim: label) ?? KitString("Password"), isRevealed: isRevealed, copies: copies, value: value)
+  }
+
+  /// A secret the view already has; the label is a key (a literal), looked up in the app's strings.
+  public init(
+    _ value: String, label: LocalizedStringKey = "Password", isRevealed: Binding<Bool>? = nil, copies: Bool = true
+  ) {
+    self.init(label: KitString(label), isRevealed: isRevealed, copies: copies) { value }
+  }
+
+  /// The same with a label shown as it is; a `nil` label is the kit's.
+  @_disfavoredOverload
+  public init(_ value: String, label: String? = nil, isRevealed: Binding<Bool>? = nil, copies: Bool = true) {
+    self.init(
+      label: KitString(verbatim: label) ?? KitString("Password"), isRevealed: isRevealed, copies: copies
+    ) { value }
+  }
+
+  init(label: KitString, isRevealed: Binding<Bool>?, copies: Bool, value: @escaping () -> String?) {
     self.label = label
     self.value = value
     self.isRevealedBinding = isRevealed
     self.allowsCopy = copies
-  }
-
-  /// A secret the view already has.
-  public init(_ value: String, label: String = "Password", isRevealed: Binding<Bool>? = nil, copies: Bool = true) {
-    self.init(label: label, isRevealed: isRevealed, copies: copies) { value }
   }
 
   private var isRevealed: Binding<Bool> { isRevealedBinding ?? $ownRevealed }
@@ -54,6 +78,7 @@ public struct KitSecretValue: View {
   nonisolated static var shortMask: String { String(repeating: "•", count: 8) }
 
   public var body: some View {
+    let label = self.label.string
     HStack(spacing: 6) {
       Group {
         if isRevealed.wrappedValue, let revealed {
@@ -158,7 +183,7 @@ public struct KitOneTimeCode: View {
       if seconds {
         // A label of constant size, the count drawn over it: a text whose content changes each second is measured
         // again with every view around it (an inspector page laid out once a second while it sat open).
-        Text(verbatim: period >= 10 ? "00 s" : "0 s")
+        Text("\(period >= 10 ? 10 : 0) s")
           .kitFont(.caption)
           .monospacedDigit()
           .fixedSize()
@@ -181,7 +206,9 @@ public struct KitOneTimeCode: View {
         .foregroundStyle(current == nil ? AnyShapeStyle(.kitTertiary) : AnyShapeStyle(.kitLabel))
         .contentTransition(.numericText())
         .fixedSize()
-        .accessibilityLabel(current.map { "One-time code \($0.map(String.init).joined(separator: " ")), \(Int(left)) seconds left" } ?? "One-time code unavailable")
+        .accessibilityLabel(
+          current.map { Text("One-time code \($0.map(String.init).joined(separator: " ")), \(Int(left)) seconds left") }
+            ?? Text("One-time code unavailable"))
       Button("Copy Code", systemImage: "doc.on.doc") {
         guard let current else { return }
         KitPasteboard.copySecret(current, expiresAfter: left)

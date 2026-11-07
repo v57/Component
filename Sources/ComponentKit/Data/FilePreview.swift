@@ -73,7 +73,7 @@ public struct KitFilePreview: View {
     VStack(spacing: 10) {
       Tile(systemImage: KitFileCell.Kind.of(name).systemImage, hue: .gray, size: 56)
       Text(name).kitFont(.headline)
-      Text(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file) + " · no preview")
+      Text("\(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file)) · no preview")
         .kitFont(.caption)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)

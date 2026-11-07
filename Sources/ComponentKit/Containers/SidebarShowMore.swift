@@ -16,14 +16,32 @@ import SwiftUI
 public struct SidebarShowMoreRow: View {
   var count: Int
   @Binding var isShowing: Bool
-  var reason: String?
-  var help: String?
-  var hideHelp: String?
+  var reason: KitString?
+  var help: KitString?
+  var hideHelp: KitString?
   @Environment(\.kitIdiom) private var idiom
 
+  /// The row with its reason and tooltips as keys (literals), looked up in the app's strings.
+  public init(
+    count: Int, isShowing: Binding<Bool>, reason: LocalizedStringKey? = nil, help: LocalizedStringKey? = nil,
+    hideHelp: LocalizedStringKey? = nil
+  ) {
+    self.init(
+      count: count, isShowing: isShowing, reason: KitString(reason), help: KitString(help),
+      hideHelp: KitString(hideHelp))
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
   public init(
     count: Int, isShowing: Binding<Bool>, reason: String? = nil, help: String? = nil, hideHelp: String? = nil
   ) {
+    self.init(
+      count: count, isShowing: isShowing, reason: KitString(verbatim: reason), help: KitString(verbatim: help),
+      hideHelp: KitString(verbatim: hideHelp))
+  }
+
+  init(count: Int, isShowing: Binding<Bool>, reason: KitString?, help: KitString?, hideHelp: KitString?) {
     self.count = count
     self._isShowing = isShowing
     self.reason = reason
@@ -32,8 +50,8 @@ public struct SidebarShowMoreRow: View {
   }
 
   public var body: some View {
-    let title = isShowing ? "Show Fewer" : "Show \(count) More"
-    SidebarRow(title) {
+    let title = isShowing ? KitString("Show Fewer") : KitString("Show \(count) More")
+    SidebarRow(value: nil, title: title, subtitle: nil) {
       Image(systemName: isShowing ? "chevron.up" : "chevron.down")
         .font(.system(size: idiom.size(11, touch: 13), weight: .semibold))
         .foregroundStyle(.kitAccent)

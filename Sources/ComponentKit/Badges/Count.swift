@@ -108,10 +108,10 @@ public struct SyncCounts: View {
 
   nonisolated static func label(changes: Int, ahead: Int, behind: Int) -> String {
     var parts: [String] = []
-    if changes > 0 { parts.append("\(changes) changed") }
-    if ahead > 0 { parts.append("\(ahead) to push") }
-    if behind > 0 { parts.append("\(behind) to pull") }
-    return parts.isEmpty ? "Up to date" : parts.joined(separator: ", ")
+    if changes > 0 { parts.append(KitString("\(changes) changed").string) }
+    if ahead > 0 { parts.append(KitString("\(ahead) to push").string) }
+    if behind > 0 { parts.append(KitString("\(behind) to pull").string) }
+    return parts.isEmpty ? KitString("Up to date").string : parts.joined(separator: ", ")
   }
 }
 
@@ -186,11 +186,22 @@ public struct StatusDot: View {
 /// StatusLabel("Offline", hue: .gray, isHollow: true)
 /// ```
 public struct StatusLabel: View {
-  var title: String
+  var title: KitString
   var hue: Hue
   var isHollow: Bool
 
-  public init(_ title: String, hue: Hue, isHollow: Bool = false) {
+  /// A status whose word is a key (a literal), looked up in the app's strings.
+  public init(_ title: LocalizedStringKey, hue: Hue, isHollow: Bool = false) {
+    self.init(title: KitString(title), hue: hue, isHollow: isHollow)
+  }
+
+  /// The same with a word shown as it is.
+  @_disfavoredOverload
+  public init(_ title: some StringProtocol, hue: Hue, isHollow: Bool = false) {
+    self.init(title: KitString(verbatim: String(title)), hue: hue, isHollow: isHollow)
+  }
+
+  init(title: KitString, hue: Hue, isHollow: Bool) {
     self.title = title
     self.hue = hue
     self.isHollow = isHollow

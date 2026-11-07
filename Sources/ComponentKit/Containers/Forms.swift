@@ -16,12 +16,25 @@ import SwiftUI
 /// }
 /// ```
 public struct FormCard<Content: View>: View {
-  var title: String?
-  var footer: String?
+  var title: KitString?
+  var footer: KitString?
   @ViewBuilder var content: Content
   @Environment(\.kitIdiom) private var idiom
 
+  /// A card titled by keys (literals), looked up in the app's strings.
+  public init(
+    _ title: LocalizedStringKey? = nil, footer: LocalizedStringKey? = nil, @ViewBuilder content: () -> Content
+  ) {
+    self.init(title: KitString(title), footer: KitString(footer), content: content)
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
   public init(_ title: String? = nil, footer: String? = nil, @ViewBuilder content: () -> Content) {
+    self.init(title: KitString(verbatim: title), footer: KitString(verbatim: footer), content: content)
+  }
+
+  init(title: KitString?, footer: KitString?, @ViewBuilder content: () -> Content) {
     self.title = title
     self.footer = footer
     self.content = content()
@@ -30,7 +43,7 @@ public struct FormCard<Content: View>: View {
   public var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       if let title {
-        FormHeading(title)
+        FormHeading(title: title)
       }
       VStack(alignment: .leading, spacing: 0) { content }
         // Every row draws the hairline above it; the first row's falls under this 1pt mask.
@@ -102,9 +115,16 @@ private struct ContFormPreviewScene<Content: View>: View {
 /// }
 /// ```
 public struct FormHeading: View {
-  var title: String
+  var title: KitString
 
-  public init(_ title: String) { self.title = title }
+  /// A heading whose title is a key (a literal), looked up in the app's strings.
+  public init(_ title: LocalizedStringKey) { self.init(title: KitString(title)) }
+
+  /// The same with a string shown as it is.
+  @_disfavoredOverload
+  public init(_ title: some StringProtocol) { self.init(title: KitString(verbatim: String(title))) }
+
+  init(title: KitString) { self.title = title }
 
   public var body: some View {
     Text(title)
@@ -150,15 +170,15 @@ public struct FormHeading: View {
 ///   .detail { Toggle("Only with a config file", isOn: $needsConfig).toggleStyle(.kitCheckbox) }
 /// ```
 public struct FormRow<Control: View, Field: View>: View {
-  var title: String
-  var help: String?
+  var title: KitString
+  var help: KitString?
   var systemImage: String?
   var hue: Hue
-  var error: String?
+  var error: KitString?
   var status: WorkStatus
   /// The tile's work (`status:` on a row without a field).
   var tileStatus: WorkStatus = .idle
-  var value: String?
+  var value: KitString?
   var isStacked = false
   var titleAccessory: AnyView?
   var detailView: AnyView?
@@ -172,7 +192,7 @@ public struct FormRow<Control: View, Field: View>: View {
   @Environment(\.kitFormHelpWhileEditing) private var helpWhileEditing
 
   init(
-    title: String, help: String?, systemImage: String?, hue: Hue, error: String?, status: WorkStatus,
+    title: KitString, help: KitString?, systemImage: String?, hue: Hue, error: KitString?, status: WorkStatus,
     @ViewBuilder control: () -> Control, @ViewBuilder field: () -> Field
   ) {
     self.title = title
@@ -354,14 +374,26 @@ extension View {
 
 extension FormRow where Field == EmptyView {
   /// A row with its control at the end (a switch, a pop-up, a button); `status` makes the tile the live icon
-  /// carrying it.
+  /// carrying it. Its texts are keys (literals), looked up in the app's strings.
   public init(
-    _ title: String, help: String? = nil, systemImage: String, hue: Hue = .accent, error: String? = nil,
+    _ title: LocalizedStringKey, help: LocalizedStringKey? = nil, systemImage: String, hue: Hue = .accent,
+    error: LocalizedStringKey? = nil, status: WorkStatus = .idle, @ViewBuilder control: () -> Control
+  ) {
+    self.init(
+      title: KitString(title), help: KitString(help), systemImage: systemImage, hue: hue, error: KitString(error),
+      status: .idle, control: control, field: { EmptyView() })
+    tileStatus = status
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, help: String? = nil, systemImage: String, hue: Hue = .accent, error: String? = nil,
     status: WorkStatus = .idle, @ViewBuilder control: () -> Control
   ) {
     self.init(
-      title: title, help: help, systemImage: systemImage, hue: hue, error: error, status: .idle, control: control,
-      field: { EmptyView() })
+      title: KitString(verbatim: String(title)), help: KitString(verbatim: help), systemImage: systemImage, hue: hue,
+      error: KitString(verbatim: error), status: .idle, control: control, field: { EmptyView() })
     tileStatus = status
   }
 
@@ -372,10 +404,32 @@ extension FormRow where Field == EmptyView {
   /// FormRow("Size", value: "\(Int(size)) pt") { KitSlider("Size", value: $size, in: 12...48, step: 1) }
   /// FormRow("Width", stacked: { KitSegmented(selection: $width, options: widths).kitSegmentedStyle(.wide) })
   /// ```
+  ///
+  /// Its texts are keys (literals), looked up in the app's strings.
+  public init(
+    _ title: LocalizedStringKey, value: LocalizedStringKey? = nil, help: LocalizedStringKey? = nil,
+    systemImage: String? = nil, hue: Hue = .accent, error: LocalizedStringKey? = nil,
+    @ViewBuilder stacked control: () -> Control
+  ) {
+    self.init(
+      title: KitString(title), value: KitString(value), help: KitString(help), systemImage: systemImage, hue: hue,
+      error: KitString(error), stacked: control)
+  }
+
+  /// The same with strings shown as they are.
   @_disfavoredOverload
   public init(
-    _ title: String, value: String? = nil, help: String? = nil, systemImage: String? = nil, hue: Hue = .accent,
-    error: String? = nil, @ViewBuilder stacked control: () -> Control
+    _ title: some StringProtocol, value: String? = nil, help: String? = nil, systemImage: String? = nil,
+    hue: Hue = .accent, error: String? = nil, @ViewBuilder stacked control: () -> Control
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), value: KitString(verbatim: value), help: KitString(verbatim: help),
+      systemImage: systemImage, hue: hue, error: KitString(verbatim: error), stacked: control)
+  }
+
+  init(
+    title: KitString, value: KitString?, help: KitString?, systemImage: String?, hue: Hue, error: KitString?,
+    @ViewBuilder stacked control: () -> Control
   ) {
     self.init(
       title: title, help: help, systemImage: systemImage, hue: hue, error: error, status: .idle, control: control,
@@ -387,40 +441,75 @@ extension FormRow where Field == EmptyView {
 
 extension FormRow where Control == EmptyView, Field == EmptyView {
   /// A row that only reads: the label and its value or help ("Status · Synced 2 min ago"); `status` makes the tile
-  /// the live icon carrying it.
+  /// the live icon carrying it. Its texts are keys (literals), looked up in the app's strings.
   public init(
-    _ title: String, help: String? = nil, systemImage: String, hue: Hue = .accent, error: String? = nil,
+    _ title: LocalizedStringKey, help: LocalizedStringKey? = nil, systemImage: String, hue: Hue = .accent,
+    error: LocalizedStringKey? = nil, status: WorkStatus = .idle
+  ) {
+    self.init(
+      title: KitString(title), help: KitString(help), systemImage: systemImage, hue: hue, error: KitString(error),
+      status: .idle, control: { EmptyView() }, field: { EmptyView() })
+    tileStatus = status
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, help: String? = nil, systemImage: String, hue: Hue = .accent, error: String? = nil,
     status: WorkStatus = .idle
   ) {
     self.init(
-      title: title, help: help, systemImage: systemImage, hue: hue, error: error, status: .idle,
-      control: { EmptyView() }, field: { EmptyView() })
+      title: KitString(verbatim: String(title)), help: KitString(verbatim: help), systemImage: systemImage, hue: hue,
+      error: KitString(verbatim: error), status: .idle, control: { EmptyView() }, field: { EmptyView() })
     tileStatus = status
   }
 }
 
 extension FormRow {
   /// A row with both a text field opening under it and a control at its end (an address and its Connect button);
-  /// `status` puts the live icon at the field's end.
+  /// `status` puts the live icon at the field's end. Its texts are keys (literals), looked up in the app's strings.
   public init(
-    _ title: String, help: String? = nil, systemImage: String, hue: Hue = .accent, error: String? = nil,
+    _ title: LocalizedStringKey, help: LocalizedStringKey? = nil, systemImage: String, hue: Hue = .accent,
+    error: LocalizedStringKey? = nil, status: WorkStatus = .idle, field: Field, @ViewBuilder control: () -> Control
+  ) {
+    self.init(
+      title: KitString(title), help: KitString(help), systemImage: systemImage, hue: hue, error: KitString(error),
+      status: status, control: control, field: { field })
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, help: String? = nil, systemImage: String, hue: Hue = .accent, error: String? = nil,
     status: WorkStatus = .idle, field: Field, @ViewBuilder control: () -> Control
   ) {
     self.init(
-      title: title, help: help, systemImage: systemImage, hue: hue, error: error, status: status,
-      control: control, field: { field })
+      title: KitString(verbatim: String(title)), help: KitString(verbatim: help), systemImage: systemImage, hue: hue,
+      error: KitString(verbatim: error), status: status, control: control, field: { field })
   }
 }
 
 extension FormRow where Control == EmptyView {
-  /// A row whose text field opens under it as a full-width filled line; `status` puts the live icon at its end.
+  /// A row whose text field opens under it as a full-width filled line; `status` puts the live icon at its end. Its
+  /// texts are keys (literals), looked up in the app's strings.
   public init(
-    _ title: String, help: String? = nil, systemImage: String, hue: Hue = .accent, error: String? = nil,
+    _ title: LocalizedStringKey, help: LocalizedStringKey? = nil, systemImage: String, hue: Hue = .accent,
+    error: LocalizedStringKey? = nil, status: WorkStatus = .idle, field: Field
+  ) {
+    self.init(
+      title: KitString(title), help: KitString(help), systemImage: systemImage, hue: hue, error: KitString(error),
+      status: status, control: { EmptyView() }, field: { field })
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, help: String? = nil, systemImage: String, hue: Hue = .accent, error: String? = nil,
     status: WorkStatus = .idle, field: Field
   ) {
     self.init(
-      title: title, help: help, systemImage: systemImage, hue: hue, error: error, status: status,
-      control: { EmptyView() }, field: { field })
+      title: KitString(verbatim: String(title)), help: KitString(verbatim: help), systemImage: systemImage, hue: hue,
+      error: KitString(verbatim: error), status: status, control: { EmptyView() }, field: { field })
   }
 }
 

@@ -127,11 +127,22 @@ struct CtlChoiceCardBody<Content: View>: View {
 /// }
 /// ```
 public struct ChoiceCardLabel<Icon: View>: View {
-  var title: String
-  var subtitle: String?
+  var title: KitString
+  var subtitle: KitString?
   @ViewBuilder var icon: Icon
 
-  public init(_ title: String, subtitle: String? = nil, @ViewBuilder icon: () -> Icon) {
+  /// A label titled by keys (literals), looked up in the app's strings.
+  public init(_ title: LocalizedStringKey, subtitle: LocalizedStringKey? = nil, @ViewBuilder icon: () -> Icon) {
+    self.init(title: KitString(title), subtitle: KitString(subtitle), icon: icon)
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(_ title: some StringProtocol, subtitle: String? = nil, @ViewBuilder icon: () -> Icon) {
+    self.init(title: KitString(verbatim: String(title)), subtitle: KitString(verbatim: subtitle), icon: icon)
+  }
+
+  init(title: KitString, subtitle: KitString?, @ViewBuilder icon: () -> Icon) {
     self.title = title
     self.subtitle = subtitle
     self.icon = icon()
@@ -153,19 +164,56 @@ public struct ChoiceCardLabel<Icon: View>: View {
 }
 
 extension ChoiceCard where Content == ChoiceCardLabel<Tile<Image>> {
-  /// A choice card with an SF Symbol tile, a title and a subtitle.
-  public init(_ title: String, subtitle: String? = nil, systemImage: String, hue: Hue = .accent, isOn: Binding<Bool>) {
+  /// A choice card with an SF Symbol tile, a title and a subtitle, titled by keys (literals), looked up in the app's
+  /// strings.
+  public init(
+    _ title: LocalizedStringKey, subtitle: LocalizedStringKey? = nil, systemImage: String, hue: Hue = .accent,
+    isOn: Binding<Bool>
+  ) {
+    self.init(title: KitString(title), subtitle: KitString(subtitle), systemImage: systemImage, hue: hue, isOn: isOn)
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, subtitle: String? = nil, systemImage: String, hue: Hue = .accent,
+    isOn: Binding<Bool>
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), subtitle: KitString(verbatim: subtitle), systemImage: systemImage,
+      hue: hue, isOn: isOn)
+  }
+
+  init(title: KitString, subtitle: KitString?, systemImage: String, hue: Hue, isOn: Binding<Bool>) {
     self.init(isOn: isOn) {
-      ChoiceCardLabel(title, subtitle: subtitle) { Tile(systemImage: systemImage, hue: hue, size: 26) }
+      ChoiceCardLabel(title: title, subtitle: subtitle) { Tile(systemImage: systemImage, hue: hue, size: 26) }
     }
   }
 }
 
 extension ChoiceCard where Content == ChoiceCardLabel<Tile<Text>> {
-  /// A choice card with a letters tile ("PG"), a title and a subtitle.
-  public init(_ title: String, subtitle: String? = nil, letters: String, hue: Hue = .accent, isOn: Binding<Bool>) {
+  /// A choice card with a letters tile ("PG"), a title and a subtitle, titled by keys (literals), looked up in the
+  /// app's strings. The letters are shown as they are.
+  public init(
+    _ title: LocalizedStringKey, subtitle: LocalizedStringKey? = nil, letters: String, hue: Hue = .accent,
+    isOn: Binding<Bool>
+  ) {
+    self.init(title: KitString(title), subtitle: KitString(subtitle), letters: letters, hue: hue, isOn: isOn)
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, subtitle: String? = nil, letters: String, hue: Hue = .accent, isOn: Binding<Bool>
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), subtitle: KitString(verbatim: subtitle), letters: letters, hue: hue,
+      isOn: isOn)
+  }
+
+  init(title: KitString, subtitle: KitString?, letters: String, hue: Hue, isOn: Binding<Bool>) {
     self.init(isOn: isOn) {
-      ChoiceCardLabel(title, subtitle: subtitle) { Tile(letters: letters, hue: hue, size: 26) }
+      ChoiceCardLabel(title: title, subtitle: subtitle) { Tile(letters: letters, hue: hue, size: 26) }
     }
   }
 }

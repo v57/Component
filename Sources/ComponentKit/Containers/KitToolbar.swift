@@ -223,12 +223,26 @@ public struct KitToolbar<Title: View>: View {
 }
 
 extension KitToolbar where Title == KitTitle {
-  /// A toolbar named by the kit's rich title (icon tile, name, status line).
+  /// A toolbar named by the kit's rich title (icon tile, name, status line); the title is a key (a literal), looked
+  /// up in the app's strings.
   public init(
-    _ title: String, meta: [String] = [], systemImage: String, hue: Hue = .accent, status: WorkStatus = .idle,
-    @ToolbarSlotBuilder tools: () -> [ToolbarSlot]
+    _ title: LocalizedStringKey, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, @ToolbarSlotBuilder tools: () -> [ToolbarSlot]
   ) {
-    self.init(title: { KitTitle(title, meta: meta, systemImage: systemImage, hue: hue, status: status) }, tools: tools)
+    self.init(
+      title: { KitTitle(title: KitString(title), meta: meta, systemImage: systemImage, hue: hue, status: status) },
+      tools: tools)
+  }
+
+  /// The same with the title a string shown as it is.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, @ToolbarSlotBuilder tools: () -> [ToolbarSlot]
+  ) {
+    let title = KitString(verbatim: String(title))
+    self.init(
+      title: { KitTitle(title: title, meta: meta, systemImage: systemImage, hue: hue, status: status) }, tools: tools)
   }
 }
 
@@ -247,10 +261,22 @@ extension View {
   ///   }
   ///   .kitSidebarToggle(columnVisibility: $columns)
   /// ```
+  ///
+  /// The window's title is a key (a literal), looked up in the app's strings.
   public func kitToolbar<Title: View>(
-    _ windowTitle: String, @ViewBuilder title: () -> Title, @ToolbarSlotBuilder tools: () -> [ToolbarSlot]
+    _ windowTitle: LocalizedStringKey, @ViewBuilder title: () -> Title, @ToolbarSlotBuilder tools: () -> [ToolbarSlot]
   ) -> some View {
-    modifier(ContKitToolbar(windowTitle: windowTitle, bar: KitToolbar(title: title, tools: tools)))
+    modifier(ContKitToolbar(windowTitle: KitString(windowTitle), bar: KitToolbar(title: title, tools: tools)))
+  }
+
+  /// The same with the window's title a string shown as it is.
+  @_disfavoredOverload
+  public func kitToolbar<Title: View>(
+    _ windowTitle: some StringProtocol, @ViewBuilder title: () -> Title, @ToolbarSlotBuilder tools: () -> [ToolbarSlot]
+  ) -> some View {
+    modifier(
+      ContKitToolbar(
+        windowTitle: KitString(verbatim: String(windowTitle)), bar: KitToolbar(title: title, tools: tools)))
   }
 
   /// The kit's toolbar named by the rich title (icon tile, name, status line).
@@ -259,11 +285,32 @@ extension View {
   /// HistoryView()
   ///   .kitToolbar("History", meta: ["main", "2 to push"], systemImage: "clock", status: fetch) { … }
   /// ```
+  ///
+  /// The title is a key (a literal), looked up in the app's strings; the meta parts are shown as they are.
   public func kitToolbar(
-    _ title: String, meta: [String] = [], systemImage: String, hue: Hue = .accent, status: WorkStatus = .idle,
+    _ title: LocalizedStringKey, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, @ToolbarSlotBuilder tools: () -> [ToolbarSlot]
+  ) -> some View {
+    kitToolbar(KitString(title), meta: meta, systemImage: systemImage, hue: hue, status: status, tools: tools)
+  }
+
+  /// The same with the title a string shown as it is.
+  @_disfavoredOverload
+  public func kitToolbar(
+    _ title: some StringProtocol, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, @ToolbarSlotBuilder tools: () -> [ToolbarSlot]
+  ) -> some View {
+    kitToolbar(
+      KitString(verbatim: String(title)), meta: meta, systemImage: systemImage, hue: hue, status: status, tools: tools)
+  }
+
+  func kitToolbar(
+    _ title: KitString, meta: [String], systemImage: String, hue: Hue, status: WorkStatus,
     @ToolbarSlotBuilder tools: () -> [ToolbarSlot]
   ) -> some View {
-    kitToolbar(title, title: { KitTitle(title, meta: meta, systemImage: systemImage, hue: hue, status: status) }, tools: tools)
+    let bar = KitToolbar(
+      title: { KitTitle(title: title, meta: meta, systemImage: systemImage, hue: hue, status: status) }, tools: tools)
+    return modifier(ContKitToolbar(windowTitle: title, bar: bar))
   }
 
   /// The kit's toolbar with `navigation` before the title, at the bar's spacing: back and forward, or tools that act
@@ -280,11 +327,27 @@ extension View {
   ///     KitTitle(file.name, meta: [file.folder], systemImage: "swift")
   ///   } tools: { … }
   /// ```
+  ///
+  /// The window's title is a key (a literal), looked up in the app's strings.
   public func kitToolbar<Navigation: View, Title: View>(
-    _ windowTitle: String, @ViewBuilder navigation: () -> Navigation, @ViewBuilder title: () -> Title,
+    _ windowTitle: LocalizedStringKey, @ViewBuilder navigation: () -> Navigation, @ViewBuilder title: () -> Title,
     @ToolbarSlotBuilder tools: () -> [ToolbarSlot]
   ) -> some View {
-    modifier(ContKitToolbar(windowTitle: windowTitle, bar: KitToolbar(navigation: navigation, title: title, tools: tools)))
+    modifier(
+      ContKitToolbar(
+        windowTitle: KitString(windowTitle), bar: KitToolbar(navigation: navigation, title: title, tools: tools)))
+  }
+
+  /// The same with the window's title a string shown as it is.
+  @_disfavoredOverload
+  public func kitToolbar<Navigation: View, Title: View>(
+    _ windowTitle: some StringProtocol, @ViewBuilder navigation: () -> Navigation, @ViewBuilder title: () -> Title,
+    @ToolbarSlotBuilder tools: () -> [ToolbarSlot]
+  ) -> some View {
+    modifier(
+      ContKitToolbar(
+        windowTitle: KitString(verbatim: String(windowTitle)),
+        bar: KitToolbar(navigation: navigation, title: title, tools: tools)))
   }
 
   /// The kit's toolbar only while `isPresented`: a column whose pages bring their own toolbar for some content (a
@@ -295,13 +358,27 @@ extension View {
   /// Detail()
   ///   .kitToolbar(page.title, isPresented: !showsDatabase, title: { page.titleView }) { pageTools }
   /// ```
+  ///
+  /// The window's title is a key (a literal), looked up in the app's strings.
   public func kitToolbar<Title: View>(
-    _ windowTitle: String, isPresented: Bool, @ViewBuilder title: () -> Title,
+    _ windowTitle: LocalizedStringKey, isPresented: Bool, @ViewBuilder title: () -> Title,
     @ToolbarSlotBuilder tools: () -> [ToolbarSlot]
   ) -> some View {
     modifier(
       ContOptionalKitToolbar(
-        isPresented: isPresented, windowTitle: windowTitle, bar: KitToolbar(title: title, tools: tools)))
+        isPresented: isPresented, windowTitle: KitString(windowTitle), bar: KitToolbar(title: title, tools: tools)))
+  }
+
+  /// The same with the window's title a string shown as it is.
+  @_disfavoredOverload
+  public func kitToolbar<Title: View>(
+    _ windowTitle: some StringProtocol, isPresented: Bool, @ViewBuilder title: () -> Title,
+    @ToolbarSlotBuilder tools: () -> [ToolbarSlot]
+  ) -> some View {
+    modifier(
+      ContOptionalKitToolbar(
+        isPresented: isPresented, windowTitle: KitString(verbatim: String(windowTitle)),
+        bar: KitToolbar(title: title, tools: tools)))
   }
 
   /// The kit's toolbar named by the rich title, only while `isPresented`.
@@ -309,20 +386,42 @@ extension View {
   /// ```swift
   /// Detail().kitToolbar("History", isPresented: !isEmbedded, systemImage: "clock") { … }
   /// ```
+  ///
+  /// The title is a key (a literal), looked up in the app's strings; the meta parts are shown as they are.
   public func kitToolbar(
-    _ title: String, isPresented: Bool, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    _ title: LocalizedStringKey, isPresented: Bool, meta: [String] = [], systemImage: String, hue: Hue = .accent,
     status: WorkStatus = .idle, @ToolbarSlotBuilder tools: () -> [ToolbarSlot]
   ) -> some View {
     kitToolbar(
-      title, isPresented: isPresented,
-      title: { KitTitle(title, meta: meta, systemImage: systemImage, hue: hue, status: status) }, tools: tools)
+      KitString(title), isPresented: isPresented, meta: meta, systemImage: systemImage, hue: hue, status: status,
+      tools: tools)
+  }
+
+  /// The same with the title a string shown as it is.
+  @_disfavoredOverload
+  public func kitToolbar(
+    _ title: some StringProtocol, isPresented: Bool, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, @ToolbarSlotBuilder tools: () -> [ToolbarSlot]
+  ) -> some View {
+    kitToolbar(
+      KitString(verbatim: String(title)), isPresented: isPresented, meta: meta, systemImage: systemImage, hue: hue,
+      status: status, tools: tools)
+  }
+
+  func kitToolbar(
+    _ title: KitString, isPresented: Bool, meta: [String], systemImage: String, hue: Hue, status: WorkStatus,
+    @ToolbarSlotBuilder tools: () -> [ToolbarSlot]
+  ) -> some View {
+    let bar = KitToolbar(
+      title: { KitTitle(title: title, meta: meta, systemImage: systemImage, hue: hue, status: status) }, tools: tools)
+    return modifier(ContOptionalKitToolbar(isPresented: isPresented, windowTitle: title, bar: bar))
   }
 }
 
 /// `kitToolbar(isPresented:)`: the bar while on, nothing of it while off.
 private struct ContOptionalKitToolbar<Title: View>: ViewModifier {
   let isPresented: Bool
-  let windowTitle: String
+  let windowTitle: KitString
   let bar: KitToolbar<Title>
 
   func body(content: Content) -> some View {
@@ -337,14 +436,14 @@ private struct ContOptionalKitToolbar<Title: View>: ViewModifier {
 /// Places the bar: a top bar the content scrolls under, over the title bar on the Mac and in place
 /// of the navigation bar on iPhone and iPad.
 private struct ContKitToolbar<Title: View>: ViewModifier {
-  let windowTitle: String
+  let windowTitle: KitString
   let bar: KitToolbar<Title>
 
   func body(content: Content) -> some View {
     content
       .modifier(ContTopBar { bar })
       .preference(key: ContKitToolbarKey.self, value: true)
-      .navigationTitle(windowTitle)
+      .navigationTitle(Text(windowTitle))
       .modifier(ContSystemToolbarAway())
   }
 }

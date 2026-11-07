@@ -24,27 +24,50 @@ import SwiftUI
 ///   .kitPickerMaxWidth(240)
 /// ```
 public struct KitPicker<Value: Hashable>: View {
-  var title: String
+  var title: KitString
   @Binding var selection: Value
   var segments: [KitSegment<Value>]
   /// The options in titled groups (the menu's sections), when given so.
-  var sections: [(title: String, segments: [KitSegment<Value>])] = []
+  var sections: [(title: KitString, segments: [KitSegment<Value>])] = []
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.isEnabled) private var isEnabled
   @Environment(\.ctlPickerMaxWidth) private var maxWidth
   @FocusState private var isFocused: Bool
   @State private var isOpen = false
 
-  /// A picker over `segments` (titles, values, optional glyphs; disabled ones can't be picked).
-  public init(_ title: String = "", selection: Binding<Value>, segments: [KitSegment<Value>]) {
+  /// A picker over `segments` (titles, values, optional glyphs; disabled ones can't be picked), titled by a key (a
+  /// literal), looked up in the app's strings.
+  public init(_ title: LocalizedStringKey? = nil, selection: Binding<Value>, segments: [KitSegment<Value>]) {
+    self.init(title: KitString(title) ?? .empty, selection: selection, segments: segments)
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
+  public init(_ title: some StringProtocol, selection: Binding<Value>, segments: [KitSegment<Value>]) {
+    self.init(title: KitString(verbatim: String(title)), selection: selection, segments: segments)
+  }
+
+  init(title: KitString, selection: Binding<Value>, segments: [KitSegment<Value>]) {
     self.title = title
     _selection = selection
     self.segments = segments
   }
 
-  /// A picker over titled values.
-  public init(_ title: String = "", selection: Binding<Value>, options: [(String, Value)]) {
-    self.init(title, selection: selection, segments: options.map { KitSegment($0.0, value: $0.1) })
+  /// A picker over values titled by keys (literals), looked up in the app's strings.
+  public init(_ title: LocalizedStringKey? = nil, selection: Binding<Value>, options: [(LocalizedStringKey, Value)]) {
+    self.init(
+      title: KitString(title) ?? .empty, selection: selection,
+      segments: options.map { KitSegment($0.0, value: $0.1) })
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    _ title: String? = nil, selection: Binding<Value>, options: [(some StringProtocol, Value)]
+  ) {
+    self.init(
+      title: KitString(verbatim: title) ?? .empty, selection: selection,
+      segments: options.map { KitSegment(label: KitString(verbatim: String($0.0)), value: $0.1) })
   }
 
   /// A picker whose options come in titled groups, each a section of its menu (a provider's presets by kind).
@@ -55,9 +78,22 @@ public struct KitPicker<Value: Hashable>: View {
   ///   ("Cloud", [KitSegment("Anthropic", value: .anthropic), KitSegment("OpenAI", value: .openAI)]),
   /// ])
   /// ```
-  public init(_ title: String = "", selection: Binding<Value>, sections: [(String, [KitSegment<Value>])]) {
-    self.init(title, selection: selection, segments: sections.flatMap(\.1))
-    self.sections = sections.map { (title: $0.0, segments: $0.1) }
+  ///
+  /// The title and the sections' titles are keys (literals), looked up in the app's strings.
+  public init(
+    _ title: LocalizedStringKey? = nil, selection: Binding<Value>, sections: [(LocalizedStringKey, [KitSegment<Value>])]
+  ) {
+    self.init(title: KitString(title) ?? .empty, selection: selection, segments: sections.flatMap(\.1))
+    self.sections = sections.map { (title: KitString($0.0), segments: $0.1) }
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    _ title: String? = nil, selection: Binding<Value>, sections: [(some StringProtocol, [KitSegment<Value>])]
+  ) {
+    self.init(title: KitString(verbatim: title) ?? .empty, selection: selection, segments: sections.flatMap(\.1))
+    self.sections = sections.map { (title: KitString(verbatim: String($0.0)), segments: $0.1) }
   }
 
   private var current: KitSegment<Value>? { segments.first { $0.value == selection } }
@@ -71,7 +107,7 @@ public struct KitPicker<Value: Hashable>: View {
           .imageScale(.small)
           .foregroundStyle(.kitSecondary)
       }
-      Text(current?.title ?? "")
+      Text(current?.label ?? .empty)
         .kitFont(.body)
         .foregroundStyle(.kitLabel)
         .lineLimit(1)
@@ -97,7 +133,7 @@ public struct KitPicker<Value: Hashable>: View {
       } else {
         ForEach(sections.indices, id: \.self) { index in
           if index > 0 { Divider() }
-          KitMenuSection(sections[index].title) {
+          KitMenuSection(title: sections[index].title, value: nil) {
             KitMenuOptions(selection: $selection, segments: sections[index].segments)
           }
         }
@@ -108,23 +144,40 @@ public struct KitPicker<Value: Hashable>: View {
     .focusEffectDisabled()
     .ctlFieldRing(isFocused, cornerRadius: metrics.radius)
     .accessibilityLabel(title)
-    .accessibilityValue(current?.title ?? "")
+    .accessibilityValue(Text(current?.label ?? .empty))
   }
 }
 
 extension KitPicker where Value: KitOption {
-  /// A picker over `options`, titled (and given glyphs) by the options themselves.
-  public init(_ title: String = "", selection: Binding<Value>, options: [Value]) {
+  /// A picker over `options`, titled (and given glyphs) by the options themselves; its own title is a key (a
+  /// literal), looked up in the app's strings.
+  public init(_ title: LocalizedStringKey? = nil, selection: Binding<Value>, options: [Value]) {
+    self.init(title: KitString(title) ?? .empty, selection: selection, options: options)
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
+  public init(_ title: some StringProtocol, selection: Binding<Value>, options: [Value]) {
+    self.init(title: KitString(verbatim: String(title)), selection: selection, options: options)
+  }
+
+  init(title: KitString, selection: Binding<Value>, options: [Value]) {
     self.init(
-      title, selection: selection,
+      title: title, selection: selection,
       segments: options.map { KitSegment($0.title, value: $0, systemImage: $0.systemImage) })
   }
 }
 
 extension KitPicker where Value: KitOption & CaseIterable {
-  /// A picker over every case of a `KitOption` enum.
-  public init(_ title: String = "", selection: Binding<Value>) {
-    self.init(title, selection: selection, options: Array(Value.allCases))
+  /// A picker over every case of a `KitOption` enum, titled by a key (a literal), looked up in the app's strings.
+  public init(_ title: LocalizedStringKey? = nil, selection: Binding<Value>) {
+    self.init(title: KitString(title) ?? .empty, selection: selection, options: Array(Value.allCases))
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
+  public init(_ title: some StringProtocol, selection: Binding<Value>) {
+    self.init(title: KitString(verbatim: String(title)), selection: selection, options: Array(Value.allCases))
   }
 }
 
@@ -219,7 +272,7 @@ struct KitPickerMetrics {
 /// In a system toolbar (`.toolbar`), put it in a `KitToolbarItem` with a kit view around it (`ToolGroup`): SwiftUI
 /// turns a bare `Button` there into a native bar button, which drops the kit menu's anchor.
 public struct KitMenuButton<Content: View>: View {
-  var title: String
+  var title: KitString
   var systemImage: String?
   var style: KitMenuButtonStyle
   var content: Content
@@ -228,9 +281,24 @@ public struct KitMenuButton<Content: View>: View {
   @Environment(\.isEnabled) private var isEnabled
   @State private var isOpen = false
 
+  /// A menu button titled by a key (a literal), looked up in the app's strings.
   public init(
-    _ title: String, systemImage: String? = nil, style: KitMenuButtonStyle = .pill, @ViewBuilder content: () -> Content
+    _ title: LocalizedStringKey, systemImage: String? = nil, style: KitMenuButtonStyle = .pill,
+    @ViewBuilder content: () -> Content
   ) {
+    self.init(title: KitString(title), systemImage: systemImage, style: style, content: content)
+  }
+
+  /// The same with a title shown as it is (a scheme's or a host's name).
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, systemImage: String? = nil, style: KitMenuButtonStyle = .pill,
+    @ViewBuilder content: () -> Content
+  ) {
+    self.init(title: KitString(verbatim: String(title)), systemImage: systemImage, style: style, content: content)
+  }
+
+  init(title: KitString, systemImage: String?, style: KitMenuButtonStyle, @ViewBuilder content: () -> Content) {
     self.title = title
     self.systemImage = systemImage
     self.style = style
@@ -248,7 +316,7 @@ public struct KitMenuButton<Content: View>: View {
   private var button: some View {
     Group {
       if let systemImage {
-        Button(title, systemImage: systemImage) { isOpen.toggle() }
+        Button { isOpen.toggle() } label: { Label(title, systemImage: systemImage) }
       } else {
         Button(title) { isOpen.toggle() }
       }
@@ -312,7 +380,7 @@ public enum KitMenuButtonStyle: Hashable, Sendable {
 /// }
 /// ```
 public struct KitSplitButton<Menu: View>: View {
-  var title: String
+  var title: KitString
   var systemImage: String?
   var action: () -> Void
   var menu: Menu
@@ -320,9 +388,24 @@ public struct KitSplitButton<Menu: View>: View {
   @Environment(\.kitIdiom) private var idiom
   @State private var isOpen = false
 
+  /// A split button titled by a key (a literal), looked up in the app's strings.
   public init(
-    _ title: String, systemImage: String? = nil, action: @escaping () -> Void, @ViewBuilder menu: () -> Menu
+    _ title: LocalizedStringKey, systemImage: String? = nil, action: @escaping () -> Void,
+    @ViewBuilder menu: () -> Menu
   ) {
+    self.init(title: KitString(title), systemImage: systemImage, action: action, menu: menu)
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, systemImage: String? = nil, action: @escaping () -> Void,
+    @ViewBuilder menu: () -> Menu
+  ) {
+    self.init(title: KitString(verbatim: String(title)), systemImage: systemImage, action: action, menu: menu)
+  }
+
+  init(title: KitString, systemImage: String?, action: @escaping () -> Void, @ViewBuilder menu: () -> Menu) {
     self.title = title
     self.systemImage = systemImage
     self.action = action
@@ -339,9 +422,9 @@ public struct KitSplitButton<Menu: View>: View {
 
   @ViewBuilder private var buttons: some View {
     if let systemImage {
-      Button(title, systemImage: systemImage, action: action)
+      Button { action() } label: { Label(title, systemImage: systemImage) }
     } else {
-      Button(title, action: action)
+      Button(title) { action() }
     }
     Button {
       isOpen.toggle()
@@ -351,7 +434,7 @@ public struct KitSplitButton<Menu: View>: View {
         .foregroundStyle(.kitSecondary)
         .frame(width: idiom.size(10, touch: 14))
     }
-    .accessibilityLabel("\(title) Options")
+    .accessibilityLabel(Text("\(Text(title)) Options"))
     .kitToolOn(isOpen)
     .kitMenu(isPresented: $isOpen) { menu }
   }

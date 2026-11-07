@@ -73,14 +73,37 @@ public struct GroupRow<Label: View, Trailing: View>: View {
 }
 
 extension GroupRow {
-  /// A row with a title, a line of help under it, and the control or value at the end.
-  public init(_ title: String, help: String? = nil, action: (() -> Void)? = nil, @ViewBuilder trailing: () -> Trailing)
-  where Label == ContGroupRowTitle {
+  /// A row with a title, a line of help under it, and the control or value at the end. The title and help are keys
+  /// (literals), looked up in the app's strings.
+  public init(
+    _ title: LocalizedStringKey, help: LocalizedStringKey? = nil, action: (() -> Void)? = nil,
+    @ViewBuilder trailing: () -> Trailing
+  ) where Label == ContGroupRowTitle {
+    self.init(
+      action: action, label: { ContGroupRowTitle(title: KitString(title), help: KitString(help)) }, trailing: trailing)
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, help: String? = nil, action: (() -> Void)? = nil,
+    @ViewBuilder trailing: () -> Trailing
+  ) where Label == ContGroupRowTitle {
+    let title = KitString(verbatim: String(title))
+    let help = KitString(verbatim: help)
     self.init(action: action, label: { ContGroupRowTitle(title: title, help: help) }, trailing: trailing)
   }
 
-  /// A row with only a title: a link in a list.
-  public init(_ title: String, help: String? = nil, action: (() -> Void)? = nil)
+  /// A row with only a title: a link in a list. The title and help are keys (literals), looked up in the app's
+  /// strings.
+  public init(_ title: LocalizedStringKey, help: LocalizedStringKey? = nil, action: (() -> Void)? = nil)
+  where Label == ContGroupRowTitle, Trailing == EmptyView {
+    self.init(title, help: help, action: action) { EmptyView() }
+  }
+
+  /// The same with strings shown as they are.
+  @_disfavoredOverload
+  public init(_ title: some StringProtocol, help: String? = nil, action: (() -> Void)? = nil)
   where Label == ContGroupRowTitle, Trailing == EmptyView {
     self.init(title, help: help, action: action) { EmptyView() }
   }
@@ -88,8 +111,8 @@ extension GroupRow {
 
 /// A `GroupRow`'s title and help.
 public struct ContGroupRowTitle: View {
-  let title: String
-  let help: String?
+  let title: KitString
+  let help: KitString?
 
   public var body: some View {
     VStack(alignment: .leading, spacing: 2) {

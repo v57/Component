@@ -33,7 +33,7 @@ extension View {
 /// KitSlider("Scale", value: $scale, in: 0.5...2, step: 0.1) { "\(Int($0 * 100))%" }
 /// ```
 public struct KitSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloatingPoint {
-  var title: String
+  var title: KitString
   @Binding var value: V
   var range: ClosedRange<V>
   var step: V.Stride?
@@ -47,11 +47,33 @@ public struct KitSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloa
   @State private var isDragging = false
 
   /// A slider over `range`. `valueBubble` `.automatic` shows the value while dragging, `.visible` always,
-  /// `.hidden` never; `format` writes it (a number by default).
+  /// `.hidden` never; `format` writes it (a number by default). The title is a key (a literal), looked up in the app's
+  /// strings.
   public init(
-    _ title: String = "", value: Binding<V>, in range: ClosedRange<V> = 0...1, step: V.Stride? = nil,
+    _ title: LocalizedStringKey? = nil, value: Binding<V>, in range: ClosedRange<V> = 0...1, step: V.Stride? = nil,
     valueBubble: Visibility = .automatic, format: ((V) -> String)? = nil,
     onEditingChanged: @escaping (Bool) -> Void = { _ in }
+  ) {
+    self.init(
+      title: KitString(title) ?? .empty, value: value, in: range, step: step, valueBubble: valueBubble,
+      format: format, onEditingChanged: onEditingChanged)
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, value: Binding<V>, in range: ClosedRange<V> = 0...1, step: V.Stride? = nil,
+    valueBubble: Visibility = .automatic, format: ((V) -> String)? = nil,
+    onEditingChanged: @escaping (Bool) -> Void = { _ in }
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), value: value, in: range, step: step, valueBubble: valueBubble,
+      format: format, onEditingChanged: onEditingChanged)
+  }
+
+  init(
+    title: KitString, value: Binding<V>, in range: ClosedRange<V>, step: V.Stride?, valueBubble: Visibility,
+    format: ((V) -> String)?, onEditingChanged: @escaping (Bool) -> Void
   ) {
     self.title = title
     _value = value

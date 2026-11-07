@@ -11,18 +11,38 @@ import SwiftUI
 /// ```
 public struct KitSearchField<Scope: KitOption>: View {
   @Binding var text: String
-  var prompt: String
+  var prompt: KitString
   var scope: Binding<Scope>?
   var scopes: [Scope]
   var status: WorkStatus
-  var count: String?
+  var count: KitString?
   @FocusState private var isFocused: Bool
   @Environment(\.kitIdiom) private var idiom
 
-  /// A search with a scope pop-up over `scopes`.
+  /// A search with a scope pop-up over `scopes`. The prompt and count are keys (literals), looked up in the app's
+  /// strings.
   public init(
-    text: Binding<String>, prompt: String = "Search", scope: Binding<Scope>, scopes: [Scope],
+    text: Binding<String>, prompt: LocalizedStringKey = "Search", scope: Binding<Scope>, scopes: [Scope],
+    status: WorkStatus = .idle, count: LocalizedStringKey? = nil
+  ) {
+    self.init(
+      text: text, prompt: KitString(prompt), scope: scope, scopes: scopes, status: status, count: KitString(count))
+  }
+
+  /// The same with strings shown as they are; a `nil` prompt is the kit's.
+  @_disfavoredOverload
+  public init(
+    text: Binding<String>, prompt: String? = nil, scope: Binding<Scope>, scopes: [Scope],
     status: WorkStatus = .idle, count: String? = nil
+  ) {
+    self.init(
+      text: text, prompt: KitString(verbatim: prompt) ?? KitString("Search"), scope: scope, scopes: scopes,
+      status: status, count: KitString(verbatim: count))
+  }
+
+  init(
+    text: Binding<String>, prompt: KitString, scope: Binding<Scope>?, scopes: [Scope], status: WorkStatus,
+    count: KitString?
   ) {
     _text = text
     self.prompt = prompt
@@ -55,7 +75,7 @@ public struct KitSearchField<Scope: KitOption>: View {
           text = ""
           return .handled
         }
-      if let label = count ?? (failed ? "None" : nil) {
+      if let label = count ?? (failed ? KitString("None") : nil) {
         Text(label)
           .foregroundStyle(failed ? AnyShapeStyle(Hue.red.text) : AnyShapeStyle(.kitSecondary))
           .kitFont(.caption)
@@ -106,23 +126,45 @@ public struct KitSearchField<Scope: KitOption>: View {
 extension KitSearchField where Scope: CaseIterable {
   /// A search with a scope pop-up over every case of the scope's enum.
   public init(
-    text: Binding<String>, prompt: String = "Search", scope: Binding<Scope>, status: WorkStatus = .idle,
+    text: Binding<String>, prompt: LocalizedStringKey = "Search", scope: Binding<Scope>, status: WorkStatus = .idle,
+    count: LocalizedStringKey? = nil
+  ) {
+    self.init(
+      text: text, prompt: KitString(prompt), scope: scope, scopes: Array(Scope.allCases), status: status,
+      count: KitString(count))
+  }
+
+  /// The same with strings shown as they are; a `nil` prompt is the kit's.
+  @_disfavoredOverload
+  public init(
+    text: Binding<String>, prompt: String? = nil, scope: Binding<Scope>, status: WorkStatus = .idle,
     count: String? = nil
   ) {
     self.init(
-      text: text, prompt: prompt, scope: scope, scopes: Array(Scope.allCases), status: status, count: count)
+      text: text, prompt: KitString(verbatim: prompt) ?? KitString("Search"), scope: scope,
+      scopes: Array(Scope.allCases), status: status, count: KitString(verbatim: count))
   }
 }
 
 extension KitSearchField where Scope == Never {
-  /// A search without a scope: the magnifier leads.
-  public init(text: Binding<String>, prompt: String = "Search", status: WorkStatus = .idle, count: String? = nil) {
-    _text = text
-    self.prompt = prompt
-    self.scope = nil
-    self.scopes = []
-    self.status = status
-    self.count = count
+  /// A search without a scope: the magnifier leads. The prompt and count are keys (literals).
+  public init(
+    text: Binding<String>, prompt: LocalizedStringKey = "Search", status: WorkStatus = .idle,
+    count: LocalizedStringKey? = nil
+  ) {
+    self.init(text: text, prompt: KitString(prompt), status: status, count: KitString(count))
+  }
+
+  /// The same with strings shown as they are; a `nil` prompt is the kit's.
+  @_disfavoredOverload
+  public init(text: Binding<String>, prompt: String? = nil, status: WorkStatus = .idle, count: String? = nil) {
+    self.init(
+      text: text, prompt: KitString(verbatim: prompt) ?? KitString("Search"), status: status,
+      count: KitString(verbatim: count))
+  }
+
+  init(text: Binding<String>, prompt: KitString, status: WorkStatus = .idle, count: KitString? = nil) {
+    self.init(text: text, prompt: prompt, scope: nil, scopes: [], status: status, count: count)
   }
 }
 
@@ -195,13 +237,24 @@ struct CtlSearchMetrics {
 public struct SidebarSearchButton: View {
   @Binding var text: String
   @Binding var isSearching: Bool
-  var prompt: String
+  var prompt: KitString
   @Environment(\.kitIdiom) private var idiom
   @Namespace private var namespace
   @FocusState private var isFocused: Bool
   @FocusState private var buttonFocused: Bool
 
-  public init(text: Binding<String>, isSearching: Binding<Bool>, prompt: String = "Search") {
+  /// A search button whose prompt is a key (a literal), looked up in the app's strings.
+  public init(text: Binding<String>, isSearching: Binding<Bool>, prompt: LocalizedStringKey = "Search") {
+    self.init(text: text, isSearching: isSearching, prompt: KitString(prompt))
+  }
+
+  /// The same with a prompt shown as it is.
+  @_disfavoredOverload
+  public init(text: Binding<String>, isSearching: Binding<Bool>, prompt: some StringProtocol) {
+    self.init(text: text, isSearching: isSearching, prompt: KitString(verbatim: String(prompt)))
+  }
+
+  init(text: Binding<String>, isSearching: Binding<Bool>, prompt: KitString) {
     _text = text
     _isSearching = isSearching
     self.prompt = prompt

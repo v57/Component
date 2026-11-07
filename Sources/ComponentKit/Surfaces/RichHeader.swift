@@ -88,11 +88,34 @@ extension RichHeader {
   }
 }
 
+// Each shape comes twice: a title that is a key (a literal, looked up in the app's strings) and, disfavored, a title
+// shown as it is. Meta lines are data (counts, names) and stay strings.
+
 extension RichHeader where Icon == SizedLiveIcon {
-  /// A header with an SF Symbol tile that carries `status`.
+  /// A header with an SF Symbol tile that carries `status`, titled by a key (a literal).
+  public init(
+    _ title: LocalizedStringKey, size: Size = .section, systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, @ViewBuilder meta: () -> Meta, @ViewBuilder accessory: () -> Accessory
+  ) {
+    self.init(
+      title: KitString(title), size: size, systemImage: systemImage, hue: hue, status: status, meta: meta,
+      accessory: accessory)
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
   public init(
     _ title: some StringProtocol, size: Size = .section, systemImage: String, hue: Hue = .accent,
     status: WorkStatus = .idle, @ViewBuilder meta: () -> Meta, @ViewBuilder accessory: () -> Accessory
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), size: size, systemImage: systemImage, hue: hue, status: status,
+      meta: meta, accessory: accessory)
+  }
+
+  init(
+    title: KitString, size: Size, systemImage: String, hue: Hue, status: WorkStatus, @ViewBuilder meta: () -> Meta,
+    @ViewBuilder accessory: () -> Accessory
   ) {
     self.init(
       Text(title), size: size, icon: { SizedLiveIcon(systemImage: systemImage, hue: hue, status: status, size: size) },
@@ -101,36 +124,91 @@ extension RichHeader where Icon == SizedLiveIcon {
 }
 
 extension RichHeader where Icon == SizedLiveIcon, Meta == MetaLine {
-  /// A header whose meta is a line of parts joined with " · ": `meta: ["5 repositories", "2 with changes"]`.
+  /// A header whose meta is a line of parts joined with " · ": `meta: ["5 repositories", "2 with changes"]`. The
+  /// title is a key (a literal), looked up in the app's strings.
+  public init(
+    _ title: LocalizedStringKey, meta: [String] = [], size: Size = .section, systemImage: String,
+    hue: Hue = .accent, status: WorkStatus = .idle, @ViewBuilder accessory: () -> Accessory
+  ) {
+    self.init(
+      title: KitString(title), size: size, systemImage: systemImage, hue: hue, status: status,
+      meta: { MetaLine(meta) }, accessory: accessory)
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
   public init(
     _ title: some StringProtocol, meta: [String] = [], size: Size = .section, systemImage: String,
     hue: Hue = .accent, status: WorkStatus = .idle, @ViewBuilder accessory: () -> Accessory
   ) {
-    self.init(title, size: size, systemImage: systemImage, hue: hue, status: status, meta: { MetaLine(meta) }, accessory: accessory)
+    self.init(
+      title: KitString(verbatim: String(title)), size: size, systemImage: systemImage, hue: hue, status: status,
+      meta: { MetaLine(meta) }, accessory: accessory)
   }
 
-  /// A header with a one-part meta line.
+  /// A header with a one-part meta line, titled by a key (a literal).
+  public init(
+    _ title: LocalizedStringKey, meta: String, size: Size = .section, systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle, @ViewBuilder accessory: () -> Accessory
+  ) {
+    self.init(
+      title: KitString(title), size: size, systemImage: systemImage, hue: hue, status: status,
+      meta: { MetaLine([meta]) }, accessory: accessory)
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
   public init(
     _ title: some StringProtocol, meta: String, size: Size = .section, systemImage: String, hue: Hue = .accent,
     status: WorkStatus = .idle, @ViewBuilder accessory: () -> Accessory
   ) {
-    self.init(title, meta: [meta], size: size, systemImage: systemImage, hue: hue, status: status, accessory: accessory)
+    self.init(
+      title: KitString(verbatim: String(title)), size: size, systemImage: systemImage, hue: hue, status: status,
+      meta: { MetaLine([meta]) }, accessory: accessory)
   }
 }
 
 extension RichHeader where Icon == SizedLiveIcon, Meta == MetaLine, Accessory == EmptyView {
+  /// A header with a meta line of parts and no actions, titled by a key (a literal).
+  public init(
+    _ title: LocalizedStringKey, meta: [String] = [], size: Size = .section, systemImage: String,
+    hue: Hue = .accent, status: WorkStatus = .idle
+  ) {
+    self.init(
+      title: KitString(title), size: size, systemImage: systemImage, hue: hue, status: status,
+      meta: { MetaLine(meta) }, accessory: { EmptyView() })
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
   public init(
     _ title: some StringProtocol, meta: [String] = [], size: Size = .section, systemImage: String,
     hue: Hue = .accent, status: WorkStatus = .idle
   ) {
-    self.init(title, meta: meta, size: size, systemImage: systemImage, hue: hue, status: status) { EmptyView() }
+    self.init(
+      title: KitString(verbatim: String(title)), size: size, systemImage: systemImage, hue: hue, status: status,
+      meta: { MetaLine(meta) }, accessory: { EmptyView() })
   }
 
+  /// A header with a one-part meta line and no actions, titled by a key (a literal).
+  public init(
+    _ title: LocalizedStringKey, meta: String, size: Size = .section, systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle
+  ) {
+    self.init(
+      title: KitString(title), size: size, systemImage: systemImage, hue: hue, status: status,
+      meta: { MetaLine([meta]) }, accessory: { EmptyView() })
+  }
+
+  /// The same with a title shown as it is.
+  @_disfavoredOverload
   public init(
     _ title: some StringProtocol, meta: String, size: Size = .section, systemImage: String, hue: Hue = .accent,
     status: WorkStatus = .idle
   ) {
-    self.init(title, meta: [meta], size: size, systemImage: systemImage, hue: hue, status: status) { EmptyView() }
+    self.init(
+      title: KitString(verbatim: String(title)), size: size, systemImage: systemImage, hue: hue, status: status,
+      meta: { MetaLine([meta]) }, accessory: { EmptyView() })
   }
 }
 

@@ -17,19 +17,26 @@ import SwiftUI
 /// }
 /// ```
 public struct KitMenuPreview: View {
-  var text: String
+  var text: KitString
   @Environment(\.kitMenuModel) private var model
 
-  public init(_ text: String) {
-    self.text = text
+  /// A summary that is a key (a literal), looked up in the app's strings.
+  public init(_ text: LocalizedStringKey) {
+    self.text = KitString(text)
+  }
+
+  /// The same with a summary shown as it is.
+  @_disfavoredOverload
+  public init(_ text: some StringProtocol) {
+    self.text = KitString(verbatim: String(text))
   }
 
   public var body: some View {
     Color.clear
       .frame(width: 0, height: 0)
       .accessibilityHidden(true)
-      .onAppear { model?.summary = KitMenuPreviewItem(text: text) }
-      .onChange(of: text) { model?.summary = KitMenuPreviewItem(text: text) }
+      .onAppear { model?.summary = KitMenuPreviewItem(label: text) }
+      .onChange(of: text) { model?.summary = KitMenuPreviewItem(label: text) }
   }
 }
 
@@ -89,7 +96,7 @@ struct KitMenuPreviewPanel: View {
   private func sentence(_ item: KitMenuPreviewItem) -> some View {
     VStack(alignment: .leading, spacing: 4) {
       if let picture = item.picture { picture }
-      Text(item.text)
+      Text(item.label)
         .font(.system(size: 12 * idiom.scale))
         .lineSpacing(2)
         .foregroundStyle(item.isDanger ? AnyShapeStyle(Hue.red.text) : AnyShapeStyle(.kitLabel))
@@ -123,15 +130,25 @@ extension EdgeInsets {
 /// KitSubmenu("Libraries", value: "\(libraries.count)") { ForEach(libraries) { … } }
 /// ```
 public struct KitMenuFilter: View {
-  var prompt: String
+  var prompt: KitString
   var total: Int?
   var empty: ((String) -> String)?
   @Environment(\.kitMenuModel) private var model
   @Environment(\.kitIdiom) private var idiom
 
   /// `total`: how many rows it filters, for "2 of 22" while typing. `empty` says that nothing matches what's typed
-  /// ("No scheme has “docker” in its name.").
-  public init(_ prompt: String, total: Int? = nil, empty: ((String) -> String)? = nil) {
+  /// ("No scheme has “docker” in its name."). The prompt is a key (a literal), looked up in the app's strings.
+  public init(_ prompt: LocalizedStringKey, total: Int? = nil, empty: ((String) -> String)? = nil) {
+    self.init(prompt: KitString(prompt), total: total, empty: empty)
+  }
+
+  /// The same with a prompt shown as it is.
+  @_disfavoredOverload
+  public init(_ prompt: some StringProtocol, total: Int? = nil, empty: ((String) -> String)? = nil) {
+    self.init(prompt: KitString(verbatim: String(prompt)), total: total, empty: empty)
+  }
+
+  init(prompt: KitString, total: Int?, empty: ((String) -> String)?) {
     self.prompt = prompt
     self.total = total
     self.empty = empty
@@ -160,7 +177,9 @@ public struct KitMenuFilter: View {
       .background(.kitFill, in: RoundedRectangle(cornerRadius: metrics.rowRadius, style: .continuous))
       .padding(.bottom, idiom.size(3, touch: 4))
       if !query.isEmpty, model?.matchCount == 0 {
-        Text(empty?(query) ?? "Nothing has “\(query)” in its name.")
+        Group {
+          if let empty { Text(empty(query)) } else { Text("Nothing has “\(query)” in its name.") }
+        }
           .font(.system(size: metrics.headerFont, weight: .semibold))
           .foregroundStyle(.kitSecondary)
           .padding(EdgeInsets(top: 4, leading: metrics.rowPadding, bottom: 3, trailing: metrics.rowPadding))
@@ -169,14 +188,14 @@ public struct KitMenuFilter: View {
     }
     .onAppear { model?.hasFilter = true }
     .accessibilityElement(children: .combine)
-    .accessibilityLabel(query.isEmpty ? prompt : "Filter: \(query)")
+    .accessibilityLabel(query.isEmpty ? prompt : KitString("Filter: \(query)"))
     .accessibilityAddTraits(.isSearchField)
   }
 
   @ViewBuilder
   private func field(_ query: String) -> some View {
     if idiom.isTouch, let model {
-      TextField(prompt, text: Binding(get: { model.query }, set: { model.query = $0 }))
+      TextField(prompt, text: Binding(get: { model.query }, set: { model.query = $0 }), prompt: nil)
         .textFieldStyle(.plain)
         .autocorrectionDisabled()
         .foregroundStyle(.kitLabel)
@@ -235,9 +254,9 @@ public struct KitMenuGrid<Content: View>: View {
 /// One tile in a `KitMenuGrid`: a picture, a name, a quiet word under it; the picked one tinted with a check in its
 /// corner. Picking it closes the menu. Its name is also its filter words unless `kitMenuFilter` says otherwise.
 public struct KitMenuTile: View {
-  var title: String
+  var title: KitString
   var systemImage: String
-  var detail: String?
+  var detail: KitString?
   var isOn: Bool
   var action: () -> Void
   @Environment(\.kitMenuModel) private var model
@@ -248,9 +267,26 @@ public struct KitMenuTile: View {
   @Environment(\.kitIdiom) private var idiom
   @State private var id = UUID()
 
+  /// A tile whose name and word are keys (literals), looked up in the app's strings.
   public init(
-    _ title: String, systemImage: String, detail: String? = nil, isOn: Bool = false, action: @escaping () -> Void
+    _ title: LocalizedStringKey, systemImage: String, detail: LocalizedStringKey? = nil, isOn: Bool = false,
+    action: @escaping () -> Void
   ) {
+    self.init(title: KitString(title), systemImage: systemImage, detail: KitString(detail), isOn: isOn, action: action)
+  }
+
+  /// The same with strings shown as they are (a device's name).
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, systemImage: String, detail: String? = nil, isOn: Bool = false,
+    action: @escaping () -> Void
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), systemImage: systemImage, detail: KitString(verbatim: detail),
+      isOn: isOn, action: action)
+  }
+
+  init(title: KitString, systemImage: String, detail: KitString?, isOn: Bool, action: @escaping () -> Void) {
     self.title = title
     self.systemImage = systemImage
     self.detail = detail
@@ -258,7 +294,7 @@ public struct KitMenuTile: View {
     self.action = action
   }
 
-  private var words: KitMenuFilterText { filter ?? KitMenuFilterText(text: title) }
+  private var words: KitMenuFilterText { filter ?? KitMenuFilterText(text: title.string) }
   private var isHighlighted: Bool { isEnabled && (forced || model?.highlighted == id) }
 
   public var body: some View {
@@ -350,19 +386,50 @@ public struct KitOpenApp: Identifiable {
   public var id: String
   public var name: String
   public var icon: Image?
-  public var words: String
-  public var preview: String?
+  var wordsLabel: KitString
+  var previewLabel: KitString?
   public var action: @MainActor () -> Void
 
+  /// The row's words for it, as a string: a key's localized text, or the string as it was given.
+  public var words: String {
+    get { wordsLabel.string }
+    set { wordsLabel = KitString(verbatim: newValue) }
+  }
+
+  /// What opening it does, for the menu's preview panel.
+  public var preview: String? {
+    get { previewLabel?.string }
+    set { previewLabel = KitString(verbatim: newValue) }
+  }
+
+  /// An app whose words and preview are keys (literals), looked up in the app's strings; `name` is shown as it is.
+  public init(
+    _ name: String, icon: Image?, words: LocalizedStringKey? = nil, preview: LocalizedStringKey? = nil,
+    id: String? = nil, action: @escaping @MainActor () -> Void
+  ) {
+    self.init(name: name, icon: icon, words: KitString(words), preview: KitString(preview), id: id, action: action)
+  }
+
+  /// The same with words and a preview shown as they are.
+  @_disfavoredOverload
   public init(
     _ name: String, icon: Image?, words: String? = nil, preview: String? = nil, id: String? = nil,
+    action: @escaping @MainActor () -> Void
+  ) {
+    self.init(
+      name: name, icon: icon, words: KitString(verbatim: words), preview: KitString(verbatim: preview), id: id,
+      action: action)
+  }
+
+  init(
+    name: String, icon: Image?, words: KitString?, preview: KitString?, id: String?,
     action: @escaping @MainActor () -> Void
   ) {
     self.id = id ?? name
     self.name = name
     self.icon = icon
-    self.words = words ?? "Open in \(name)"
-    self.preview = preview
+    self.wordsLabel = words ?? KitString("Open in \(name)")
+    self.previewLabel = preview
     self.action = action
   }
 
@@ -372,11 +439,29 @@ public struct KitOpenApp: Identifiable {
   /// ```swift
   /// KitOpenApp.app("com.apple.dt.Xcode", name: "Xcode", opening: [project], preview: "Opens Trips in Xcode.")
   /// ```
+  ///
+  /// The preview is a key (a literal), looked up in the app's strings.
+  @MainActor public static func app(
+    _ bundleIdentifier: String, name: String, opening urls: [URL], preview: LocalizedStringKey? = nil
+  ) -> KitOpenApp? {
+    app(bundleIdentifier, name: name, opening: urls, previewLabel: KitString(preview))
+  }
+
+  /// The same with a preview shown as it is.
+  @_disfavoredOverload
   @MainActor public static func app(
     _ bundleIdentifier: String, name: String, opening urls: [URL], preview: String? = nil
   ) -> KitOpenApp? {
+    app(bundleIdentifier, name: name, opening: urls, previewLabel: KitString(verbatim: preview))
+  }
+
+  @MainActor static func app(
+    _ bundleIdentifier: String, name: String, opening urls: [URL], previewLabel: KitString?
+  ) -> KitOpenApp? {
     guard KitDesktop.isAppInstalled(bundleIdentifier) else { return nil }
-    return KitOpenApp(name, icon: KitDesktop.appIcon(bundleIdentifier), preview: preview, id: bundleIdentifier) {
+    return KitOpenApp(
+      name: name, icon: KitDesktop.appIcon(bundleIdentifier), words: nil, preview: previewLabel, id: bundleIdentifier
+    ) {
       KitDesktop.open(urls, withApp: bundleIdentifier)
     }
   }
@@ -387,29 +472,70 @@ public struct KitOpenApp: Identifiable {
   /// ```swift
   /// KitOpenWithRow([.defaultApp(opening: screenshot), .fileManager(revealing: [screenshot])])
   /// ```
+  ///
+  /// The preview is a key (a literal), looked up in the app's strings.
+  @MainActor public static func defaultApp(opening file: URL, preview: LocalizedStringKey? = nil) -> KitOpenApp {
+    defaultApp(opening: file, previewLabel: KitString(preview))
+  }
+
+  /// The same with a preview shown as it is.
+  @_disfavoredOverload
   @MainActor public static func defaultApp(opening file: URL, preview: String? = nil) -> KitOpenApp {
+    defaultApp(opening: file, previewLabel: KitString(verbatim: preview))
+  }
+
+  @MainActor static func defaultApp(opening file: URL, previewLabel: KitString?) -> KitOpenApp {
     guard let app = KitDesktop.defaultApp(for: file) else {
-      return KitOpenApp("Open", icon: KitDesktop.icon(forFile: file.path), words: "Open", preview: preview, id: "kit.default") {
+      return KitOpenApp(
+        name: "Open", icon: KitDesktop.icon(forFile: file.path), words: KitString("Open"), preview: previewLabel,
+        id: "kit.default"
+      ) {
         KitDesktop.open(file)
       }
     }
     return KitOpenApp(
-      app.name, icon: KitDesktop.icon(forFile: app.url.path), preview: preview, id: app.bundleIdentifier
+      name: app.name, icon: KitDesktop.icon(forFile: app.url.path), words: nil, preview: previewLabel,
+      id: app.bundleIdentifier
     ) {
       KitDesktop.open([file], withApp: app.bundleIdentifier)
     }
   }
 
-  /// The file manager (Finder, Explorer, Files), selecting `urls` in their folder: "Show in Finder".
+  /// The file manager (Finder, Explorer, Files), selecting `urls` in their folder: "Show in Finder". The preview is a
+  /// key (a literal), looked up in the app's strings.
+  @MainActor public static func fileManager(revealing urls: [URL], preview: LocalizedStringKey? = nil) -> KitOpenApp {
+    fileManager(revealing: urls, previewLabel: KitString(preview))
+  }
+
+  /// The same with a preview shown as it is.
+  @_disfavoredOverload
   @MainActor public static func fileManager(revealing urls: [URL], preview: String? = nil) -> KitOpenApp {
+    fileManager(revealing: urls, previewLabel: KitString(verbatim: preview))
+  }
+
+  @MainActor static func fileManager(revealing urls: [URL], previewLabel: KitString?) -> KitOpenApp {
     let name = KitDesktop.fileManagerName
-    return KitOpenApp(name, icon: KitDesktop.fileManagerIcon, words: "Show in \(name)", preview: preview, id: "kit.files") {
+    return KitOpenApp(
+      name: name, icon: KitDesktop.fileManagerIcon, words: KitString("Show in \(name)"), preview: previewLabel,
+      id: "kit.files"
+    ) {
       KitDesktop.reveal(urls)
     }
   }
 
-  /// A terminal in `folder` (Terminal on the Mac); nil where there is none to open (iPhone, iPad).
+  /// A terminal in `folder` (Terminal on the Mac); nil where there is none to open (iPhone, iPad). The preview is a
+  /// key (a literal), looked up in the app's strings.
+  @MainActor public static func terminal(at folder: URL, preview: LocalizedStringKey? = nil) -> KitOpenApp? {
+    terminal(at: folder, previewLabel: KitString(preview))
+  }
+
+  /// The same with a preview shown as it is.
+  @_disfavoredOverload
   @MainActor public static func terminal(at folder: URL, preview: String? = nil) -> KitOpenApp? {
+    terminal(at: folder, previewLabel: KitString(verbatim: preview))
+  }
+
+  @MainActor static func terminal(at folder: URL, previewLabel: KitString?) -> KitOpenApp? {
     #if os(iOS) || os(tvOS) || os(visionOS)
       return nil
     #else
@@ -418,7 +544,7 @@ public struct KitOpenApp: Identifiable {
       #else
         let icon: Image? = nil
       #endif
-      return KitOpenApp("Terminal", icon: icon, preview: preview, id: "kit.terminal") {
+      return KitOpenApp(name: "Terminal", icon: icon, words: nil, preview: previewLabel, id: "kit.terminal") {
         KitDesktop.openTerminal(at: folder)
       }
     #endif
@@ -462,9 +588,9 @@ public struct KitOpenWithRow: View {
     } else if idiom.isTouch {
       ForEach(apps) { app in
         KitMenuRow(trigger: { open(app) }) {
-          Label { Text(app.words) } icon: { icon(app, size: KitMenuMetrics(idiom).icon + 4) }
+          Label { Text(app.wordsLabel) } icon: { icon(app, size: KitMenuMetrics(idiom).icon + 4) }
         }
-        .kitMenuPreview(app.preview)
+        .kitMenuPreview(text: app.previewLabel)
       }
     } else {
       row
@@ -487,9 +613,9 @@ public struct KitOpenWithRow: View {
       },
       trigger: { open(app) }
     ) {
-      Label { Text(app.words) } icon: { icon(app, size: metrics.appIcon) }
+      Label { Text(app.wordsLabel) } icon: { icon(app, size: metrics.appIcon) }
     }
-    .kitMenuPreview(app.preview)
+    .kitMenuPreview(text: app.previewLabel)
     .onChange(of: model?.highlighted == rowID) { _, highlighted in if !highlighted { active = nil } }
     .accessibilityElement(children: .contain)
     .accessibilityLabel("Open With")
@@ -517,9 +643,9 @@ public struct KitOpenWithRow: View {
             }
           }
           .onTapGesture { open(app) }
-          .help(app.words)
+          .help(app.wordsLabel)
           .accessibilityElement()
-          .accessibilityLabel(app.words)
+          .accessibilityLabel(app.wordsLabel)
           .accessibilityAddTraits(.isButton)
           .accessibilityAction { open(app) }
       }

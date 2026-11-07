@@ -4,6 +4,14 @@ import SwiftUI
 public enum WelcomeSource: String, Hashable, Sendable, CaseIterable {
   case recent = "Recent"
   case projects = "Projects"
+
+  /// The list's name in the app's language.
+  var label: KitString {
+    switch self {
+    case .recent: KitString("Recent")
+    case .projects: KitString("Projects")
+    }
+  }
 }
 
 /// The welcome every app shows as its main screen's empty state: drawn as the detail pane's content while nothing
@@ -34,19 +42,19 @@ public enum WelcomeSource: String, Hashable, Sendable, CaseIterable {
 /// ```
 public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
   var appName: String
-  var version: String
+  var version: KitString
   var icon: Image?
-  var emptyTitle: String
-  var emptyMessage: String
+  var emptyTitle: KitString
+  var emptyMessage: KitString
   var onDrop: (([URL]) -> Bool)?
   var actions: Actions
   var recents: Recents
   var projects: Projects
   var sourceBinding: Binding<WelcomeSource>?
   var searchText: Binding<String>?
-  var searchPrompt: String
+  var searchPrompt: KitString
   var optionsView: AnyView?
-  var listTitle = "Recent"
+  var listTitle = KitString("Recent")
   var emptyIcon: (systemImage: String, status: WorkStatus)?
   @State private var identityHeight: CGFloat = 320
   @State private var ownSource = WelcomeSource.recent
@@ -58,29 +66,62 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
 
   /// The welcome with Recent | Projects, as the main screen's empty state.
   ///
+  /// The texts are keys (literals) looked up in the app's strings (`version` too: a line under the name, the app's
+  /// version by default); `appName` is shown as it is.
+  ///
   /// - Parameters:
   ///   - source: which list shows, to remember it (`@AppStorage`); without it the welcome keeps its own.
   ///   - searchText: shows a search field over the lists, bound to this text (filter `recents` and `projects`
   ///     with it).
   public init(
-    appName: String? = nil, version: String? = nil, icon: Image? = nil,
-    emptyTitle: String = "No Recent Items", emptyMessage: String = "What you open appears here.",
-    source: Binding<WelcomeSource>? = nil, searchText: Binding<String>? = nil, searchPrompt: String = "Search",
+    appName: String? = nil, version: LocalizedStringKey? = nil, icon: Image? = nil,
+    emptyTitle: LocalizedStringKey = "No Recent Items", emptyMessage: LocalizedStringKey = "What you open appears here.",
+    source: Binding<WelcomeSource>? = nil, searchText: Binding<String>? = nil,
+    searchPrompt: LocalizedStringKey = "Search",
     onDrop: (([URL]) -> Bool)? = nil, @ViewBuilder actions: () -> Actions,
     @ViewBuilder recents: () -> Recents, @ViewBuilder projects: () -> Projects
+  ) {
+    self.init(
+      appName: appName, version: KitString(version), icon: icon, emptyTitle: KitString(emptyTitle),
+      emptyMessage: KitString(emptyMessage), source: source, searchText: searchText,
+      searchPrompt: KitString(searchPrompt), onDrop: onDrop, actions: actions(), recents: recents(),
+      projects: projects())
+  }
+
+  /// The same with strings shown as they are (text the app made or localized itself); a `nil` one is the kit's.
+  @_disfavoredOverload
+  public init(
+    appName: String? = nil, version: String? = nil, icon: Image? = nil,
+    emptyTitle: String? = nil, emptyMessage: String? = nil,
+    source: Binding<WelcomeSource>? = nil, searchText: Binding<String>? = nil, searchPrompt: String? = nil,
+    onDrop: (([URL]) -> Bool)? = nil, @ViewBuilder actions: () -> Actions,
+    @ViewBuilder recents: () -> Recents, @ViewBuilder projects: () -> Projects
+  ) {
+    self.init(
+      appName: appName, version: KitString(verbatim: version), icon: icon,
+      emptyTitle: KitString(verbatim: emptyTitle) ?? KitString("No Recent Items"),
+      emptyMessage: KitString(verbatim: emptyMessage) ?? KitString("What you open appears here."),
+      source: source, searchText: searchText, searchPrompt: KitString(verbatim: searchPrompt) ?? KitString("Search"),
+      onDrop: onDrop, actions: actions(), recents: recents(), projects: projects())
+  }
+
+  init(
+    appName: String?, version: KitString?, icon: Image?, emptyTitle: KitString, emptyMessage: KitString,
+    source: Binding<WelcomeSource>?, searchText: Binding<String>?, searchPrompt: KitString,
+    onDrop: (([URL]) -> Bool)?, actions: Actions, recents: Recents, projects: Projects
   ) {
     self.sourceBinding = source
     self.searchText = searchText
     self.searchPrompt = searchPrompt
     self.appName = appName ?? DataPlatform.appName
-    self.version = version ?? "Version \(DataPlatform.version)"
+    self.version = version ?? KitString("Version \(DataPlatform.version)")
     self.icon = icon
     self.emptyTitle = emptyTitle
     self.emptyMessage = emptyMessage
     self.onDrop = onDrop
-    self.actions = actions()
-    self.recents = recents()
-    self.projects = projects()
+    self.actions = actions
+    self.recents = recents
+    self.projects = projects
   }
 
   private var hasProjects: Bool { Projects.self != EmptyView.self }
@@ -104,9 +145,17 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
   /// ```swift
   /// KitWelcome { … } recents: { … }.listTitle("Already in your vault")
   /// ```
+  public func listTitle(_ title: LocalizedStringKey) -> Self {
+    var welcome = self
+    welcome.listTitle = KitString(title)
+    return welcome
+  }
+
+  /// Names the list with a string shown as it is.
+  @_disfavoredOverload
   public func listTitle(_ title: String) -> Self {
     var welcome = self
-    welcome.listTitle = title
+    welcome.listTitle = KitString(verbatim: title)
     return welcome
   }
 
@@ -125,7 +174,7 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
 
   public var body: some View {
     inline
-    .overlay { if isDropTargeted { DropRing(title: "Open in \(appName)") } }
+    .overlay { if isDropTargeted { DropRing(title: KitString("Open in \(appName)")) } }
     .modifier(WelcomeDrop(onDrop: onDrop, isTargeted: $isDropTargeted))
     .environment(nav)
     .onPreferenceChange(DataNavItemsKey.self) { ids in
@@ -230,7 +279,9 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(spacing: KitMetrics.gutter) {
         if hasProjects {
-          KitSegmented(selection: sourceSelection, options: WelcomeSource.allCases.map { ($0.rawValue, $0) })
+          KitSegmented(
+            selection: sourceSelection,
+            segments: WelcomeSource.allCases.map { KitSegment(label: $0.label, value: $0) })
             .fixedSize()
         } else {
           Text(listTitle).kitFont(.headline).padding(.leading, 6)
@@ -281,7 +332,7 @@ public struct KitWelcome<Actions: View, Recents: View, Projects: View>: View {
             LiveIcon(systemImage: emptyIcon.systemImage, status: emptyIcon.status, size: 56).padding(.bottom, 8)
           }
           Text(emptyTitle).kitFont(.headline)
-          Text(onDrop == nil ? emptyMessage : "\(emptyMessage) Or drop a folder here.")
+          (onDrop == nil ? Text(emptyMessage) : Text(emptyMessage) + Text(verbatim: " ") + Text("Or drop a folder here."))
             .kitFont(.callout)
             .foregroundStyle(.kitSecondary)
             .multilineTextAlignment(.center)
@@ -305,9 +356,24 @@ extension KitWelcome where Projects == EmptyView {
   /// The welcome with one list, the recent items, as the main screen's empty state; `searchText` adds a search
   /// field over it.
   public init(
+    appName: String? = nil, version: LocalizedStringKey? = nil, icon: Image? = nil,
+    emptyTitle: LocalizedStringKey = "No Recent Items", emptyMessage: LocalizedStringKey = "What you open appears here.",
+    searchText: Binding<String>? = nil, searchPrompt: LocalizedStringKey = "Search",
+    onDrop: (([URL]) -> Bool)? = nil, @ViewBuilder actions: () -> Actions, @ViewBuilder recents: () -> Recents
+  ) {
+    self.init(
+      appName: appName, version: KitString(version), icon: icon, emptyTitle: KitString(emptyTitle),
+      emptyMessage: KitString(emptyMessage), source: nil, searchText: searchText,
+      searchPrompt: KitString(searchPrompt), onDrop: onDrop, actions: actions(), recents: recents(),
+      projects: EmptyView())
+  }
+
+  /// The same with strings shown as they are; a `nil` one is the kit's.
+  @_disfavoredOverload
+  public init(
     appName: String? = nil, version: String? = nil, icon: Image? = nil,
-    emptyTitle: String = "No Recent Items", emptyMessage: String = "What you open appears here.",
-    searchText: Binding<String>? = nil, searchPrompt: String = "Search",
+    emptyTitle: String? = nil, emptyMessage: String? = nil,
+    searchText: Binding<String>? = nil, searchPrompt: String? = nil,
     onDrop: (([URL]) -> Bool)? = nil, @ViewBuilder actions: () -> Actions, @ViewBuilder recents: () -> Recents
   ) {
     self.init(
@@ -356,7 +422,7 @@ private struct WelcomeDrop: ViewModifier {
 
 /// A window that takes a drop: its content ringed 8pt in from the edges, with a card naming what happens.
 private struct DropRing: View {
-  let title: String
+  let title: KitString
 
   var body: some View {
     ZStack {
@@ -385,12 +451,26 @@ private struct DropRing: View {
 ///   .keyboardShortcut("n")
 /// ```
 public struct WelcomeAction: View {
-  var title: String
-  var detail: String?
+  var title: KitString
+  var detail: KitString?
   var systemImage: String
   var action: () -> Void
 
-  public init(_ title: String, detail: String? = nil, systemImage: String, action: @escaping () -> Void) {
+  /// An action titled by keys (literals), looked up in the app's strings.
+  public init(
+    _ title: LocalizedStringKey, detail: LocalizedStringKey? = nil, systemImage: String, action: @escaping () -> Void
+  ) {
+    self.init(title: KitString(title), detail: KitString(detail), systemImage: systemImage, action: action)
+  }
+
+  /// An action titled by strings shown as they are.
+  @_disfavoredOverload
+  public init(_ title: some StringProtocol, detail: String? = nil, systemImage: String, action: @escaping () -> Void) {
+    self.init(
+      title: KitString(verbatim: String(title)), detail: KitString(verbatim: detail), systemImage: systemImage, action: action)
+  }
+
+  init(title: KitString, detail: KitString?, systemImage: String, action: @escaping () -> Void) {
     self.title = title
     self.detail = detail
     self.systemImage = systemImage
@@ -589,7 +669,7 @@ private struct RecentItemChevron: View {
         .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
-    .accessibilityLabel(isExpanded ? "Collapse \(title)" : "Expand \(title)")
+    .accessibilityLabel(isExpanded ? Text("Collapse \(title)") : Text("Expand \(title)"))
   }
 }
 

@@ -145,12 +145,12 @@ final class ScannerModel {
   enum State: Equatable {
     case starting, running, denied, unavailable
 
-    var message: String? {
+    var message: KitString? {
       switch self {
       case .starting: nil
       case .running: nil
-      case .denied: "Allow the camera in Settings to scan a code."
-      case .unavailable: "No camera here. Paste the link instead."
+      case .denied: KitString("Allow the camera in Settings to scan a code.")
+      case .unavailable: KitString("No camera here. Paste the link instead.")
       }
     }
   }

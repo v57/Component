@@ -161,7 +161,7 @@ public struct HunkCard: View {
   var lines: [DiffLine]
   var layout: DiffLayout
   var isStaged: Bool
-  var summary: String?
+  var summary: KitString?
   var selection: Binding<Set<DiffLine.ID>>?
   var stage: (([DiffLine]) -> Void)?
   var unstage: (() -> Void)?
@@ -178,10 +178,36 @@ public struct HunkCard: View {
   @State private var scrollX: CGFloat = 0
   @Environment(\.kitIdiom) private var idiom
 
+  /// A hunk; `header` and `range` are shown as they are, `summary` is a key (a literal), looked up in the app's
+  /// strings.
+  public init(
+    header: String, range: String, lines: [DiffLine], layout: DiffLayout = .unified, isStaged: Bool = false,
+    summary: LocalizedStringKey? = nil, selection: Binding<Set<DiffLine.ID>>? = nil,
+    stage: (([DiffLine]) -> Void)? = nil, unstage: (() -> Void)? = nil, unstageLines: (([DiffLine]) -> Void)? = nil,
+    overflow: DiffOverflow = .truncate
+  ) {
+    self.init(
+      header: header, range: range, lines: lines, layout: layout, isStaged: isStaged, summary: KitString(summary),
+      selection: selection, stage: stage, unstage: unstage, unstageLines: unstageLines, overflow: overflow)
+  }
+
+  /// The same with a summary shown as it is.
+  @_disfavoredOverload
   public init(
     header: String, range: String, lines: [DiffLine], layout: DiffLayout = .unified, isStaged: Bool = false,
     summary: String? = nil, selection: Binding<Set<DiffLine.ID>>? = nil, stage: (([DiffLine]) -> Void)? = nil,
     unstage: (() -> Void)? = nil, unstageLines: (([DiffLine]) -> Void)? = nil, overflow: DiffOverflow = .truncate
+  ) {
+    self.init(
+      header: header, range: range, lines: lines, layout: layout, isStaged: isStaged,
+      summary: KitString(verbatim: summary), selection: selection, stage: stage, unstage: unstage,
+      unstageLines: unstageLines, overflow: overflow)
+  }
+
+  init(
+    header: String, range: String, lines: [DiffLine], layout: DiffLayout, isStaged: Bool, summary: KitString?,
+    selection: Binding<Set<DiffLine.ID>>?, stage: (([DiffLine]) -> Void)?, unstage: (() -> Void)?,
+    unstageLines: (([DiffLine]) -> Void)?, overflow: DiffOverflow
   ) {
     self.header = header
     self.range = range
@@ -690,11 +716,11 @@ private struct EmptySideStripes: View {
 public enum ConflictChoice: Hashable, Sendable {
   case current, incoming, both
 
-  var title: String {
+  var title: KitString {
     switch self {
-    case .current: "Current"
-    case .incoming: "Incoming"
-    case .both: "Both"
+    case .current: KitString("Current")
+    case .incoming: KitString("Incoming")
+    case .both: KitString("Both")
     }
   }
 }
@@ -709,21 +735,52 @@ public enum ConflictOrder: Hashable, Sendable {
 
 /// One side of a conflict: its name ("Current", "Incoming"), the branch it comes from and its lines.
 public struct ConflictSide: Hashable, Sendable {
-  public var label: String
+  var labelText: KitString
   public var ref: String?
   public var lines: [AttributedString]
 
-  public init(_ label: String, ref: String? = nil, lines: [AttributedString]) {
-    self.label = label
+  /// The side's name as a string: a key's localized text, or the string as it was given.
+  public var label: String {
+    get { labelText.string }
+    set { labelText = KitString(verbatim: newValue) }
+  }
+
+  /// A side named by a key (a literal), looked up in the app's strings; `ref` and the lines are shown as they are.
+  public init(_ label: LocalizedStringKey, ref: String? = nil, lines: [AttributedString]) {
+    self.init(label: KitString(label), ref: ref, lines: lines)
+  }
+
+  /// The same with a name shown as it is.
+  @_disfavoredOverload
+  public init(_ label: some StringProtocol, ref: String? = nil, lines: [AttributedString]) {
+    self.init(label: KitString(verbatim: String(label)), ref: ref, lines: lines)
+  }
+
+  /// A side from plain text, split into lines, named by a key (a literal).
+  public init(_ label: LocalizedStringKey, ref: String? = nil, code: String) {
+    self.init(label: KitString(label), ref: ref, lines: Self.lines(code))
+  }
+
+  /// The same with a name shown as it is.
+  @_disfavoredOverload
+  public init(_ label: some StringProtocol, ref: String? = nil, code: String) {
+    self.init(label: KitString(verbatim: String(label)), ref: ref, lines: Self.lines(code))
+  }
+
+  init(label: KitString, ref: String?, lines: [AttributedString]) {
+    self.labelText = label
     self.ref = ref
     self.lines = lines
   }
 
-  /// A side from plain text, split into lines.
-  public init(_ label: String, ref: String? = nil, code: String) {
-    self.init(label, ref: ref, lines: code.split(separator: "\n", omittingEmptySubsequences: false).map {
-      AttributedString(String($0))
-    })
+  private static func lines(_ code: String) -> [AttributedString] {
+    code.split(separator: "\n", omittingEmptySubsequences: false).map { AttributedString(String($0)) }
+  }
+
+  public func hash(into hasher: inout Hasher) {
+    hasher.combine(labelText.sourceText)
+    hasher.combine(ref)
+    hasher.combine(lines)
   }
 }
 
@@ -747,8 +804,8 @@ public struct ConflictSide: Hashable, Sendable {
 ///              choice: $choice)
 /// ```
 public struct ConflictCard: View {
-  var title: String
-  var resolvedTitle: String
+  var title: KitString
+  var resolvedTitle: KitString
   var meta: [String]
   var current: ConflictSide
   var incoming: ConflictSide
@@ -759,10 +816,33 @@ public struct ConflictCard: View {
   @State private var showsAncestor = false
   @Environment(\.kitIdiom) private var idiom
 
+  /// A conflict whose titles are keys (literals), looked up in the app's strings; `meta` lines are shown as they are.
   public init(
-    title: String, resolvedTitle: String = "Conflict resolved", meta: [String] = [], current: ConflictSide,
+    title: LocalizedStringKey, resolvedTitle: LocalizedStringKey = "Conflict resolved", meta: [String] = [],
+    current: ConflictSide, incoming: ConflictSide, ancestor: ConflictSide? = nil, order: ConflictOrder = .currentFirst,
+    choice: Binding<ConflictChoice?>, edit: (() -> Void)? = nil
+  ) {
+    self.init(
+      title: KitString(title), resolvedTitle: KitString(resolvedTitle), meta: meta, current: current,
+      incoming: incoming, ancestor: ancestor, order: order, choice: choice, edit: edit)
+  }
+
+  /// The same with titles shown as they are; a `nil` resolved title is the kit's.
+  @_disfavoredOverload
+  public init(
+    title: some StringProtocol, resolvedTitle: String? = nil, meta: [String] = [], current: ConflictSide,
     incoming: ConflictSide, ancestor: ConflictSide? = nil, order: ConflictOrder = .currentFirst,
     choice: Binding<ConflictChoice?>, edit: (() -> Void)? = nil
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)),
+      resolvedTitle: KitString(verbatim: resolvedTitle) ?? KitString("Conflict resolved"), meta: meta,
+      current: current, incoming: incoming, ancestor: ancestor, order: order, choice: choice, edit: edit)
+  }
+
+  init(
+    title: KitString, resolvedTitle: KitString, meta: [String], current: ConflictSide, incoming: ConflictSide,
+    ancestor: ConflictSide?, order: ConflictOrder, choice: Binding<ConflictChoice?>, edit: (() -> Void)?
   ) {
     self.title = title
     self.resolvedTitle = resolvedTitle
@@ -843,7 +923,9 @@ public struct ConflictCard: View {
   }
 
   private var actions: some View {
-    let options: [(String, ConflictChoice?)] = (sides.map(\.choice) + [.both]).map { ($0.title, $0) }
+    let options: [KitSegment<ConflictChoice?>] = (sides.map(\.choice) + [.both]).map {
+      KitSegment(label: $0.title, value: $0)
+    }
     return HStack(spacing: 6) {
       if choice == nil {
         if ancestor != nil {
@@ -853,7 +935,7 @@ public struct ConflictCard: View {
             .help(showsAncestor ? "Hide the common ancestor" : "Show the common ancestor both sides changed")
             .accessibilityValue(showsAncestor ? "Shown" : "Hidden")
         }
-        KitSegmented(selection: $choice, options: options)
+        KitSegmented(selection: $choice, segments: options)
         if let edit { Button("Edit…", action: edit).buttonStyle(.dataSoft) }
       } else {
         Button("Undo", systemImage: "arrow.uturn.backward") { withKitAnimation { choice = nil } }
@@ -865,9 +947,14 @@ public struct ConflictCard: View {
 
   private func resolvedMeta(_ choice: ConflictChoice) -> [String] {
     switch choice {
-    case .current: ["Used Current", current.ref ?? ""]
-    case .incoming: ["Used Incoming", incoming.ref ?? ""]
-    case .both: ["Used Both", sides.compactMap(\.side.ref).joined(separator: ", then ")]
+    case .current: return [KitString("Used Current").string, current.ref ?? ""]
+    case .incoming: return [KitString("Used Incoming").string, incoming.ref ?? ""]
+    case .both:
+      let refs = sides.compactMap(\.side.ref)
+      return [
+        KitString("Used Both").string,
+        refs.count == 2 ? KitString("\(refs[0]), then \(refs[1])").string : refs.joined(separator: ", "),
+      ]
     }
   }
 
@@ -875,7 +962,7 @@ public struct ConflictCard: View {
     VStack(alignment: .leading, spacing: 0) {
       HStack(spacing: 7) {
         RoundedRectangle(cornerRadius: 2.5, style: .continuous).fill(hue.fill).frame(width: 8, height: 8)
-        Text(side.label).font(.system(size: 12, weight: .semibold))
+        Text(side.labelText).font(.system(size: 12, weight: .semibold))
         if let ref = side.ref {
           Text(ref).font(.system(size: 12)).foregroundStyle(.kitSecondary).lineLimit(1)
         }

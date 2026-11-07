@@ -20,33 +20,59 @@ import SwiftUI
 ///
 /// For another icon (an app tile, an avatar), use `RichHeader(…, size: .title)`.
 public struct KitTitle: View {
-  var title: String
+  var title: KitString
   var meta: [String]
   var systemImage: String
   var hue: Hue
   var status: WorkStatus
 
-  /// A title with a meta line of parts joined by " · ".
+  /// A title with a meta line of parts joined by " · ". The title is a key (a literal), looked up in the app's
+  /// strings; the meta parts are shown as they are.
+  public init(
+    _ title: LocalizedStringKey, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle
+  ) {
+    self.init(title: KitString(title), meta: meta, systemImage: systemImage, hue: hue, status: status)
+  }
+
+  /// The same with the title a string shown as it is.
+  @_disfavoredOverload
   public init(
     _ title: some StringProtocol, meta: [String] = [], systemImage: String, hue: Hue = .accent,
     status: WorkStatus = .idle
   ) {
-    self.title = String(title)
+    self.init(
+      title: KitString(verbatim: String(title)), meta: meta, systemImage: systemImage, hue: hue, status: status)
+  }
+
+  /// A title with a one-part meta line; the title is a key (a literal), looked up in the app's strings.
+  public init(
+    _ title: LocalizedStringKey, meta: String, systemImage: String, hue: Hue = .accent, status: WorkStatus = .idle
+  ) {
+    self.init(title: KitString(title), meta: [meta], systemImage: systemImage, hue: hue, status: status)
+  }
+
+  /// The same with the title a string shown as it is.
+  @_disfavoredOverload
+  public init(
+    _ title: some StringProtocol, meta: String, systemImage: String, hue: Hue = .accent, status: WorkStatus = .idle
+  ) {
+    self.init(
+      title: KitString(verbatim: String(title)), meta: [meta], systemImage: systemImage, hue: hue, status: status)
+  }
+
+  init(title: KitString, meta: [String], systemImage: String, hue: Hue, status: WorkStatus) {
+    self.title = title
     self.meta = meta
     self.systemImage = systemImage
     self.hue = hue
     self.status = status
   }
 
-  /// A title with a one-part meta line.
-  public init(
-    _ title: some StringProtocol, meta: String, systemImage: String, hue: Hue = .accent, status: WorkStatus = .idle
-  ) {
-    self.init(title, meta: [meta], systemImage: systemImage, hue: hue, status: status)
-  }
-
   public var body: some View {
-    RichHeader(title, meta: meta, size: .title, systemImage: systemImage, hue: hue, status: status)
+    RichHeader(
+      title: title, size: .title, systemImage: systemImage, hue: hue, status: status, meta: { MetaLine(meta) },
+      accessory: { EmptyView() })
       .fixedSize(horizontal: false, vertical: true)
       .accessibilityElement(children: .combine)
       .accessibilityAddTraits(.isHeader)
@@ -154,11 +180,29 @@ extension View {
   /// HistoryView()
   ///   .kitToolbarTitle("History", meta: ["main", "2 commits to push"], systemImage: "clock", status: fetch)
   /// ```
+  ///
+  /// The title is a key (a literal), looked up in the app's strings; the meta parts are shown as they are.
   public func kitToolbarTitle(
-    _ title: String, meta: [String] = [], systemImage: String, hue: Hue = .accent, status: WorkStatus = .idle
+    _ title: LocalizedStringKey, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle
+  ) -> some View {
+    kitToolbarTitle(KitString(title), meta: meta, systemImage: systemImage, hue: hue, status: status)
+  }
+
+  /// The same with the title a string shown as it is.
+  @_disfavoredOverload
+  public func kitToolbarTitle(
+    _ title: some StringProtocol, meta: [String] = [], systemImage: String, hue: Hue = .accent,
+    status: WorkStatus = .idle
+  ) -> some View {
+    kitToolbarTitle(KitString(verbatim: String(title)), meta: meta, systemImage: systemImage, hue: hue, status: status)
+  }
+
+  func kitToolbarTitle(
+    _ title: KitString, meta: [String], systemImage: String, hue: Hue, status: WorkStatus
   ) -> some View {
     kitToolbarTitle(title) {
-      KitTitle(title, meta: meta, systemImage: systemImage, hue: hue, status: status)
+      KitTitle(title: title, meta: meta, systemImage: systemImage, hue: hue, status: status)
     }
   }
 
@@ -170,10 +214,26 @@ extension View {
   /// ```swift
   /// Detail().kitToolbarTitle(host.name) { RichHeader(host.name, size: .title, icon: { Avatar(…) }, meta: { … }, accessory: {}) }
   /// ```
-  public func kitToolbarTitle<Title: View>(_ windowTitle: String, @ViewBuilder content: @escaping () -> Title)
+  ///
+  /// The window's title is a key (a literal), looked up in the app's strings.
+  public func kitToolbarTitle<Title: View>(
+    _ windowTitle: LocalizedStringKey, @ViewBuilder content: @escaping () -> Title
+  ) -> some View {
+    kitToolbarTitle(KitString(windowTitle), content: content)
+  }
+
+  /// The same with the window's title a string shown as it is.
+  @_disfavoredOverload
+  public func kitToolbarTitle<Title: View>(
+    _ windowTitle: some StringProtocol, @ViewBuilder content: @escaping () -> Title
+  ) -> some View {
+    kitToolbarTitle(KitString(verbatim: String(windowTitle)), content: content)
+  }
+
+  func kitToolbarTitle<Title: View>(_ windowTitle: KitString, @ViewBuilder content: @escaping () -> Title)
     -> some View
   {
-    navigationTitle(windowTitle)
+    navigationTitle(Text(windowTitle))
       .toolbar {
         KitToolbarItem(placement: .navigation, content: content)
         ContTitleSpace()
