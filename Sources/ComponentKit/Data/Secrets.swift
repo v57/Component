@@ -1,5 +1,25 @@
 import SwiftUI
 
+// MARK: - Access
+
+extension EnvironmentValues {
+  /// Asked before a `KitSecretValue` is shown or copied, or a `KitOneTimeCode` copied: an app lock (Touch ID, Face ID)
+  /// answers. Given what is asked for ("Password"); `nil` lets every secret through.
+  @Entry public var kitSecretAccess: (@MainActor (_ label: String) async -> Bool)? = nil
+}
+
+extension View {
+  /// Asks `allow` before any secret in this view is shown or copied, as a password manager asks for Touch ID or Face
+  /// ID (`KitSecretValue`, `KitOneTimeCode`'s Copy). Its answer may come from a grace period it keeps.
+  ///
+  /// ```swift
+  /// ItemsView().kitSecretAccess { label in await AppLock.unlock(reason: "show the \(label)") }
+  /// ```
+  public func kitSecretAccess(_ allow: (@MainActor (_ label: String) async -> Bool)?) -> some View {
+    environment(\.kitSecretAccess, allow)
+  }
+}
+
 // MARK: - Secret value
 
 /// A secret in a row (a password, a key, a token): dots until revealed, with Show and Copy beside it. The dots are
@@ -21,6 +41,7 @@ public struct KitSecretValue: View {
   @State private var revealed: String?
   @State private var copies = 0
   @Environment(\.kitIdiom) private var idiom
+  @Environment(\.kitSecretAccess) private var access
 
   /// How many dots stand for any secret.
   nonisolated static let maskLength = 16
@@ -110,9 +131,12 @@ public struct KitSecretValue: View {
       .help(isRevealed.wrappedValue ? "Hide \(label)" : "Show \(label)")
       if allowsCopy {
         Button("Copy \(label)", systemImage: "doc.on.doc") {
-          guard let secret = revealed ?? value() else { return }
-          KitPasteboard.copySecret(secret)
-          copies += 1
+          Task {
+            if revealed == nil, let access, !(await access(label)) { return }
+            guard let secret = revealed ?? value() else { return }
+            KitPasteboard.copySecret(secret)
+            copies += 1
+          }
         }
         .buttonStyle(.kitIcon)
         .help("Copy \(label)")
@@ -120,8 +144,16 @@ public struct KitSecretValue: View {
       }
     }
     .onChange(of: isRevealed.wrappedValue, initial: true) { _, shown in
-      // Read only when shown, and drop the plain value when hidden again.
-      revealed = shown ? value() : nil
+      // Read only when shown (and the app's lock lets it), and drop the plain value when hidden again.
+      guard shown else { return revealed = nil }
+      guard let access else { return revealed = value() }
+      Task {
+        if await access(label), isRevealed.wrappedValue {
+          revealed = value()
+        } else {
+          isRevealed.wrappedValue = false
+        }
+      }
     }
   }
 }
@@ -141,6 +173,7 @@ public struct KitOneTimeCode: View {
   var code: (Date) -> String?
   @State private var copies = 0
   @Environment(\.kitIdiom) private var idiom
+  @Environment(\.kitSecretAccess) private var access
 
   /// - Parameters:
   ///   - period: how long each code lasts (30 s for most sites).
@@ -210,9 +243,13 @@ public struct KitOneTimeCode: View {
           current.map { Text("One-time code \($0.map(String.init).joined(separator: " ")), \(Int(left)) seconds left") }
             ?? Text("One-time code unavailable"))
       Button("Copy Code", systemImage: "doc.on.doc") {
-        guard let current else { return }
-        KitPasteboard.copySecret(current, expiresAfter: left)
-        copies += 1
+        Task {
+          if let access, !(await access(KitString("One-time code").string)) { return }
+          // The code of the moment it's copied: asking may have taken a while.
+          guard let now = code(.now) else { return }
+          KitPasteboard.copySecret(now, expiresAfter: Self.remaining(at: .now, period: period))
+          copies += 1
+        }
       }
       .buttonStyle(.kitIcon)
       .help("Copy Code")
