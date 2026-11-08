@@ -381,7 +381,9 @@ public struct KitWordGrid: View {
               Text("\(index + 1)")
                 .foregroundStyle(.kitTertiary)
                 .frame(minWidth: size * 1.3, alignment: .trailing)
+              // Whole on one line, smaller if it must: "objec/t" on two lines gets copied down wrong.
               Text(words[index]).foregroundStyle(.kitLabel)
+                .lineLimit(1).minimumScaleFactor(0.6).allowsTightening(true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
