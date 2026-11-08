@@ -280,6 +280,9 @@ public struct FormRow<Control: View, Field: View>: View {
             ContFormTile(systemImage: systemImage, hue: error == nil ? hue : .red, size: tile)
           }
         }
+        // The title beside the control, or over it when the control would squeeze the title (a colour picker, a
+        // segmented control on iPhone left "C/o/l/o/u/r" one letter a line).
+        ContFormLine {
         VStack(alignment: .leading, spacing: 1) {
           HStack(spacing: 6) {
             Text(title).kitFont(.body)
@@ -308,6 +311,7 @@ public struct FormRow<Control: View, Field: View>: View {
         } else {
           control
             .controlSize(.small)
+        }
         }
       }
       .frame(minHeight: isStacked ? idiom.size(28, touch: 36) : idiom.size(40, touch: 48))
@@ -561,4 +565,74 @@ struct ContFormTile: View {
   .frame(width: 460)
   .background(.kitPanel)
   .componentKit()
+}
+
+/// A form row's line: the title column and the control beside it at the control's own width, the title taking the
+/// rest; when that would leave the title under `minimumTitle`, the control goes under the title, as wide as it wants
+/// up to the row's width.
+struct ContFormLine: Layout {
+  var spacing: CGFloat = 12
+  var minimumTitle: CGFloat = 120
+
+  /// Whether a control this wide leaves the title `minimumTitle` beside it in a line `width` wide.
+  func fitsBeside(control: CGFloat, in width: CGFloat) -> Bool {
+    control <= width - spacing - minimumTitle
+  }
+
+  private struct Plan {
+    var title: CGSize
+    var control: CGSize
+    var isBeside: Bool
+  }
+
+  private func plan(_ width: CGFloat?, _ subviews: Subviews) -> Plan {
+    guard subviews.count > 1 else {
+      let title = subviews.first?.sizeThatFits(ProposedViewSize(width: width, height: nil)) ?? .zero
+      return Plan(title: title, control: .zero, isBeside: true)
+    }
+    let control = subviews[1].sizeThatFits(.unspecified)
+    guard let width else {
+      return Plan(title: subviews[0].sizeThatFits(.unspecified), control: control, isBeside: true)
+    }
+    if fitsBeside(control: control.width, in: width) {
+      let title = subviews[0].sizeThatFits(ProposedViewSize(width: width - spacing - control.width, height: nil))
+      return Plan(title: title, control: control, isBeside: true)
+    }
+    let title = subviews[0].sizeThatFits(ProposedViewSize(width: width, height: nil))
+    let under = subviews[1].sizeThatFits(ProposedViewSize(width: width, height: nil))
+    return Plan(title: title, control: CGSize(width: min(under.width, width), height: under.height), isBeside: false)
+  }
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    let plan = plan(proposal.width, subviews)
+    if plan.isBeside {
+      let gap = subviews.count > 1 ? spacing : 0
+      return CGSize(
+        width: proposal.width ?? plan.title.width + gap + plan.control.width,
+        height: max(plan.title.height, plan.control.height))
+    }
+    return CGSize(width: proposal.width ?? plan.title.width, height: plan.title.height + 6 + plan.control.height)
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    let plan = plan(bounds.width, subviews)
+    if plan.isBeside {
+      let gap = subviews.count > 1 ? spacing : 0
+      subviews.first?.place(
+        at: CGPoint(x: bounds.minX, y: bounds.midY), anchor: .leading,
+        proposal: ProposedViewSize(width: bounds.width - gap - plan.control.width, height: plan.title.height))
+      if subviews.count > 1 {
+        subviews[1].place(
+          at: CGPoint(x: bounds.maxX, y: bounds.midY), anchor: .trailing,
+          proposal: ProposedViewSize(plan.control))
+      }
+    } else {
+      subviews[0].place(
+        at: CGPoint(x: bounds.minX, y: bounds.minY), anchor: .topLeading,
+        proposal: ProposedViewSize(width: bounds.width, height: plan.title.height))
+      subviews[1].place(
+        at: CGPoint(x: bounds.minX, y: bounds.minY + plan.title.height + 6), anchor: .topLeading,
+        proposal: ProposedViewSize(plan.control))
+    }
+  }
 }

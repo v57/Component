@@ -851,3 +851,13 @@ private func footerPlan(width: CGFloat?, kinds: [SheetFooterLayout.Kind]? = nil)
   #expect(plan.frames[1] == .zero)
   #expect(plan.frames[4].maxX == 500)
 }
+
+/// A colour picker in Vault's account sheet left its row's title one letter a line on iPhone (V-028).
+@Test func formRowPutsAWideControlUnderTheTitle() {
+  let line = ContFormLine()
+  // A switch beside the title on an iPhone-wide row; a 260pt colour picker under it.
+  #expect(line.fitsBeside(control: 51, in: 300))
+  #expect(!line.fitsBeside(control: 260, in: 300))
+  // The Mac's wider rows keep it beside.
+  #expect(line.fitsBeside(control: 260, in: 520))
+}
