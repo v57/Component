@@ -309,6 +309,8 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   @FocusState private var focused: Bool
   @Namespace private var namespace
   @State private var reorder = ContReorderState()
+  /// The rows are scrolled up under the navigation bar (iPhone: the bar's ground shows).
+  @State private var isScrolledUnder = false
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.kitAppearsActive) private var appearsActive
   @Environment(\.kitSectionStyle) private var style
@@ -484,7 +486,9 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     }
     // Stuck sections stack under the title bar and over the bottom bar; a stuck title scrolls to its section.
     // The bottom bar keeps its own gap above its cards.
-    .contStickyHost(spacing: spacing, topGap: 2, bottomGap: showsBar ? 0 : inset, sideInset: inset) { id in
+    .contStickyHost(
+      spacing: spacing, topGap: ContBarGround.stickyTopGap(idiom), bottomGap: showsBar ? 0 : inset, sideInset: inset
+    ) { id in
       proxy.scrollTo(ContStickyScrollID(value: id), anchor: .top)
     }
     .focusable()
@@ -500,6 +504,7 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     .simultaneousGesture(TapGesture().onEnded { focused = true })
     // No system scroll edge under the title bar; the bottom bar as an inset.
     .contEdgeEffectHidden(.top)
+    .contScrolledUnderTop($isScrolledUnder)
     .contEdgeBar(.bottom) {
       if showsBar {
         ContSidebarBar(
@@ -523,6 +528,15 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
           .offset(y: -top)
           .allowsHitTesting(false)
           .accessibilityHidden(true)
+        // iPhone: the navigation bar's ground, opaque behind the title and the status bar once rows are under it.
+        if idiom == .phone {
+          ContBarGroundFill(
+            ground: .kitSidebar,
+            isShown: ContBarGround.isShown(idiom: idiom, isScrolledUnder: isScrolledUnder)
+          )
+          .frame(height: top)
+          .offset(y: -top)
+        }
         #if os(macOS)
           // The Mac's hide button sits at the sidebar's top right, centered on the traffic lights, as the system's
           // does. A sidebar with no title bar over it (one shown inside a page) has nowhere to put it: drawn

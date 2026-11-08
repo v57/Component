@@ -886,3 +886,27 @@ private func notePlan(width: CGFloat) -> SheetFooterLayout.Plan {
   // The Mac's wider rows keep it beside.
   #expect(line.fitsBeside(control: 260, in: 520))
 }
+
+// MARK: - Bar ground on iPhone
+
+/// Rows read through the navigation bar's title and a pushed screen's header on iPhone (C-001, M-006, G-004).
+@Test func barGroundShowsOnceContentScrollsUnderTheBar() {
+  // At rest the content's top is at the bar's edge (offset −inset): no ground, as today.
+  #expect(ContBarGround.isScrolledUnder(offsetY: -102, insetTop: 102) == false)
+  #expect(ContBarGround.isScrolledUnder(offsetY: -101, insetTop: 102) == true)
+  #expect(ContBarGround.isScrolledUnder(offsetY: 400, insetTop: 102) == true)
+  // Pulled down past the top (bounce) is still at rest.
+  #expect(ContBarGround.isScrolledUnder(offsetY: -150, insetTop: 102) == false)
+  // A scroll view that doesn't reach a bar (under a picker row, a horizontal strip) says nothing.
+  #expect(ContBarGround.isScrolledUnder(offsetY: 80, insetTop: 0) == nil)
+  // iPhone only: the Mac and iPad keep their fade.
+  #expect(ContBarGround.isShown(idiom: .phone, isScrolledUnder: true))
+  #expect(!ContBarGround.isShown(idiom: .phone, isScrolledUnder: false))
+  #expect(!ContBarGround.isShown(idiom: .pad, isScrolledUnder: true))
+  #expect(!ContBarGround.isShown(idiom: .mac, isScrolledUnder: true))
+  // A stuck card sits right under the iPhone's bar; elsewhere the stack's 2pt.
+  #expect(ContBarGround.stickyTopGap(.phone) == 0)
+  #expect(ContBarGround.stickyTopGap(.mac) == 2)
+  #expect(ContBarGround.stickyTopGap(.pad) == 2)
+}
+

@@ -452,10 +452,17 @@ private struct ContKitToolbar<Title: View>: ViewModifier {
 /// runs up into the title bar, so the bar takes its place.
 private struct ContTopBar<Bar: View>: ViewModifier {
   @ViewBuilder var bar: Bar
+  /// The page's content is scrolled up under the bar (iPhone: the bar's ground shows).
+  @State private var isScrolledUnder = false
+  @Environment(\.kitIdiom) private var idiom
 
   func body(content: Content) -> some View {
+    let showsGround = ContBarGround.isShown(idiom: idiom, isScrolledUnder: isScrolledUnder)
     content
-      .overlayPreferenceValue(ContPaneKey.self) { panes in ContTopBarFade(panes: panes) }
+      .contScrolledUnderTop($isScrolledUnder)
+      .overlayPreferenceValue(ContPaneKey.self) { panes in
+        ContTopBarFade(panes: panes, showsGround: showsGround)
+      }
       // The page fills the pane: the inset asks it for its smallest size first, which a scroll view in it answers by
       // laying out every row (100 ms of opening Git's History).
       .contFillsProposal()
@@ -471,14 +478,20 @@ private struct ContTopBar<Bar: View>: ViewModifier {
 /// white read as a lighter band (#fafafb) over a panel pane.
 private struct ContTopBarFade: View {
   let panes: [ContPane]
+  /// iPhone, scrolled under the bar: each span's ground opaque behind the bar (`ContBarGround`).
+  var showsGround = false
 
   var body: some View {
     GeometryReader { proxy in
       let top = proxy.safeAreaInsets.top
       let spans = ContPaneEdges.topSpans(panes.map { (proxy[$0.bounds], $0.ground) }, width: proxy.size.width)
       ForEach(Array(spans.enumerated()), id: \.offset) { _, span in
+        let ground: KitColor = span.ground == .content ? .kitWindow : .kitPanel
         Rectangle()
-          .fill(ContGroundFade(ground: span.ground == .content ? .kitWindow : .kitPanel, edge: .top))
+          .fill(ContGroundFade(ground: ground, edge: .top))
+          .frame(width: span.width, height: top)
+          .position(x: span.midX, y: -top / 2)
+        ContBarGroundFill(ground: ground, isShown: showsGround)
           .frame(width: span.width, height: top)
           .position(x: span.midX, y: -top / 2)
       }

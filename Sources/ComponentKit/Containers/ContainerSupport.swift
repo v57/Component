@@ -137,6 +137,85 @@ struct ContGroundFade: ShapeStyle {
   }
 }
 
+// MARK: - Bar ground on iPhone
+
+/// A top bar's ground on iPhone (the navigation bar over a `KitSidebar`, the kit's toolbar over a pushed screen): at
+/// rest the bar has none, as everywhere else; once content scrolls up under the bar its ground fades in, opaque from
+/// the screen's top to the bar's lower edge with a short fade under it, so rows don't read through the title and the
+/// status bar. The sheet header's look (K-002), drawn only while something is under the bar. Decided 2026-11-08.
+enum ContBarGround {
+  /// The fade under the ground, into the content.
+  static let fadeHeight: CGFloat = 12
+
+  /// The gap between the bar and a section stuck under it: none on iPhone, where the bar has its ground, so the stuck
+  /// card sits right under the bar (C-001); 2pt elsewhere, the stack's own padding.
+  static func stickyTopGap(_ idiom: KitIdiom) -> CGFloat { idiom == .phone ? 0 : 2 }
+
+  /// Whether the bar draws its ground: on iPhone, while the content is scrolled up under it.
+  static func isShown(idiom: KitIdiom, isScrolledUnder: Bool) -> Bool {
+    idiom == .phone && isScrolledUnder
+  }
+
+  /// Whether a scroll view's content has moved up under the bar over it: its offset past its rest (the top inset,
+  /// where the bar ends). A scroll view with no top inset doesn't reach a bar (one below a picker row, a horizontal
+  /// strip in the content) and says nothing (`nil`).
+  static func isScrolledUnder(offsetY: CGFloat, insetTop: CGFloat) -> Bool? {
+    guard insetTop > 0.5 else { return nil }
+    return offsetY + insetTop > 0.5
+  }
+}
+
+/// A bar's ground on iPhone: `ground` from the top of the view (put it where the bar is, the safe area's top), with
+/// the short fade under it, shown while `isShown`.
+struct ContBarGroundFill: View {
+  var ground: KitColor
+  var isShown: Bool
+
+  var body: some View {
+    Rectangle()
+      .fill(ground)
+      .overlay(alignment: .bottom) {
+        // From the ground itself, so nothing reads through just under the bar (a stuck card's corners sit there).
+        Rectangle()
+          .fill(ContGroundFade(ground: ground, edge: .top, opacity: 1))
+          .frame(height: ContBarGround.fadeHeight)
+          .offset(y: ContBarGround.fadeHeight)
+      }
+      .opacity(isShown ? 1 : 0)
+      .animation(.kitFast, value: isShown)
+      .allowsHitTesting(false)
+      .accessibilityHidden(true)
+  }
+}
+
+extension View {
+  /// Sets `isScrolledUnder` while a scroll view in this view (the view itself, or the one a pushed screen holds) has
+  /// its content up under the top bar (`ContBarGround.isScrolledUnder`). iOS 18 (scroll geometry); off before.
+  func contScrolledUnderTop(_ isScrolledUnder: Binding<Bool>) -> some View {
+    modifier(ContScrolledUnderTop(isScrolledUnder: isScrolledUnder))
+  }
+}
+
+private struct ContScrolledUnderTop: ViewModifier {
+  @Binding var isScrolledUnder: Bool
+
+  func body(content: Content) -> some View {
+    #if os(iOS)
+      if #available(iOS 18.0, *) {
+        content.onScrollGeometryChange(for: Bool?.self) { geometry in
+          ContBarGround.isScrolledUnder(offsetY: geometry.contentOffset.y, insetTop: geometry.contentInsets.top)
+        } action: { _, new in
+          if let new, new != isScrolledUnder { isScrolledUnder = new }
+        }
+      } else {
+        content
+      }
+    #else
+      content
+    #endif
+  }
+}
+
 extension View {
   /// Fades the bottom `length` points out (clear for the last 6), so a rounded card that runs on under a bar or the
   /// window's edge never ends in a flat cut. Off while nothing is under the edge.
