@@ -136,6 +136,16 @@ import Testing
   #expect(nav.selected == "c")
 }
 
+/// A welcome item without an `id:` used to take its subtitle as its id, so projects on the same devices ("studio-mac")
+/// shared one and every row opened the first (Code C-007).
+@MainActor @Test func recentItemsWithTheSameSubtitleHaveTheirOwnIDs() {
+  let first = RecentItem.defaultID(title: "Alpha", subtitle: "studio-mac")
+  let second = RecentItem.defaultID(title: "Bravo", subtitle: "studio-mac")
+  #expect(first != second)
+  #expect(RecentItem.defaultID(title: "Alpha", subtitle: nil) == "Alpha")
+  #expect(RecentItem.defaultID(title: "Alpha", subtitle: "b") != RecentItem.defaultID(title: "Alpha b", subtitle: nil))
+}
+
 @Test func paletteMarksTheMatch() {
   let marked = PaletteMatch.marked("TripStore.swift", query: "store")
   let strong = marked.runs.filter { $0.inlinePresentationIntent == .stronglyEmphasized }

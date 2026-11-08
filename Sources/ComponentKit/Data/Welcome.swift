@@ -576,8 +576,15 @@ public struct RecentItem: View {
     self.systemImage = systemImage
     self.image = image
     self.imageData = imageData
-    self.id = id ?? subtitle ?? title
+    self.id = id ?? Self.defaultID(title: title, subtitle: subtitle)
     self.action = action
+  }
+
+  /// Without an `id:`, the item's title and subtitle together: the list's selection and Return open an item by its id,
+  /// so two items with the same subtitle alone ("On this device", the same Mac) opened the first one. Pass an `id:`
+  /// whenever two items could show the same title and subtitle.
+  static func defaultID(title: String, subtitle: String?) -> String {
+    subtitle.map { title + "\u{1F}" + $0 } ?? title
   }
 
   private var isSelected: Bool { nav?.selected == id }
