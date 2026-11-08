@@ -89,6 +89,20 @@ import Testing
   #expect(!FieldStatus.none.isError)
 }
 
+/// Vault's user, host and secret fields were typed as prose on iPhone: "Deploy@ZZ.test.invalid", "wss://" → "Was://".
+@Test func technicalFieldsAreTypedVerbatim() {
+  #expect(KitFieldContent.text.isProse)
+  // A mono field (a host, a port, a key) is verbatim without saying so.
+  #expect(KitFieldContent.text.resolved(mono: true) == .verbatim)
+  #expect(KitFieldContent.text.resolved(mono: false) == .text)
+  #expect(KitFieldContent.url.resolved(mono: true) == .url)
+  for content in [KitFieldContent.verbatim, .url, .email, .number, .secret, .secretNumber] {
+    #expect(!content.isProse)
+  }
+  #expect(KitFieldContent.secret.isSecret && KitFieldContent.secretNumber.isSecret)
+  #expect(!KitFieldContent.verbatim.isSecret)
+}
+
 final class Box: @unchecked Sendable {
   var value = "pg"
 }

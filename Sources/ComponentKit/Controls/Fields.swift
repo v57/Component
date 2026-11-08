@@ -36,19 +36,30 @@ extension View {
   /// TextField("https://", text: $url).kitField(status: .valid, mono: true)
   /// TextField("Branch", text: $name).kitField(status: .error).kitFieldError("A branch with this name exists")
   /// ```
-  public func kitField(status: FieldStatus = .none, mono: Bool = false) -> some View {
-    modifier(CtlFieldModifier(status: status, mono: mono, trailing: EmptyView()))
+  ///
+  /// `content` says what the field holds, for the keyboard on iPhone and iPad: a user name, an address or a key typed as
+  /// prose would get a capital first letter, autocorrection ("wss://" → "Was://") and suggestions learnt from it. A
+  /// `mono` field is `.verbatim` unless `content` says more.
+  ///
+  /// ```swift
+  /// TextField("deploy", text: $user).kitField(content: .verbatim)
+  /// TextField("https://", text: $url).kitField(mono: true, content: .url)
+  /// SecureField("Secret access key", text: $secret).kitField(mono: true, content: .secret)
+  /// ```
+  public func kitField(status: FieldStatus = .none, mono: Bool = false, content: KitFieldContent = .text) -> some View {
+    modifier(CtlFieldModifier(status: status, mono: mono, content: content, trailing: EmptyView()))
   }
 
   /// A kit field with its own view at the end (a clear button, a unit, a menu), before the status's live icon.
   ///
   /// ```swift
-  /// TextField("Port", text: $port).kitField { Text("TCP").kitFont(.caption) }
+  /// TextField("Port", text: $port).kitField(content: .number) { Text("TCP").kitFont(.caption) }
   /// ```
   public func kitField<Trailing: View>(
-    status: FieldStatus = .none, mono: Bool = false, @ViewBuilder trailing: () -> Trailing
+    status: FieldStatus = .none, mono: Bool = false, content: KitFieldContent = .text,
+    @ViewBuilder trailing: () -> Trailing
   ) -> some View {
-    modifier(CtlFieldModifier(status: status, mono: mono, trailing: trailing()))
+    modifier(CtlFieldModifier(status: status, mono: mono, content: content, trailing: trailing()))
   }
 
   /// Says what is wrong with a field in red text under it; `nil` shows nothing. Pair it with `status: .error`. The
@@ -157,9 +168,94 @@ public struct KitMultilineField: View {
   }
 }
 
+/// What a kit field holds, for the keyboard, autocorrection, capitals and AutoFill on iPhone and iPad (the Mac only
+/// turns autocorrection off where it says so).
+public enum KitFieldContent: Hashable, Sendable {
+  /// Prose: a title, a name, a sentence. The keyboard capitalises and corrects.
+  case text
+  /// Typed exactly: a user name, a host, a path, an id, a command. No capitals, corrections or suggestions.
+  case verbatim
+  /// A URL or an address with a scheme: verbatim, on the URL keyboard.
+  case url
+  /// An email address: verbatim, on the email keyboard.
+  case email
+  /// Digits and the odd separator (a port, an expiry "MM/YY", a card number): verbatim, on the numbers keyboard.
+  case number
+  /// A value the app keeps secret that isn't the user's password for a site (an access key's secret, a card's code):
+  /// verbatim, and iOS neither offers a strong password nor asks to save it in Passwords.
+  case secret
+  /// A secret made of digits (a card number, a security code): `secret` on the numbers keyboard.
+  case secretNumber
+
+  /// What a field with this content and `mono` does: a `mono` field is verbatim unless it says more.
+  func resolved(mono: Bool) -> KitFieldContent {
+    self == .text && mono ? .verbatim : self
+  }
+
+  /// Whether the keyboard corrects, capitalises and suggests words.
+  var isProse: Bool { self == .text }
+
+  /// Whether iOS should keep away from it with passwords (the strong-password offer, Save Password).
+  var isSecret: Bool { self == .secret || self == .secretNumber }
+}
+
+extension View {
+  /// The keyboard side of `KitFieldContent` for a text view that isn't a `kitField`: a `TextEditor`, a
+  /// `KitMultilineField`, a `FormRow`'s field. `kitField(content:)` sets it itself.
+  ///
+  /// ```swift
+  /// TextEditor(text: $words).kitTextContent(.verbatim)
+  /// FormRow("Team ID", systemImage: "person.2", field: TextField("ABCDE12345", text: $teamID).kitTextContent(.verbatim))
+  /// ```
+  public func kitTextContent(_ content: KitFieldContent) -> some View {
+    modifier(CtlFieldContent(content: content))
+  }
+}
+
+/// The keyboard side of `KitFieldContent`.
+struct CtlFieldContent: ViewModifier {
+  let content: KitFieldContent
+
+  func body(content field: Content) -> some View {
+    let styled = field.autocorrectionDisabled(!content.isProse)
+    #if os(iOS) || os(visionOS)
+      return styled
+        .textInputAutocapitalization(content.isProse ? nil : .never)
+        .keyboardType(keyboard)
+        .textContentType(textContentType)
+    #else
+      return styled
+    #endif
+  }
+
+  #if os(iOS) || os(visionOS)
+    private var keyboard: UIKeyboardType {
+      switch content {
+      case .text: .default
+      case .verbatim, .secret: .asciiCapable
+      case .url: .URL
+      case .email: .emailAddress
+      case .number, .secretNumber: .numbersAndPunctuation
+      }
+    }
+
+    /// A secret gets the one-time-code type: with none, iOS takes a secure field for a password, offers a strong one
+    /// and asks to save what was typed in Passwords.
+    private var textContentType: UITextContentType? {
+      switch content {
+      case .url: .URL
+      case .email: .emailAddress
+      case .secret, .secretNumber: .oneTimeCode
+      default: nil
+      }
+    }
+  #endif
+}
+
 struct CtlFieldModifier<Trailing: View>: ViewModifier {
   let status: FieldStatus
   let mono: Bool
+  var content: KitFieldContent = .text
   let trailing: Trailing
   @FocusState private var isFocused: Bool
   @Environment(\.kitIdiom) private var idiom
@@ -173,6 +269,7 @@ struct CtlFieldModifier<Trailing: View>: ViewModifier {
     HStack(spacing: 8) {
       content
         .textFieldStyle(.plain)
+        .modifier(CtlFieldContent(content: self.content.resolved(mono: mono)))
         .kitFont(mono ? .mono : .body)
         .foregroundStyle(.kitLabel)
         .focused($isFocused)

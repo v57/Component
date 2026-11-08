@@ -67,6 +67,8 @@ public struct KitSearchField<Scope: KitOption>: View {
       }
       TextField(prompt, text: $text, prompt: Text(prompt).foregroundStyle(.kitSecondary))
         .textFieldStyle(.plain)
+        // A query is a filter (a name, a host, a word): no capitals or corrections ("wss" → "Was").
+        .kitTextContent(.verbatim)
         .kitFont(.body)
         .foregroundStyle(.kitLabel)
         .focused($isFocused)
@@ -271,6 +273,7 @@ public struct SidebarSearchButton: View {
             .accessibilityHidden(true)
           TextField(prompt, text: $text, prompt: Text(prompt).foregroundStyle(.kitSecondary))
             .textFieldStyle(.plain)
+            .kitTextContent(.verbatim)
             .kitFont(.body)
             .focused($isFocused)
             .onKeyPress(.escape) {
