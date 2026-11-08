@@ -107,13 +107,11 @@ struct KitDialogCard: View {
       }
       .accessibilityElement(children: .combine)
       content
-      HStack(spacing: KitMetrics.gutter) {
-        Button(role: .cancel) { close(false) } label: { Text("Cancel").frame(maxWidth: .infinity) }
-          .buttonStyle(.kit)
-          .keyboardShortcut(.cancelAction)
-        Button(role: role) { close(true) } label: { Text(confirm).frame(maxWidth: .infinity) }
-          .buttonStyle(.kitPrimary)
-          .keyboardShortcut(.defaultAction)
+      // Side by side while both labels fit whole, else the confirming button over Cancel ("Trust and Connect" on
+      // iPhone was "Trust and Co…").
+      KitDialogButtons {
+        cancelButton
+        confirmButton
       }
       .controlSize(idiom.isTouch ? .large : .regular)
       .padding(.top, 4)
@@ -121,6 +119,59 @@ struct KitDialogCard: View {
     .padding(20)
     .frame(maxWidth: 340)
     .accessibilityAddTraits(.isModal)
+  }
+
+  private var cancelButton: some View {
+    Button(role: .cancel) { close(false) } label: { Text("Cancel").frame(maxWidth: .infinity) }
+      .buttonStyle(.kit)
+      .keyboardShortcut(.cancelAction)
+  }
+
+  private var confirmButton: some View {
+    Button(role: role) { close(true) } label: { Text(confirm).frame(maxWidth: .infinity) }
+      .buttonStyle(.kitPrimary)
+      .keyboardShortcut(.defaultAction)
+  }
+}
+
+/// Cancel and the confirming button: side by side at one width while both labels fit whole at it, else the
+/// confirming button over Cancel, each across the card.
+struct KitDialogButtons: Layout {
+  var spacing = KitMetrics.gutter
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    let ideal = subviews.map { $0.sizeThatFits(.unspecified) }
+    let widest = ideal.map(\.width).max() ?? 0
+    let sideBySide = widest * CGFloat(subviews.count) + spacing * CGFloat(max(0, subviews.count - 1))
+    let width = proposal.width.map { $0.isFinite ? $0 : sideBySide } ?? sideBySide
+    if sideBySide <= width + 0.5 {
+      return CGSize(width: width, height: ideal.map(\.height).max() ?? 0)
+    }
+    let heights = ideal.map(\.height)
+    return CGSize(
+      width: width, height: heights.reduce(0, +) + spacing * CGFloat(max(0, subviews.count - 1)))
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    let ideal = subviews.map { $0.sizeThatFits(.unspecified) }
+    let widest = ideal.map(\.width).max() ?? 0
+    let count = CGFloat(subviews.count)
+    if widest * count + spacing * (count - 1) <= bounds.width + 0.5 {
+      let width = (bounds.width - spacing * (count - 1)) / count
+      for (index, subview) in subviews.enumerated() {
+        subview.place(
+          at: CGPoint(x: bounds.minX + CGFloat(index) * (width + spacing), y: bounds.minY),
+          proposal: ProposedViewSize(width: width, height: bounds.height))
+      }
+    } else {
+      // The last (confirming) one on top, Cancel under it.
+      var y = bounds.minY
+      for subview in subviews.reversed() {
+        let height = subview.sizeThatFits(ProposedViewSize(width: bounds.width, height: nil)).height
+        subview.place(at: CGPoint(x: bounds.minX, y: y), proposal: ProposedViewSize(width: bounds.width, height: height))
+        y += height + spacing
+      }
+    }
   }
 }
 
