@@ -756,6 +756,83 @@ extension View {
   }
 #endif
 
+// MARK: - Sidebar toggle
+
+/// Where the kit's sidebar toggle shows. Decided 2026-11-08 (M-011, G-005): on iPad the sidebar's bottom bar has its
+/// toggle in every orientation and window size while the split view shows the sidebar beside or over the page, so a
+/// sidebar brought out in portrait can be hidden again (the page's Show Sidebar, `kitSidebarToggle`, brings it back).
+/// A split view's columns report a compact width even side by side on an iPad, so the iPad asks UIKit whether the
+/// split is collapsed (one stack: a narrow window) rather than reading the column's size class.
+enum ContSidebarToggle {
+  /// Whether the bottom bar shows the toggle. `isCollapsed`: the split view stacks its columns (`nil` until read);
+  /// `isCompact`: the sidebar's own horizontal size class. iPhone: only in a regular width (a Pro Max in landscape).
+  static func showsBarToggle(idiom: KitIdiom, isCollapsed: Bool?, isCompact: Bool) -> Bool {
+    if idiom == .pad { return !(isCollapsed ?? isCompact) }
+    return !isCompact
+  }
+}
+
+#if os(iOS)
+  /// Reads whether the split view around this view is collapsed (its columns stacked): the split view controller's
+  /// own answer, else the window's horizontal size class. Put it in a background.
+  struct ContSplitCollapseReader: UIViewRepresentable {
+    @Binding var isCollapsed: Bool?
+
+    func makeUIView(context: Context) -> Probe { Probe() }
+
+    func updateUIView(_ view: Probe, context: Context) {
+      let binding = $isCollapsed
+      view.onChange = { binding.wrappedValue = $0 }
+      view.check()
+    }
+
+    final class Probe: UIView {
+      var onChange: ((Bool) -> Void)?
+      private var last: Bool?
+
+      override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        registerForTraitChanges([UITraitHorizontalSizeClass.self]) { (probe: Probe, _: UITraitCollection) in
+          probe.check()
+        }
+      }
+
+      required init?(coder: NSCoder) { nil }
+
+      override func didMoveToWindow() {
+        super.didMoveToWindow()
+        check()
+        // The responder chain may reach the split view only once the column's controllers are in place.
+        DispatchQueue.main.async { [weak self] in self?.check() }
+      }
+
+      // The column changes size as the split collapses or expands.
+      override func layoutSubviews() {
+        super.layoutSubviews()
+        check()
+      }
+
+      func check() {
+        guard let window else { return }
+        var collapsed = window.traitCollection.horizontalSizeClass == .compact
+        var responder = next
+        while let current = responder {
+          if let split = current as? UISplitViewController {
+            collapsed = split.isCollapsed
+            break
+          }
+          responder = current.next
+        }
+        guard collapsed != last else { return }
+        last = collapsed
+        // Not during SwiftUI's update of this view.
+        DispatchQueue.main.async { [onChange] in onChange?(collapsed) }
+      }
+    }
+  }
+#endif
+
 /// The window a view is in (`ContWindowReader` fills it), for platform calls aimed at that window.
 final class ContWindowRef {
   #if os(macOS)

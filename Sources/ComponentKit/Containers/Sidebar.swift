@@ -317,6 +317,8 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
   @Environment(\.contThreeColumns) private var threeColumns
   #if !os(macOS)
     @Environment(\.horizontalSizeClass) private var sizeClass
+    /// Whether the split view around the sidebar stacks its columns (iPad; `nil` until read).
+    @State private var splitIsCollapsed: Bool?
   #endif
 
   init<Selection: Hashable & Sendable>(
@@ -572,6 +574,14 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     #endif
     // iPadOS 26 would float the column as a glass card inside the screen's edges.
     .contFlushSidebarColumn()
+    #if os(iOS)
+      // On iPad the toggle follows whether the split is collapsed, not the column's (compact) size class.
+      .background {
+        if idiom == .pad {
+          ContSplitCollapseReader(isCollapsed: $splitIsCollapsed).allowsHitTesting(false).accessibilityHidden(true)
+        }
+      }
+    #endif
     // Its own floor on the Mac: a split view's column minimum gives way under a full toolbar. Not on iPad, where
     // the split view fixes the column's width (about 200pt in a three-column portrait, an app's own 220pt):
     // held wider than the column, the cards ran past both of its edges, with no gutter at the screen's edge.
@@ -619,13 +629,15 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
     searchText != nil || BottomBar.self != EmptyView.self || barToggle != nil || statusView != nil
   }
 
-  /// The bottom bar's sidebar toggle: on iPad and iPhone; the Mac's sits at the top right. A compact split (an
-  /// iPhone, a narrow iPad window) stacks its columns, so there is no sidebar beside the page to hide.
+  /// The bottom bar's sidebar toggle: on iPad in every orientation while the split shows the sidebar beside or over
+  /// the page (`ContSidebarToggle`), on iPhone in a regular width; the Mac's sits at the top right. A collapsed split
+  /// (an iPhone, a narrow iPad window) stacks its columns, so there is no sidebar beside the page to hide.
   private var barToggle: (@MainActor () -> Void)? {
     #if os(macOS)
       nil
     #else
-      sizeClass == .compact ? nil : toggle
+      ContSidebarToggle.showsBarToggle(
+        idiom: idiom, isCollapsed: splitIsCollapsed, isCompact: sizeClass == .compact) ? toggle : nil
     #endif
   }
 

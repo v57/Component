@@ -910,3 +910,19 @@ private func notePlan(width: CGFloat) -> SheetFooterLayout.Plan {
   #expect(ContBarGround.stickyTopGap(.pad) == 2)
 }
 
+// MARK: - Sidebar toggle
+
+/// The iPad's sidebar column is compact even beside the page: the toggle follows the split, not the column (M-011).
+@Test func sidebarToggleShowsOnIPadWhileTheSplitIsntCollapsed() {
+  // Portrait and landscape alike, though the column reports compact.
+  #expect(ContSidebarToggle.showsBarToggle(idiom: .pad, isCollapsed: false, isCompact: true))
+  #expect(ContSidebarToggle.showsBarToggle(idiom: .pad, isCollapsed: false, isCompact: false))
+  // A narrow window stacks the columns: back leads to the sidebar there.
+  #expect(!ContSidebarToggle.showsBarToggle(idiom: .pad, isCollapsed: true, isCompact: true))
+  // Not read yet: the size class decides, as before.
+  #expect(!ContSidebarToggle.showsBarToggle(idiom: .pad, isCollapsed: nil, isCompact: true))
+  // iPhone: only in a regular width.
+  #expect(!ContSidebarToggle.showsBarToggle(idiom: .phone, isCollapsed: nil, isCompact: true))
+  #expect(ContSidebarToggle.showsBarToggle(idiom: .phone, isCollapsed: nil, isCompact: false))
+}
+
