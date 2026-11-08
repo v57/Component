@@ -152,13 +152,14 @@ public struct ChangeRow<Change: View>: View {
     // One line where it fits; else the change goes under the row's names (an iPhone).
     ViewThatFits(in: .horizontal) {
       HStack(spacing: 10) {
-        names
+        names(fitting: false)
         changeView
         undoButton
       }
       VStack(alignment: .leading, spacing: 2) {
         HStack(spacing: 10) {
-          names
+          // Shortened here, or a long key (a MongoDB ObjectId) ran the row and the sheet past both edges.
+          names(fitting: true)
           Spacer(minLength: 0)
           undoButton.fixedSize()
         }
@@ -173,7 +174,9 @@ public struct ChangeRow<Change: View>: View {
 }
 
 extension ChangeRow {
-  @ViewBuilder fileprivate var names: some View {
+  /// The kind, the row's title and the field; `fitting` lets the title and field shorten (in the middle, so a key's
+  /// end shows) to the width there is.
+  @ViewBuilder fileprivate func names(fitting: Bool) -> some View {
     Tile(systemImage: kind.systemImage, hue: kind.hue, size: 18)
     Text(kind.title)
       .kitFont(.headline)
@@ -182,14 +185,17 @@ extension ChangeRow {
     Text(title)
       .monospacedDigit()
       .lineLimit(1)
-      .frame(minWidth: 48, alignment: .leading)
-      .fixedSize()
+      .truncationMode(.middle)
+      .frame(minWidth: fitting ? nil : 48, alignment: .leading)
+      .fixedSize(horizontal: !fitting, vertical: false)
     if let field {
       Text(field)
         .foregroundStyle(.kitSecondary)
         .lineLimit(1)
-        .frame(minWidth: 40, alignment: .leading)
-        .fixedSize()
+        .truncationMode(.middle)
+        .frame(minWidth: fitting ? nil : 40, alignment: .leading)
+        .fixedSize(horizontal: !fitting, vertical: false)
+        .layoutPriority(fitting ? 1 : 0)
     }
   }
 

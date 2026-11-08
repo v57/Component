@@ -255,3 +255,17 @@ private struct Key { var name: String; var children: [Key]? }
     #expect(await KitImages.load(KitImages.Key(.file(URL(fileURLWithPath: "/nonexistent.png")), maxPixelSize: 10)) == nil)
   }
 #endif
+
+#if os(macOS)
+  /// A MongoDB edit's ObjectId kept Review's change row, and with it the sheet, wider than an iPhone: the statement
+  /// and the Undo were cut at both edges (Database D-009).
+  @MainActor @Test func changeRowFitsANarrowWidthWithALongKey() {
+    let key = "ObjectId(\"65f1c0ffee0123456789abcd\")"
+    let row = ChangeRow(.edited, title: key, field: "body", old: "Sturdy", new: "Sturdy and bright") {}
+      .componentKit()
+    let host = NSHostingController(rootView: row)
+    #expect(host.sizeThatFits(in: CGSize(width: 300, height: 1000)).width <= 300)
+    // Where there is room the key stays whole, on one line with the change.
+    #expect(host.sizeThatFits(in: CGSize(width: 900, height: 1000)).width > 300)
+  }
+#endif
