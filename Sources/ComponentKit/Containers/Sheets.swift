@@ -56,6 +56,9 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
   @State private var footerHeight: CGFloat = 0
   /// The header's height, while it is a bar over the sheet's scrolling body.
   @State private var headerHeight: CGFloat = 0
+  /// Whether the body is scrolled up under the header bar, and where its top is at rest (the bar's inset).
+  @State private var bodyIsScrolled = false
+  @State private var bodyTopAtRest: CGFloat = 0
 
   /// A sheet with any icon (a thing's own tile, an avatar). `width` applies on the Mac (and 80pt wider on iPad, over
   /// the window); `onClose` adds the round close button at the header's end (for panels without a Cancel button).
@@ -113,8 +116,10 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
               .onGeometryChange(for: Bool.self) { $0.frame(in: .named(space)).maxY > viewport + 0.5 } action: {
                 bodyRunsOn = $0
               }
+              .modifier(SheetBodyTop(space: space, rest: bodyTopAtRest, isScrolled: $bodyIsScrolled))
           }
           .coordinateSpace(.named(space))
+          .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { bodyTopAtRest = $0 }
           .scrollBounceBehavior(.basedOnSize)
           .scrollIndicators(.automatic)
           .modifier(FooterOverBody(footer: footerOverBody ? footerBar : nil, height: $footerHeight))
@@ -126,7 +131,10 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
           ScrollView {
             sheetBody
               .padding(.bottom, Footer.self == EmptyView.self ? 0 : 4)
+              .modifier(SheetBodyTop(space: scrollSpace, rest: bodyTopAtRest, isScrolled: $bodyIsScrolled))
           }
+          .coordinateSpace(.named(scrollSpace))
+          .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { bodyTopAtRest = $0 }
           .scrollBounceBehavior(.basedOnSize)
           .modifier(FooterOverBody(footer: footerOverBody ? footerBar : nil, height: $footerHeight))
           .contEdgeBar(.top) { headerBar }
@@ -156,10 +164,22 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
     Content.self != EmptyView.self && (presentation == .overlay || idiom == .phone)
   }
 
-  /// The header as a bar the body scrolls under and fades out behind.
+  /// The header as a bar the body scrolls under: opaque on the sheet's own ground (the panel), so a title scrolled up
+  /// under it doesn't show through, and the same as the card at rest; a short fade under it while the body is
+  /// scrolled, so the content doesn't end in a flat cut.
   private var headerBar: some View {
     header
-      .background { ContEdgeFade(edge: .top, ground: .panel) }
+      .background { Rectangle().fill(.kitPanel).ignoresSafeArea(.container, edges: .top) }
+      .overlay(alignment: .bottom) {
+        Rectangle()
+          .fill(ContGroundFade(ground: .panel, edge: .top))
+          .frame(height: SheetHeaderFade.height)
+          .offset(y: SheetHeaderFade.height)
+          .opacity(bodyIsScrolled ? 1 : 0)
+          .animation(.kitFast, value: bodyIsScrolled)
+          .allowsHitTesting(false)
+          .accessibilityHidden(true)
+      }
       .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
   }
 
@@ -358,6 +378,25 @@ public struct SheetStatus: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .accessibilityElement(children: .combine)
     .layoutValue(key: SheetFooterPartKey.self, value: .status)
+  }
+}
+
+/// The fade under a sheet's header bar while its body is scrolled.
+enum SheetHeaderFade {
+  static let height: CGFloat = 12
+}
+
+/// Whether a sheet's body is scrolled up from its top at rest (`rest`, the scroll view's top inset: the header bar),
+/// in its scroll view (`space`). A Bool, so scrolling changes the state only when it starts or ends.
+struct SheetBodyTop: ViewModifier {
+  let space: UUID
+  let rest: CGFloat
+  @Binding var isScrolled: Bool
+
+  func body(content: Content) -> some View {
+    content.onGeometryChange(for: Bool.self) { $0.frame(in: .named(space)).minY < rest - 0.5 } action: {
+      isScrolled = $0
+    }
   }
 }
 
