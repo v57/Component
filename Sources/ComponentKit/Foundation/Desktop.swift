@@ -296,7 +296,8 @@ extension KitDesktop {
     #endif
   }
 
-  /// Asks where to save with the system's save panel; nil when cancelled (and on iOS).
+  /// Asks where to save with the system's save panel; nil when cancelled (and on iOS, which has no save panel: save a
+  /// copy with `saveCopy(of:)` there).
   @MainActor public static func chooseSaveLocation(
     title: String? = nil, prompt: String = "Save", name: String = "", directory: URL? = nil
   ) async -> URL? {
@@ -316,6 +317,29 @@ extension KitDesktop {
       request.options.message = title
       request.options.defaultDirectory = directory
       return await FileDialogs.present(request)?.first
+    #endif
+  }
+
+  /// Saves a copy of a file or folder where the user picks, and says where (nil when cancelled): the save panel on the
+  /// Mac (and the file dialog elsewhere), then a copy; on iPhone and iPad the system's exporter, which copies it into
+  /// a folder in Files. The app makes `item` first (a temporary copy, for something it doesn't keep as a file) and
+  /// removes it after.
+  ///
+  /// ```swift
+  /// let plain = try folders.exportDecrypted(folder.id, to: temporary)
+  /// _ = try await KitDesktop.saveCopy(of: plain, title: "Export Decrypted", prompt: "Export")
+  /// ```
+  @MainActor public static func saveCopy(of item: URL, title: String? = nil, prompt: String = "Save") async throws -> URL? {
+    #if os(iOS) || os(visionOS)
+      return await DesktopExporter.export(item)
+    #elseif canImport(UIKit)
+      return nil
+    #else
+      guard let target = await chooseSaveLocation(title: title, prompt: prompt, name: item.lastPathComponent) else { return nil }
+      // The panel asked before replacing what was there.
+      if FileManager.default.fileExists(atPath: target.path) { try FileManager.default.removeItem(at: target) }
+      try FileManager.default.copyItem(at: item, to: target)
+      return target
     #endif
   }
 
@@ -396,5 +420,49 @@ extension KitDesktop {
     }
 
     deinit { NotificationCenter.default.removeObserver(token) }
+  }
+#endif
+
+#if os(iOS) || os(visionOS)
+  /// The system's exporter over the key window (Files' "Save to…" for a file or folder), as one await.
+  @MainActor
+  final class DesktopExporter: NSObject, UIDocumentPickerDelegate {
+    private var continuation: CheckedContinuation<URL?, Never>?
+    /// The exporter on screen keeps its delegate alive until it answers.
+    private static var current: DesktopExporter?
+
+    static func export(_ item: URL) async -> URL? {
+      guard let presenter = topViewController() else { return nil }
+      let exporter = DesktopExporter()
+      current = exporter
+      defer { current = nil }
+      return await withCheckedContinuation { continuation in
+        exporter.continuation = continuation
+        let picker = UIDocumentPickerViewController(forExporting: [item], asCopy: true)
+        picker.delegate = exporter
+        presenter.present(picker, animated: true)
+      }
+    }
+
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+      continuation?.resume(returning: urls.first)
+      continuation = nil
+    }
+
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+      continuation?.resume(returning: nil)
+      continuation = nil
+    }
+
+    /// The view controller on top in the foreground scene's key window.
+    private static func topViewController() -> UIViewController? {
+      let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+      let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+      let window = scene?.windows.first { $0.isKeyWindow && $0.windowLevel == .normal }
+        ?? scene?.windows.first { $0.windowLevel == .normal && !$0.isHidden }
+      var top = window?.rootViewController
+      while let presented = top?.presentedViewController, !presented.isBeingDismissed { top = presented }
+      return top
+    }
   }
 #endif
