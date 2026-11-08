@@ -65,9 +65,11 @@ public struct Banner<Actions: View>: View {
         .frame(width: tile, height: tile)
         .background { RoundedRectangle(cornerRadius: tile * 0.29, style: .continuous).fill(hue.soft(0.16)) }
         .accessibilityHidden(true)
+      // On iPhone the row is narrow beside a button: the text wraps whole instead of stopping at two lines.
+      let lines = idiom == .phone ? nil : 2
       VStack(alignment: .leading, spacing: 1) {
-        Text(title).kitFont(.headline).lineLimit(2)
-        if let message { Text(message).kitFont(.callout).foregroundStyle(.kitSecondary).lineLimit(2) }
+        Text(title).kitFont(.headline).lineLimit(lines)
+        if let message { Text(message).kitFont(.callout).foregroundStyle(.kitSecondary).lineLimit(lines) }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
       .accessibilityElement(children: .combine)
