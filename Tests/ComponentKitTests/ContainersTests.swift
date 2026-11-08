@@ -926,3 +926,12 @@ private func notePlan(width: CGFloat) -> SheetFooterLayout.Plan {
   #expect(ContSidebarToggle.showsBarToggle(idiom: .phone, isCollapsed: nil, isCompact: false))
 }
 
+// MARK: - Prompt
+
+/// Markdown's Rename capitalised a note's name as it was typed ("A/b", M-005).
+@Test func promptFieldTypesANameVerbatim() {
+  #expect(KitPromptField("Name").typesProse)
+  #expect(!KitPromptField("Name", systemImage: "doc.text", content: .verbatim).typesProse)
+  #expect(!KitPromptField("Key", mono: true).typesProse)
+  #expect(!KitPromptField("Email", content: .email).typesProse)
+}

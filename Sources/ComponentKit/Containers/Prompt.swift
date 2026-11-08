@@ -11,11 +11,15 @@ import SwiftUI
 /// KitPromptField.secure("Password", placeholder: "Mac password", help: "v57 on build-mac")
 /// KitPromptField("Key", systemImage: "key", mono: true)                  // a Redis key, an id
 /// KitPromptField("Email", systemImage: "at", content: .email)            // the keyboard and AutoFill for it
+/// KitPromptField("Name", systemImage: "doc.text", content: .verbatim)    // a file's name, as typed
 /// ```
 public struct KitPromptField: Sendable {
   /// What the field holds, for the keyboard, AutoFill (iPhone and iPad) and capitalisation.
   public enum Content: Hashable, Sendable {
     case plain, username, password, newPassword, oneTimeCode, email, url
+    /// Typed exactly, in the body font: a file's or a note's name. No capitals or corrections, on the full keyboard
+    /// (any language's letters), as `mono` without the monospaced type.
+    case verbatim
   }
 
   var labelText: KitString
@@ -26,6 +30,11 @@ public struct KitPromptField: Sendable {
   public var content: Content
   /// Monospaced text without autocorrection (keys, ids, paths).
   public var isMono: Bool
+
+  /// Whether the keyboard capitalises and corrects what is typed: plain prose only.
+  var typesProse: Bool { Self.typesProse(content, mono: isMono) }
+
+  static func typesProse(_ content: Content, mono: Bool) -> Bool { content == .plain && !mono }
 
   /// The label as a string: a key's localized text, or the string as it was given.
   public var label: String {
@@ -170,7 +179,7 @@ private struct ContPromptContent: ViewModifier {
   let isMono: Bool
 
   func body(content field: Content) -> some View {
-    let plain = content == .plain && !isMono
+    let plain = KitPromptField.typesProse(content, mono: isMono)
     let styled = field
       .modifier(ContPromptMono(isOn: isMono))
       .autocorrectionDisabled(!plain)
@@ -194,6 +203,7 @@ private struct ContPromptContent: ViewModifier {
       case .oneTimeCode: .oneTimeCode
       case .email: .emailAddress
       case .url: .URL
+      case .verbatim: nil
       }
     }
 
