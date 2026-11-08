@@ -852,6 +852,31 @@ private func footerPlan(width: CGFloat?, kinds: [SheetFooterLayout.Kind]? = nil)
   #expect(plan.frames[4].maxX == 500)
 }
 
+/// A note before the Spacer (200 wide, 20pt a line, two lines under 150pt), Cancel and Add Document (80, 130): Vault's
+/// Add Document footer cut its primary to "Add Doc…" on iPhone while the note took the row (K-001).
+private func notePlan(width: CGFloat) -> SheetFooterLayout.Plan {
+  let kinds: [SheetFooterLayout.Kind] = [.action, .spacer, .action, .action]
+  let ideal = [CGSize(width: 200, height: 20), .zero, CGSize(width: 80, height: 44), CGSize(width: 130, height: 44)]
+  return SheetFooterLayout().plan(width: width, kinds: kinds, ideal: ideal) { index, width in
+    index == 0 ? (width < 150 ? 40 : 20) : index == 1 ? 0 : 44
+  }
+}
+
+@Test func sheetFooterNoteBeforeTheSpacerLeads() {
+  #expect(SheetFooterLayout.resolved([.action, .spacer, .action]) == [.lead, .spacer, .action])
+  #expect(SheetFooterLayout.resolved([.action, .action]) == [.action, .action])
+  // One row while everything fits: the note keeps its width at the start, the buttons trail.
+  let wide = notePlan(width: 500)
+  #expect(wide.frames[0] == CGRect(x: 0, y: 12, width: 200, height: 20))
+  #expect(wide.frames[2].minX == 284)
+  #expect(wide.frames[3].maxX == 500)
+  // 422 doesn't fit in 340: the note gets its own row across the bar, the primary the rest of the buttons' row.
+  let narrow = notePlan(width: 340)
+  #expect(narrow.frames[0] == CGRect(x: 0, y: 6, width: 340, height: 20))
+  #expect(narrow.frames[2] == CGRect(x: 0, y: 32, width: 80, height: 44))
+  #expect(narrow.frames[3] == CGRect(x: 86, y: 32, width: 254, height: 44))
+}
+
 /// A colour picker in Vault's account sheet left its row's title one letter a line on iPhone (V-028).
 @Test func formRowPutsAWideControlUnderTheTitle() {
   let line = ContFormLine()

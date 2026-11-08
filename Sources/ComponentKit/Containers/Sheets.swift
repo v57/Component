@@ -391,12 +391,49 @@ struct SheetFooterPartKey: LayoutValueKey {
   static let defaultValue = SheetFooterPart.action
 }
 
+/// A footer row a sheet draws itself, in its body (the form's last line, on its own card): one row on the Mac, iPad
+/// and Apple TV; on iPhone it rearranges as the footer bar does rather than cut a label (`SheetFooterLayout`): a
+/// `SheetStatus`, or a note before the `Spacer`, gets its own row, the buttons go under it with the primary (the last)
+/// taking the rest of the row, and so on.
+///
+/// ```swift
+/// KitSheetFooterRow {
+///   SheetStatus("Encrypted, synced to your 3 devices", systemImage: "checkmark.shield", hue: .green)
+///   Spacer()
+///   Button("Cancel") { dismiss() }.buttonStyle(.kit)
+///   Button("Add Document", action: save).buttonStyle(.kitPrimary)
+/// }
+/// .padding(6)
+/// .kitSurface(.card)
+/// ```
+public struct KitSheetFooterRow<Content: View>: View {
+  var spacing: CGFloat
+  @ViewBuilder var content: Content
+  @Environment(\.kitIdiom) private var idiom
+
+  public init(spacing: CGFloat = 6, @ViewBuilder content: () -> Content) {
+    self.spacing = spacing
+    self.content = content()
+  }
+
+  public var body: some View {
+    if idiom == .phone {
+      SheetFooterLayout(spacing: spacing) { content }
+        .environment(\.kitSheetFooterFills, true)
+    } else {
+      HStack(spacing: spacing) { content }
+    }
+  }
+}
+
 /// The footer's content on iPhone, in the first of these that fits whole (no label cut):
 /// 1. one row, as on the Mac: the status leads and fills, the buttons trail;
 /// 2. the status on its own row (wrapping), the buttons in a row under it, the primary (the last) taking the rest;
 /// 3. the secondary buttons sharing a row, the primary under them across the bar;
 /// 4. every button across the bar, one under another, the primary last.
-/// A `Spacer` in the footer takes no room here: the status, or the primary, already fills the row.
+/// A `Spacer` in the footer takes no room here: the status, or the primary, already fills the row. What comes before
+/// the `Spacer` (a note, a status of the app's own) leads as a `SheetStatus` does: at its own width in the one row,
+/// then on a row of its own across the bar, where it wraps.
 struct SheetFooterLayout: Layout {
   var spacing: CGFloat = 6
   /// Above and below a status on its own row, so its line doesn't touch the bar's edge or the buttons.
@@ -421,13 +458,21 @@ struct SheetFooterLayout: Layout {
     var frames: [CGRect]
   }
 
-  enum Kind { case status, spacer, action }
+  /// `lead`: a view before the `Spacer` that isn't a `SheetStatus` (a note); it leads as the status does.
+  enum Kind { case status, lead, spacer, action }
+
+  /// The kinds with what comes before a `Spacer` as leads, when there are actions after it.
+  static func resolved(_ kinds: [Kind]) -> [Kind] {
+    guard let spacer = kinds.firstIndex(of: .spacer), kinds[spacer...].contains(.action) else { return kinds }
+    return kinds.enumerated().map { index, kind in index < spacer && kind == .action ? .lead : kind }
+  }
 
   private func kind(of subview: LayoutSubview) -> Kind {
     if subview[SheetFooterPartKey.self] == .status { return .status }
-    // A Spacer has no size of its own and takes any width it's offered; nothing else in a footer does both.
+    // A Spacer is no bigger than its minimum length (8 by default, outside a stack) and takes any width it's offered;
+    // nothing else in a footer does both (a filling button is as tall as a button).
     let least = subview.sizeThatFits(.zero)
-    if least.width < 1, least.height < 1, subview.sizeThatFits(.infinity).width > 10_000 { return .spacer }
+    if max(least.width, least.height) <= 8.5, subview.sizeThatFits(.infinity).width > 10_000 { return .spacer }
     return .action
   }
 
@@ -439,8 +484,10 @@ struct SheetFooterLayout: Layout {
 
   /// Where each view goes, from what each is, its ideal size and its height at a width.
   func plan(width proposed: CGFloat?, kinds: [Kind], ideal: [CGSize], height: (Int, CGFloat) -> CGFloat) -> Plan {
+    let kinds = Self.resolved(kinds)
     var frames = Array(repeating: CGRect.zero, count: kinds.count)
-    let statuses = kinds.indices.filter { kinds[$0] == .status }
+    // The status and the notes before the Spacer lead; only a status takes the room left in the one row.
+    let statuses = kinds.indices.filter { kinds[$0] == .status || kinds[$0] == .lead }
     let actions = kinds.indices.filter { kinds[$0] == .action }
     let hasSpacer = kinds.contains(.spacer)
 
@@ -470,11 +517,16 @@ struct SheetFooterLayout: Layout {
       let fills = !statuses.isEmpty || hasSpacer
       let rowWidth = fills ? max(width, oneRow) : oneRow
       var widths = statuses.map { ideal[$0].width }
-      if !widths.isEmpty { widths[0] += rowWidth - oneRow }
+      // The status fills; notes keep their width and the buttons trail, the Spacer's room between them.
+      if let first = statuses.firstIndex(where: { kinds[$0] == .status }) { widths[first] += rowWidth - oneRow }
       let order = statuses + actions
       let rowHeight = placeRow(
         order, widths: widths + actions.map { ideal[$0].width },
         x: statuses.isEmpty ? rowWidth - actionsWidth : 0, y: 0)
+      let gap = rowWidth - oneRow
+      if gap > 0.5, !statuses.contains(where: { kinds[$0] == .status }), !statuses.isEmpty {
+        for index in actions { frames[index].origin.x += gap }
+      }
       return Plan(size: CGSize(width: rowWidth, height: rowHeight), frames: frames)
     }
 
