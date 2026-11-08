@@ -165,9 +165,9 @@ enum Appearance: String, CaseIterable, Hashable {
 
   var title: String {
     switch self {
-    case .system: "Auto"
-    case .light: "Light"
-    case .dark: "Dark"
+    case .system: String(localized: "Auto")
+    case .light: String(localized: "Light")
+    case .dark: String(localized: "Dark")
     }
   }
 
@@ -196,11 +196,11 @@ enum Accent: String, CaseIterable, Hashable, Identifiable {
 
   var title: String {
     switch self {
-    case .blue: "System Blue · Shell, Markdown, Code, Dev"
-    case .git: "Git Orange"
-    case .database: "Database Blue"
-    case .red: "Red · Get, Player"
-    case .v57: "v57 Red"
+    case .blue: String(localized: "System Blue · Shell, Markdown, Code, Dev")
+    case .git: String(localized: "Git Orange")
+    case .database: String(localized: "Database Blue")
+    case .red: String(localized: "Red · Get, Player")
+    case .v57: String(localized: "v57 Red")
     }
   }
 

@@ -11,13 +11,13 @@ enum Area: String, CaseIterable, Identifiable {
 
   var title: String {
     switch self {
-    case .foundations: "Foundations"
-    case .status: "Status"
-    case .controls: "Controls"
-    case .badges: "Badges & identity"
-    case .containers: "Containers"
-    case .data: "Data"
-    case .scenarios: "Scenarios"
+    case .foundations: String(localized: "Foundations")
+    case .status: String(localized: "Status")
+    case .controls: String(localized: "Controls")
+    case .badges: String(localized: "Badges & identity")
+    case .containers: String(localized: "Containers")
+    case .data: String(localized: "Data")
+    case .scenarios: String(localized: "Scenarios")
     }
   }
 
@@ -79,61 +79,61 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
 
   var title: String {
     switch self {
-    case .colours: "Colours"
-    case .hues: "Hues"
-    case .type: "Type"
-    case .surfaces: "Surfaces"
-    case .motion: "Motion"
-    case .metrics: "Metrics"
-    case .appleTV: "Apple TV"
-    case .liveIcon: "Live Icon"
-    case .workStatus: "Work Status"
-    case .effects: "Effects"
-    case .buttons: "Buttons"
-    case .toggles: "Toggles & Chips"
-    case .segmented: "Segmented"
-    case .menus: "Menus & Pop-ups"
-    case .tabs: "Tabs & Path Bar"
-    case .fields: "Text Fields"
-    case .search: "Search"
-    case .stepper: "Stepper & Slider"
-    case .keycaps: "Keycaps"
-    case .choiceCards: "Choice Cards"
-    case .counts: "Counts & Dots"
-    case .chips: "Labels"
-    case .refs: "Refs"
-    case .lineCounts: "Line Counts & Progress"
-    case .avatars: "Avatars"
-    case .sections: "Sections & Headers"
-    case .sidebar: "Sidebar"
-    case .stickySections: "Sticky Sections"
-    case .toolbar: "Toolbar & Compacting"
-    case .window: "Window & Split"
-    case .inspector: "Inspector"
-    case .forms: "Forms"
-    case .sheets: "Sheets"
-    case .feedback: "Feedback"
-    case .tooltips: "Tooltips"
-    case .dragDrop: "Drag & Drop"
-    case .grid: "Data Grid"
-    case .changes: "Changes Card"
-    case .diffs: "Diffs & Conflicts"
-    case .runBlocks: "Run Blocks"
-    case .palette: "Command Palette"
-    case .welcome: "Welcome"
-    case .settings: "Settings"
-    case .meters: "Meters & Lanes"
-    case .secrets: "Secrets & Codes"
-    case .pages: "Pages & Documents"
-    case .gitApp: "Git"
-    case .databaseApp: "Database"
-    case .shellApp: "Shell"
-    case .markdownApp: "Markdown"
-    case .settingsApp: "Settings Window"
-    case .welcomeApp: "Welcome Screen"
-    case .longList: "Long List"
-    case .longSection: "Long Section"
-    case .allComponents: "All Components"
+    case .colours: String(localized: "Colours")
+    case .hues: String(localized: "Hues")
+    case .type: String(localized: "Type")
+    case .surfaces: String(localized: "Surfaces")
+    case .motion: String(localized: "Motion")
+    case .metrics: String(localized: "Metrics")
+    case .appleTV: String(localized: "Apple TV")
+    case .liveIcon: String(localized: "Live Icon")
+    case .workStatus: String(localized: "Work Status")
+    case .effects: String(localized: "Effects")
+    case .buttons: String(localized: "Buttons")
+    case .toggles: String(localized: "Toggles & Chips")
+    case .segmented: String(localized: "Segmented")
+    case .menus: String(localized: "Menus & Pop-ups")
+    case .tabs: String(localized: "Tabs & Path Bar")
+    case .fields: String(localized: "Text Fields")
+    case .search: String(localized: "Search")
+    case .stepper: String(localized: "Stepper & Slider")
+    case .keycaps: String(localized: "Keycaps")
+    case .choiceCards: String(localized: "Choice Cards")
+    case .counts: String(localized: "Counts & Dots")
+    case .chips: String(localized: "Labels")
+    case .refs: String(localized: "Refs")
+    case .lineCounts: String(localized: "Line Counts & Progress")
+    case .avatars: String(localized: "Avatars")
+    case .sections: String(localized: "Sections & Headers")
+    case .sidebar: String(localized: "Sidebar")
+    case .stickySections: String(localized: "Sticky Sections")
+    case .toolbar: String(localized: "Toolbar & Compacting")
+    case .window: String(localized: "Window & Split")
+    case .inspector: String(localized: "Inspector")
+    case .forms: String(localized: "Forms")
+    case .sheets: String(localized: "Sheets")
+    case .feedback: String(localized: "Feedback")
+    case .tooltips: String(localized: "Tooltips")
+    case .dragDrop: String(localized: "Drag & Drop")
+    case .grid: String(localized: "Data Grid")
+    case .changes: String(localized: "Changes Card")
+    case .diffs: String(localized: "Diffs & Conflicts")
+    case .runBlocks: String(localized: "Run Blocks")
+    case .palette: String(localized: "Command Palette")
+    case .welcome: String(localized: "Welcome")
+    case .settings: String(localized: "Settings")
+    case .meters: String(localized: "Meters & Lanes")
+    case .secrets: String(localized: "Secrets & Codes")
+    case .pages: String(localized: "Pages & Documents")
+    case .gitApp: String(localized: "Git")
+    case .databaseApp: String(localized: "Database")
+    case .shellApp: String(localized: "Shell")
+    case .markdownApp: String(localized: "Markdown")
+    case .settingsApp: String(localized: "Settings Window")
+    case .welcomeApp: String(localized: "Welcome Screen")
+    case .longList: String(localized: "Long List")
+    case .longSection: String(localized: "Long Section")
+    case .allComponents: String(localized: "All Components")
     }
   }
 
@@ -200,61 +200,62 @@ enum Page: String, CaseIterable, Identifiable, Hashable, Sendable {
   /// One line under the page's title.
   var summary: String {
     switch self {
-    case .colours: "Grounds, text and lines: one value for light, one for dark"
-    case .hues: "The system hues by meaning, as fills, text and soft grounds"
-    case .type: "The kit's type scale, 13pt body on the Mac"
-    case .surfaces: "Cards, raised, floating, fields and fills"
-    case .motion: "One animation for everything, and the transitions"
-    case .metrics: "Radii, the gutter, control and row heights"
-    case .appleTV: "Twice the Mac, lit by focus: cards, tiles, buttons and rows"
-    case .liveIcon: "The tile that carries work: progress, done, failed"
-    case .workStatus: "A piece of work through its states, in every component"
-    case .effects: "Feedback, flourishes, light and moves"
-    case .buttons: "Secondary, primary, plain, icon; sizes, roles, disabled"
-    case .toggles: "Switch, checkbox, chip and the chip track"
-    case .segmented: "Field track and wide"
-    case .menus: "The kit's menu, pickers and menu buttons"
-    case .tabs: "Editor tabs and breadcrumbs"
-    case .fields: "Filled fields with a ring, an error and a live icon"
-    case .search: "Search with a scope, a count and its live icon"
-    case .stepper: "Values on a track, and the slider"
-    case .keycaps: "Keys, shortcuts and key hints"
-    case .choiceCards: "Selectable cards that pick one value"
-    case .counts: "Bare numbers whose colour says what they mean"
-    case .chips: "Status, safety, type and language labels"
-    case .refs: "Branches, remotes and tags, with overflow"
-    case .lineCounts: "+14 −2, diffstats, micro bars and row progress"
-    case .avatars: "People, agents, things and apps"
-    case .sections: "Card sections and the rich header"
-    case .sidebar: "Card sections, gliding selection, reorder, rename, search"
-    case .stickySections: "Sections that stay in view above or below a long sidebar"
-    case .toolbar: "The rich title, tool groups and the kit's compacting toolbar"
-    case .window: "Panes on their grounds, the split and the status bar"
-    case .inspector: "The sidebar mirrored: header, sections, rows, actions"
-    case .forms: "Rich rows in cards, with fields under them"
-    case .sheets: "Sheets, footer status and confirmations"
-    case .feedback: "Banners, toasts and empty states"
-    case .tooltips: "Rich tooltips with status and shortcut"
-    case .dragDrop: "Lifted rows, drop slots and drop targets"
-    case .grid: "Sorting, selection, editing, NULL and unsaved rows"
-    case .changes: "The edits that wait for review"
-    case .diffs: "Hunk cards, staging lines and the conflict card"
-    case .runBlocks: "Builds, tests and runs on a track"
-    case .palette: "Quick open and quick actions"
-    case .welcome: "The main screen's empty state"
-    case .settings: "The settings window with shared panes"
-    case .meters: "Stacked meters, meter tiles and board lanes"
-    case .secrets: "Secrets, one-time codes, safety codes, QR codes, files and text conflicts"
-    case .pages: "Scanned pages as paper, document cards, page strips, the page viewer, cropping and shared copies"
-    case .gitApp: "Sidebar sections, history and an inspector"
-    case .databaseApp: "Browse a table, edit it, review the changes"
-    case .shellApp: "Quick actions over a project's runs"
-    case .markdownApp: "Notes with Edit and Read"
-    case .settingsApp: "An app's settings, from kit pieces only"
-    case .welcomeApp: "An app's main screen with nothing open"
-    case .longList: "500 repository cards from one ForEach"
-    case .longSection: "5,000 rows streamed into one section"
-    case .allComponents: "Every component page on one long page"
+    case .colours: String(localized: "Grounds, text and lines: one value for light, one for dark")
+    case .hues: String(localized: "The system hues by meaning, as fills, text and soft grounds")
+    case .type: String(localized: "The kit's type scale, 13pt body on the Mac")
+    case .surfaces: String(localized: "Cards, raised, floating, fields and fills")
+    case .motion: String(localized: "One animation for everything, and the transitions")
+    case .metrics: String(localized: "Radii, the gutter, control and row heights")
+    case .appleTV: String(localized: "Twice the Mac, lit by focus: cards, tiles, buttons and rows")
+    case .liveIcon: String(localized: "The tile that carries work: progress, done, failed")
+    case .workStatus: String(localized: "A piece of work through its states, in every component")
+    case .effects: String(localized: "Feedback, flourishes, light and moves")
+    case .buttons: String(localized: "Secondary, primary, plain, icon; sizes, roles, disabled")
+    case .toggles: String(localized: "Switch, checkbox, chip and the chip track")
+    case .segmented: String(localized: "Field track and wide")
+    case .menus: String(localized: "The kit's menu, pickers and menu buttons")
+    case .tabs: String(localized: "Editor tabs and breadcrumbs")
+    case .fields: String(localized: "Filled fields with a ring, an error and a live icon")
+    case .search: String(localized: "Search with a scope, a count and its live icon")
+    case .stepper: String(localized: "Values on a track, and the slider")
+    case .keycaps: String(localized: "Keys, shortcuts and key hints")
+    case .choiceCards: String(localized: "Selectable cards that pick one value")
+    case .counts: String(localized: "Bare numbers whose colour says what they mean")
+    case .chips: String(localized: "Status, safety, type and language labels")
+    case .refs: String(localized: "Branches, remotes and tags, with overflow")
+    case .lineCounts: String(localized: "+14 −2, diffstats, micro bars and row progress")
+    case .avatars: String(localized: "People, agents, things and apps")
+    case .sections: String(localized: "Card sections and the rich header")
+    case .sidebar: String(localized: "Card sections, gliding selection, reorder, rename, search")
+    case .stickySections: String(localized: "Sections that stay in view above or below a long sidebar")
+    case .toolbar: String(localized: "The rich title, tool groups and the kit's compacting toolbar")
+    case .window: String(localized: "Panes on their grounds, the split and the status bar")
+    case .inspector: String(localized: "The sidebar mirrored: header, sections, rows, actions")
+    case .forms: String(localized: "Rich rows in cards, with fields under them")
+    case .sheets: String(localized: "Sheets, footer status and confirmations")
+    case .feedback: String(localized: "Banners, toasts and empty states")
+    case .tooltips: String(localized: "Rich tooltips with status and shortcut")
+    case .dragDrop: String(localized: "Lifted rows, drop slots and drop targets")
+    case .grid: String(localized: "Sorting, selection, editing, NULL and unsaved rows")
+    case .changes: String(localized: "The edits that wait for review")
+    case .diffs: String(localized: "Hunk cards, staging lines and the conflict card")
+    case .runBlocks: String(localized: "Builds, tests and runs on a track")
+    case .palette: String(localized: "Quick open and quick actions")
+    case .welcome: String(localized: "The main screen's empty state")
+    case .settings: String(localized: "The settings window with shared panes")
+    case .meters: String(localized: "Stacked meters, meter tiles and board lanes")
+    case .secrets: String(localized: "Secrets, one-time codes, safety codes, QR codes, files and text conflicts")
+    case .pages:
+      String(localized: "Scanned pages as paper, document cards, page strips, the page viewer, cropping and shared copies")
+    case .gitApp: String(localized: "Sidebar sections, history and an inspector")
+    case .databaseApp: String(localized: "Browse a table, edit it, review the changes")
+    case .shellApp: String(localized: "Quick actions over a project's runs")
+    case .markdownApp: String(localized: "Notes with Edit and Read")
+    case .settingsApp: String(localized: "An app's settings, from kit pieces only")
+    case .welcomeApp: String(localized: "An app's main screen with nothing open")
+    case .longList: String(localized: "500 repository cards from one ForEach")
+    case .longSection: String(localized: "5,000 rows streamed into one section")
+    case .allComponents: String(localized: "Every component page on one long page")
     }
   }
 }
@@ -341,7 +342,8 @@ struct CatalogSidebar: View {
         let pages = area.pages.filter(matches)
         if !pages.isEmpty {
           KitSection(
-            area.title, meta: pages.count == 1 ? "1 page" : "\(pages.count) pages", systemImage: area.systemImage,
+            area.title, meta: pages.count == 1 ? String(localized: "1 page") : String(localized: "\(pages.count) pages"),
+            systemImage: area.systemImage,
             hue: area.hue
           ) {
             ForEach(pages) { page in
