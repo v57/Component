@@ -1747,6 +1747,48 @@ struct KitMenuOverlay<Content: View>: View {
   }
 }
 
+/// The presenting view's whole environment, for what the kit draws in a window of its own (a menu's panel on the Mac,
+/// its window above the scene on iPhone and iPad, a tooltip's panel on the Mac): a separate host starts from an empty
+/// environment, so an app's models (`.environment(model)`, read with `@Environment(Model.self)`, which traps when
+/// missing), its own keys, the accent and the overlay host would not reach the content. Taken from the anchor's
+/// representable (`context.environment`), so presenters don't read (and redraw on) every value.
+///
+/// What belongs to the anchor's place rather than to the app is set back to the root's: a menu row's hint, second
+/// line, sentence, filter words and highlight (a trigger that is itself a row), a disabled anchor (behind an overlay
+/// every view is), a container's tooltip host and its text and symbol styling (a toolbar title's one line).
+@MainActor
+struct KitCarriedEnvironment {
+  let environment: EnvironmentValues
+
+  init(_ environment: EnvironmentValues) {
+    self.environment = environment
+  }
+
+  func apply<Content: View>(to content: Content) -> some View {
+    content
+      .kitMenuRowsReset()
+      .environment(\.kitMenuForcedHighlight, false)
+      .environment(\.kitMenuRowHighlighted, false)
+      .environment(\.kitMenuRowDestructive, false)
+      .environment(\.kitMenuModel, nil)
+      .environment(\.contTooltipHost, false)
+      .environment(\.isEnabled, true)
+      .lineLimit(nil)
+      .truncationMode(.tail)
+      .multilineTextAlignment(.leading)
+      .textCase(nil)
+      .symbolVariant(.none)
+      .imageScale(.medium)
+      .controlSize(.regular)
+      .environment(\.self, environment)
+  }
+
+  /// A menu's root builder with this environment around it.
+  func carrying(_ menu: @escaping (KitMenuModel, CGRect) -> AnyView) -> (KitMenuModel, CGRect) -> AnyView {
+    { model, anchor in AnyView(apply(to: menu(model, anchor))) }
+  }
+}
+
 // MARK: - Platform windows
 
 #if canImport(AppKit)
@@ -1766,7 +1808,7 @@ struct KitMenuOverlay<Content: View>: View {
       view.onEvent = onContext
       let controller = session.controller
       controller.close = { isPresented = false }
-      controller.menu = menu
+      controller.menu = KitCarriedEnvironment(context.environment).carrying(menu)
       // A menu that starts open waits for the view to land in its window.
       view.movedToWindow = { [weak view] in
         if isPresented, let view { controller.show(from: view, at: session.contextPoint) }
@@ -2121,7 +2163,7 @@ struct KitMenuOverlay<Content: View>: View {
       let presented = $isPresented
       view.onContext = isContext ? { phase, point in session.context(phase, at: point, isPresented: presented) } : nil
       controller.close = { isPresented = false }
-      controller.menu = menu
+      controller.menu = KitCarriedEnvironment(context.environment).carrying(menu)
       // A menu that starts open waits for the view to land in its window.
       view.movedToWindow = { [weak view] in
         if isPresented, let view { controller.show(from: view, at: session.contextPoint) }

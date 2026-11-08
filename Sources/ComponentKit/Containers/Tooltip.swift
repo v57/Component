@@ -344,7 +344,8 @@ enum ContTooltipGeometry {
     func makeNSView(context: Context) -> ContTooltipPanelView { ContTooltipPanelView() }
 
     func updateNSView(_ view: ContTooltipPanelView, context: Context) {
-      view.card = card
+      // Its own window: a `detail` view reading the app's models gets them from the view it explains.
+      view.card = AnyView(KitCarriedEnvironment(context.environment).apply(to: card))
       view.edge = edge
       view.show()
     }
