@@ -103,10 +103,12 @@ public struct KitSecretValue: View {
     HStack(spacing: 6) {
       Group {
         if isRevealed.wrappedValue, let revealed {
+          // Whole, on up to four lines: a password truncated in the middle can't be read or copied down.
           Text(revealed)
             .tracking(0)
             .textSelection(.enabled)
-            .lineLimit(1)
+            .lineLimit(1...4)
+            .fixedSize(horizontal: false, vertical: true)
             .truncationMode(.middle)
             .accessibilityLabel(revealed)
         } else {
