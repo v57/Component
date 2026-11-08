@@ -2254,6 +2254,7 @@ struct KitCarriedEnvironment {
           UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         #endif
         start = point
+        cancelPresses()
         onContext?(.began, point)
       case .changed:
         // Held and dragged on a view that lifted for a drag (a reorderable row, a `.draggable`): the drag goes on,
@@ -2274,6 +2275,7 @@ struct KitCarriedEnvironment {
       }
       if recognizer.state == .ended || recognizer.state == .cancelled || recognizer.state == .failed {
         lifts.removeAll()
+        presses.removeAll()
       }
     }
 
@@ -2334,9 +2336,35 @@ struct KitCarriedEnvironment {
     func gestureRecognizer(
       _ recognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
     ) -> Bool {
-      guard Self.isDragLift(other) else { return false }
-      if !lifts.contains(where: { $0.recognizer === other }) { lifts.append(Weak(recognizer: other)) }
+      if Self.isDragLift(other) {
+        if !lifts.contains(where: { $0.recognizer === other }) { lifts.append(Weak(recognizer: other)) }
+        return true
+      }
+      // A SwiftUI button under the press (a choice card, a kit button) takes the touch as it comes down, to draw
+      // itself pressed, and as the only gesture there it kept the press from ever beginning: no menu, and letting
+      // go pressed the button (Database's SSH configuration tiles, D-006). The two share the touch, and once the
+      // press opens the menu the button's press is cancelled, so letting go doesn't press it too.
+      guard recognizer === longPress, Self.isButtonPress(other) else { return false }
+      if !presses.contains(where: { $0.recognizer === other }) { presses.append(Weak(recognizer: other)) }
       return true
+    }
+
+    /// The buttons' presses that share this long press (`isButtonPress`).
+    private var presses: [Weak] = []
+
+    /// SwiftUI's gesture for a button (and the other gestures on a view): it begins at touch down.
+    static func isButtonPress(_ recognizer: UIGestureRecognizer) -> Bool {
+      String(describing: type(of: recognizer)).contains("ResponderGesture")
+    }
+
+    /// Cancels the button presses that shared the long press: turning a recognizer off ends its touch as cancelled.
+    private func cancelPresses() {
+      for press in presses.compactMap(\.recognizer)
+      where press.state == .began || press.state == .changed || press.state == .possible {
+        press.isEnabled = false
+        press.isEnabled = true
+      }
+      presses.removeAll()
     }
 
     /// A drag interaction's recognizer (UIKit names them so; SwiftUI's drag sources are drag interactions).
