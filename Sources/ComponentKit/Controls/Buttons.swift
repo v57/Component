@@ -47,6 +47,7 @@ struct KitButton: View {
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.colorScheme) private var scheme
   @Environment(\.kitInSheetFooter) private var inFooter
+  @Environment(\.kitSheetFooterFills) private var fillsFooter
   #if os(tvOS)
     @Environment(\.isFocused) private var isFocused
   #else
@@ -68,6 +69,8 @@ struct KitButton: View {
       .padding(.horizontal, kind == .icon ? 0 : horizontalPadding)
       .frame(minWidth: kind == .icon ? height : nil, minHeight: height)
       .frame(width: kind == .icon ? height : nil)
+      // On iPhone a footer button takes the width the footer gives it
+      .frame(maxWidth: fillsFooter && kind != .icon ? .infinity : nil)
       .background { background(shape) }
       .overlay {
         shape.fill(Color.primary.opacity(configuration.isPressed ? 0.1 : isLit ? 0.04 : 0))

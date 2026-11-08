@@ -86,6 +86,9 @@ extension EnvironmentValues {
   @Entry var kitOverlayHost: KitOverlayHost? = nil
   /// How the view is presented: in a kit overlay's card, in the system's sheet, or neither.
   @Entry var kitPresentation: KitPresentation = .none
+  /// The most height a sheet or dialog card may take over the window (above the keyboard on iPhone), or 0 before it
+  /// is known: a `KitSheet` whose body scrolls on its own fits that body in it rather than scrolling it inside its own.
+  @Entry var kitOverlayRoom: CGFloat = 0
 }
 
 enum KitPresentation: Hashable, Sendable {
@@ -181,6 +184,8 @@ struct KitOverlayLook: Equatable {
   var colorScheme: ColorScheme = .light
   var colorSchemeContrast: ColorSchemeContrast = .standard
   var windowIsActive = true
+  /// The height the card may take (`kitOverlayRoom`).
+  var room: CGFloat = 0
 
   func apply<Content: View>(to content: Content) -> some View {
     content
@@ -188,6 +193,7 @@ struct KitOverlayLook: Equatable {
       .environment(\.colorScheme, colorScheme)
       .environment(\._colorSchemeContrast, colorSchemeContrast)
       .environment(\.kitWindowIsActive, windowIsActive)
+      .environment(\.kitOverlayRoom, room)
   }
 }
 
@@ -265,6 +271,8 @@ private struct KitOverlayEntryView: View {
   let isInteractive: Bool
   @State private var hasAppeared = false
   @State private var isDismissDisabled = false
+  /// The height the card may take (`kitOverlayRoom`).
+  @State private var room: CGFloat = 0
   @Environment(\.kitIdiom) private var idiom
 
   var body: some View {
@@ -323,10 +331,13 @@ private struct KitOverlayEntryView: View {
         .frame(maxHeight: .infinity, alignment: .top)
     case .sheet, .dialog:
       // The screen's width less 16pt each side on iPhone; on the Mac and iPad the content sets it.
+      let inset = idiom.size(20, pad: 24, phone: 16)
       body
         .kitOverlayCard()
-        .padding(idiom.size(20, pad: 24, phone: 16))
+        .padding(inset)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onGeometryChange(for: CGFloat.self) { max(0, $0.size.height - inset * 2) } action: { room = $0 }
+        .environment(\.kitOverlayRoom, room)
     case .popover(let anchor, let edge):
       // The anchor is in the window's space; the layout places the card in its own.
       GeometryReader { proxy in
@@ -345,13 +356,14 @@ private struct KitOverlayBody: View {
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.colorSchemeContrast) private var colorSchemeContrast
   @Environment(\.kitWindowIsActive) private var windowIsActive
+  @Environment(\.kitOverlayRoom) private var room
 
   var body: some View {
     let _ = content.version
     content.make(
       KitOverlayLook(
         isEnabled: isEnabled, colorScheme: colorScheme, colorSchemeContrast: colorSchemeContrast,
-        windowIsActive: windowIsActive))
+        windowIsActive: windowIsActive, room: room))
   }
 }
 

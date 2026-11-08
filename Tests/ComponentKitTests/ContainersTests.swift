@@ -783,3 +783,71 @@ private let tree = [
   expansion.setRecursively(root, open: false, children: \.children)
   #expect(open.isEmpty)
 }
+
+// MARK: - Sheet footer
+
+/// A status (ideal 200 wide) and Test, Cancel, Connect (60, 80, 90), 44pt high; the status is 20pt a line and wraps
+/// to two lines under 150pt.
+private func footerPlan(width: CGFloat?, kinds: [SheetFooterLayout.Kind]? = nil) -> SheetFooterLayout.Plan {
+  let kinds = kinds ?? [.status, .action, .action, .action]
+  let widths: [CGFloat] = kinds.count == 4 ? [200, 60, 80, 90] : [200, 0, 60, 80, 90]
+  let ideal = zip(kinds, widths).map { CGSize(width: $1, height: $0 == .status ? 20 : $0 == .spacer ? 0 : 44) }
+  return SheetFooterLayout().plan(width: width, kinds: kinds, ideal: ideal) { index, width in
+    kinds[index] == .status ? (width < 150 ? 40 : 20) : kinds[index] == .spacer ? 0 : 44
+  }
+}
+
+@Test func sheetFooterIsOneRowWhenEverythingFits() {
+  // 200 + 6 + 60 + 6 + 80 + 6 + 90 = 448: the status takes the rest, the buttons keep their size and trail.
+  let plan = footerPlan(width: 500)
+  #expect(plan.size == CGSize(width: 500, height: 44))
+  #expect(plan.frames[0].width == 252)
+  #expect(plan.frames[1] == CGRect(x: 258, y: 0, width: 60, height: 44))
+  #expect(plan.frames[3].maxX == 500)
+}
+
+@Test func sheetFooterPutsTheStatusOnItsOwnRow() {
+  // The buttons (242) fit, the status beside them doesn't: it spans the bar, the primary takes the rest of its row.
+  let plan = footerPlan(width: 300)
+  #expect(plan.frames[0] == CGRect(x: 0, y: 6, width: 300, height: 20))
+  #expect(plan.frames[1] == CGRect(x: 0, y: 32, width: 60, height: 44))
+  #expect(plan.frames[2] == CGRect(x: 66, y: 32, width: 80, height: 44))
+  #expect(plan.frames[3] == CGRect(x: 152, y: 32, width: 148, height: 44))
+  #expect(plan.size == CGSize(width: 300, height: 76))
+}
+
+@Test func sheetFooterStacksThePrimaryUnderTheOthers() {
+  // 242 doesn't fit in 200; Test and Cancel (146) share a row, Connect spans the bar under them; the status wraps.
+  let plan = footerPlan(width: 200)
+  #expect(plan.frames[0].height == 20)
+  #expect(plan.frames[1] == CGRect(x: 0, y: 32, width: 87, height: 44))
+  #expect(plan.frames[2] == CGRect(x: 93, y: 32, width: 107, height: 44))
+  #expect(plan.frames[3] == CGRect(x: 0, y: 82, width: 200, height: 44))
+  #expect(plan.size.height == 126)
+}
+
+@Test func sheetFooterStacksEveryButtonWhenNoRowFits() {
+  let plan = footerPlan(width: 120)
+  #expect(plan.frames[0].height == 40)
+  #expect(plan.frames[1] == CGRect(x: 0, y: 52, width: 120, height: 44))
+  #expect(plan.frames[2] == CGRect(x: 0, y: 102, width: 120, height: 44))
+  #expect(plan.frames[3] == CGRect(x: 0, y: 152, width: 120, height: 44))
+  #expect(plan.size == CGSize(width: 120, height: 196))
+}
+
+@Test func sheetFooterWithoutStatusHugsItsButtons() {
+  let plan = footerPlan(width: 400, kinds: [.action, .action, .action, .action])
+  // 200 + 60 + 80 + 90 + 18 = 448 > 400: Test, Cancel and the first share a row, the last spans under them.
+  #expect(plan.frames[3] == CGRect(x: 0, y: 50, width: 400, height: 44))
+  let wide = footerPlan(width: 600, kinds: [.action, .action, .action, .action])
+  #expect(wide.size == CGSize(width: 448, height: 44))
+  #expect(wide.frames[0].minX == 0)
+}
+
+@Test func sheetFooterSpacerTakesNoRoom() {
+  // An app's Spacer() between the status and the buttons: the status still fills the row.
+  let plan = footerPlan(width: 500, kinds: [.status, .spacer, .action, .action, .action])
+  #expect(plan.frames[0].width == 252)
+  #expect(plan.frames[1] == .zero)
+  #expect(plan.frames[4].maxX == 500)
+}

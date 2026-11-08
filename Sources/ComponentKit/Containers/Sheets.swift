@@ -11,7 +11,10 @@ import SwiftUI
 /// `.keyboardShortcut(.cancelAction)` (Escape). A sheet with a `KitMultilineField` takes Command-Return for its primary
 /// button, as Return starts a new line there and `.defaultAction` would fire too. Lead the footer with a `SheetStatus` to show the sheet's own state
 /// (the arc while input is checked, red when wrong, a check when ready); the bar then spans the sheet. Without one it
-/// is as wide as its buttons, at the trailing side: no `Spacer()` before them, which would stretch it again.
+/// is as wide as its buttons, at the trailing side: no `Spacer()` before them, which would stretch it again. Put the
+/// primary button last. On iPhone, when the row can't show every label whole, the status takes its own row (wrapping)
+/// and the buttons go under it, the primary taking the rest of the row; narrower still, the other buttons share a row
+/// over the primary, or every button spans the bar (`SheetFooterLayout`).
 ///
 /// Present it with `.kitSheet(isPresented:)`: a card in the middle of the dimmed window, `width` wide on the Mac (80pt
 /// wider on iPad, the screen's width less 16pt each side on iPhone), as tall as its content, its body scrolling
@@ -41,6 +44,7 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
   @ViewBuilder var footer: Footer
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.kitPresentation) private var presentation
+  @Environment(\.kitOverlayRoom) private var room
   @State private var bodyHeight: CGFloat = 0
   /// The body runs on past the bottom of its scroll view, which then fades that edge (with no footer bar there).
   @State private var bodyRunsOn = false
@@ -102,7 +106,9 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
           let space = scrollSpace
           let viewport = viewport
           ScrollView {
-            sheetBody
+            // A body that scrolls on its own (its footer over it) fits the card instead of running on in this one,
+            // which would hide its footer below the card's edge (a short window, large text).
+            SheetFitHeight(limit: footerIsInBody && room > 0 ? max(0, room - headerHeight) : nil) { sheetBody }
               .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { bodyHeight = $0 }
               .onGeometryChange(for: Bool.self) { $0.frame(in: .named(space)).maxY > viewport + 0.5 } action: {
                 bodyRunsOn = $0
@@ -214,7 +220,7 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
   }
 
   private var footerBar: some View {
-    HStack(spacing: 6) { footer }
+    footerRow
       .buttonStyle(ContSheetButtonStyle())
       .controlSize(.small)
       .environment(\.kitInSheetFooter, true)
@@ -226,6 +232,17 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
       // The card fits what it holds and trails; a SheetStatus fills the row and takes the card with it
       .frame(maxWidth: .infinity, alignment: .trailing)
       .padding(KitMetrics.gutter)
+  }
+
+  /// One row on the Mac, iPad and Apple TV; on iPhone a row while everything fits whole, else the status above the
+  /// buttons, then the buttons in rows (`SheetFooterLayout`), never a cut label.
+  @ViewBuilder private var footerRow: some View {
+    if idiom == .phone {
+      SheetFooterLayout { footer }
+        .environment(\.kitSheetFooterFills, true)
+    } else {
+      HStack(spacing: 6) { footer }
+    }
   }
 }
 
@@ -333,12 +350,163 @@ public struct SheetStatus: View {
       Text(text)
         .kitFont(.callout)
         .foregroundStyle(isFailed ? AnyShapeStyle(Hue.red.text) : AnyShapeStyle(.kitSecondary))
-        .lineLimit(1)
+        // On iPhone the footer gives a status that doesn't fit beside the buttons its own row, where it wraps
+        .lineLimit(idiom == .phone ? 3 : 1)
         .truncationMode(.tail)
     }
     .padding(.leading, 4)
     .frame(maxWidth: .infinity, alignment: .leading)
     .accessibilityElement(children: .combine)
+    .layoutValue(key: SheetFooterPartKey.self, value: .status)
+  }
+}
+
+/// Its one view at its ideal height, but no taller than `limit`: a scroll view's content that should end at its edge.
+struct SheetFitHeight: Layout {
+  var limit: CGFloat?
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    guard let child = subviews.first else { return .zero }
+    return child.sizeThatFits(childProposal(proposal, child))
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
+  }
+
+  private func childProposal(_ proposal: ProposedViewSize, _ child: LayoutSubview) -> ProposedViewSize {
+    guard let limit else { return proposal }
+    let height = proposal.height ?? child.sizeThatFits(ProposedViewSize(width: proposal.width, height: nil)).height
+    return ProposedViewSize(width: proposal.width, height: min(height, limit))
+  }
+}
+
+/// What a view in a sheet's footer is, for the footer's layout on iPhone: the status leads, a `Spacer` only pushes,
+/// anything else is an action, the last one the primary.
+enum SheetFooterPart: Sendable {
+  case action, status
+}
+
+struct SheetFooterPartKey: LayoutValueKey {
+  static let defaultValue = SheetFooterPart.action
+}
+
+/// The footer's content on iPhone, in the first of these that fits whole (no label cut):
+/// 1. one row, as on the Mac: the status leads and fills, the buttons trail;
+/// 2. the status on its own row (wrapping), the buttons in a row under it, the primary (the last) taking the rest;
+/// 3. the secondary buttons sharing a row, the primary under them across the bar;
+/// 4. every button across the bar, one under another, the primary last.
+/// A `Spacer` in the footer takes no room here: the status, or the primary, already fills the row.
+struct SheetFooterLayout: Layout {
+  var spacing: CGFloat = 6
+  /// Above and below a status on its own row, so its line doesn't touch the bar's edge or the buttons.
+  var statusInset: CGFloat = 6
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    plan(width: proposal.width, subviews: subviews).size
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    let plan = plan(width: bounds.width, subviews: subviews)
+    for (index, subview) in subviews.enumerated() {
+      let frame = plan.frames[index]
+      subview.place(
+        at: CGPoint(x: bounds.minX + frame.midX, y: bounds.minY + frame.midY), anchor: .center,
+        proposal: ProposedViewSize(width: frame.width, height: frame.height))
+    }
+  }
+
+  struct Plan {
+    var size: CGSize
+    var frames: [CGRect]
+  }
+
+  enum Kind { case status, spacer, action }
+
+  private func kind(of subview: LayoutSubview) -> Kind {
+    if subview[SheetFooterPartKey.self] == .status { return .status }
+    // A Spacer has no size of its own and takes any width it's offered; nothing else in a footer does both.
+    let least = subview.sizeThatFits(.zero)
+    if least.width < 1, least.height < 1, subview.sizeThatFits(.infinity).width > 10_000 { return .spacer }
+    return .action
+  }
+
+  private func plan(width proposed: CGFloat?, subviews: Subviews) -> Plan {
+    plan(
+      width: proposed, kinds: subviews.map(kind(of:)), ideal: subviews.map { $0.sizeThatFits(.unspecified) },
+      height: { subviews[$0].sizeThatFits(ProposedViewSize(width: $1, height: nil)).height })
+  }
+
+  /// Where each view goes, from what each is, its ideal size and its height at a width.
+  func plan(width proposed: CGFloat?, kinds: [Kind], ideal: [CGSize], height: (Int, CGFloat) -> CGFloat) -> Plan {
+    var frames = Array(repeating: CGRect.zero, count: kinds.count)
+    let statuses = kinds.indices.filter { kinds[$0] == .status }
+    let actions = kinds.indices.filter { kinds[$0] == .action }
+    let hasSpacer = kinds.contains(.spacer)
+
+    func rowWidth(_ indices: [Int]) -> CGFloat {
+      indices.isEmpty ? 0 : indices.reduce(0) { $0 + ideal[$1].width } + spacing * CGFloat(indices.count - 1)
+    }
+    let actionsWidth = rowWidth(actions)
+    let statusesWidth = rowWidth(statuses)
+    let oneRow = statusesWidth + actionsWidth + (statuses.isEmpty || actions.isEmpty ? 0 : spacing)
+    let width = proposed.map { $0.isFinite ? $0 : oneRow } ?? oneRow
+
+    /// Lays `indices` out left to right from `x` on a row at `y` with the given widths; returns the row's height.
+    func placeRow(_ indices: [Int], widths: [CGFloat], x: CGFloat, y: CGFloat) -> CGFloat {
+      let heights = zip(indices, widths).map { height($0, $1) }
+      let rowHeight = heights.max() ?? 0
+      var x = x
+      for (offset, index) in indices.enumerated() {
+        frames[index] = CGRect(
+          x: x, y: y + (rowHeight - heights[offset]) / 2, width: widths[offset], height: heights[offset])
+        x += widths[offset] + spacing
+      }
+      return rowHeight
+    }
+
+    // 1. One row, as on the Mac.
+    if oneRow <= width + 0.5 {
+      let fills = !statuses.isEmpty || hasSpacer
+      let rowWidth = fills ? max(width, oneRow) : oneRow
+      var widths = statuses.map { ideal[$0].width }
+      if !widths.isEmpty { widths[0] += rowWidth - oneRow }
+      let order = statuses + actions
+      let rowHeight = placeRow(
+        order, widths: widths + actions.map { ideal[$0].width },
+        x: statuses.isEmpty ? rowWidth - actionsWidth : 0, y: 0)
+      return Plan(size: CGSize(width: rowWidth, height: rowHeight), frames: frames)
+    }
+
+    // The status rows across the bar, then the buttons in the first arrangement that fits.
+    var y: CGFloat = 0
+    for index in statuses {
+      let statusHeight = height(index, width)
+      frames[index] = CGRect(x: 0, y: y + statusInset, width: width, height: statusHeight)
+      y += statusHeight + statusInset * 2
+    }
+    guard let primary = actions.last else {
+      return Plan(size: CGSize(width: width, height: max(0, y - statusInset)), frames: frames)
+    }
+    let secondaries = Array(actions.dropLast())
+
+    if actionsWidth <= width + 0.5 {
+      // 2. The buttons in one row, the primary taking the rest.
+      let rest = width - rowWidth(secondaries) - (secondaries.isEmpty ? 0 : spacing)
+      let widths = secondaries.map { ideal[$0].width } + [rest]
+      y += placeRow(actions, widths: widths, x: 0, y: y)
+    } else if !secondaries.isEmpty, rowWidth(secondaries) <= width + 0.5 {
+      // 3. The secondaries sharing a row, the primary across the bar under them.
+      let extra = (width - rowWidth(secondaries)) / CGFloat(secondaries.count)
+      y += placeRow(secondaries, widths: secondaries.map { ideal[$0].width + extra }, x: 0, y: y) + spacing
+      y += placeRow([primary], widths: [width], x: 0, y: y)
+    } else {
+      // 4. One under another.
+      for (offset, index) in actions.enumerated() {
+        y += placeRow([index], widths: [width], x: 0, y: y) + (offset == actions.count - 1 ? 0 : spacing)
+      }
+    }
+    return Plan(size: CGSize(width: width, height: y), frames: frames)
   }
 }
 
@@ -366,6 +534,9 @@ enum SheetFooterButton {
 extension EnvironmentValues {
   /// True inside a sheet's footer bar: kit buttons there take the footer's size.
   @Entry var kitInSheetFooter: Bool = false
+  /// True in a sheet's footer on iPhone: its buttons take the width the footer gives them (the primary the rest of
+  /// its row, a stacked button the bar's width) rather than hugging their label.
+  @Entry var kitSheetFooterFills: Bool = false
   /// The sheet's footer bar, for a body that scrolls on its own to put over its scroll view (`kitSheetFooterBar`).
   @Entry var kitSheetFooter: KitSheetFooter? = nil
 }
@@ -408,6 +579,8 @@ private struct FooterOverBody<Bar: View>: ViewModifier {
     if let footer {
       content.contEdgeBar(.bottom) {
         footer
+          // Opaque over the panel, as a bar's cards are: the body scrolls on under it
+          .environment(\.contBarGround, KitColor.panel)
           .background { ContEdgeFade(edge: .bottom, ground: .panel) }
           .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
       }
@@ -424,7 +597,9 @@ private struct SheetFooterBar: ViewModifier {
     if let footer {
       content
         .contEdgeBar(.bottom) {
-          footer.view.background { ContEdgeFade(edge: .bottom, ground: .panel) }
+          footer.view
+            .environment(\.contBarGround, KitColor.panel)
+            .background { ContEdgeFade(edge: .bottom, ground: .panel) }
         }
         .preference(key: KitSheetFooterInBody.self, value: true)
     } else {
@@ -438,6 +613,7 @@ private struct ContSheetButton: View {
   @Environment(\.colorScheme) private var scheme
   @Environment(\.kitIdiom) private var idiom
   @Environment(\.isEnabled) private var isEnabled
+  @Environment(\.kitSheetFooterFills) private var fills
 
   var body: some View {
     let shape = RoundedRectangle(cornerRadius: SheetFooterButton.radius(idiom), style: .continuous)
@@ -447,7 +623,7 @@ private struct ContSheetButton: View {
       .lineLimit(1)
       .foregroundStyle(configuration.role == .destructive ? AnyShapeStyle(Hue.red.text) : AnyShapeStyle(.kitLabel))
       .padding(.horizontal, SheetFooterButton.padding(idiom))
-      .frame(minHeight: SheetFooterButton.height(idiom))
+      .frame(maxWidth: fills ? .infinity : nil, minHeight: SheetFooterButton.height(idiom))
       .background { shape.fill(SheetFooterButton.fill(scheme)) }
       .overlay {
         shape.fill(configuration.isPressed ? AnyShapeStyle(.kitPress) : AnyShapeStyle(Color.clear))
