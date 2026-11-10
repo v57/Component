@@ -461,6 +461,7 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
 
   public var body: some View {
     ScrollViewReader { proxy in sidebar(proxy) }
+      .onAppear { KitDesktop.trackActivatingClicks() }
   }
 
   private func sidebar(_ proxy: ScrollViewProxy) -> some View {

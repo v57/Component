@@ -406,6 +406,28 @@ extension KitDesktop {
       return []
     #endif
   }
+
+  /// Whether the click being handled is the one that brought its window forward (from another app, or a window
+  /// behind): a list or sidebar that should only focus its window on that click ignores it.
+  /// True only while that click's events are handled (its mouse down, drags and mouse up); `KitSidebar` starts
+  /// watching clicks when it appears, `trackActivatingClicks()` starts it anywhere else. Always false off the Mac.
+  @MainActor public static var isActivatingClick: Bool {
+    #if os(macOS)
+      guard let event = NSApp.currentEvent, let number = ActivatingClicks.eventNumber,
+        [.leftMouseDown, .leftMouseDragged, .leftMouseUp].contains(event.type)
+      else { return false }
+      return event.eventNumber == number
+    #else
+      return false
+    #endif
+  }
+
+  /// Starts watching which clicks bring their window forward, for `isActivatingClick`. Calling it again does nothing.
+  @MainActor public static func trackActivatingClicks() {
+    #if os(macOS)
+      ActivatingClicks.start()
+    #endif
+  }
 }
 
 #if canImport(AppKit) || canImport(UIKit)
@@ -463,6 +485,25 @@ extension KitDesktop {
       var top = window?.rootViewController
       while let presented = top?.presentedViewController, !presented.isBeingDismissed { top = presented }
       return top
+    }
+  }
+#endif
+
+#if os(macOS)
+  /// The mouse down that last brought its window forward, seen before the window handles it (and becomes key).
+  @MainActor private enum ActivatingClicks {
+    static var eventNumber: Int?
+    static var monitor: Any?
+
+    static func start() {
+      guard monitor == nil else { return }
+      monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { event in
+        MainActor.assumeIsolated {
+          let activates = !NSApp.isActive || event.window.map { !$0.isKeyWindow && $0.canBecomeKey } == true
+          eventNumber = activates ? event.eventNumber : nil
+        }
+        return event
+      }
     }
   }
 #endif
