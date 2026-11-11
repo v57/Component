@@ -157,7 +157,7 @@ card's Return and Escape buttons fire. On the Mac the first field takes focus an
 | `kitSheet(isPresented:onDismiss:content:)`, `kitSheet(item:…)` | The kit's sheet, with `.sheet`'s bindings. |
 | `KitSheet(title:meta:systemImage:hue:status:width:onClose:content:footer:)` | A sheet's content: still header, body cards, footer bar. Put the primary button last; on iPhone the footer rearranges rather than cut a label. |
 | `SheetStatus(_:systemImage:status:)` | The footer bar's lead: a live icon and one line of status. |
-| `KitSheetFooterRow`, `kitSheetFooterBar()` | A footer row a sheet draws in its body; a footer bar over a body that scrolls on its own. |
+| `KitSheetFooterRow`, `kitSheetFooter()`, `kitSheetFooterBar()` | A footer row a sheet draws in its body (`kitSheetFooter()` pins it over the body on iPhone, above the keyboard); a footer bar over a body that scrolls on its own. |
 | `kitConfirmation(_:isPresented:message:systemImage:confirm:role:action:)` | Asks before an action. A `buttons: [KitConfirmationButton]` form offers several ways to go. |
 | `kitDialog(_:isPresented:message:systemImage:hue:confirm:role:content:action:)` | An alert-style card with content of its own (a safety code to compare). |
 | `kitNotice(_:isPresented:message:systemImage:hue:buttons:)` | Says something that needs no decision, with OK. Forms that take `message: Binding<String?>` or an `item:` show while there is something to say. |

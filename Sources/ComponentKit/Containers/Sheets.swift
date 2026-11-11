@@ -54,6 +54,8 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
   @State private var footerIsInBody = false
   /// The footer bar's height, while it sits over the sheet's scrolling body.
   @State private var footerHeight: CGFloat = 0
+  /// The height of the footer row the body pinned over itself (`kitSheetFooter`, iPhone), 0 without one.
+  @State private var pinnedFooterHeight: CGFloat = 0
   /// The header's height, while it is a bar over the sheet's scrolling body.
   @State private var headerHeight: CGFloat = 0
   /// Whether the body is scrolled up under the header bar, and where its top is at rest (the bar's inset).
@@ -123,10 +125,11 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
           .scrollBounceBehavior(.basedOnSize)
           .scrollIndicators(.automatic)
           .modifier(FooterOverBody(footer: footerOverBody ? footerBar : nil, height: $footerHeight))
+          .modifier(PinnedBodyFooter(isActive: pinsBodyFooter, height: $pinnedFooterHeight))
           .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { self.viewport = $0 }
           .contEdgeBar(.top) { headerBar }
-          .frame(maxHeight: bodyHeight + headerHeight + (footerOverBody ? footerHeight : 0))
-          .contScrollEdge(!footerOverBody && bodyRunsOn, length: idiom.size(24, touch: 32))
+          .frame(maxHeight: bodyHeight + headerHeight + (footerOverBody ? footerHeight : 0) + pinnedFooterHeight)
+          .contScrollEdge(!footerOverBody && pinnedFooterHeight == 0 && bodyRunsOn, length: idiom.size(24, touch: 32))
         } else if idiom == .phone {
           ScrollView {
             sheetBody
@@ -137,6 +140,7 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
           .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { bodyTopAtRest = $0 }
           .scrollBounceBehavior(.basedOnSize)
           .modifier(FooterOverBody(footer: footerOverBody ? footerBar : nil, height: $footerHeight))
+          .modifier(PinnedBodyFooter(isActive: pinsBodyFooter, height: $pinnedFooterHeight))
           .contEdgeBar(.top) { headerBar }
           .frame(maxHeight: .infinity, alignment: .top)
         } else {
@@ -190,6 +194,13 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
       && (presentation == .overlay || idiom == .phone)
   }
 
+  /// Whether a footer row the body draws itself (`kitSheetFooter`) is pinned over the scrolling body: on iPhone, where
+  /// the card sits above the keyboard and the body's last line would be under it (Vault V-041), in a sheet without a
+  /// footer of its own.
+  private var pinsBodyFooter: Bool {
+    idiom == .phone && Footer.self == EmptyView.self && Content.self != EmptyView.self
+  }
+
   private var sheetWidth: CGFloat? {
     guard let width else { return nil }
     switch idiom {
@@ -203,6 +214,7 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
     VStack(alignment: .leading, spacing: KitMetrics.gutter) { content }
       .padding(.horizontal, KitMetrics.gutter)
       .environment(\.kitSheetFooter, Footer.self == EmptyView.self ? nil : KitSheetFooter(view: AnyView(footerBar)))
+      .environment(\.kitSheetPinsBodyFooter, pinsBodyFooter)
       .onPreferenceChange(KitSheetFooterInBody.self) { footerIsInBody = $0 }
   }
 
@@ -632,6 +644,8 @@ extension EnvironmentValues {
   @Entry var kitSheetFooterFills: Bool = false
   /// The sheet's footer bar, for a body that scrolls on its own to put over its scroll view (`kitSheetFooterBar`).
   @Entry var kitSheetFooter: KitSheetFooter? = nil
+  /// The sheet pins a footer row its body draws (`kitSheetFooter`) over the body.
+  @Entry var kitSheetPinsBodyFooter: Bool = false
 }
 
 struct KitSheetFooter {
@@ -677,6 +691,79 @@ private struct FooterOverBody<Bar: View>: ViewModifier {
           .background { ContEdgeFade(edge: .bottom, ground: .panel) }
           .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
       }
+    } else {
+      content
+    }
+  }
+}
+
+extension View {
+  /// Marks this view as the footer row a sheet's body draws itself (`KitSheetFooterRow` on its card, the form's last
+  /// line): on iPhone the sheet pins it over its scrolling body, so Cancel and Save stay above the keyboard rather
+  /// than scroll away under it; on the Mac and iPad it stays the body's last line. Its bindings and actions are the
+  /// form's own, so a form that keeps its state can still give the sheet its footer.
+  ///
+  /// ```swift
+  /// KitSheetFooterRow {
+  ///   SheetStatus("Encrypted", systemImage: "checkmark.shield", hue: .green)
+  ///   Spacer()
+  ///   Button("Cancel") { dismiss() }.buttonStyle(.kit)
+  ///   Button("Save", action: save).buttonStyle(.kitPrimary).disabled(name.isEmpty)
+  /// }
+  /// .padding(6)
+  /// .kitSurface(.card)
+  /// .kitSheetFooter()
+  /// ```
+  public func kitSheetFooter() -> some View {
+    SheetBodyFooter(content: self)
+  }
+}
+
+/// The footer row a body pinned (`kitSheetFooter`), drawn by the sheet over its scrolling body.
+struct SheetPinnedFooterKey: PreferenceKey {
+  static var defaultValue: KitSheetFooter? { nil }
+  static func reduce(value: inout KitSheetFooter?, nextValue: () -> KitSheetFooter?) {
+    value = nextValue() ?? value
+  }
+}
+
+private struct SheetBodyFooter<Content: View>: View {
+  let content: Content
+  @Environment(\.kitSheetPinsBodyFooter) private var pins
+
+  var body: some View {
+    if pins {
+      // Nothing here: the sheet draws the row over its body, in the sheet's environment (its kitDismiss).
+      Color.clear.frame(height: 0)
+        .accessibilityHidden(true)
+        .preference(key: SheetPinnedFooterKey.self, value: KitSheetFooter(view: AnyView(content)))
+    } else {
+      content
+    }
+  }
+}
+
+/// Draws the footer row the body pinned (`kitSheetFooter`) over the sheet's scroll view, as the footer bar sits: the
+/// body scrolls on under it and fades out behind it, and gets its height as an inset so its end scrolls clear of it.
+private struct PinnedBodyFooter: ViewModifier {
+  let isActive: Bool
+  @Binding var height: CGFloat
+
+  func body(content: Content) -> some View {
+    if isActive {
+      content
+        .safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: height) }
+        .contEdgeEffectHidden(.bottom)
+        .overlayPreferenceValue(SheetPinnedFooterKey.self, alignment: .bottom) { footer in
+          if let footer {
+            footer.view
+              .environment(\.contBarGround, KitColor.panel)
+              .padding(KitMetrics.gutter)
+              .background { ContEdgeFade(edge: .bottom, ground: .panel) }
+              .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+              .onDisappear { height = 0 }
+          }
+        }
     } else {
       content
     }
