@@ -315,6 +315,7 @@ public struct FormRow<Control: View, Field: View>: View {
         }
       }
       .frame(minHeight: isStacked ? idiom.size(28, touch: 36) : idiom.size(40, touch: 48))
+      .modifier(ContFocusesOnTap(isOn: hasField, focus: $fieldFocused))
       if isStacked {
         control
           .frame(maxWidth: .infinity, alignment: .leading)
@@ -327,7 +328,12 @@ public struct FormRow<Control: View, Field: View>: View {
           field
             .kitFont(.body)
             .focused($fieldFocused)
+            // Found by the row's title (VoiceOver, UI tests), not only by its placeholder.
+            .accessibilityLabel(Text(title))
         }
+        // The whole filled line takes the tap, not only the text in it: a tap in its padding left the focus in the
+        // field before, and typing went there (S-007).
+        .modifier(ContFocusesOnTap(isOn: true, focus: $fieldFocused))
         .padding(EdgeInsets(top: 2, leading: 0, bottom: 4, trailing: 0))
       }
       if let detailView {
@@ -352,6 +358,24 @@ public struct FormRow<Control: View, Field: View>: View {
     .animation(.kit, value: error)
     .animation(.kit, value: showsHelp)
     .accessibilityElement(children: .contain)
+  }
+}
+
+/// A form row's title line and filled field focus the row's field when tapped: on iPad and iPhone a tap on the title,
+/// the tile or the field's padding left the focus in the field before, so typing went into it (S-007). Rows without a
+/// field are left alone (a row inside a button keeps its tap).
+struct ContFocusesOnTap: ViewModifier {
+  var isOn: Bool
+  var focus: FocusState<Bool>.Binding
+
+  func body(content: Content) -> some View {
+    if isOn {
+      content
+        .contentShape(Rectangle())
+        .onTapGesture { focus.wrappedValue = true }
+    } else {
+      content
+    }
   }
 }
 
