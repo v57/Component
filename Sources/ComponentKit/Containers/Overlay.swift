@@ -316,6 +316,11 @@ private struct KitOverlayEntryView: View {
         MainActor.assumeIsolated { isDismissDisabled = value }
       }
       .modifier(KitOverlayFocus(isTop: isTop, dismiss: entry.dismiss))
+      // One container element holding the card's fields, labels and buttons: the modal trait set on the bare content
+      // went to a single child (the footer's default button), so VoiceOver and UI tests found that button alone, or
+      // nothing (K-003). As a modal container it also keeps the window behind out of the tree, which hiding the
+      // window doesn't do on iOS (a split view's columns are hosted apart and stay exposed).
+      .accessibilityElement(children: .contain)
       .accessibilityAddTraits(entry.isPassive ? [] : .isModal)
       .accessibilityAction(.escape) { if !isDismissDisabled { entry.dismiss() } }
     switch entry.style {
