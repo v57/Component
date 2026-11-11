@@ -370,8 +370,10 @@ public struct SheetStatus: View {
       Text(text)
         .kitFont(.callout)
         .foregroundStyle(isFailed ? AnyShapeStyle(Hue.red.text) : AnyShapeStyle(.kitSecondary))
-        // On iPhone the footer gives a status that doesn't fit beside the buttons its own row, where it wraps
-        .lineLimit(idiom == .phone ? 3 : 1)
+        // On iPhone the footer gives a status that doesn't fit beside the buttons its own row, where it wraps; a
+        // failure wraps beside them on the Mac and iPad too, since the reason is the part to read (Database D-023)
+        .lineLimit(isFailed ? 4 : idiom == .phone ? 3 : 1)
+        .fixedSize(horizontal: false, vertical: isFailed)
         .truncationMode(.tail)
     }
     .padding(.leading, 4)
