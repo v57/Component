@@ -43,7 +43,7 @@ extension Date {
       if seconds < 3600 { return "\(Int(seconds / 60)) min ago" }
       if seconds < 86_400 { return "\(Int(seconds / 3600)) hr ago" }
       let days = Int(seconds / 86_400)
-      if days < 7 { return days == 1 ? "1 day ago" : "\(days) days ago" }
+      if days < 7 { return String(localized: "\(days) days ago") }
       return day
     case .clock:
       if seconds < 60 { return "now" }

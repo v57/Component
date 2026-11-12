@@ -335,7 +335,7 @@ struct RefsCard: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 2) {
       RichHeader(
-        refs.count == 1 ? "1 ref" : "\(refs.count) refs", meta: meta, systemImage: "smallcircle.filled.circle",
+        "\(refs.count) refs", meta: meta, systemImage: "smallcircle.filled.circle",
         hue: .gray)
       ForEach(refs) { ref in
         RefsCardRow(ref: ref) { onSelect(ref) }

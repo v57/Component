@@ -342,7 +342,7 @@ struct CatalogSidebar: View {
         let pages = area.pages.filter(matches)
         if !pages.isEmpty {
           KitSection(
-            area.title, meta: pages.count == 1 ? String(localized: "1 page") : String(localized: "\(pages.count) pages"),
+            area.title, meta: String(localized: "\(pages.count) pages"),
             systemImage: area.systemImage,
             hue: area.hue
           ) {

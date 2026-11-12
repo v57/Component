@@ -310,7 +310,7 @@ public struct HunkCard: View {
       if let unstageLines {
         let chosen = chosenLines
         if !chosen.isEmpty {
-          Button(chosen.count == 1 ? "Unstage 1 Line" : "Unstage \(chosen.count) Lines") {
+          Button("Unstage \(chosen.count) Lines") {
             unstageLines(chosen)
             selection?.wrappedValue = []
           }
@@ -322,7 +322,7 @@ public struct HunkCard: View {
     } else if let stage {
       let chosen = chosenLines
       if !chosen.isEmpty {
-        Button(chosen.count == 1 ? "Stage 1 Line" : "Stage \(chosen.count) Lines") {
+        Button("Stage \(chosen.count) Lines") {
           stage(chosen)
           selection?.wrappedValue = []
         }
