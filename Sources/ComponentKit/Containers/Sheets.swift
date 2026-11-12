@@ -127,6 +127,7 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
           .modifier(FooterOverBody(footer: footerOverBody ? footerBar : nil, height: $footerHeight))
           .modifier(PinnedBodyFooter(isActive: pinsBodyFooter, height: $pinnedFooterHeight))
           .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { self.viewport = $0 }
+          .modifier(SheetTopFade(isActive: bodyIsScrolled, header: headerHeight, length: idiom.size(24, touch: 32)))
           .contEdgeBar(.top) { headerBar }
           .frame(maxHeight: bodyHeight + headerHeight + (footerOverBody ? footerHeight : 0) + pinnedFooterHeight)
           .contScrollEdge(!footerOverBody && pinnedFooterHeight == 0 && bodyRunsOn, length: idiom.size(24, touch: 32))
@@ -141,6 +142,7 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
           .scrollBounceBehavior(.basedOnSize)
           .modifier(FooterOverBody(footer: footerOverBody ? footerBar : nil, height: $footerHeight))
           .modifier(PinnedBodyFooter(isActive: pinsBodyFooter, height: $pinnedFooterHeight))
+          .modifier(SheetTopFade(isActive: bodyIsScrolled, header: headerHeight, length: idiom.size(24, touch: 32)))
           .contEdgeBar(.top) { headerBar }
           .frame(maxHeight: .infinity, alignment: .top)
         } else {
@@ -398,6 +400,29 @@ public struct SheetStatus: View {
 /// The fade under a sheet's header bar while its body is scrolled.
 enum SheetHeaderFade {
   static let height: CGFloat = 12
+}
+
+/// The body fading out as it scrolls up under the header bar, over `length` points from the bar's lower edge, as a
+/// body running on past the footer fades there (`contScrollEdge`): the content goes under the header in a fade, not
+/// a cut (Vault V-048). Off at rest. The body's scroll view runs on under the bar (`header` high), where the bar
+/// covers it.
+struct SheetTopFade: ViewModifier {
+  let isActive: Bool
+  let header: CGFloat
+  let length: CGFloat
+
+  func body(content: Content) -> some View {
+    content.mask {
+      VStack(spacing: 0) {
+        Rectangle().frame(height: header)
+        LinearGradient(colors: [isActive ? .clear : .black, .black], startPoint: .top, endPoint: .bottom)
+          .frame(height: length)
+        Rectangle()
+      }
+      .animation(.kitFast, value: isActive)
+      .ignoresSafeArea()
+    }
+  }
 }
 
 /// Whether a sheet's body is scrolled up from its top at rest (`rest`, the scroll view's top inset: the header bar),
