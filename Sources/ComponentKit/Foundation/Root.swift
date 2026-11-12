@@ -105,7 +105,7 @@ extension View {
   }
 }
 
-private struct ContColorScheme: ViewModifier {
+struct ContColorScheme: ViewModifier {
   var scheme: ColorScheme?
   #if os(macOS)
     @State private var system = ContColorScheme.systemScheme(NSApp.effectiveAppearance)
@@ -116,15 +116,27 @@ private struct ContColorScheme: ViewModifier {
       // The app's appearance follows the system's (the scheme is set on the window, not the app).
       content
         .preferredColorScheme(scheme ?? system)
-        .onReceive(NSApp.publisher(for: \.effectiveAppearance)) { system = Self.systemScheme($0) }
+        .task {
+          for await scheme in Self.systemSchemes() { system = scheme }
+        }
     #else
       content.preferredColorScheme(scheme)
     #endif
   }
 
   #if os(macOS)
-    static func systemScheme(_ appearance: NSAppearance) -> ColorScheme {
+    nonisolated static func systemScheme(_ appearance: NSAppearance) -> ColorScheme {
       appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .dark : .light
+    }
+
+    /// The app's appearance as a scheme: now, then each time it changes.
+    static func systemSchemes() -> AsyncStream<ColorScheme> {
+      AsyncStream { continuation in
+        let observation = NSApp.observe(\.effectiveAppearance, options: [.initial, .new]) { @Sendable _, change in
+          if let appearance = change.newValue { continuation.yield(systemScheme(appearance)) }
+        }
+        continuation.onTermination = { _ in observation.invalidate() }
+      }
     }
   #endif
 }

@@ -28,3 +28,6 @@ KANBAN*.md
 # Per-agent SwiftPM scratch folders
 .build-*/
 build-ios/
+
+# Package pins: a library follows GitHub main or the sibling checkouts, so its own pins stay unpinned
+Package.resolved
