@@ -122,6 +122,7 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
           }
           .coordinateSpace(.named(space))
           .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { bodyTopAtRest = $0 }
+          .modifier(SheetBodyScrolled(isScrolled: $bodyIsScrolled))
           .scrollBounceBehavior(.basedOnSize)
           .scrollIndicators(.automatic)
           .modifier(FooterOverBody(footer: footerOverBody ? footerBar : nil, height: $footerHeight))
@@ -139,6 +140,7 @@ public struct KitSheet<Icon: View, Content: View, Footer: View>: View {
           }
           .coordinateSpace(.named(scrollSpace))
           .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { bodyTopAtRest = $0 }
+          .modifier(SheetBodyScrolled(isScrolled: $bodyIsScrolled))
           .scrollBounceBehavior(.basedOnSize)
           .modifier(FooterOverBody(footer: footerOverBody ? footerBar : nil, height: $footerHeight))
           .modifier(PinnedBodyFooter(isActive: pinsBodyFooter, height: $pinnedFooterHeight))
@@ -425,16 +427,40 @@ struct SheetTopFade: ViewModifier {
   }
 }
 
-/// Whether a sheet's body is scrolled up from its top at rest (`rest`, the scroll view's top inset: the header bar),
-/// in its scroll view (`space`). A Bool, so scrolling changes the state only when it starts or ends.
+/// Whether a sheet's body is scrolled up from its top at rest, read from the scroll view's own offset past its top
+/// inset (the header bar). A Bool, so scrolling changes the state only when it starts or ends. On iOS the body's
+/// frame in the scroll view's space starts at 0 at rest while the inset is the bar's height, so comparing those two
+/// held the body "scrolled" from the start and faded its first line under the header (Vault V-006). Before
+/// macOS 15 / iOS 18 (no scroll geometry) the body's place against the inset (`SheetBodyTop`) stands in.
+struct SheetBodyScrolled: ViewModifier {
+  @Binding var isScrolled: Bool
+
+  func body(content: Content) -> some View {
+    if #available(macOS 15.0, iOS 18.0, tvOS 18.0, visionOS 2.0, *) {
+      content.onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > 0.5 } action: {
+        _, scrolled in
+        isScrolled = scrolled
+      }
+    } else {
+      content
+    }
+  }
+}
+
+/// `SheetBodyScrolled` before macOS 15 / iOS 18: the body's top in its scroll view (`space`) against its place at
+/// rest (`rest`, the scroll view's top inset).
 struct SheetBodyTop: ViewModifier {
   let space: UUID
   let rest: CGFloat
   @Binding var isScrolled: Bool
 
   func body(content: Content) -> some View {
-    content.onGeometryChange(for: Bool.self) { $0.frame(in: .named(space)).minY < rest - 0.5 } action: {
-      isScrolled = $0
+    if #available(macOS 15.0, iOS 18.0, tvOS 18.0, visionOS 2.0, *) {
+      content
+    } else {
+      content.onGeometryChange(for: Bool.self) { $0.frame(in: .named(space)).minY < rest - 0.5 } action: {
+        isScrolled = $0
+      }
     }
   }
 }
