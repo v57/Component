@@ -11,6 +11,12 @@ struct DocumentPagesPage: View {
   ])
   @State private var zoom: CGFloat = 1
   @State private var rotation = 0
+  @State private var showsFullScreen = false
+
+  private static let pages = [
+    KitPage(id: "data", label: "Data page", imageData: nil, aspectRatio: 1.42),
+    KitPage(id: "cover", label: "Cover", imageData: nil, aspectRatio: 0.7),
+  ]
 
   private static let mrz = KitPageHighlight(
     rect: CGRect(x: 0.04, y: 0.77, width: 0.92, height: 0.17), label: "Machine-readable zone · check digits match",
@@ -56,11 +62,11 @@ struct DocumentPagesPage: View {
         }
       }
       SpecimenSection(
-        "Pages and the viewer", note: "The page fitted on a well, with what was read on it marked; the strip under it picks the page and adds one."
+        "Pages and the viewer", note: "The page fitted on a well, with what was read on it marked; the strip under it picks the page and adds one. Full Screen shows the pages alone on black: pinch or double-tap to zoom, ‹ › or ← → between pages, Close or Escape."
       ) {
         Specimen(
           "Passport", ground: .window,
-          code: "KitPageViewer(imageData: page.data, aspectRatio: 1.42, highlights: [mrz]) { …buttons }\nKitPageStrip(pages: pages, selection: $page) { scan() }"
+          code: "KitPageViewer(imageData: page.data, aspectRatio: 1.42, highlights: [mrz]) { …buttons }\n  .kitFullScreenPages(isPresented: $fullScreen, pages: pages, selection: $page)\nKitPageStrip(pages: pages, selection: $page) { scan() }"
         ) {
           VStack(spacing: 12) {
             KitPageViewer(
@@ -73,16 +79,13 @@ struct DocumentPagesPage: View {
               .buttonStyle(.kit)
               Spacer()
               Button("Rotate", systemImage: "rotate.right") { withAnimation(.kit) { rotation += 1 } }
-                .buttonStyle(.kit)
-                .labelStyle(.iconOnly)
+                .buttonStyle(.kitRound)
+              Button("Full Screen", systemImage: "arrow.up.left.and.arrow.down.right") { showsFullScreen = true }
+                .buttonStyle(.kitRound)
             }
             .frame(height: 380)
-            KitPageStrip(
-              pages: [
-                KitPage(id: "data", label: "Data page", imageData: nil, aspectRatio: 1.42),
-                KitPage(id: "cover", label: "Cover", imageData: nil, aspectRatio: 0.7),
-              ], selection: $page
-            ) {}
+            .kitFullScreenPages(isPresented: $showsFullScreen, pages: Self.pages, selection: $page)
+            KitPageStrip(pages: Self.pages, selection: $page) {}
           }
         }
       }

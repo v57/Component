@@ -111,10 +111,12 @@ enum KitOverlayStyle: Equatable, Sendable {
   case palette(width: CGFloat)
   /// The anchor follows the view as it moves (scrolling, a window resizing) without the presenter redrawing.
   case popover(anchor: ContPopoverAnchor, edge: VerticalEdge)
+  /// The whole window on black, no card (`kitFullScreenPages`): a photo or a page looked at alone.
+  case cover
 
   static func == (a: Self, b: Self) -> Bool {
     switch (a, b) {
-    case (.sheet, .sheet), (.dialog, .dialog): true
+    case (.sheet, .sheet), (.dialog, .dialog), (.cover, .cover): true
     case (.palette(let x), .palette(let y)): x == y
     case (.popover(let x, let e), .popover(let y, let f)): x === y && e == f
     default: false
@@ -123,6 +125,7 @@ enum KitOverlayStyle: Equatable, Sendable {
 
   var isTop: Bool { if case .palette = self { true } else { false } }
   var isPopover: Bool { if case .popover = self { true } else { false } }
+  var isCover: Bool { self == .cover }
 }
 
 /// The overlays shown over one window, bottom to top. One that closes stays a moment, fading out, before it goes.
@@ -280,7 +283,12 @@ private struct KitOverlayEntryView: View {
     ZStack(alignment: entry.style.isTop ? .top : .center) {
       // A popover dims nothing; a click beside it still closes it (and goes no further, as a menu's). A passive one
       // leaves clicks beside it to the window.
-      if !entry.isPassive {
+      if entry.style.isCover {
+        // Black to the screen's edges; the content closes it itself (Close, Escape, a swipe down).
+        Color.black
+          .ignoresSafeArea()
+          .opacity(isShown ? 1 : 0)
+      } else if !entry.isPassive {
         Rectangle()
           .fill(entry.style.isPopover ? AnyShapeStyle(Color.clear) : AnyShapeStyle(.kitScrim))
           .ignoresSafeArea()
@@ -304,7 +312,7 @@ private struct KitOverlayEntryView: View {
     switch entry.style {
     case .palette: .top
     case .popover(_, let edge): edge == .bottom ? .top : .bottom
-    case .sheet, .dialog: .center
+    case .sheet, .dialog, .cover: .center
     }
   }
 
@@ -343,6 +351,8 @@ private struct KitOverlayEntryView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onGeometryChange(for: CGFloat.self) { max(0, $0.size.height - inset * 2) } action: { room = $0 }
         .environment(\.kitOverlayRoom, room)
+    case .cover:
+      body.frame(maxWidth: .infinity, maxHeight: .infinity)
     case .popover(let anchor, let edge):
       // The anchor is in the window's space; the layout places the card in its own.
       GeometryReader { proxy in
