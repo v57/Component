@@ -37,7 +37,7 @@ public struct LineCounts: View {
       .fixedSize()
       .animation(.kit, value: [added, removed])
       .accessibilityElement(children: .ignore)
-      .accessibilityLabel("\(added) lines added, \(removed) removed")
+      .accessibilityLabel(Text("\(Text("\(added) lines added")), \(Text("\(removed) removed"))"))
     } else {
       Text("binary")
         .font(.system(size: size))
@@ -81,7 +81,7 @@ public struct Diffstat: View {
         .animation(.kit, value: blocks.added)
         .animation(.kit, value: blocks.removed)
         .accessibilityHidden(showsCounts)
-        .accessibilityLabel("\(added) lines added, \(removed) removed")
+        .accessibilityLabel(Text("\(Text("\(added) lines added")), \(Text("\(removed) removed"))"))
       }
     }
   }
