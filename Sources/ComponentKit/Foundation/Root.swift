@@ -86,7 +86,9 @@ extension View {
   /// WindowGroup { ContentView().componentKit(accent: .orange) }
   /// ```
   public func componentKit(accent: Color? = nil) -> some View {
-    modifier(ComponentKitRoot(accent: accent))
+    // Before the scene's text resolves: counts read "1 server", not their key's "1 servers".
+    KitLanguages.useEnglishPlurals()
+    return modifier(ComponentKitRoot(accent: accent))
   }
 }
 

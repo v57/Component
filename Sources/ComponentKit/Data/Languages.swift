@@ -194,6 +194,10 @@ public enum KitLanguages {
   /// ```
   @MainActor public static func start(sources: [String]) { LanguagePacks.start(sources: sources) }
 
+  /// Counts in English plural forms ("1 server", not "1 servers") whatever the app bundles, and behind a translation
+  /// that lacks a count key. `componentKit(accent:)` calls it, so every app gets it without starting packs.
+  @MainActor static func useEnglishPlurals() { LanguagePacks.useEnglishPlurals() }
+
   static var appName: String {
     Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
       ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
