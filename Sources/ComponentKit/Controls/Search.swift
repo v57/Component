@@ -228,7 +228,8 @@ struct CtlSearchMetrics {
 /// The sidebar's search: a square card button in the sidebar's bottom bar that opens into the full-width search line
 /// (a card with the field and a close button) and closes back into the button. Put it first in the bar and hide the
 /// bar's other items while `isSearching`, so the line takes the whole bar. Esc or the close button ends the search
-/// and clears the text.
+/// and clears the text. `.kitSearchFocus(_:)` on the button, or on a `KitSidebar` around it, opens the line and
+/// puts the cursor in it from code (Find in Project's ⇧⌘F), also when it is already open.
 ///
 /// ```swift
 /// HStack(spacing: KitMetrics.gutter) {
@@ -244,6 +245,7 @@ public struct SidebarSearchButton: View {
   @Namespace private var namespace
   @FocusState private var isFocused: Bool
   @FocusState private var buttonFocused: Bool
+  @Environment(\.ctlSearchFocus) private var focusRequest
 
   /// A search button whose prompt is a key (a literal), looked up in the app's strings.
   public init(text: Binding<String>, isSearching: Binding<Bool>, prompt: LocalizedStringKey = "Search") {
@@ -313,6 +315,11 @@ public struct SidebarSearchButton: View {
       }
     }
     .kitFont(.body)
+    .onChange(of: focusRequest) { _, request in
+      guard request != nil else { return }
+      // A closed line focuses as it appears; an open one takes the cursor back from wherever it is.
+      if isSearching { isFocused = true } else { withKitAnimation { isSearching = true } }
+    }
   }
 
   /// Focus leaves the field first, then it closes: a field that went away while focused dropped focus on its own, and
@@ -323,6 +330,24 @@ public struct SidebarSearchButton: View {
       text = ""
       isSearching = false
     }
+  }
+}
+
+extension EnvironmentValues {
+  @Entry var ctlSearchFocus: AnyHashable? = nil
+}
+
+extension View {
+  /// Opens the sidebar's search line and puts the cursor in it whenever `request` changes (a count the app bumps on
+  /// ⇧⌘F), also while the line is already open and the cursor is elsewhere. Set it on a `KitSidebar` or a
+  /// `SidebarSearchButton`; `nil` asks for nothing.
+  ///
+  /// ```swift
+  /// KitSidebar(selection: $selection, searchText: $query, isSearching: $isSearching) { … }
+  ///   .kitSearchFocus(model.findRequests)
+  /// ```
+  public func kitSearchFocus(_ request: (some Hashable)?) -> some View {
+    environment(\.ctlSearchFocus, request.map(AnyHashable.init))
   }
 }
 
