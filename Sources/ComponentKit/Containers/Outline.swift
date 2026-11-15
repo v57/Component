@@ -439,12 +439,22 @@ struct ContRowScrollID: Hashable {
   }
 }
 
+/// The rows a `ContRowKeyboard` moves through, as the rows' preference last reported them.
+@MainActor final class ContRowNavRows {
+  var rows: [ContRowNavItem] = []
+}
+
 struct ContRowKeyboard: ViewModifier {
   /// What the keys act with, in a box the container fills as it updates: the modifier stays the same value as the
   /// selection changes, and so do its key handlers. New handlers changed the environment of everything inside, and
   /// every lazy stack in a sidebar resolved its rows again on each new selection.
   let inputs: ContRowKeyboardInputs
-  @State private var rows: [ContRowNavItem] = []
+  /// The rows built so far, in order, for the key handlers only: a box, not state. As state, every row a scroll built
+  /// changed the preference, the write invalidated everything inside the list, and scrolling 1,000 rows in Vault's
+  /// Logins spent ~45% of the main thread there.
+  @State private var nav = ContRowNavRows()
+
+  private var rows: [ContRowNavItem] { nav.rows }
 
   private var current: AnyHashable? { inputs.current }
   private var select: @MainActor (AnyHashable) -> Void { inputs.select }
@@ -458,7 +468,7 @@ struct ContRowKeyboard: ViewModifier {
     content
       .onPreferenceChange(ContRowNavKey.self) { rows in
         MainActor.assumeIsolated {
-          self.rows = rows
+          nav.rows = rows
           clicks?.order = rows.map(\.value)
         }
       }
@@ -476,12 +486,12 @@ struct ContRowKeyboard: ViewModifier {
   private func moveOn(by offset: Int) -> KeyPress.Result {
     guard let current, let scroll else { return .ignored }
     scroll(current, offset > 0 ? .top : .bottom)
-    let rows = $rows
+    let nav = nav
     let select = select
     Task { @MainActor in
       for _ in 0..<6 {
         await kitSleep(for: .milliseconds(34))
-        let plain = rows.wrappedValue.map { (value: $0.value, indent: $0.indent, isOpen: $0.isOpen) }
+        let plain = nav.rows.map { (value: $0.value, indent: $0.indent, isOpen: $0.isOpen) }
         if case .select(let value) = ContRowNav.move(current, by: offset, in: plain) {
           select(value)
           scroll(value, nil)
