@@ -16,6 +16,7 @@
 //   reset / mark:<name> / threshold:<ms> / report:<path>   stalls of whatever runs between (an app's hooks, clicks)
 //   idle:<seconds>:<path>              CPU time (all threads) and main-thread wakeups over that time
 //   layout:<path>                      time of one forced layout and display of every window
+//   views:<path>                       NSViews in each window by class (SwiftUI hosts one per platform view)
 //   select:<table index>:<row>         selects a row of the n-th NSTableView/NSOutlineView (a List)
 //   size:<width>x<height>              the main window's content size
 //   mode:direct|wheel                  scroll by setting the clip view's offset (default: what a trackpad's scroll ends
@@ -159,6 +160,8 @@ static const double kFrameMs = 1000.0 / 120.0;
     _direct = ![arg(1) isEqual:@"wheel"];
   } else if ([verb isEqual:@"idle"]) {
     [self idle:arg(1).doubleValue path:tail(2)];
+  } else if ([verb isEqual:@"views"]) {
+    [self views:tail(1)];
   } else if ([verb isEqual:@"layout"]) {
     [self layout:tail(1)];
   } else if ([verb isEqual:@"select"]) {
@@ -506,6 +509,30 @@ static double ProcessCPUSeconds(void) {
     double done = CACurrentMediaTime();
     [text appendFormat:@"window \"%@\": layout %.1f ms, display %.1f ms\n", window.title, (laid - start) * 1000,
                        (done - laid) * 1000];
+  }
+  [self write:text to:path];
+}
+
+- (void)views:(NSString *)path {
+  NSMutableString *text = [NSMutableString string];
+  for (NSWindow *window in [self windows]) {
+    NSCountedSet *classes = [NSCountedSet set];
+    __block NSInteger total = 0;
+    __block void (^walk)(NSView *);
+    __block __weak void (^weakWalk)(NSView *);
+    walk = ^(NSView *view) {
+      total += 1;
+      [classes addObject:NSStringFromClass(view.class)];
+      for (NSView *sub in view.subviews) weakWalk(sub);
+    };
+    weakWalk = walk;
+    walk(window.contentView.superview ?: window.contentView);
+    [text appendFormat:@"window \"%@\": %ld views\n", window.title, (long)total];
+    NSArray *sorted = [classes.allObjects sortedArrayUsingComparator:^NSComparisonResult(id a, id b) {
+      return [@([classes countForObject:b]) compare:@([classes countForObject:a])];
+    }];
+    for (NSString *name in [sorted subarrayWithRange:NSMakeRange(0, MIN(sorted.count, 25))])
+      [text appendFormat:@"%6lu %@\n", (unsigned long)[classes countForObject:name], name];
   }
   [self write:text to:path];
 }

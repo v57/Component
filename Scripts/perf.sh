@@ -11,6 +11,7 @@
 #   Scripts/perf.sh <pid> fling <sv|main> <start pt/tick> <n>  # decaying flings down and up
 #   Scripts/perf.sh <pid> idle <seconds>           # CPU and main-thread wakeups
 #   Scripts/perf.sh <pid> layout                   # one forced layout + display of each window
+#   Scripts/perf.sh <pid> views                    # NSViews by class (SwiftUI hosts one per platform view)
 #   Scripts/perf.sh <pid> reset | mark <name> | threshold <ms> | report   # stalls of anything in between
 #   Scripts/perf.sh <pid> select <table> <row> | size <w>x<h>
 #   Scripts/perf.sh post <notification name> <object>   # an app's own debug hook (dev.v57.code.debug …)
@@ -59,7 +60,7 @@ verb=$1; shift
 result=$(mktemp -t perfprobe).txt
 rm -f "$result"
 case $verb in
-  list|report|layout) command="$verb:$result" ;;
+  list|report|layout|views) command="$verb:$result" ;;
   walk|idle) command="$verb:$(IFS=:; echo "$*"):$result" ;;
   scroll|fling) command="$verb:$(IFS=:; echo "$*"):$result" ;;
   reset) command=reset ;;
