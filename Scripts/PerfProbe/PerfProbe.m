@@ -15,6 +15,7 @@
 //   fling:<sv>:<start pt>:<flings>:<path>     flings: a speed that decays by 5% a tick, down then up, repeated
 //                                      (each fling down and up takes about 3 s at 8000 pt: keep <flings> small)
 //   stop                               ends the running scroll, walk or fling (its report is written)
+//   insert:<text> / delete             types into the main window's first responder (insertText:, deleteBackward:)
 //   reset / mark:<name> / threshold:<ms> / report:<path>   stalls of whatever runs between (an app's hooks, clicks)
 //   idle:<seconds>:<path>              CPU time (all threads) and main-thread wakeups over that time
 //   layout:<path>                      time of one forced layout and display of every window
@@ -38,6 +39,16 @@ static const double kFrameMs = 1000.0 / 120.0;
 
 @interface PerfProbe : NSObject
 @end
+
+static NSTextView *PPFirstEditableTextView(NSView *view) {
+  if ([view isKindOfClass:[NSTextView class]] && ((NSTextView *)view).isEditable && !view.isHiddenOrHasHiddenAncestor)
+    return (NSTextView *)view;
+  for (NSView *sub in view.subviews) {
+    NSTextView *found = PPFirstEditableTextView(sub);
+    if (found) return found;
+  }
+  return nil;
+}
 
 @implementation PerfProbe {
   double _awakeSince;
@@ -90,11 +101,15 @@ static const double kFrameMs = 1000.0 / 120.0;
 
 - (void)install {
   CFRunLoopObserverRef wake = CFRunLoopObserverCreateWithHandler(
-      NULL, kCFRunLoopAfterWaiting, true, LONG_MIN, ^(CFRunLoopObserverRef o, CFRunLoopActivity a) {
-        self->_awakeSince = CACurrentMediaTime();
+      // A pass that starts without having slept (the outer loop going on after a nested one returned) counts too.
+      NULL, kCFRunLoopAfterWaiting | kCFRunLoopBeforeTimers | kCFRunLoopBeforeSources, true, LONG_MIN,
+      ^(CFRunLoopObserverRef o, CFRunLoopActivity a) {
+        if (a == kCFRunLoopAfterWaiting || self->_awakeSince == 0) self->_awakeSince = CACurrentMediaTime();
       });
+  // Only going to sleep ends an iteration: a nested run loop's exit used to, and the work after it on the same pass
+  // (Markdown parsing a 3.5 MB note for 86 s as an open event's document came in) went uncounted.
   CFRunLoopObserverRef sleep = CFRunLoopObserverCreateWithHandler(
-      NULL, kCFRunLoopBeforeWaiting | kCFRunLoopExit, true, LONG_MAX,
+      NULL, kCFRunLoopBeforeWaiting, true, LONG_MAX,
       ^(CFRunLoopObserverRef o, CFRunLoopActivity a) { [self wentToSleep]; });
   CFRunLoopAddObserver(CFRunLoopGetMain(), wake, kCFRunLoopCommonModes);
   CFRunLoopAddObserver(CFRunLoopGetMain(), sleep, kCFRunLoopCommonModes);
@@ -158,6 +173,21 @@ static const double kFrameMs = 1000.0 / 120.0;
   } else if ([verb isEqual:@"fling"]) {
     _flingsLeft = MAX(1, arg(3).integerValue);
     [self startRun:@"fling" view:arg(1) step:arg(2).doubleValue ticks:100000 path:tail(4)];
+  } else if ([verb isEqual:@"insert"] || [verb isEqual:@"delete"]) {
+    // As a key press types into the main window's first responder (a text view's insertText: and deleteBackward:).
+    NSWindow *window = [self mainWindow];
+    NSResponder *responder = window.firstResponder;
+    if (![responder isKindOfClass:[NSTextView class]]) {
+      // A background window has no focused editor: the first editable text view takes the focus (NSResponder's own
+      // insertText: would only pass the text up the chain).
+      NSTextView *editor = PPFirstEditableTextView(window.contentView);
+      if (editor && [window makeFirstResponder:editor]) responder = editor;
+    }
+    if ([verb isEqual:@"insert"]) {
+      if ([responder respondsToSelector:@selector(insertText:)]) [(id)responder insertText:tail(1)];
+    } else {
+      [responder tryToPerform:@selector(deleteBackward:) with:nil];
+    }
   } else if ([verb isEqual:@"stop"]) {
     if (_timer) [self finishRun];
   } else if ([verb isEqual:@"mode"]) {
