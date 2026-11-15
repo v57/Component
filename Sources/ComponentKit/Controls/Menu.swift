@@ -1350,6 +1350,9 @@ struct KitMenuPresenter<MenuContent: View>: ViewModifier {
   var menu: () -> MenuContent
   @State private var ownIsOpen = false
   @State private var session = KitMenuSession()
+  /// The pointer is over a context menu's view (the Mac: its anchor takes the secondary clicks).
+  @State private var isHovered = false
+  @Environment(\.kitWindowIsActive) private var isWindowActive
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.kitAccent) private var accent
   @Environment(\.kitIdiom) private var idiom
@@ -1374,17 +1377,30 @@ struct KitMenuPresenter<MenuContent: View>: ViewModifier {
   @ViewBuilder
   private func presenting(_ content: Content) -> some View {
     #if canImport(AppKit)
+      // The anchor is an NSView, there only while it's needed: AppKit walks every view SwiftUI hosts after each
+      // change to the window's views (the drag margins), so one per row made each row that scrolled in cost the
+      // whole list (Code's navigator: 157 rows, 157 anchors, ~14% of a scroll's main thread).
       if kind == .context {
-        // On the Mac the anchor of a context menu is also the view over it that takes secondary clicks: one view
-        // per row (a grid's, a diff's lines) rather than two.
+        // On the Mac the anchor of a context menu is also the view over it that takes secondary clicks: there while
+        // the pointer is over the view or its menu is open, and always in an inactive window (whose hover isn't
+        // tracked), so a click on any view of it lands.
         content
-          .overlay { anchor(catchesClicks: true).accessibilityHidden(true) }
+          .overlay {
+            if isPresented.wrappedValue || isHovered || !isWindowActive {
+              anchor(catchesClicks: true).accessibilityHidden(true)
+            }
+          }
+          .onHover { isHovered = $0 }
           .accessibilityAction(named: Text("Show Menu")) { session.showContext(isPresented: isPresented) }
       } else {
         Group {
           if kind == .trigger { trigger(content) } else { content }
         }
-        .background { anchor(catchesClicks: false).allowsHitTesting(false).accessibilityHidden(true) }
+        .background {
+          if isPresented.wrappedValue {
+            anchor(catchesClicks: false).allowsHitTesting(false).accessibilityHidden(true)
+          }
+        }
       }
     #elseif canImport(UIKit) && !os(tvOS)
       Group {
