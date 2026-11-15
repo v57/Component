@@ -234,6 +234,9 @@ public struct KitOneTimeCode: View {
       LiveIcon(
         systemImage: "clock", hue: left <= 5 ? .orange : .accent,
         status: .working(progress: left / period), size: idiom.size(24, touch: 30))
+        // The ring steps once a second, unanimated: eased, a new step arrived before the last settled, so the ring
+        // animated without end (40–120 frames a second of the whole window's update, 25–35% CPU while it showed).
+        .transaction { $0.disablesAnimations = true }
       Text(current.map(Self.grouped) ?? "––– –––")
         .font(.system(size: idiom.size(17, touch: 20), weight: .semibold, design: .monospaced))
         .tracking(1)
