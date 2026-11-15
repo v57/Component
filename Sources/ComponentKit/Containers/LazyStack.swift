@@ -41,7 +41,7 @@ extension View {
 /// A vertical stack in a scroll view that builds its views near the screen only, steadier than a `LazyVStack` for
 /// a few heavy views: it builds ahead of the scroll, a few views a frame, lets far views go but keeps their heights,
 /// and nests (a card's rows in a stack of their own come a few at a time). For thousands of light rows (a log, a
-/// diff) use a `LazyVStack`, which never lays out the views it hasn't built; past a thousand views (a section of
+/// diff) use a `LazyVStack`, which never lays out the views it hasn't built; past 200 views (a section of
 /// search results) the stack is one.
 ///
 /// ```swift
@@ -122,10 +122,12 @@ private struct ContLazyStack<Content: View>: View {
       if count == 0, let empty {
         empty
       } else if count > ContLazyModel.rowLimit {
-        // Thousands of views (a search's matches in one section): each item would cost on every plan and every
-        // layout, so they go in a `LazyVStack`, which lays out only what it built.
+        // Hundreds of views (a file tree's rows, a search's matches in one section): each item would cost on every
+        // plan and every layout, so they go in a `LazyVStack`, which lays out only what it built. The content itself,
+        // not its subviews: the stack asks for its rows by index as it places them, every frame of a scroll, and a
+        // subview found by index is made again each time (the row's body ran on every frame).
         LazyVStack(alignment: alignment, spacing: spacing) {
-          ForEach(subviews) { $0 }
+          content
         }
         .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .top))
         .onAppear { model.cancel() }
@@ -295,8 +297,9 @@ final class ContLazyModel {
   /// Finishes building while scrolling rests and lets nothing go (`contLazyKeepsBuilt`), up to `keptLimit` views.
   @ObservationIgnored var keepsBuilt = false
 
-  /// Past this many views a stack is a `LazyVStack`: planning and laying out every item cost each frame of a scroll.
-  static let rowLimit = 1000
+  /// Past this many views a stack is a `LazyVStack`: planning and laying out every item cost each frame of a scroll,
+  /// and each item built laid out every other (Code's navigator: 850 file rows, 85 ms frames at p95 as a VStack).
+  static let rowLimit = 200
   /// Past this many views a stack lets far ones go even when asked to keep them: built views still lay out.
   static let keptLimit = 300
 
