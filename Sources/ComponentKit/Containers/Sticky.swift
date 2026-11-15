@@ -154,6 +154,13 @@ struct ContStickyTable: Equatable, @unchecked Sendable {
   /// The user is scrolling or dragging (or was half a second ago): every item stays in place.
   var isPaused = false
 
+  /// The table with `isPaused` set (the host's own leaves it off: the sticky views observe the pause themselves).
+  func paused(_ isPaused: Bool) -> ContStickyTable {
+    var table = self
+    table.isPaused = isPaused
+    return table
+  }
+
   /// The share of the visible height the bottom dock may take; past it, the farthest copies let go.
   static let bottomShare: CGFloat = 0.4
   /// A copy's height in the dock until the dock has drawn it.
@@ -290,10 +297,19 @@ struct ContStickyContext: Equatable, @unchecked Sendable {
   var state: ContStickyState?
 }
 
-/// Scrolls the host to a sticky item (a click on its stuck title).
+/// Scrolls the host to a sticky item (a click on its stuck title). One per host, the same value on every update: SwiftUI
+/// compares environment values by their bits, and a new closure on each of the host's updates (each scroll's start and
+/// end pauses the stuck sections) made a new `ContStickyContext` for every item, so a sidebar's section built all its
+/// rows again (300 projects in Dev's sidebar: a 170 ms frame as each scroll started and again as it ended).
 struct ContStickyScroll: Equatable {
-  let action: @MainActor (AnyHashable) -> Void
-  static func == (lhs: Self, rhs: Self) -> Bool { true }
+  let target: ContStickyScrollTarget
+  @MainActor func action(_ id: AnyHashable) { target.action?(id) }
+  static func == (lhs: Self, rhs: Self) -> Bool { lhs.target === rhs.target }
+}
+
+/// What a host's `ContStickyScroll` calls: set on each of the host's updates, read when a title is clicked.
+@MainActor final class ContStickyScrollTarget {
+  var action: (@MainActor (AnyHashable) -> Void)?
 }
 
 /// The id a sticky item scrolls to.
@@ -306,6 +322,11 @@ extension EnvironmentValues {
   @Entry var contStickyTable: ContStickyTable? = nil
   @Entry var contStickyScroll: ContStickyScroll? = nil
   @Entry var contStickyRegistry: ContStickyRegistry? = nil
+  /// Whether the host's stuck views are let go (a scroll or a drag), observed by the sticky views alone: in the table it
+  /// changed the environment of everything in the scroll view as each scroll started and ended, and a stack's
+  /// `Group(subviews:)` resolves its sections again on any change there, so every row was built again (300 projects in
+  /// Dev's sidebar: a 170 ms frame each time).
+  @Entry var contStickyPause: ContStickyPause? = nil
   /// The sticky item this view is in, for the `KitSection` inside it.
   @Entry var contStickyContext: ContStickyContext? = nil
   /// The view is drawn in a copy in the bottom dock: rows draw as small buttons.
@@ -407,19 +428,22 @@ private struct ContStickyHost: ViewModifier {
   @State private var clear = ContStickyClear()
   @State private var revision = 0
   @State private var pause = ContStickyPause()
+  @State private var scrollTarget = ContStickyScrollTarget()
 
   func body(content: Content) -> some View {
     let _ = revision
     if #available(macOS 15.0, iOS 18.0, *) {
       let table = table
-      let scroll = ContStickyScroll { [pause] id in
+      let scroll = ContStickyScroll(target: scrollTarget)
+      let _ = scrollTarget.action = { [pause, scroll = self.scroll] id in
         pause.scrollsItself()
-        self.scroll(id)
+        scroll(id)
       }
       content
         .environment(\.contStickyTable, table)
         .environment(\.contStickyScroll, scroll)
         .environment(\.contStickyRegistry, registry)
+        .environment(\.contStickyPause, pause)
         // The sections below the visible area stay in place; their copies wait in the dock over the bottom bar,
         // outside the scroll view, so nothing in it moves for them.
         .overlayPreferenceValue(ContStickyCopyKey.self, alignment: .bottom) { copies in
@@ -479,7 +503,7 @@ private struct ContStickyHost: ViewModifier {
     }
     return ContStickyTable(
       items: sorted, clearTop: clear.top, clearBottom: clear.bottom, spacing: spacing, topGap: topGap,
-      bottomGap: bottomGap, isPaused: pause.isPaused)
+      bottomGap: bottomGap)
   }
 }
 
@@ -567,7 +591,10 @@ struct ContStickyItemModifier: ViewModifier {
   /// The item's frame and top in the scroll view as of the last frame: not state, which a screen's first frame can
   /// drop (an iPad sidebar opening on an empty detail kept a bottom section stuck over its own rows).
   @State private var visible = ContStickyVisible()
-  @Environment(\.contStickyTable) private var table
+  @Environment(\.contStickyTable) private var hostTable
+  @Environment(\.contStickyPause) private var pause
+  /// The host's table as it stands, paused or not.
+  private var table: ContStickyTable? { hostTable?.paused(pause?.isPaused == true) }
   @Environment(\.contStickyScroll) private var scroll
   @Environment(\.contStickyRegistry) private var registry
 
@@ -853,7 +880,10 @@ struct ContStickyTitleModifier: ViewModifier {
   /// The section's copy in the bottom dock, with its rows or without.
   var copy: ((_ id: AnyHashable, _ rows: Bool) -> AnyView)? = nil
   @State private var frame: CGRect?
-  @Environment(\.contStickyTable) private var table
+  @Environment(\.contStickyTable) private var hostTable
+  @Environment(\.contStickyPause) private var pause
+  /// The host's table as it stands, paused or not.
+  private var table: ContStickyTable? { hostTable?.paused(pause?.isPaused == true) }
   @Environment(\.contStickyContext) private var context
   @Environment(\.contStickyRegistry) private var registry
 
