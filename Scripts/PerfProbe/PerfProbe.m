@@ -13,6 +13,8 @@
 //   scroll:<sv>:<pt per tick>:<ticks>:<path>   steady scroll of scroll view <sv> by wheel events at 120 Hz
 //   walk:<sv>:<pt per tick>:<path>     scroll to the end and back at 120 Hz (stops after 20000 ticks)
 //   fling:<sv>:<start pt>:<flings>:<path>     flings: a speed that decays by 5% a tick, down then up, repeated
+//                                      (each fling down and up takes about 3 s at 8000 pt: keep <flings> small)
+//   stop                               ends the running scroll, walk or fling (its report is written)
 //   reset / mark:<name> / threshold:<ms> / report:<path>   stalls of whatever runs between (an app's hooks, clicks)
 //   idle:<seconds>:<path>              CPU time (all threads) and main-thread wakeups over that time
 //   layout:<path>                      time of one forced layout and display of every window
@@ -156,6 +158,8 @@ static const double kFrameMs = 1000.0 / 120.0;
   } else if ([verb isEqual:@"fling"]) {
     _flingsLeft = MAX(1, arg(3).integerValue);
     [self startRun:@"fling" view:arg(1) step:arg(2).doubleValue ticks:100000 path:tail(4)];
+  } else if ([verb isEqual:@"stop"]) {
+    if (_timer) [self finishRun];
   } else if ([verb isEqual:@"mode"]) {
     _direct = ![arg(1) isEqual:@"wheel"];
   } else if ([verb isEqual:@"idle"]) {

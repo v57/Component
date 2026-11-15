@@ -8,7 +8,8 @@
 #   Scripts/perf.sh <pid> list                     # windows, scroll views (indexes), tables
 #   Scripts/perf.sh <pid> walk <sv|main> <pt/tick>             # to the end and back at 120 Hz
 #   Scripts/perf.sh <pid> scroll <sv|main> <pt/tick> <ticks>   # steady
-#   Scripts/perf.sh <pid> fling <sv|main> <start pt/tick> <n>  # decaying flings down and up
+#   Scripts/perf.sh <pid> fling <sv|main> <start pt/tick> <n>  # n decaying flings down and up (~3 s each)
+#   Scripts/perf.sh <pid> stop                     # ends a running scroll, walk or fling
 #   Scripts/perf.sh <pid> idle <seconds>           # CPU and main-thread wakeups
 #   Scripts/perf.sh <pid> layout                   # one forced layout + display of each window
 #   Scripts/perf.sh <pid> views                    # NSViews by class (SwiftUI hosts one per platform view)
@@ -63,13 +64,13 @@ case $verb in
   list|report|layout|views) command="$verb:$result" ;;
   walk|idle) command="$verb:$(IFS=:; echo "$*"):$result" ;;
   scroll|fling) command="$verb:$(IFS=:; echo "$*"):$result" ;;
-  reset) command=reset ;;
+  reset|stop) command=$verb ;;
   mark|threshold|size|mode) command="$verb:$*" ;;
   select) command="select:$1:$2" ;;
   *) echo "unknown command $verb" >&2; exit 2 ;;
 esac
 "$poster" "$pid" "$command"
-case $verb in reset|mark|threshold|size|select|mode) exit 0 ;; esac
+case $verb in reset|stop|mark|threshold|size|select|mode) exit 0 ;; esac
 
 # A sandboxed app writes to its own temporary folder instead.
 fallback() {
