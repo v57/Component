@@ -16,6 +16,8 @@
 #   Scripts/perf.sh <pid> views                    # NSViews by class (SwiftUI hosts one per platform view)
 #   Scripts/perf.sh <pid> reset | mark <name> | threshold <ms> | report   # stalls of anything in between
 #   Scripts/perf.sh <pid> select <table> <row> | size <w>x<h>
+#   Scripts/perf.sh <pid> place off|<x>,<y>       # moves the window; off: past the screens, where the pointer's hover
+#                                                  # can't change a run (rows under a resting pointer update as they move)
 #   Scripts/perf.sh post <notification name> <object>   # an app's own debug hook (dev.v57.code.debug …)
 #
 # A run's report: iterations of the main run loop while it ran (each one a frame's work: the scroll, SwiftUI's update,
@@ -66,13 +68,13 @@ case $verb in
   walk|idle) command="$verb:$(IFS=:; echo "$*"):$result" ;;
   scroll|fling) command="$verb:$(IFS=:; echo "$*"):$result" ;;
   reset|stop) command=$verb ;;
-  mark|threshold|size|mode|insert) command="$verb:$*" ;;
+  mark|threshold|size|mode|insert|place) command="$verb:$*" ;;
   delete) command=delete ;;
   select) command="select:$1:$2" ;;
   *) echo "unknown command $verb" >&2; exit 2 ;;
 esac
 "$poster" "$pid" "$command"
-case $verb in reset|stop|mark|threshold|size|select|mode|insert|delete) exit 0 ;; esac
+case $verb in reset|stop|mark|threshold|size|select|mode|insert|delete|place) exit 0 ;; esac
 
 # A sandboxed app writes to its own temporary folder instead.
 fallback() {

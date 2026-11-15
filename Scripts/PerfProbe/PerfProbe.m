@@ -15,6 +15,7 @@
 //   fling:<sv>:<start pt>:<flings>:<path>     flings: a speed that decays by 5% a tick, down then up, repeated
 //                                      (each fling down and up takes about 3 s at 8000 pt: keep <flings> small)
 //   stop                               ends the running scroll, walk or fling (its report is written)
+//   place:off | place:<x>,<y>          moves the main window (off: past the screens, out of the pointer's reach)
 //   insert:<text> / delete             types into the main window's first responder (insertText:, deleteBackward:)
 //   reset / mark:<name> / threshold:<ms> / report:<path>   stalls of whatever runs between (an app's hooks, clicks)
 //   idle:<seconds>:<path>              CPU time (all threads) and main-thread wakeups over that time
@@ -204,6 +205,20 @@ static NSTextView *PPFirstEditableTextView(NSView *view) {
     NSArray *wh = [arg(1) componentsSeparatedByString:@"x"];
     NSWindow *window = [self mainWindow];
     if (wh.count == 2 && window) [window setContentSize:NSMakeSize([wh[0] doubleValue], [wh[1] doubleValue])];
+  } else if ([verb isEqual:@"place"]) {
+    // `place off` puts the window past every screen's right edge, where no pointer reaches it: hover follows the
+    // user's pointer, which made runs differ by where it rested. `place <x>,<y>` puts its origin there.
+    NSWindow *window = [self mainWindow];
+    NSPoint origin = NSZeroPoint;
+    if ([arg(1) isEqual:@"off"]) {
+      CGFloat right = 0;
+      for (NSScreen *screen in NSScreen.screens) right = MAX(right, NSMaxX(screen.frame));
+      origin = NSMakePoint(right + 400, 0);
+    } else {
+      NSArray *xy = [arg(1) componentsSeparatedByString:@","];
+      if (xy.count == 2) origin = NSMakePoint([xy[0] doubleValue], [xy[1] doubleValue]);
+    }
+    [window setFrameOrigin:origin];
   }
 }
 
