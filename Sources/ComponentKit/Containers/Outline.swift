@@ -121,6 +121,7 @@ public struct KitOutline<Element: Identifiable, RowContent: View>: View {
   let expansion: ContOutlineExpansion<Element.ID>?
   let row: (Element) -> RowContent
   @State private var ownExpanded: Set<Element.ID> = []
+  @State private var keys = ContOutlineKeys<Element.ID>()
   @Environment(\.contRowIndent) private var baseIndent
 
   /// An outline of `items`; `children` is `nil` for a leaf.
@@ -165,10 +166,59 @@ public struct KitOutline<Element: Identifiable, RowContent: View>: View {
     let open = expansion ?? .expanded($ownExpanded)
     // Nothing opens: no chevrons, so no slots to line up with.
     let isFlat = !items.contains { children($0) != nil }
-    ForEach(items) { item in
-      ContOutlineNode(
-        item: item, children: children, expansion: open, level: baseIndent, reservesLeafSlot: !isFlat, row: row)
+    // The open tree as one flat list of rows, one view each: a stack that reaches its rows through
+    // `Group(subviews:)` (a section's) finds the nth at once. Nested per item (a row, then its children's), each
+    // lookup walked the tree from the top, so a `LazyVStack` of 850 file rows spent its frames there (Code's
+    // navigator: 25 ms a frame at p50, 320 ms at worst, scrolling).
+    // Keyed by a small number per item: a lazy stack asks each row's id again as it places the rows, every frame of
+    // a scroll, and a file URL's hash bridges its string each time (a third of the placement in Code's navigator).
+    ForEach(ContOutlineEntry.flatten(items, children: children, expansion: open, level: baseIndent, keys: keys),
+      id: \.key
+    ) { entry in
+      ContOutlineRow(
+        entry: entry, children: children, expansion: open, reservesLeafSlot: !isFlat, row: row)
     }
+  }
+}
+
+/// A row of an outline's open tree: its item, how deep it sits, whether it is a leaf, and its key.
+struct ContOutlineEntry<Element: Identifiable> {
+  let item: Element
+  let level: Int
+  let isLeaf: Bool
+  /// The item's number in the outline (`ContOutlineKeys`): the same item keeps it, so its row keeps its identity.
+  let key: Int
+
+  /// The items and, under each open one, its children, depth first.
+  static func flatten(
+    _ items: [Element], children: (Element) -> [Element]?, expansion: ContOutlineExpansion<Element.ID>, level: Int,
+    keys: ContOutlineKeys<Element.ID>
+  ) -> [Self] {
+    var rows: [Self] = []
+    rows.reserveCapacity(items.count)
+    func add(_ items: [Element], level: Int) {
+      for item in items {
+        let kids = children(item)
+        let id = item.id
+        rows.append(Self(item: item, level: level, isLeaf: kids == nil, key: keys.key(for: id)))
+        if let kids, expansion.isOpen(id) { add(kids, level: level + 1) }
+      }
+    }
+    add(items, level: level)
+    return rows
+  }
+}
+
+/// A number for each item id an outline has shown, given once and kept (an item that goes and comes back is the
+/// same row).
+final class ContOutlineKeys<ID: Hashable> {
+  private var keys: [ID: Int] = [:]
+
+  func key(for id: ID) -> Int {
+    if let key = keys[id] { return key }
+    let key = keys.count
+    keys[id] = key
+    return key
   }
 }
 
@@ -221,38 +271,31 @@ enum ContOutlineExpansion<ID: Hashable> {
   }
 }
 
-/// One item of an outline and, while it's open, its children one level in.
-private struct ContOutlineNode<Element: Identifiable, RowContent: View>: View {
-  let item: Element
+/// One row of an outline: the item's row with its indent and disclosure.
+private struct ContOutlineRow<Element: Identifiable, RowContent: View>: View {
+  let entry: ContOutlineEntry<Element>
   let children: (Element) -> [Element]?
   let expansion: ContOutlineExpansion<Element.ID>
-  let level: Int
   /// A leaf keeps the chevron's empty slot (some item in the outline opens).
   let reservesLeafSlot: Bool
   let row: (Element) -> RowContent
 
   var body: some View {
-    let kids = children(item)
+    let item = entry.item
     let id = item.id
     let expansion = expansion
-    let isOpen = Binding(get: { expansion.isOpen(id) }, set: { expansion.set(id, open: $0) })
     let children = children
     let disclosure =
-      kids == nil
+      entry.isLeaf
       ? ContRowDisclosure(isExpanded: nil, id: AnyHashable(id))
       : ContRowDisclosure(
-        isExpanded: isOpen, setRecursively: { open in expansion.setRecursively(item, open: open, children: children) },
+        isExpanded: Binding(get: { expansion.isOpen(id) }, set: { expansion.set(id, open: $0) }),
+        setRecursively: { open in expansion.setRecursively(item, open: open, children: children) },
         id: AnyHashable(id))
     row(item)
-      .environment(\.contRowIndent, level)
-      .environment(\.contRowDisclosure, kids == nil && !reservesLeafSlot ? nil : disclosure)
-    if let kids, expansion.isOpen(id) {
-      ForEach(kids) { child in
-        ContOutlineNode(
-          item: child, children: children, expansion: expansion, level: level + 1, reservesLeafSlot: true, row: row)
-      }
+      .environment(\.contRowIndent, entry.level)
+      .environment(\.contRowDisclosure, entry.isLeaf && !reservesLeafSlot ? nil : disclosure)
       .transition(.opacity)
-    }
   }
 }
 
