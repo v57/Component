@@ -1,0 +1,16 @@
+<!-- Live preview of the build sample in ComponentKit-Status.md, for v57.dev/docs: the live icon's ring carries the
+     build's progress, then settles green with a check. Push plays the success effect. -->
+<div class="ck-card ck-stack" style="width: 250px">
+  <div class="ck-work" data-ck-play data-ck-bind="build" data-status="idle">
+    <span class="ck-live">
+      <svg class="ring" viewBox="0 0 24 24" aria-hidden="true"><circle class="track" cx="12" cy="12" r="10.5"/><circle class="arc" cx="12" cy="12" r="10.5"/></svg>
+      <svg class="glyph tool" viewBox="0 0 16 16" aria-hidden="true"><path d="M9.5 2.5 13.5 6.5 12 8 10.6 6.6 4.2 13a1.4 1.4 0 0 1-2-2l6.4-6.4L7.5 3.5 9 2Z" fill="currentColor"/></svg>
+      <svg class="glyph done" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.3 2.9 2.9 6.1-6.3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <svg class="glyph fail" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+    </span>
+    <span class="ck-work-title">Build</span><span class="ck-count">3</span>
+    <span class="ck-work-meta">Idle</span>
+  </div>
+  <div class="ck-divider"></div>
+  <div class="ck-hstack"><button class="ck-btn" data-ck-action="push" data-ck-effect="success">Push</button></div>
+</div>

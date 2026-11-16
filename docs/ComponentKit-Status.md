@@ -18,6 +18,7 @@ HStack {
 
 Button("Push") { push() }.effect(.success, on: pushedCount)
 ```
+<!-- preview: build-status -->
 
 ## Work status
 

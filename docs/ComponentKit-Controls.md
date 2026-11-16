@@ -29,6 +29,7 @@ struct ConnectForm: View {
   }
 }
 ```
+<!-- preview: connect-form -->
 
 ## Buttons
 
