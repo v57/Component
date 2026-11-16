@@ -1,0 +1,11 @@
+<!-- Run blocks in ComponentKit-Data.md: a build that finished, then a test run that streams its output and fails
+     (the live icon turns red and the block plays the failure effect). -->
+<div class="ck-card" style="width: 340px; max-width: 100%; padding: 8px" data-ck-play="runs">
+  <div class="ck-runs">
+    <div class="ck-run"><div class="ck-run-head"><span class="ck-live h-green" data-glyph="hammer" data-status="done"></span>
+      <span class="text"><span class="ck-work-title">Build</span><span class="cmd">swift build</span></span><span class="ck-chip h-orange">1 warning</span><span class="ck-run-meta">21 s</span></div></div>
+    <div class="ck-run open" data-run="test" data-ck-bind="test"><div class="ck-run-head"><span class="ck-live" data-glyph="tube"></span>
+      <span class="text"><span class="ck-work-title">Test</span><span class="cmd">swift test</span></span><span class="ck-run-meta">0.0 s</span></div>
+      <div class="ck-run-out" role="log" aria-label="Test output"></div></div>
+  </div>
+</div>

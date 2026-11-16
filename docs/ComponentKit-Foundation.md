@@ -2,6 +2,8 @@
 
 Tokens, surfaces, the idiom, small utilities and the platform helpers. Part of [ComponentKit](ComponentKit.md).
 
+<!-- platforms: macos ios linux=partial windows=partial android=planned -->
+
 Components take tokens only: colours from `KitColor` and `Hue`, sizes from `KitMetrics`, type from `KitFont`, motion
 from `Animation.kit*`. An app drawing its own views should do the same, so they match the kit's in light, dark,
 Increase Contrast and on every idiom.
@@ -15,8 +17,16 @@ VStack(alignment: .leading, spacing: 4) {
 .kitSurface(.card)
 .foregroundStyle(.kitLabel)
 ```
+<!-- preview: surfaces -->
 
 ## Colours
+
+```swift
+Image(systemName: "circle.fill").foregroundStyle(Hue.green.fill)
+Text("3 failed").foregroundStyle(Hue.red.text)
+RoundedRectangle(cornerRadius: KitMetrics.radius).fill(.kitField)
+Tile(systemImage: "folder", hue: StableHue.pick(project.name))
+```
 
 | API | What it is |
 |---|---|
@@ -36,6 +46,12 @@ Dark mode is "steps of light, tracks as wells": cards are opaque, what is on is 
 wells, and there are no resting shadows. `Surface` handles this.
 
 ## Surfaces and cards
+
+```swift
+PathBar().padding(4).kitSurface(.card).kitBar()
+Text("Selected").padding(6).kitSurface(.raised)
+Summary().kitCard()
+```
 
 | API | What it is |
 |---|---|
@@ -69,6 +85,12 @@ edge, or merge them into one shape.
 `@Environment(\.kitIdiom)`. `isTouch` is true on iPad and iPhone; `scale` is 2 on Apple TV and 1 elsewhere, for an
 app's own sizes.
 
+```swift
+@Environment(\.kitIdiom) private var idiom
+
+Image(systemName: "star").frame(width: idiom.isTouch ? 32 : 24 * idiom.scale)
+```
+
 ## Type
 
 `KitFont` is the kit's type scale (13pt body on the Mac, 17pt on iPad and iPhone): `.largeTitle`, `.title1`,
@@ -87,6 +109,12 @@ families (AppKit's font manager on the Mac, fontconfig on Linux), for an editor'
 | `withKitAnimation(_:_:)` | `withAnimation` with the kit's animation. |
 | `kitAnimation(_:_:)` | Animates changes of a value with the kit's animation. |
 | `kitAppearDelay(_:)` | Shows a view only after it has been on screen for a moment: a loading state that a quick load never shows. |
+
+```swift
+withKitAnimation { showsDetail.toggle() }
+DetailPane().transition(.detail)
+EmptyState(systemImage: "doc.text", status: .working).kitAppearDelay()
+```
 
 The root modifier stills animations in an inactive window and shortens them under Reduce Motion, so components just
 animate.
@@ -166,3 +194,9 @@ On tvOS the kit declares no-op versions of SwiftUI modifiers tvOS lacks (`keyboa
 `dropDestination`, `draggable`, `listRowSeparator`, `scrollContentBackground`, `textSelection`, `onHover`), and
 `popover` shows its content as a sheet, so code shared with the Mac builds unchanged. Types tvOS lacks
 (`DragGesture`, `TextEditor`) still need an `#if !os(tvOS)` in the app.
+
+## Related
+
+- [ComponentKit](ComponentKit.md): setting up a scene and how the API is shaped.
+- [Controls](ComponentKit-Controls.md) and [Containers](ComponentKit-Containers.md): the components built on these tokens.
+- [Status and badges](ComponentKit-Status.md): hues at work in live icons, counts and chips.

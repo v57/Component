@@ -1,0 +1,12 @@
+<!-- Feedback in ComponentKit-Containers.md: a Banner across the pane, an EmptyState, and a toast with Undo. -->
+<div class="ck-window" style="width: 360px; max-width: 100%; height: 330px">
+  <div class="ck-stack" style="padding: 8px">
+    <div class="ck-banner h-orange"><span class="ck-tile"><i data-icon="warn"></i></span>
+      <span class="text"><b>This project has no release.env yet.</b><span>release.sh steps need one.</span></span>
+      <button class="ck-btn sm" data-ck-action="set-up">Set Up Release</button></div>
+    <div class="ck-empty"><span class="ck-tile"><i data-icon="tray"></i></span>
+      <div class="ck-empty-title">No Stashes</div><div class="ck-empty-text">Stash your changes to set them aside.</div>
+      <button class="ck-btn primary" data-ck-toast="stash-toast" data-ck-action="stash">Stash Changes</button></div>
+  </div>
+  <div class="ck-toast-host"><div class="ck-toast" id="stash-toast"><span class="ck-tile"><i data-icon="tray"></i></span>Stashed 3 files<button class="ck-btn plain" data-ck-action="undo">Undo</button></div></div>
+</div>

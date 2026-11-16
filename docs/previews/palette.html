@@ -1,0 +1,18 @@
+<!-- Command palette in ComponentKit-Data.md: type to filter (matched letters in bold), ↑ ↓ to move, Return to run.
+     The hidden spans tell the docs which code line an item runs. -->
+<div class="ck-palette" data-ck-bind="query" style="max-width: 360px">
+  <label class="ck-palette-search"><i data-icon="search"></i><input placeholder="Run an action or search" aria-label="Run an action or search"></label>
+  <div class="ck-palette-group">
+    <div class="head"><span class="ck-tile"><i data-icon="hammer"></i></span><span class="ck-section-text"><span class="ck-section-name">Atlas</span><span class="ck-section-meta">Xcode · Atlas.xcodeproj</span></span></div>
+    <button class="ck-palette-item" data-ck-run="run"><span hidden data-ck-action="run">Run</span><span class="ck-tile h-green"><i data-icon="play"></i></span><span class="text"><span class="title">Run</span><span class="detail">xcodebuild -scheme Atlas build</span></span><span class="ret">↩</span><span class="ck-keys"><span class="ck-keycap">⌘</span><span class="ck-keycap">R</span></span></button>
+    <button class="ck-palette-item" data-ck-run="build"><span hidden data-ck-action="build">Build</span><span class="ck-tile h-orange"><i data-icon="hammer"></i></span><span class="text"><span class="title">Build</span><span class="detail">xcodebuild -scheme Atlas build</span></span><span class="ret">↩</span><span class="ck-keys"><span class="ck-keycap">⌘</span><span class="ck-keycap">B</span></span></button>
+    <button class="ck-palette-item" data-ck-run="test"><span hidden data-ck-action="test">Test</span><span class="ck-tile h-purple"><i data-icon="tube"></i></span><span class="text"><span class="title">Test</span><span class="detail">Stops Build first</span></span><span class="ret">↩</span></button>
+  </div>
+  <div class="ck-palette-group">
+    <div class="head"><span class="ck-tile h-blue"><i data-icon="doc"></i></span><span class="ck-section-text"><span class="ck-section-name">Files</span></span></div>
+    <button class="ck-palette-item" data-ck-run="open"><span class="ck-tile h-gray"><i data-icon="doc"></i></span><span class="text"><span class="title">TripStore.swift</span><span class="detail">Sources/Atlas</span></span><span class="ret">↩</span></button>
+    <button class="ck-palette-item" data-ck-run="open"><span class="ck-tile h-gray"><i data-icon="doc"></i></span><span class="text"><span class="title">MapView.swift</span><span class="detail">Sources/Atlas</span></span><span class="ret">↩</span></button>
+  </div>
+  <div class="ck-palette-empty ck-empty-line" hidden>No results</div>
+  <div class="ck-hints"><span><span class="ck-keys"><span class="ck-keycap">↑</span><span class="ck-keycap">↓</span></span>Move</span><span><span class="ck-keycap">↩</span>Open</span><span><span class="ck-keycap">esc</span>Close</span></div>
+</div>

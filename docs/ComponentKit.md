@@ -11,6 +11,8 @@ widget toolkit with themes: an app picks only its accent colour, and everything 
 The `Component` app in this repository is the catalog: every component in every state, light and dark, on the Mac,
 iPad, iPhone and Apple TV. Use it to see a component before reading its source.
 
+<!-- platforms: macos ios linux=partial windows=partial android=planned -->
+
 Pages by area:
 
 | Page | What it covers |
@@ -190,3 +192,8 @@ For an app's own screenshots and UI tests, the kit reads two launch arguments (`
 - `-KitShowsTooltip <title>` shows the `kitHelp` tooltip with that title as its view appears.
 
 The kit offers no test fakes; components take plain data and closures, so an app tests its own models directly.
+
+## Related
+
+- [Platform](https://github.com/v57/Platform): `PlatformLanguages`, which ComponentKit uses for downloadable languages.
+- [SwiftUI](https://github.com/v57/SwiftUI): the cross-platform SwiftUI the kit builds on for Windows and Linux.

@@ -1,0 +1,33 @@
+<!-- Sheets in ComponentKit-Containers.md: kitSheet over the window (the window dims, the card floats on the panel
+     ground), then kitConfirmation. Escape cancels, Return presses the primary, Tab stays in the card. -->
+<div class="ck-window" style="width: 380px; max-width: 100%; height: 300px">
+  <div class="ck-stack" style="padding: 16px; align-items: flex-start">
+    <div class="ck-work"><span class="ck-tile h-orange"><i data-icon="branch"></i></span><span class="ck-work-title">harbor</span><span class="ck-work-meta">feature/offline-maps</span></div>
+    <div class="ck-hstack">
+      <button class="ck-btn" data-ck-open="clone-sheet">Clone Repository…</button>
+      <button class="ck-btn destructive" data-ck-open="delete-sheet">Delete…</button>
+    </div>
+  </div>
+  <div class="ck-scrim" id="clone-sheet" data-ck-bind="cloning" role="dialog" aria-modal="true" aria-labelledby="clone-title">
+    <div class="ck-sheet">
+      <div class="ck-sheet-header"><span class="ck-tile"><i data-icon="arrowdown"></i></span>
+        <div><div class="ck-sheet-title" id="clone-title" role="heading" aria-level="3">Clone Repository</div><div class="ck-sheet-meta">Copies a repository from any URL.</div></div></div>
+      <div class="ck-sheet-body"><div class="ck-formcard">
+        <div class="ck-form-row"><span class="ck-tile"><i data-icon="link"></i></span><span class="text">Repository URL</span>
+          <label class="ck-field" data-ck-bind="url" data-no-status><input id="clone-url" placeholder="https://" aria-label="Repository URL"></label></div>
+      </div></div>
+      <div class="ck-sheet-footer"><span class="ck-live" data-glyph="arrowdown"></span><span class="ck-sheet-status">Paste a repository URL</span>
+        <button class="ck-btn" data-ck-close data-ck-action="cancel">Cancel</button>
+        <button class="ck-btn primary" data-ck-close data-ck-action="clone" data-ck-requires="#clone-url">Clone</button></div>
+    </div>
+  </div>
+  <div class="ck-scrim" id="delete-sheet" data-ck-bind="confirming" role="alertdialog" aria-modal="true" aria-labelledby="delete-title">
+    <div class="ck-sheet" style="max-width: 320px">
+      <div class="ck-sheet-header top"><span class="ck-tile h-red"><i data-icon="trash"></i></span>
+        <div><div class="ck-sheet-title" id="delete-title" role="heading" aria-level="3">Delete harbor?</div><div class="ck-sheet-meta">Its worktree goes too.</div></div></div>
+      <div class="ck-sheet-footer"><span class="ck-sheet-status"></span>
+        <button class="ck-btn" data-ck-close>Cancel</button>
+        <button class="ck-btn destructive primary" data-ck-close data-ck-action="delete">Delete</button></div>
+    </div>
+  </div>
+</div>

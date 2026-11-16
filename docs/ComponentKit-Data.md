@@ -3,6 +3,8 @@
 Larger views for data and whole screens: grids, diffs, run output, the command palette, the welcome screen, the
 Settings window, secrets and codes, documents and meters. Part of [ComponentKit](ComponentKit.md).
 
+<!-- platforms: macos ios linux=partial windows=partial android=planned -->
+
 ## Grids
 
 `KitGrid` is the data grid (database tables, string catalogs): striped rows on a field track, a raised selected row,
@@ -28,6 +30,16 @@ KitGrid(orders, columns: columns, selection: $selected, sort: $sort)
 
 ## Diffs and conflicts
 
+```swift
+HunkCard(header: "public final class TripStore", range: "@@ -23,8 +24,13 @@", lines: hunk.lines,
+         selection: $selectedLines, stage: { lines in repo.stage(lines) })
+
+ConflictCard(title: "Conflict 1 of 1", meta: ["Lines 32–36", "save()"],
+             current: ConflictSide("Current", ref: "main", code: ours),
+             incoming: ConflictSide("Incoming", ref: "feature/offline-maps", code: theirs),
+             choice: $choice, edit: { openEditor() })
+```
+
 | API | What it is |
 |---|---|
 | `DiffLine`, `DiffLine.splitRows(_:)` | One line of a diff: kind, old and new numbers, text (plain or already highlighted), changed-word ranges. |
@@ -39,6 +51,27 @@ Syntax colours come from the app (Code's `CodeHighlighting` in the v57 apps); th
 
 ## Output and code
 
+Output nobody types into is a run block: the command and its live icon head the block, the output follows, and the
+icon settles green or red when the run ends.
+
+```swift
+@State private var test = WorkStatus.working
+
+ScrollView {
+  RunBlocks {
+    RunBlock("Build", command: "swift build", status: .done, duration: "21 s", warnings: "1 warning")
+    RunBlock("Test", command: "swift test", status: test, duration: elapsed, output: log)
+  }
+}
+.kitFollowsEnd()
+```
+<!-- preview: run-blocks -->
+
+```swift
+KitCodeBlock(fingerprint, font: .monoSmall)
+KitCodeBlock(lines: runner.log, maxHeight: 240, followsEnd: true) { $0.contains("error") ? .red : nil }
+```
+
 | API | What it is |
 |---|---|
 | `RunBlocks(selection:content:)`, `RunBlock(_:command:id:systemImage:hue:status:progress:duration:warnings:output:stop:)` | Output nobody types into (actions, build, test and run consoles) as run blocks on a track, each headed by its command and live icon. |
@@ -49,6 +82,33 @@ Syntax colours come from the app (Code's `CodeHighlighting` in the v57 apps); th
 | `KitFilePreview(name:data:)` | A file shown in place from bytes the app already has: pictures, PDFs, text. |
 
 ## Command palette
+
+```swift
+@State private var query = ""
+
+KitPalette(query: $query, prompt: "Run an action or search") {
+  PaletteGroup("Atlas", meta: ["Xcode", "Atlas.xcodeproj"], systemImage: "hammer") {
+    PaletteItem("Run", systemImage: "play.fill", hue: .green, detail: "xcodebuild -scheme Atlas build", shortcut: "⌘R") { run() }
+    PaletteItem("Build", systemImage: "hammer", hue: .orange, detail: "xcodebuild -scheme Atlas build", shortcut: "⌘B") { build() }
+    PaletteItem("Test", systemImage: "testtube.2", hue: .purple, note: "Stops Build first") { test() }
+  }
+  PaletteGroup("Files", systemImage: "doc", hue: .blue) {
+    ForEach(files) { file in
+      PaletteItem(file.name, systemImage: "doc", hue: .gray, subtitle: file.folder, matches: file.matches) { open(file) }
+    }
+  }
+}
+```
+<!-- preview: palette -->
+
+To show it over the window, at the top:
+
+```swift
+Workspace()
+  .kitPaletteOverlay(isPresented: $showsQuickOpen) {
+    KitPalette(query: $query, prompt: "Open Quickly", dismiss: { showsQuickOpen = false }) { … }
+  }
+```
 
 | API | What it is |
 |---|---|
@@ -106,6 +166,26 @@ Settings {
 
 ## Secrets and codes
 
+```swift
+@State private var showsToken = false
+
+FormCard {
+  FormRow("Token", systemImage: "key") { KitSecretValue("hunter2", label: "Token", isRevealed: $showsToken) }
+  FormRow("One-Time Code", systemImage: "clock") { KitOneTimeCode(period: 30) { date in totp.code(at: date) } }
+}
+```
+<!-- preview: secrets -->
+
+A secret that lives in the keychain is read only when it is shown or copied, and an app lock can stand in front of
+every secret in a view:
+
+```swift
+FormRow("Password") { KitSecretValue { VaultSecrets.password(for: login.id) } }
+ItemsView().kitSecretAccess { label in await AppLock.unlock(reason: "show the \(label)") }
+KitSafetyCode(pairingCode, groupSize: 3, columns: 2)   // "702 115"
+KitQRCode(invite.link)
+```
+
 | API | What it is |
 |---|---|
 | `KitSecretValue(_:label:isRevealed:copies:)`, `KitSecretValue(label:isRevealed:copies:value:)` | A secret in a row: dots until revealed, with Show and Copy. The closure form reads it on demand (from the keychain). Copying uses `KitPasteboard.copySecret`. |
@@ -119,6 +199,18 @@ Settings {
 
 ## Documents and pages
 
+```swift
+KitDocumentGrid {
+  ForEach(documents) { doc in
+    KitDocumentCard(doc.title, imageData: doc.thumbnail, aspectRatio: 1.42, isSelected: selected == doc.id,
+                    badge: doc.expiry, badgeHue: .orange) {
+      Text(doc.owner)
+    } action: { selected = doc.id }
+  }
+}
+KitPageStrip(pages: pages, selection: $page) { scanning = true }
+```
+
 | API | What it is |
 |---|---|
 | `KitPagePreview(data:aspectRatio:pages:maxPixelSize:)` | A scanned page drawn as paper. |
@@ -129,6 +221,16 @@ Settings {
 
 ## Meters, stats and boards
 
+```swift
+MeterBar(segments: [MeterSegment("Development", value: 214.2, hue: .blue), …], total: 994.7)
+MeterTile("CPU", value: "32%", systemImage: "cpu", hue: .blue, progress: 0.32)
+
+LaneBoard {
+  Lane("Ready", count: 2, systemImage: "tray") { … }
+  Lane("Running", count: 1, systemImage: "bolt", status: .working) { … }
+}
+```
+
 | API | What it is |
 |---|---|
 | `MeterBar(segments:total:height:)`, `MeterLegend(segments:free:)`, `MeterSegment` | A stacked meter (storage) and its legend. |
@@ -136,3 +238,8 @@ Settings {
 | `KitStatCard(_:value:systemImage:hue:delta:deltaHue:detail:sparkline:action:)` | A number that sums something up, with a delta and an optional sparkline. |
 | `KitSparkline` | A line through recent values. |
 | `LaneBoard(content:)`, `Lane`, `LaneItem` | A board of lanes (tasks, workflows) side by side. |
+
+## Related
+
+- [Containers](ComponentKit-Containers.md): the sidebar, sections, forms and overlays these views sit in.
+- [Status and badges](ComponentKit-Status.md): the live icon and chips the grids, run blocks and palette use.

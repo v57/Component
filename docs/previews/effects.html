@@ -1,0 +1,25 @@
+<!-- Effects in ComponentKit-Status.md: .effect(_:on:) plays once each time the value changes. The small buttons play
+     each effect on the card. -->
+<div class="ck-card ck-stack" style="width: 300px; max-width: 100%">
+  <div class="ck-hstack">
+    <button class="ck-btn" data-ck-action="push" data-ck-effect="success">Push</button>
+    <button class="ck-btn" data-ck-action="like" data-ck-effect="float">Like<i data-icon="heart" style="order:-1"></i></button>
+    <button class="ck-btn primary" data-ck-action="publish" data-ck-effect="burst">Publish</button>
+  </div>
+  <div class="ck-divider"></div>
+  <div class="ck-work ck-surface raised" id="fx-target" style="padding: 8px 10px; border-radius: 10px">
+    <span class="ck-tile h-green"><i data-icon="cloud"></i></span><span class="ck-work-title">Backup</span><span class="ck-work-meta">Every effect plays here</span>
+  </div>
+  <div class="ck-hstack" style="flex-wrap: wrap; gap: 6px">
+    <button class="ck-btn sm" data-ck-effect="failure" data-ck-target="#fx-target">failure</button>
+    <button class="ck-btn sm" data-ck-effect="pop" data-ck-target="#fx-target">pop</button>
+    <button class="ck-btn sm" data-ck-effect="wash" data-ck-target="#fx-target">wash</button>
+    <button class="ck-btn sm" data-ck-effect="pulse" data-ck-target="#fx-target">pulse</button>
+    <button class="ck-btn sm" data-ck-effect="glow" data-ck-target="#fx-target">glow</button>
+    <button class="ck-btn sm" data-ck-effect="ripple" data-ck-target="#fx-target">ripple</button>
+    <button class="ck-btn sm" data-ck-effect="wiggle" data-ck-target="#fx-target">wiggle</button>
+    <button class="ck-btn sm" data-ck-effect="bounce" data-ck-target="#fx-target">bounce</button>
+    <button class="ck-btn sm" data-ck-effect="heartbeat" data-ck-target="#fx-target">heartbeat</button>
+    <button class="ck-btn sm" data-ck-effect="send" data-ck-target="#fx-target">send</button>
+  </div>
+</div>

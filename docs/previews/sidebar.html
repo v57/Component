@@ -1,0 +1,23 @@
+<!-- Sidebar in ComponentKit-Containers.md: a KitSection of SidebarRows on the sidebar ground. The raised selection
+     glides between rows (click, or ↑ ↓); the bottom bar's search button opens the search line, which filters rows. -->
+<div class="ck-sidebar" data-ck-bind="search" style="width: 280px">
+  <div class="ck-section">
+    <div class="ck-section-header"><span class="ck-tile h-blue" style="--s: 28px"><i data-icon="folder"></i></span>
+      <span class="ck-section-text"><span class="ck-section-name">Repositories</span><span class="ck-section-meta">5 repositories</span></span>
+      <span class="ck-section-actions"><button class="ck-btn icon" data-ck-action="add-repository" aria-label="Add Repository">Add Repository<i data-icon="plus"></i></button></span></div>
+    <div class="ck-rows" data-ck-bind="selection" data-ck-value="atlas">
+      <button class="ck-row" data-value="atlas"><span class="ck-tile"><i data-icon="folder"></i></span><span class="ck-row-text"><span class="ck-row-title">atlas</span><span class="ck-row-sub">main</span></span></button>
+      <button class="ck-row" data-value="harbor"><span class="ck-tile"><i data-icon="folder"></i></span><span class="ck-row-text"><span class="ck-row-title">harbor</span><span class="ck-row-sub">feature/offline-maps</span></span></button>
+      <button class="ck-row" data-value="lighthouse"><span class="ck-tile"><i data-icon="folder"></i></span><span class="ck-row-text"><span class="ck-row-title">lighthouse</span><span class="ck-row-sub">main</span></span></button>
+      <button class="ck-row" data-value="notes"><span class="ck-tile"><i data-icon="folder"></i></span><span class="ck-row-text"><span class="ck-row-title">notes</span><span class="ck-row-sub">drafts</span></span></button>
+      <button class="ck-row" data-value="website"><span class="ck-tile"><i data-icon="folder"></i></span><span class="ck-row-text"><span class="ck-row-title">website</span><span class="ck-row-sub">main</span></span></button>
+    </div>
+    <div class="ck-empty-line" hidden></div>
+  </div>
+  <div class="ck-sidebar-bar">
+    <span class="ck-bar-card ck-bar-search" data-ck-bar-rest><button data-ck-search-open aria-label="Search"><i data-icon="search"></i></button></span>
+    <span class="ck-search-line" hidden><i data-icon="search"></i><input placeholder="Search" aria-label="Search"><button aria-label="Close Search"><i data-icon="xmark"></i></button></span>
+    <span class="status" data-ck-bar-rest><span class="ck-dot h-green"></span>On This Mac</span>
+    <span class="ck-bar-card" data-ck-bar-rest><button data-ck-action="add" aria-label="Add" style="font-size: 0">Add<i data-icon="plus"></i></button></span>
+  </div>
+</div>

@@ -1,0 +1,23 @@
+<!-- Menus in ComponentKit-Controls.md: KitMenuButton with KitMenuOptions and a toggle, and a row's kitContextMenu
+     (right-click it, or press and hold). A row's title comes first in the markup so data-ck-action finds its code line. -->
+<div class="ck-card ck-stack" style="width: 290px; min-height: 200px">
+  <div class="ck-menuhost" data-ck-bind="sort">
+    <button class="ck-menu-btn" aria-haspopup="menu"><i data-icon="sort"></i>Sort<i class="chev" data-icon="chev"></i></button>
+    <div class="ck-menu">
+      <button data-ck-pick="sort:name" aria-checked="true">Name<span class="tick" style="order:-1"><i data-icon="check"></i></span></button>
+      <button data-ck-pick="sort:date" aria-checked="false">Date<span class="tick" style="order:-1"><i data-icon="check"></i></span></button>
+      <button data-ck-pick="sort:size" aria-checked="false">Size<span class="tick" style="order:-1"><i data-icon="check"></i></span></button>
+      <hr>
+      <button data-ck-toggle="foldersFirst" data-ck-bind="foldersFirst" aria-checked="true">Folders First<span class="tick" style="order:-1"><i data-icon="check"></i></span></button>
+    </div>
+  </div>
+  <div class="ck-menuhost" style="display: flex">
+    <button class="ck-row" aria-haspopup="menu" data-ck-context style="background: var(--ck-field)"><span class="ck-tile h-blue" style="--s: 18px"><i data-icon="doc"></i></span><span class="ck-row-text"><span class="ck-row-title">TripStore.swift</span><span class="ck-row-sub">Right-click, or press and hold</span></span></button>
+    <div class="ck-menu">
+      <button data-ck-action="open">Open<span class="ico" style="order:-1"><i data-icon="doc"></i></span></button>
+      <button data-ck-action="rename">Rename…<span class="ico" style="order:-1"><i data-icon="pencil"></i></span><span class="hint">↩</span></button>
+      <hr>
+      <button class="destructive" data-ck-action="trash">Move to Trash<span class="ico" style="order:-1"><i data-icon="trash"></i></span></button>
+    </div>
+  </div>
+</div>

@@ -3,28 +3,33 @@
 The structure of a window: sidebar, sections, toolbar, panes, inspector, forms, sheets and other overlays, and the
 feedback views. Part of [ComponentKit](ComponentKit.md).
 
+<!-- platforms: macos ios linux=partial windows=partial android=planned -->
+
 ## Sidebar
 
 The sidebar is a scroll view of card sections on the sidebar ground. The selection is a raised card that glides
 between rows; the bottom bar holds the search button, a status and the app's actions.
 
 ```swift
-@State private var selection: Repository.ID?
+@State private var selection: String? = "atlas"
 @State private var columns = NavigationSplitViewVisibility.all
 @State private var search = ""
 
 KitSidebar(selection: $selection, searchText: $search, columnVisibility: $columns) {
   KitSection("Repositories", meta: ["\(repos.count) repositories"], systemImage: "folder", hue: .blue) {
     ForEach(repos) { repo in
-      SidebarRow(value: repo.id, repo.name, subtitle: repo.branch, systemImage: "folder")
+      SidebarRow(value: repo.name, repo.name, subtitle: repo.branch, systemImage: "folder")
     }
+  } accessory: {
+    Button("Add Repository", systemImage: "plus") { adding = true }
   }
 } bottomBar: {
   Button("Add", systemImage: "plus") { adding = true }
 }
-.status { Text("On This Mac") }
-.primaryAction { (id: Repository.ID) in open(id) }
+.status { StatusLabel("On This Mac", hue: .green) }
+.primaryAction { (name: String) in open(name) }
 ```
+<!-- preview: sidebar -->
 
 | API | What it is |
 |---|---|
@@ -45,6 +50,19 @@ KitSidebar(selection: $selection, searchText: $search, columnVisibility: $column
 
 ### Split views
 
+```swift
+@State private var project: Project.ID?
+@State private var columns = NavigationSplitViewVisibility.all
+
+KitSidebarSplit(selection: $project, columnVisibility: $columns) {
+  KitSidebar(selection: $project, columnVisibility: $columns) { … }
+} detail: { id in
+  ProjectScreen(id: id)
+} empty: {
+  KitWelcome(…)
+}
+```
+
 | API | What it is |
 |---|---|
 | `KitSidebarSplit(selection:columnVisibility:sidebar:detail:empty:)` | A sidebar and the screen of what it selects: one stack on iPhone, a split view on the Mac and iPad with `empty` while nothing is selected. Use it at a window's root. |
@@ -56,6 +74,24 @@ Don't add a sidebar toggle of your own: remove the system one (`.toolbar(removin
 bottom bar has one.
 
 ## Sections and headers
+
+A section is a card of rows under a rich header: a tile (a live icon while work runs), the name, one meta line and
+trailing actions.
+
+```swift
+KitSection("Repositories", meta: ["5 repositories", "2 with changes"], systemImage: "folder", hue: .blue) {
+  SidebarRow(value: repo.id, repo.name, systemImage: "shippingbox")
+} accessory: {
+  Button("Add Repository", systemImage: "plus") { … }
+}
+
+KitSection("Shop", meta: "PostgreSQL 16", systemImage: "cylinder") { … }.titleAccessory { Chip.production }
+
+KitSection("Projects", meta: "On your devices", systemImage: "folder") {
+  ForEach(shown) { SidebarRow(value: $0.id, $0.name, systemImage: "folder") }
+}
+.emptyState("Nothing matches “\(search)”.", systemImage: "magnifyingglass")
+```
 
 | API | What it is |
 |---|---|
@@ -102,6 +138,26 @@ HistoryView()
 
 ## Panes, splits and the inspector
 
+```swift
+ResizableSplit("inspectorWidth", pane: .trailing, width: 320, range: 260...480, mainMinWidth: 360) {
+  Diff().kitPane(.content)
+} pane: {
+  KitInspector {
+    InspectorHeader("Order 10234", meta: ["Row in orders", "7 fields"], systemImage: "tablecells", hue: .blue)
+    KitSection("Fields", meta: "7 fields", systemImage: "list.bullet") {
+      InspectorRow("id", value: "10234")
+      InspectorRow("status", value: "shipped")
+    }
+    ActionBar {
+      Button("Copy as JSON", systemImage: "doc.on.doc") { … }
+      Button("Delete Row…", systemImage: "trash", role: .destructive) { … }
+    }
+  }
+}
+
+Editor().kitStatusBar(systemImage: "hammer", status: buildStatus) { Text("Test failed"); Text("Line 17") }
+```
+
 | API | What it is |
 |---|---|
 | `KitWindowLayout(content:)`, `kitPane(_:)`, `PaneGround` | Panes side by side on one sheet, with a hairline only where two panes on the same ground meet. |
@@ -115,6 +171,9 @@ HistoryView()
 ## Forms
 
 ```swift
+@State private var host = ""
+@State private var usesAgent = true
+
 FormCard("Connection", footer: "The key never leaves this device.") {
   FormRow("Host", systemImage: "network", field: TextField("hub.example.com", text: $host))
   FormRow("Use SSH Agent", help: "Sign in with the agent's keys", systemImage: "key") {
@@ -122,6 +181,7 @@ FormCard("Connection", footer: "The key never leaves this device.") {
   }
 }
 ```
+<!-- preview: form -->
 
 | API | What it is |
 |---|---|
@@ -139,18 +199,28 @@ Kit overlays present on the host `componentKit()` installs: the window dims and 
 card's Return and Escape buttons fire. On the Mac the first field takes focus and Tab cycles inside the card.
 
 ```swift
+@State private var cloning = false
+@State private var confirming = false
+@State private var url = ""
+
+HStack {
+  Button("Clone Repository…") { cloning = true }.buttonStyle(.kit)
+  Button("Delete…", role: .destructive) { confirming = true }.buttonStyle(.kit)
+}
 .kitSheet(isPresented: $cloning) {
   KitSheet(title: "Clone Repository", meta: "Copies a repository from any URL.", systemImage: "arrow.down.circle") {
     FormCard { FormRow("Repository URL", systemImage: "link", field: TextField("https://", text: $url)) }
   } footer: {
-    SheetStatus("Ready", systemImage: "arrow.down", status: .done)
+    SheetStatus(url.isEmpty ? "Paste a repository URL" : "Ready to clone", systemImage: "arrow.down",
+                status: url.isEmpty ? .idle : .done)
     Button("Cancel") { cloning = false }.keyboardShortcut(.cancelAction)
-    Button("Clone") { clone() }.buttonStyle(.kitPrimary).keyboardShortcut(.defaultAction)
+    Button("Clone") { clone(url) }.buttonStyle(.kitPrimary).keyboardShortcut(.defaultAction).disabled(url.isEmpty)
   }
 }
 .kitConfirmation("Delete harbor?", isPresented: $confirming, message: "Its worktree goes too.",
                  systemImage: "trash", confirm: "Delete") { delete(harbor) }
 ```
+<!-- preview: sheet height=340 -->
 
 | API | What it is |
 |---|---|
@@ -172,6 +242,25 @@ A view outside `componentKit()` has no overlay host; there the kit falls back to
 
 ## Feedback
 
+```swift
+@Environment(\.showToast) private var showToast
+
+VStack {
+  Banner("This project has no release.env yet.", message: "release.sh steps need one.",
+         systemImage: "exclamationmark.triangle", hue: .orange) {
+    Button("Set Up Release") { … }
+  }
+  EmptyState(systemImage: "tray", title: "No Stashes", message: "Stash your changes to set them aside.") {
+    Button("Stash Changes") {
+      stash()
+      showToast(Toast("Stashed 3 files", systemImage: "tray", undo: { unstash() }))
+    }
+    .buttonStyle(.kitPrimary)
+  }
+}
+```
+<!-- preview: feedback height=360 -->
+
 | API | What it is |
 |---|---|
 | `Banner(_:message:systemImage:hue:onDismiss:actions:)` | A notice across a pane: an icon tile, a bold line, a quiet line, actions at the end. |
@@ -179,13 +268,26 @@ A view outside `componentKit()` has no overlay host; there the kit falls back to
 | `EmptyState(systemImage:title:message:status:actions:)` | What a pane will show and how to get there; `status: .working` for a loading state. A `detail:` form shows a view under the message (a pairing code). |
 | `kitHelp(_:shortcut:meta:systemImage:hue:status:edge:)` | The kit's tooltip: a small card with a rich header half a second after the pointer stops. A form with `detail:` adds rows under it. |
 
-```swift
-@Environment(\.showToast) private var showToast
+Put `.kitToasts()` once on a scene's root, inside `.componentKit()`: it is the toast host. A toast can offer a follow-up instead of Undo:
+`Toast("Committed 3 files", systemImage: "checkmark", action: "Push") { push() }`.
 
-showToast(Toast("Deleted harbor", systemImage: "trash", undo: { restore() }))
+The tooltip names the control, its shortcut and a meta line:
+
+```swift
+Button("Pull", systemImage: "arrow.down") { … }
+  .kitHelp("Pull", shortcut: "⇧⌘P", meta: "1 behind origin/main", systemImage: "arrow.down")
 ```
 
 ## Drag and drop
+
+```swift
+SidebarRow(value: folder.id, folder.name, systemImage: "folder")
+  .kitDropTarget(isTargeted)
+  .onDrop(of: [.fileURL], isTargeted: $isTargeted) { … }
+
+ContentView()
+  .kitDropTarget(isTargeted, label: "Drop to download", systemImage: "arrow.down", cornerRadius: KitMetrics.radiusWindow)
+```
 
 | API | What it is |
 |---|---|
@@ -193,3 +295,9 @@ showToast(Toast("Deleted harbor", systemImage: "trash", undo: { restore() }))
 | `kitDropTarget(_:cornerRadius:)` | Draws a drop target. `kitDropTarget(_:label:systemImage:)` covers a pane with a `KitDropLabel` ("Drop to Play"). |
 | `DropSlot(height:)` | The slot a dragged row will land in. |
 | `kitDropDestination(of:isTargeted:perform:)`, `kitFileDrop(isTargeted:perform:)`, `KitDroppedFiles.load(_:then:)` | Drops anywhere on a view, also over the kit's reorderable rows inside it; files arrive as URLs in the drag's order. |
+
+## Related
+
+- [Controls](ComponentKit-Controls.md): the buttons, fields and menus that go in rows, forms and sheets.
+- [Status and badges](ComponentKit-Status.md): the live icon a section, row or sheet shows while work runs.
+- [Data](ComponentKit-Data.md): settings, welcome and other whole screens built from these containers.

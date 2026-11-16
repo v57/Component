@@ -1,0 +1,12 @@
+<!-- Work status in ComponentKit-Status.md: pick a WorkStatus and every live icon draws it. -->
+<div class="ck-card ck-stack" style="width: 290px; max-width: 100%">
+  <div class="ck-formrow"><span>Status</span>
+    <div class="ck-popup" data-ck-bind="status" data-ck-value="idle"
+         data-ck-options="idle:Idle,waiting:Waiting,working:Working,progress:Working 40%,paused:Paused,done:Done,failed:Failed"
+         data-ck-codes="progress=working(progress: 0.4)|paused=paused(progress: 0.6)|failed=failed(nil)"></div></div>
+  <div class="ck-hstack" style="justify-content: center; gap: 22px; padding: 10px 0 4px">
+    <span class="ck-live" data-glyph="up" data-ck-status-of="status"></span>
+    <span class="ck-live h-blue" data-letters="Pg" data-ck-status-of="status" style="--s: 28px"></span>
+    <span class="ck-live h-purple" data-glyph="sparkles" data-ck-status-of="status" style="--s: 36px"></span>
+  </div>
+</div>

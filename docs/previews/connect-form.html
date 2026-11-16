@@ -1,12 +1,10 @@
-<!-- Live preview of the ConnectForm sample in ComponentKit-Controls.md, for v57.dev/docs.
-     ComponentKit's web classes; data-ck-bind names the @State var a control changes. -->
+<!-- Live preview of the ConnectForm sample in ComponentKit-Controls.md, for v57.dev/docs (kit.css + kit.js).
+     data-ck-bind names the @State var a control changes; data-ck-action finds the line with the button's title. -->
 <div class="ck-card ck-stack" style="width: 270px">
   <div class="ck-seg" data-ck-bind="sort" data-ck-options="name:Name,date:Date" data-ck-value="name"></div>
   <div class="ck-formrow"><span>Wrap Lines</span><input type="checkbox" class="ck-switch" data-ck-bind="wraps" checked aria-label="Wrap Lines"></div>
-  <label class="ck-field" data-ck-bind="port"><input inputmode="numeric" placeholder="Port" aria-label="Port"><span class="ck-field-status">
-    <svg class="ok" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="m4.8 8.2 2.1 2.1 4.3-4.4" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  </span></label>
-  <div class="ck-hstack" style="justify-content: flex-end">
+  <label class="ck-field" data-ck-bind="port"><input inputmode="numeric" placeholder="Port" aria-label="Port"><span class="ck-field-status"><i class="ok" data-icon="check"></i></span></label>
+  <div class="ck-hstack">
     <button class="ck-btn" data-ck-action="cancel">Cancel</button>
     <button class="ck-btn primary" data-ck-action="connect">Connect</button>
   </div>

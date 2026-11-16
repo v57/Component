@@ -1,0 +1,11 @@
+<!-- Forms in ComponentKit-Containers.md: a FormCard with a field row and a switch row, a title and a footnote. -->
+<div class="ck-card panel" style="width: 320px; max-width: 100%; padding: 12px 8px">
+  <div class="ck-formcard-title">Connection</div>
+  <div class="ck-formcard">
+    <div class="ck-form-row"><span class="ck-tile"><i data-icon="globe"></i></span><span class="text">Host</span>
+      <label class="ck-field" data-ck-bind="host"><input placeholder="hub.example.com" aria-label="Host"><span class="ck-field-status"><i class="ok" data-icon="check"></i></span></label></div>
+    <div class="ck-form-row"><span class="ck-tile"><i data-icon="key"></i></span><span class="text">Use SSH Agent<span class="help">Sign in with the agent's keys</span></span>
+      <input type="checkbox" class="ck-switch" data-ck-bind="usesAgent" checked aria-label="Use SSH Agent"></div>
+  </div>
+  <div class="ck-formcard-footer">The key never leaves this device.</div>
+</div>
