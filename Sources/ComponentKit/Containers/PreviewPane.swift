@@ -171,10 +171,25 @@ public struct KitCommand: View {
         .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 7)
-      KitCopyButton(value: command).buttonStyle(.kitIcon)
+      KitCopyButton("Copy", systemImage: "doc.on.doc", value: command).buttonStyle(.kitIcon)
     }
     .padding(EdgeInsets(top: 0, leading: 9, bottom: 0, trailing: 2))
     .kitSurface(.field, cornerRadius: KitMetrics.radiusSmall)
+  }
+}
+
+/// One step of a `KitGuide`: what to do, the command that does it, a note under it.
+public struct KitGuideStep: Hashable, Sendable {
+  public var title: String
+  public var command: String?
+  public var note: String?
+  public var isDone: Bool
+
+  public init(_ title: String, command: String? = nil, note: String? = nil, isDone: Bool = false) {
+    self.title = title
+    self.command = command
+    self.note = note
+    self.isDone = isDone
   }
 }
 
@@ -190,20 +205,8 @@ public struct KitCommand: View {
 /// }
 /// ```
 public struct KitGuide<Header: View, Actions: View>: View {
-  /// One step: what to do, the command that does it, a note under it.
-  public struct Step: Hashable, Sendable {
-    public var title: String
-    public var command: String?
-    public var note: String?
-    public var isDone: Bool
-
-    public init(_ title: String, command: String? = nil, note: String? = nil, isDone: Bool = false) {
-      self.title = title
-      self.command = command
-      self.note = note
-      self.isDone = isDone
-    }
-  }
+  /// The steps' type, also by its short name.
+  public typealias Step = KitGuideStep
 
   var title: KitString
   var message: KitString?
