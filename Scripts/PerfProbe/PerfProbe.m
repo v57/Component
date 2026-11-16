@@ -23,11 +23,18 @@
 //   views:<path>                       NSViews in each window by class (SwiftUI hosts one per platform view)
 //   select:<table index>:<row>         selects a row of the n-th NSTableView/NSOutlineView (a List)
 //   size:<width>x<height>              the main window's content size
+//   pace:timer|link                    drive runs from a 120 Hz timer (default) or the window's display link (on screen:
+//                                      one step per displayed frame, as a trackpad scroll is)
+//   front                              brings the app and its main window to the front (on-screen runs only)
 //   mode:direct|wheel                  scroll by setting the clip view's offset (default: what a trackpad's scroll ends
 //                                      in, SwiftUI's update and layout for it) or with trackpad-phased wheel events
 //
 // Wheel events (2026-11-15, macOS 27) don't work off-screen: phaseless ones are smoothed by AppKit on the display
 // link, which runs slowly then, and phased ones barely moved a SwiftUI scroll view; so runs set the offset.
+//
+// Every run also counts the window's display-link callbacks: on screen (the window visible and unoccluded) a callback
+// whose vsync came more than one frame after the last one's is a frame the display didn't get, so the report's
+// `display` line is the on-screen frame rate and its missed vsyncs. Off screen the link runs slowly and means nothing.
 //
 // <sv> is an index from `list`, or `main` (the largest vertical scroll view that can scroll).
 
@@ -81,6 +88,14 @@ static NSTextView *PPFirstEditableTextView(NSView *view) {
   int _phase;        // the next wheel event's phase: 0 none sent yet, 1 began, 2 changed
   BOOL _momentum;    // a fling's momentum part
   NSInteger _dragTicks;
+  BOOL _linkPaced;   // `pace:link`: the display link drives the ticks
+  CADisplayLink *_link;
+  double _lastVsync;
+  double _linkFrame;
+  double _longestGap;
+  NSInteger _linkCallbacks;
+  NSInteger _missedVsyncs;
+  NSInteger _hitches;
 }
 
 + (instancetype)shared {
@@ -190,7 +205,13 @@ static NSTextView *PPFirstEditableTextView(NSView *view) {
       [responder tryToPerform:@selector(deleteBackward:) with:nil];
     }
   } else if ([verb isEqual:@"stop"]) {
-    if (_timer) [self finishRun];
+    if (_runTimes) [self finishRun];
+  } else if ([verb isEqual:@"pace"]) {
+    _linkPaced = [arg(1) isEqual:@"link"];
+  } else if ([verb isEqual:@"front"]) {
+    NSWindow *window = [self mainWindow];
+    [NSApp activateIgnoringOtherApps:YES];
+    [window makeKeyAndOrderFront:nil];
   } else if ([verb isEqual:@"mode"]) {
     _direct = ![arg(1) isEqual:@"wheel"];
   } else if ([verb isEqual:@"idle"]) {
@@ -358,6 +379,18 @@ static double Extent(NSScrollView *scroll) {
   _maxOffset = _startOffset;
   _runTimes = [NSMutableArray array];
   _runStarted = CACurrentMediaTime();
+  _lastVsync = 0;
+  _linkFrame = 0;
+  _longestGap = 0;
+  _linkCallbacks = 0;
+  _missedVsyncs = 0;
+  _hitches = 0;
+  [_link invalidate];
+  NSView *host = _target.window.contentView ?: _target;
+  _link = [host displayLinkWithTarget:self selector:@selector(vsync:)];
+  _link.preferredFrameRateRange = CAFrameRateRangeMake(120, 120, 120);
+  [_link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+  if (_linkPaced) return;
   _timer = [NSTimer timerWithTimeInterval:1.0 / 120
                                    target:self
                                  selector:@selector(tick:)
@@ -365,6 +398,25 @@ static double Extent(NSScrollView *scroll) {
                                   repeats:YES];
   _timer.tolerance = 0;
   [[NSRunLoop mainRunLoop] addTimer:_timer forMode:NSRunLoopCommonModes];
+}
+
+// A display-link callback: counts the vsyncs since the last one (more than one is a frame the display didn't get),
+// and steps the run when the link paces it.
+- (void)vsync:(CADisplayLink *)link {
+  double frame = link.targetTimestamp - link.timestamp;
+  if (frame > 0) _linkFrame = frame;
+  if (_lastVsync > 0 && _linkFrame > 0) {
+    double gap = link.timestamp - _lastVsync;
+    NSInteger frames = MAX(1, (NSInteger)llround(gap / _linkFrame));
+    if (frames > 1) {
+      _missedVsyncs += frames - 1;
+      _hitches += 1;
+    }
+    _longestGap = MAX(_longestGap, gap);
+  }
+  _lastVsync = link.timestamp;
+  _linkCallbacks += 1;
+  if (_linkPaced && _runTimes) [self tick:nil];
 }
 
 - (void)send:(double)pixels phase:(int64_t)phase momentum:(int64_t)momentum {
@@ -468,6 +520,8 @@ static double Percentile(NSArray<NSNumber *> *sorted, double p) {
   [self endGesture];
   [_timer invalidate];
   _timer = nil;
+  [_link invalidate];
+  _link = nil;
   NSArray *times = _runTimes ?: @[];
   _runTimes = nil;
   double seconds = CACurrentMediaTime() - _runStarted;
@@ -479,6 +533,12 @@ static double Percentile(NSArray<NSNumber *> *sorted, double p) {
                      Extent(_target), content.width, content.height,
                      [_runKind isEqual:@"walk"] && !_reachedEnd ? @" [did not reach the end]" : @""];
   [text appendFormat:@"%@\n", [self summary:times]];
+  double frames = _linkCallbacks + _missedVsyncs;
+  [text appendFormat:@"display (%@-paced): frame %.2f ms, callbacks %ld, missed vsyncs %ld (%.1f%%) in %ld hitches, "
+                     @"longest gap %.1f ms, %.0f fps\n",
+                     _linkPaced ? @"link" : @"timer", _linkFrame * 1000, (long)_linkCallbacks, (long)_missedVsyncs,
+                     frames > 0 ? 100.0 * _missedVsyncs / frames : 0, (long)_hitches, _longestGap * 1000,
+                     seconds > 0 ? _linkCallbacks / seconds : 0];
   // The worst iterations in order of time, to tell a one-off from a pattern.
   NSMutableArray *worst = [NSMutableArray array];
   [times enumerateObjectsUsingBlock:^(NSNumber *n, NSUInteger i, BOOL *stop) {

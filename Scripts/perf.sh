@@ -18,10 +18,13 @@
 #   Scripts/perf.sh <pid> select <table> <row> | size <w>x<h>
 #   Scripts/perf.sh <pid> place off|<x>,<y>       # moves the window; off: past the screens, where the pointer's hover
 #                                                  # can't change a run (rows under a resting pointer update as they move)
+#   Scripts/perf.sh <pid> pace link|timer          # on screen: step runs on the window's display link
+#   Scripts/perf.sh <pid> front                    # activates the app (on-screen runs only: takes the user's focus)
 #   Scripts/perf.sh post <notification name> <object>   # an app's own debug hook (dev.v57.code.debug …)
 #
 # A run's report: iterations of the main run loop while it ran (each one a frame's work: the scroll, SwiftUI's update,
-# layout, the commit), p50/p95/p99/max and how many went over 8.3 ms (a 120 Hz frame). Off-screen windows (another
+# layout, the commit), p50/p95/p99/max and how many went over 8.3 ms (a 120 Hz frame); and a `display` line: the
+# window's display-link callbacks and missed vsyncs, the real frame rate when the window is on screen. Off-screen windows (another
 # Space) still lay out, so the numbers hold there; a locked screen or a sleeping display may not.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -67,14 +70,14 @@ case $verb in
   list|report|layout|views) command="$verb:$result" ;;
   walk|idle) command="$verb:$(IFS=:; echo "$*"):$result" ;;
   scroll|fling) command="$verb:$(IFS=:; echo "$*"):$result" ;;
-  reset|stop) command=$verb ;;
-  mark|threshold|size|mode|insert|place) command="$verb:$*" ;;
+  reset|stop|front) command=$verb ;;
+  mark|threshold|size|mode|insert|place|pace) command="$verb:$*" ;;
   delete) command=delete ;;
   select) command="select:$1:$2" ;;
   *) echo "unknown command $verb" >&2; exit 2 ;;
 esac
 "$poster" "$pid" "$command"
-case $verb in reset|stop|mark|threshold|size|select|mode|insert|delete|place) exit 0 ;; esac
+case $verb in reset|stop|mark|threshold|size|select|mode|insert|delete|place|pace|front) exit 0 ;; esac
 
 # A sandboxed app writes to its own temporary folder instead.
 fallback() {
