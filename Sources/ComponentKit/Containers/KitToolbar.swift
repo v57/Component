@@ -515,8 +515,9 @@ private struct ContGroundGlow: ViewModifier {
 /// 52pt and the traffic lights sit centered on the kit's bar) while the title and the background go; clicks then reach
 /// the kit's bar. The item is invisible, except while the sidebar is hidden: it then sits just after the traffic
 /// lights, where it would take the clicks of a button the kit drew there, so it is the Show Sidebar button itself.
-/// In full screen the toolbar hides: AppKit moves it to a window of its own over the top of the screen, which hid the
-/// kit's bar. On iPhone and iPad the navigation bar hides.
+/// In full screen AppKit moves the toolbar to a window of its own over the top of the screen, which hid the kit's bar:
+/// it shows only on hover, sliding down with the menu bar and bringing the traffic lights (hiding the toolbar took the
+/// title bar and its lights away too). On iPhone and iPad the navigation bar hides.
 private struct ContSystemToolbarAway: ViewModifier {
   @Environment(\.contShowSidebar) private var showSidebar
   @Environment(\.contShowsSidebarButton) private var showsSidebarButton
@@ -526,7 +527,7 @@ private struct ContSystemToolbarAway: ViewModifier {
     #if os(macOS)
       content
         .environment(\.contFullScreen, isFullScreen)
-        .toolbar(isFullScreen ? .hidden : .automatic, for: .windowToolbar)
+        .modifier(ContFullScreenToolbarOnHover(isFullScreen: isFullScreen))
         .toolbar {
           KitToolbarItem(placement: .navigation) {
             Group {
@@ -730,6 +731,20 @@ private struct ContSystemToolbarAway: ViewModifier {
 
   /// Hides the system toolbar's background, so the window's toolbar row takes clicks only on its items and the kit's
   /// views drawn in that row get the rest (`.kitToolbar`, `KitSidebar`'s hide button).
+  /// The full-screen toolbar shows on hover (macOS 15), as in every Mac app: the title bar slides down with the menu
+  /// bar and its traffic lights. Before macOS 15 the toolbar hides in full screen, the lights with it.
+  struct ContFullScreenToolbarOnHover: ViewModifier {
+    let isFullScreen: Bool
+
+    func body(content: Content) -> some View {
+      if #available(macOS 15.0, *) {
+        content.windowToolbarFullScreenVisibility(.onHover)
+      } else {
+        content.toolbar(isFullScreen ? .hidden : .automatic, for: .windowToolbar)
+      }
+    }
+  }
+
   struct ContToolbarBackgroundHidden: ViewModifier {
     func body(content: Content) -> some View {
       if #available(macOS 15.0, *) {
