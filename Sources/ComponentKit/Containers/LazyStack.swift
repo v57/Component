@@ -197,6 +197,7 @@ private struct ContLazyItem: View {
     ZStack(alignment: alignment) {
       if flag.isBuilt {
         subview
+          .modifier(ContLazyGuides(alignment: alignment.horizontal))
           .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { model.measured(id, $0) }
           .environment(\.contLazyParent, ContLazyParent(model: model, item: id))
           // The section's own body ran as the stack resolved its subviews, so the sticky item around this one tells
@@ -205,6 +206,32 @@ private struct ContLazyItem: View {
       }
     }
     .frame(maxWidth: .infinity, minHeight: flag.isBuilt ? nil : flag.height, alignment: alignment)
+    // The item spans the stack, so its guides are where they would be anyway; answered here, a scroll view asking
+    // its content for its centre (every layout) stops at each item instead of walking all that is built.
+    .alignmentGuide(.leading) { _ in 0 }
+    .alignmentGuide(HorizontalAlignment.center) { $0.width / 2 }
+    .alignmentGuide(.trailing) { $0.width }
+  }
+}
+
+/// An item's alignment guides, answered here: without them each layout of the page asked every built view for its
+/// own (its stacks place their children to merge theirs), and a page of run blocks with long output spent 75% of a
+/// frame there, more with each block built (iOS: 36 ms growing to 99 ms per plan).
+private struct ContLazyGuides: ViewModifier {
+  let alignment: HorizontalAlignment
+
+  func body(content: Content) -> some View {
+    // A custom alignment keeps the view's own guide: only the built-in ones have a value known without asking.
+    let fixed: ((ViewDimensions) -> CGFloat)? =
+      switch alignment {
+      case .leading: { _ in 0 }
+      case .center: { $0.width / 2 }
+      case .trailing: { $0.width }
+      default: nil
+      }
+    content
+      .alignmentGuide(alignment) { dimensions in fixed?(dimensions) ?? dimensions[alignment] }
+      .alignmentGuide(.top) { _ in 0 }
   }
 }
 
