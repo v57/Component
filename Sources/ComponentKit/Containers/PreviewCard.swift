@@ -363,7 +363,8 @@ struct ContPreviewResize: ViewModifier {
   @Environment(\.contPreviewCorner) private var corner
   @Environment(\.layoutDirection) private var layoutDirection
 
-  private static let grab: CGFloat = 8
+  private static let grab: CGFloat = 12
+  private static let cornerGrab: CGFloat = 20
 
   func body(content: Content) -> some View {
     let shape = RoundedRectangle(cornerRadius: KitMetrics.radiusOverlay, style: .continuous)
@@ -371,12 +372,12 @@ struct ContPreviewResize: ViewModifier {
       .overlay {
         if isDragging { shape.strokeBorder(Hue.accent.fill, lineWidth: 2).allowsHitTesting(false) }
       }
-      // The free borders: the ones away from the anchored corner.
-      .overlay(alignment: corner.isTrailing ? .leading : .trailing) { handle(horizontal: true, vertical: false) }
-      .overlay(alignment: corner.isBottom ? .top : .bottom) { handle(horizontal: false, vertical: true) }
-      .overlay(alignment: freeCorner) {
-        handle(horizontal: true, vertical: true)
+      // The free borders: the ones away from the anchored corner. Each grab area straddles its border.
+      .overlay(alignment: corner.isTrailing ? .leading : .trailing) {
+        handle(corner.isTrailing ? .leading : .trailing)
       }
+      .overlay(alignment: corner.isBottom ? .top : .bottom) { handle(corner.isBottom ? .top : .bottom) }
+      .overlay(alignment: freeCorner) { handle(freeEdge) }
       .overlay(alignment: freeCorner) {
         if isDragging, let readout {
           Text(verbatim: readout)
@@ -404,17 +405,32 @@ struct ContPreviewResize: ViewModifier {
     }
   }
 
-  @ViewBuilder
-  private func handle(horizontal: Bool, vertical: Bool) -> some View {
-    let both = horizontal && vertical
-    Color.clear
+  /// The corner between the free borders.
+  private var freeEdge: ContFrameEdge {
+    switch corner {
+    case .bottomTrailing: .topLeading
+    case .bottomLeading: .topTrailing
+    case .topTrailing: .bottomLeading
+    case .topLeading: .bottomTrailing
+    }
+  }
+
+  /// A border's grab area: 12pt across it, half inside the card and half outside, along the border between the
+  /// corners; a corner's is 20pt square over the card's rounded corner. The pointer says which way it resizes
+  /// anywhere in the area.
+  private func handle(_ edge: ContFrameEdge) -> some View {
+    let horizontal = edge != .top && edge != .bottom
+    let vertical = edge != .leading && edge != .trailing
+    let outward = Self.grab / 2
+    return Color.clear
       .frame(
-        width: horizontal ? (both ? 16 : Self.grab) : nil, height: vertical ? (both ? 16 : Self.grab) : nil
+        width: edge.isCorner ? Self.cornerGrab : (horizontal ? Self.grab : nil),
+        height: edge.isCorner ? Self.cornerGrab : (vertical ? Self.grab : nil)
       )
-      .padding(horizontal && !both ? .vertical : [], 16)
-      .padding(vertical && !both ? .horizontal : [], 16)
+      .padding(horizontal && !vertical ? .vertical : [], Self.cornerGrab - outward)
+      .padding(vertical && !horizontal ? .horizontal : [], Self.cornerGrab - outward)
       .contentShape(Rectangle())
-      .contResizeCursor(vertical: vertical && !horizontal)
+      .contFrameResizeCursor(edge)
       #if !os(tvOS)
         .gesture(
           DragGesture(minimumDistance: 1, coordinateSpace: .global)
@@ -428,6 +444,10 @@ struct ContPreviewResize: ViewModifier {
             }
         )
       #endif
+      // Half of the area lies outside the card.
+      .offset(
+        x: horizontal ? (edge.isOnTrailingSide(corner) ? outward : -outward) : 0,
+        y: vertical ? (edge.isOnBottomSide ? outward : -outward) : 0)
   }
 
   /// A drag's translation as growth: moving a free border away from the anchored corner makes the card larger.
@@ -436,5 +456,14 @@ struct ContPreviewResize: ViewModifier {
     return CGSize(
       width: horizontal ? (corner.isTrailing ? -dx : dx) : 0,
       height: vertical ? (corner.isBottom ? -translation.height : translation.height) : 0)
+  }
+}
+
+extension ContFrameEdge {
+  fileprivate var isOnBottomSide: Bool { self == .bottom || self == .bottomLeading || self == .bottomTrailing }
+
+  /// Whether the area sits at the card's trailing border (in a layout direction's own terms).
+  fileprivate func isOnTrailingSide(_ corner: KitPreviewCorner) -> Bool {
+    self == .trailing || self == .topTrailing || self == .bottomTrailing
   }
 }

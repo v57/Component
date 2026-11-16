@@ -662,6 +662,53 @@ extension View {
   }
 }
 
+/// Which border or corner of a frame a grab area resizes.
+enum ContFrameEdge {
+  case top, bottom, leading, trailing, topLeading, topTrailing, bottomLeading, bottomTrailing
+
+  var isCorner: Bool {
+    switch self {
+    case .top, .bottom, .leading, .trailing: false
+    default: true
+    }
+  }
+}
+
+extension View {
+  /// The frame-resize pointer over a border's or corner's grab area: the arrows across that border, diagonal at a
+  /// corner (macOS 15; before it, the plain row and column ones).
+  @ViewBuilder
+  func contFrameResizeCursor(_ edge: ContFrameEdge) -> some View {
+    #if canImport(AppKit)
+      if #available(macOS 15.0, *) {
+        pointerStyle(.frameResize(position: edge.position))
+      } else {
+        contResizeCursor(vertical: edge == .top || edge == .bottom)
+      }
+    #else
+      self
+    #endif
+  }
+}
+
+#if canImport(AppKit)
+  @available(macOS 15.0, *)
+  extension ContFrameEdge {
+    fileprivate var position: FrameResizePosition {
+      switch self {
+      case .top: .top
+      case .bottom: .bottom
+      case .leading: .leading
+      case .trailing: .trailing
+      case .topLeading: .topLeading
+      case .topTrailing: .topTrailing
+      case .bottomLeading: .bottomLeading
+      case .bottomTrailing: .bottomTrailing
+      }
+    }
+  }
+#endif
+
 // MARK: - Window title (macOS 14)
 
 /// Hides the title of the window it sits in while `hides` is true, and shows it again when it goes (macOS 14, where
