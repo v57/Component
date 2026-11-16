@@ -248,16 +248,30 @@ struct ContEdgeScroll<Content: View>: View {
   @ViewBuilder var content: Content
   @State private var viewport: CGFloat = 0
   @State private var contentBottom: CGFloat = 0
+  @State private var moreBelow = false
   @State private var space = UUID()
   @Environment(\.kitIdiom) private var idiom
 
   var body: some View {
-    ScrollView {
-      content.modifier(ContBottomReader(space: space, bottom: $contentBottom))
+    if #available(macOS 15.0, iOS 18.0, *) {
+      // Whether content runs on past the bottom changes rarely; its bottom edge, kept as state, changed on every
+      // scroll frame and ran this body, which laid out all the content again (Get's welcome list of 2,006 finished
+      // downloads: 100 → 7 ms a frame).
+      ScrollView { content }
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+          fades && geometry.contentSize.height - geometry.contentOffset.y > geometry.containerSize.height + 0.5
+        } action: { _, new in
+          moreBelow = new
+        }
+        .contScrollEdge(moreBelow, length: idiom.size(32, pad: 40, phone: 48))
+    } else {
+      ScrollView {
+        content.modifier(ContBottomReader(space: space, bottom: $contentBottom))
+      }
+      .coordinateSpace(.named(space))
+      .modifier(ContHeightReader(height: $viewport))
+      .contScrollEdge(fades && contentBottom > viewport + 0.5, length: idiom.size(32, pad: 40, phone: 48))
     }
-    .coordinateSpace(.named(space))
-    .modifier(ContHeightReader(height: $viewport))
-    .contScrollEdge(fades && contentBottom > viewport + 0.5, length: idiom.size(32, pad: 40, phone: 48))
   }
 }
 
