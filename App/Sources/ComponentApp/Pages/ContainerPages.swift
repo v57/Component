@@ -1147,6 +1147,41 @@ struct InspectorPage: View {
         }
       }
       InspectorGapSpecimens()
+      SpecimenSection(
+        "Preview pane",
+        note: "A running app beside what makes it: the bar names it and holds its buttons, the stage fits the picture, the foot says where it comes from. A guide takes the stage when something has to be set up first."
+      ) {
+        Columns {
+          WindowFrame(height: 560) {
+            KitPreviewPane(
+              "iPhone 17", meta: ["iOS 27.2", "Trips"], systemImage: "iphone", source: "Simulator on this Mac",
+              stats: "60 fps"
+            ) {
+              Button("Home", systemImage: "house") {}
+              Button("Rotate", systemImage: "rotate.left") {}
+              Button("Screenshot", systemImage: "camera") {}
+            } stage: {
+              KitPreviewScreen(aspect: CGSize(width: 1206, height: 2622)) { Rectangle().fill(Hue.blue.soft(0.3)) }
+            }
+          }
+          WindowFrame(height: 560) {
+            KitPreviewPane("studio-pc", meta: ["Remote isn’t installed"], systemImage: "desktopcomputer", hue: .gray) {
+              Button("More", systemImage: "ellipsis") {}
+            } stage: {
+              KitGuide(
+                "Remote isn’t on studio-pc", message: "The preview comes through Remote, which shares a window of studio-pc with this Mac.",
+                steps: [
+                  .init("Get Remote’s source", command: "git clone https://github.com/v57/Remote.git", isDone: true),
+                  .init("Build the host", command: "swift build --product RemoteHostWindows"),
+                  .init("Start it on the desktop, signed in", command: "RemoteHostWindows --windows", note: "Not over SSH: it captures the desktop session it starts in."),
+                ]
+              ) {
+                Button("Check Again") {}.buttonStyle(.kitPrimary)
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
