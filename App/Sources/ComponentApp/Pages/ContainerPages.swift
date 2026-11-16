@@ -1148,26 +1148,14 @@ struct InspectorPage: View {
       }
       InspectorGapSpecimens()
       SpecimenSection(
-        "Preview pane",
-        note: "A running app beside what makes it: the bar names it and holds its buttons, the stage fits the picture, the foot says where it comes from. A guide takes the stage when something has to be set up first."
+        "Floating preview",
+        note: "A running app as a card over a corner of what makes it: the bar names it and holds the scale, Minimize and its own window; the bar drags it to another corner and the free borders resize it. Minimized it is a capsule. A guide takes the picture's place when something has to be set up first."
       ) {
         Columns {
+          WindowFrame(height: 560) { PreviewFloatSpecimen() }
           WindowFrame(height: 560) {
-            KitPreviewPane(
-              "iPhone 17", meta: ["iOS 27.2", "Trips"], systemImage: "iphone", source: "Simulator on this Mac",
-              stats: "60 fps"
-            ) {
-              Button("Home", systemImage: "house") {}
-              Button("Rotate", systemImage: "rotate.left") {}
-              Button("Screenshot", systemImage: "camera") {}
-            } stage: {
-              KitPreviewScreen(aspect: CGSize(width: 1206, height: 2622)) { Rectangle().fill(Hue.blue.soft(0.3)) }
-            }
-          }
-          WindowFrame(height: 560) {
-            KitPreviewPane("studio-pc", meta: ["Remote isn’t installed"], systemImage: "desktopcomputer", hue: .gray) {
-              Button("More", systemImage: "ellipsis") {}
-            } stage: {
+            KitPreviewCard("studio-pc", meta: "Remote isn’t installed", systemImage: "desktopcomputer", hue: .gray) {
+            } content: {
               KitGuide(
                 "Remote isn’t on studio-pc", message: "The preview comes through Remote, which shares a window of studio-pc with this Mac.",
                 steps: [
@@ -1178,7 +1166,9 @@ struct InspectorPage: View {
               ) {
                 Button("Check Again") {}.buttonStyle(.kitPrimary)
               }
+              .frame(width: 320, height: 420)
             }
+            .padding(12)
           }
         }
       }
@@ -2295,5 +2285,45 @@ private struct EmptyStateLoadingSample: View {
     isSlow = slow
     isLoading = true
     load += 1
+  }
+}
+
+/// The floating preview over a stand-in editor: move it by its bar, resize it by its free borders, minimize it.
+private struct PreviewFloatSpecimen: View {
+  @State private var corner = KitPreviewCorner.bottomTrailing
+  @State private var width: CGFloat = 180
+  @State private var startWidth: CGFloat = 180
+  @State private var isMinimized = false
+  private let points = CGSize(width: 402, height: 874)
+
+  var body: some View {
+    let scale = width / points.width
+    Color.clear
+      .kitPane(.content)
+      .overlay {
+        KitPreviewFloat(corner: $corner) {
+          if isMinimized {
+            KitPreviewPill("iPhone 17", status: "Trips · running", systemImage: "iphone") { isMinimized = false }
+          } else {
+            KitPreviewCard(
+              "iPhone 17", meta: "Trips", systemImage: "iphone", scale: "\(Int((scale * 100).rounded()))%",
+              isRealSize: width == points.width,
+              onScale: {
+                width = width == points.width ? 180 : points.width
+                startWidth = width
+              }, onMinimize: { isMinimized = true }, onDetach: {}
+            ) {
+            } content: {
+              KitPreviewScreen(aspect: points) { Rectangle().fill(Hue.blue.soft(0.3)) }
+                .frame(width: width, height: width * points.height / points.width)
+            }
+            .kitPreviewResize(readout: "\(Int((scale * 100).rounded()))% · \(Int(width)) × \(Int(width * points.height / points.width))") { growth in
+              width = min(max(startWidth + max(growth.width, growth.height * points.width / points.height), 120), 402)
+            } onEnded: {
+              startWidth = width
+            }
+          }
+        }
+      }
   }
 }
