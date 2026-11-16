@@ -516,8 +516,9 @@ private struct ContGroundGlow: ViewModifier {
 /// the kit's bar. The item is invisible, except while the sidebar is hidden: it then sits just after the traffic
 /// lights, where it would take the clicks of a button the kit drew there, so it is the Show Sidebar button itself.
 /// In full screen AppKit moves the toolbar to a window of its own over the top of the screen, which hid the kit's bar:
-/// it shows only on hover, sliding down with the menu bar and bringing the traffic lights (hiding the toolbar took the
-/// title bar and its lights away too). On iPhone and iPad the navigation bar hides.
+/// there the toolbar goes and the window's title comes back, so what slides down with the menu bar on hover is the
+/// plain title bar (the traffic lights and the title, the app's name in a main window), as in other Mac apps.
+/// On iPhone and iPad the navigation bar hides.
 private struct ContSystemToolbarAway: ViewModifier {
   @Environment(\.contShowSidebar) private var showSidebar
   @Environment(\.contShowsSidebarButton) private var showsSidebarButton
@@ -541,7 +542,7 @@ private struct ContSystemToolbarAway: ViewModifier {
             .background { ContToolbarItemClicks(takesClicks: showSidebar != nil && !isFullScreen && showsSidebarButton) }
           }
         }
-        .kitHidesSystemTitle()
+        .kitHidesSystemTitle(!isFullScreen)
         .modifier(ContToolbarBackgroundHidden())
         .background {
           ContTitlebarClear(isFullScreen: $isFullScreen).frame(width: 0, height: 0).accessibilityHidden(true)
@@ -591,7 +592,7 @@ private struct ContSystemToolbarAway: ViewModifier {
       guard let window else { return }
       // A window restored in full screen; after the update that put the view there.
       if window.styleMask.contains(.fullScreen) {
-        DispatchQueue.main.async { [weak self] in self?.onFullScreen(true) }
+        DispatchQueue.main.async { [weak self] in self?.setFullScreen(true) }
       }
       for (name, isFullScreen) in [
         (NSWindow.willEnterFullScreenNotification, true), (NSWindow.willExitFullScreenNotification, false),
@@ -599,11 +600,18 @@ private struct ContSystemToolbarAway: ViewModifier {
       ] {
         observers.append(
           NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.onFullScreen(isFullScreen) }
+            MainActor.assumeIsolated { self?.setFullScreen(isFullScreen) }
           })
       }
       guard Self.clearsTitlebar(of: window) else { return }
       window.titlebarAppearsTransparent = true
+    }
+
+    /// In full screen the toolbar goes (AppKit's, not SwiftUI's `.toolbar(.hidden)`, which takes the whole title bar
+    /// and the traffic lights with it), so the title bar that slides down on hover is the plain 28pt one.
+    private func setFullScreen(_ isFullScreen: Bool) {
+      if let toolbar = window?.toolbar, toolbar.isVisible == isFullScreen { toolbar.isVisible = !isFullScreen }
+      onFullScreen(isFullScreen)
     }
 
     /// A titled window the app made itself, whose content runs under its title bar. SwiftUI's scene windows are of its
@@ -731,8 +739,8 @@ private struct ContSystemToolbarAway: ViewModifier {
 
   /// Hides the system toolbar's background, so the window's toolbar row takes clicks only on its items and the kit's
   /// views drawn in that row get the rest (`.kitToolbar`, `KitSidebar`'s hide button).
-  /// The full-screen toolbar shows on hover (macOS 15), as in every Mac app: the title bar slides down with the menu
-  /// bar and its traffic lights. Before macOS 15 the toolbar hides in full screen, the lights with it.
+  /// The full-screen title bar shows on hover (macOS 15), sliding down with the menu bar. Before macOS 15 the toolbar
+  /// hides in full screen, the title bar and its lights with it.
   struct ContFullScreenToolbarOnHover: ViewModifier {
     let isFullScreen: Bool
 
