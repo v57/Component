@@ -92,6 +92,8 @@ public struct FormPreview<Content: View>: View {
 /// The scene a setting's preview draws in: a well in the card, its content clipped to 8pt corners.
 private struct ContFormPreviewScene<Content: View>: View {
   let height: CGFloat
+  /// The scene's own buttons take taps and VoiceOver (a preview of each choice that picks it).
+  var isInteractive = false
   let content: Content
 
   var body: some View {
@@ -100,8 +102,8 @@ private struct ContFormPreviewScene<Content: View>: View {
       .frame(height: height)
       .background(.kitField)
       .clipShape(RoundedRectangle(cornerRadius: KitMetrics.radius, style: .continuous))
-      .allowsHitTesting(false)
-      .accessibilityHidden(true)
+      .allowsHitTesting(isInteractive)
+      .accessibilityHidden(!isInteractive)
   }
 }
 
@@ -254,15 +256,18 @@ public struct FormRow<Control: View, Field: View>: View {
 
   /// Shows what the setting does, live, in a scene under the row, lined up with its title: the row's value drawn on
   /// sample content (a colour scheme on a few lines of a terminal, a font on a line of code). It takes no clicks, and
-  /// says nothing to VoiceOver: the row's title and help do.
+  /// says nothing to VoiceOver: the row's title and help do. `isInteractive` lets its own buttons take them: one
+  /// sample per choice that picks it (Shell's Dark and Light terminals).
   ///
   /// ```swift
   /// FormRow("Color Scheme", systemImage: "paintpalette") { KitMenuButton(…) }
   ///   .preview { TerminalSample(scheme: scheme, usesBackgroundColors: usesBackground) }
   /// ```
-  public func preview<V: View>(height: CGFloat = 72, @ViewBuilder _ content: () -> V) -> Self {
+  public func preview<V: View>(
+    height: CGFloat = 72, isInteractive: Bool = false, @ViewBuilder _ content: () -> V
+  ) -> Self {
     var row = self
-    row.previewView = AnyView(ContFormPreviewScene(height: height, content: content()))
+    row.previewView = AnyView(ContFormPreviewScene(height: height, isInteractive: isInteractive, content: content()))
     return row
   }
 

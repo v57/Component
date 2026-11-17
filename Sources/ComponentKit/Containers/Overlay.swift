@@ -544,6 +544,8 @@ private struct KitOverlayFocus: ViewModifier {
       content.background { KitOverlayFocusAnchor(isTop: isTop, dismiss: dismiss) }
     #elseif os(iOS)
       content
+        // A drag in the sheet's body brings the keyboard down with the finger.
+        .scrollDismissesKeyboard(.interactively)
         .onKeyPress(.escape) {
           guard isTop else { return .ignored }
           dismiss()

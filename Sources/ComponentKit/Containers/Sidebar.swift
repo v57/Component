@@ -505,8 +505,9 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
           extend: multi.map { clicks.extend(in: $0) })))
     // A click on a row focuses the sidebar, like a click into a `List`.
     .simultaneousGesture(TapGesture().onEnded { focused = true })
-    // No system scroll edge under the title bar; the bottom bar as an inset.
-    .contEdgeEffectHidden(.top)
+    // No system scroll edge under the title bar (iPhone keeps the system's soft one under its navigation bar); the
+    // bottom bar as an inset.
+    .contEdgeEffectHidden(.top, isOn: !ContBarGround.usesSystemEdge(idiom))
     .contScrolledUnderTop($isScrolledUnder)
     .contEdgeBar(.bottom) {
       if showsBar {
@@ -525,20 +526,14 @@ public struct KitSidebar<Content: View, BottomBar: View>: View {
         let top = geometry.safeAreaInsets.top
         // The reader starts under the inset, so the fade sits above it, the inset's height. `ContEdgeFade` here,
         // `top` high, also reached into the inset: it ran from the window's top to twice the inset, over the rows.
-        Rectangle()
-          .fill(ContGroundFade(ground: .kitSidebar, edge: .top))
-          .frame(height: top)
-          .offset(y: -top)
-          .allowsHitTesting(false)
-          .accessibilityHidden(true)
-        // iPhone: the navigation bar's ground, opaque behind the title and the status bar once rows are under it.
-        if idiom == .phone {
-          ContBarGroundFill(
-            ground: .kitSidebar,
-            isShown: ContBarGround.isShown(idiom: idiom, isScrolledUnder: isScrolledUnder)
-          )
-          .frame(height: top)
-          .offset(y: -top)
+        // iPhone: none, the system's soft scroll edge is under the navigation bar there.
+        if !ContBarGround.usesSystemEdge(idiom) {
+          Rectangle()
+            .fill(ContGroundFade(ground: .kitSidebar, edge: .top))
+            .frame(height: top)
+            .offset(y: -top)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
         }
         #if os(macOS)
           // The Mac's hide button sits at the sidebar's top right, centered on the traffic lights, as the system's

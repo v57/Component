@@ -1,5 +1,9 @@
 import SwiftUI
 
+#if os(iOS)
+  import UIKit
+#endif
+
 /// A sidebar and the screen of what it selects, the right way for each device: on iPhone one stack, with the list at
 /// its root and the selection pushed onto it; on iPad and the Mac a split view with `empty` in the detail while nothing
 /// is selected. Back on iPhone clears the selection, so tapping the row again opens it again. The detail can push
@@ -43,7 +47,13 @@ public struct KitSidebarSplit<Selection: Hashable, Sidebar: View, Detail: View, 
   }
 
   public var body: some View {
-    if idiom == .phone { stack } else { split }
+    Group {
+      if idiom == .phone { stack } else { split }
+    }
+    #if os(iOS)
+      // A drag in the list or a page brings the keyboard down with the finger.
+      .scrollDismissesKeyboard(.interactively)
+    #endif
   }
 
   /// The selection on the stack's path, under a type no app pushes itself.
@@ -60,9 +70,14 @@ public struct KitSidebarSplit<Selection: Hashable, Sidebar: View, Detail: View, 
     }
     .onAppear { open(selection) }
     .onChange(of: selection) { _, selection in open(selection) }
-    // Back on the root list: no row stays picked.
+    // Back on the root list: no row stays picked, and a keyboard the page had up goes (the sidebar's filter stayed
+    // under it: the list's bottom bar didn't move up for a keyboard that came up while the list was away).
     .onChange(of: path.count) { _, count in
-      if count == 0 { selection = nil }
+      guard count == 0 else { return }
+      selection = nil
+      #if os(iOS)
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+      #endif
     }
   }
 

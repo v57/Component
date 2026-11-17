@@ -81,15 +81,23 @@ extension View {
       .contEdgeEffectHidden(edge)
   }
 
+  /// `contEdgeBar`, or on iPhone (`systemEffect`) a bar the system draws its own soft scroll edge under (iOS 26's
+  /// `safeAreaBar`), as it does under a navigation bar: content scrolled up under it blurs away there instead of under
+  /// the kit's fade and ground (`ContBarGround`, decided 2026-11-17).
+  func contEdgeBar<Bar: View>(_ edge: VerticalEdge, systemEffect: Bool, @ViewBuilder bar: () -> Bar) -> some View {
+    modifier(ContEdgeBarSystemEffect(edge: edge, systemEffect: systemEffect, bar: bar()))
+  }
+
   /// Turns the system's scroll edge off at `edge` (macOS 26 and iOS 26), also where the system draws the bar (the
-  /// title bar over a sidebar).
-  func contEdgeEffectHidden(_ edge: VerticalEdge) -> some View {
-    modifier(ContEdgeEffectHidden(edge: edge))
+  /// title bar over a sidebar). With `isOn` false it stays the system's (iPhone, `ContBarGround`).
+  func contEdgeEffectHidden(_ edge: VerticalEdge, isOn: Bool = true) -> some View {
+    modifier(ContEdgeEffectHidden(edge: edge, isOn: isOn))
   }
 }
 
 private struct ContEdgeEffectHidden: ViewModifier {
   let edge: VerticalEdge
+  var isOn = true
 
   func body(content: Content) -> some View {
     #if os(visionOS)
@@ -97,10 +105,29 @@ private struct ContEdgeEffectHidden: ViewModifier {
       content
     #else
       if #available(macOS 26.0, iOS 26.0, tvOS 26.0, *) {
-        content.scrollEdgeEffectHidden(true, for: edge == .top ? .top : .bottom)
+        content.scrollEdgeEffectHidden(isOn, for: edge == .top ? .top : .bottom)
       } else {
         content
       }
+    #endif
+  }
+}
+
+private struct ContEdgeBarSystemEffect<Bar: View>: ViewModifier {
+  let edge: VerticalEdge
+  let systemEffect: Bool
+  let bar: Bar
+
+  func body(content: Content) -> some View {
+    #if os(iOS)
+      if systemEffect, #available(iOS 26.0, *) {
+        content.safeAreaBar(edge: edge, spacing: 0) { bar }
+          .scrollEdgeEffectStyle(.soft, for: edge == .top ? .top : .bottom)
+      } else {
+        content.contEdgeBar(edge) { bar }
+      }
+    #else
+      content.contEdgeBar(edge) { bar }
     #endif
   }
 }
@@ -151,9 +178,19 @@ enum ContBarGround {
   /// card sits right under the bar (C-001); 2pt elsewhere, the stack's own padding.
   static func stickyTopGap(_ idiom: KitIdiom) -> CGFloat { idiom == .phone ? 0 : 2 }
 
-  /// Whether the bar draws its ground: on iPhone, while the content is scrolled up under it.
+  /// Whether the bar draws its ground: never since 2026-11-17, when iPhone's bars took the system's soft scroll edge
+  /// instead (`usesSystemEdge`). Kept for the Mac and iPad, which have neither.
   static func isShown(idiom: KitIdiom, isScrolledUnder: Bool) -> Bool {
-    idiom == .phone && isScrolledUnder
+    false
+  }
+
+  /// iPhone's top bars (the navigation bar over a `KitSidebar`, the kit's toolbar over a pushed screen) leave the
+  /// scroll edge to the system: its soft blur under the bar, with no fade or ground of the kit's (2026-11-17).
+  static func usesSystemEdge(_ idiom: KitIdiom) -> Bool {
+    #if os(iOS)
+      if #available(iOS 26.0, *) { return idiom == .phone }
+    #endif
+    return false
   }
 
   /// Whether a scroll view's content has moved up under the bar over it: its offset past its rest (the top inset,

@@ -458,15 +458,17 @@ private struct ContTopBar<Bar: View>: ViewModifier {
 
   func body(content: Content) -> some View {
     let showsGround = ContBarGround.isShown(idiom: idiom, isScrolledUnder: isScrolledUnder)
+    // iPhone: the system's soft scroll edge under the bar, no fade or ground of the kit's (`ContBarGround`).
+    let systemEdge = ContBarGround.usesSystemEdge(idiom)
     content
       .contScrolledUnderTop($isScrolledUnder)
       .overlayPreferenceValue(ContPaneKey.self) { panes in
-        ContTopBarFade(panes: panes, showsGround: showsGround)
+        if !systemEdge { ContTopBarFade(panes: panes, showsGround: showsGround) }
       }
       // The page fills the pane: the inset asks it for its smallest size first, which a scroll view in it answers by
       // laying out every row (100 ms of opening Git's History).
       .contFillsProposal()
-      .contEdgeBar(.top) { bar }
+      .contEdgeBar(.top, systemEffect: systemEdge) { bar }
     #if os(macOS)
       .ignoresSafeArea(.container, edges: .top)
     #endif

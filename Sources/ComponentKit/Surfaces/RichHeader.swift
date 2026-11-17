@@ -251,6 +251,10 @@ public struct MetaLine: View {
       } else {
         HStack(spacing: 10) { content }
       }
+    } else if parts.isEmpty {
+      // No line at all: an empty Text still took a line, which pushed a title with no meta above its icon's centre
+      // (Shell's Settings bar on iPhone).
+      EmptyView()
     } else {
       parts.enumerated().reduce(Text("")) { text, item in
         item.offset == 0 ? text + Text(item.element) : text + Text("  ·  ").foregroundStyle(.kitTertiary) + Text(item.element)
