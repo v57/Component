@@ -82,7 +82,8 @@ public struct KitPalette<Scope: View, Content: View>: View {
     VStack(spacing: KitMetrics.gutter) {
       searchLine
       results
-      if !hints.isEmpty { footer }
+      // The key hints only where there are keys to press (no hardware keyboard on an iPhone or iPad: none).
+      if !hints.isEmpty, KitDevice.hasKeyboard { footer }
     }
     .padding(KitMetrics.gutter)
     .background { KitOverlayCardGround() }

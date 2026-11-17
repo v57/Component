@@ -47,8 +47,8 @@ public enum KitDevice {
     #endif
   }
 
-  /// Whether there's a keyboard to press shortcuts on: always on a computer, on iPad while a hardware keyboard is
-  /// connected, never on iPhone or Apple TV. Mention a shortcut ("⌃⌘1…⌃⌘9 switch") only where it's true.
+  /// Whether there's a keyboard to press shortcuts on: always on a computer, on iPhone and iPad while a hardware
+  /// keyboard is connected, never on Apple TV. Mention a shortcut ("⌃⌘1…⌃⌘9 switch") only where it's true.
   ///
   /// ```swift
   /// Text(KitDevice.hasKeyboard ? "Each window shows one account; ⌃⌘1…⌃⌘9 switch." : "Each window shows one account.")
@@ -57,7 +57,7 @@ public enum KitDevice {
     #if os(macOS) || os(Windows) || os(Linux)
       true
     #elseif os(iOS) && canImport(GameController)
-      UIDevice.current.userInterfaceIdiom == .pad && GCKeyboard.coalesced != nil
+      GCKeyboard.coalesced != nil
     #else
       false
     #endif
