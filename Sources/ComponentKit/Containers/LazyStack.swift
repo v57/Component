@@ -42,7 +42,7 @@ extension View {
 /// a few heavy views: it builds ahead of the scroll, a few views a frame, lets far views go but keeps their heights,
 /// and nests (a card's rows in a stack of their own come a few at a time). For thousands of light rows (a log, a
 /// diff) use a `LazyVStack`, which never lays out the views it hasn't built; past 200 views (a section of
-/// search results) the stack is one.
+/// search results, a file tree) the stack becomes one, after an animated change has played, and stays one.
 ///
 /// ```swift
 /// ScrollView {
@@ -119,22 +119,31 @@ private struct ContLazyStack<Content: View>: View {
     Group(subviews: content) { subviews in
       // Counted once: each of `isEmpty` and `count` walked a search's thousands of matches.
       let count = subviews.count
-      if count == 0, let empty {
-        empty
-      } else if count > ContLazyModel.rowLimit {
-        // Hundreds of views (a file tree's rows, a search's matches in one section): each item would cost on every
-        // plan and every layout, so they go in a `LazyVStack`, which lays out only what it built. The content itself,
-        // not its subviews: the stack asks for its rows by index as it places them, every frame of a scroll, and a
-        // subview found by index is made again each time (the row's body ran on every frame).
-        LazyVStack(alignment: alignment, spacing: spacing) {
-          content
+      Group {
+        if count == 0, let empty {
+          empty
+        } else if model.isLong ?? (count > ContLazyModel.rowLimit) {
+          long
+        } else {
+          stack(subviews)
         }
-        .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .top))
-        .onAppear { model.cancel() }
-      } else {
-        stack(subviews)
       }
+      // Whether the change that brought the views was animated, read before `onChange` acts on it (as for `ids`).
+      .transaction(value: count) { model.countChangeIsAnimated = !$0.disablesAnimations && $0.animation != nil }
+      .onChange(of: count, initial: true) { _, count in model.countChanged(count) }
     }
+  }
+
+  /// Hundreds of views (a file tree's rows, a search's matches in one section): each item would cost on every plan
+  /// and every layout, so they go in a `LazyVStack`, which lays out only what it built. The content itself, not its
+  /// subviews: the stack asks for its rows by index as it places them, every frame of a scroll, and a subview found by
+  /// index is made again each time (the row's body ran on every frame). When it is one: `ContLazyModel.isLong`.
+  private var long: some View {
+    LazyVStack(alignment: alignment, spacing: spacing) {
+      content
+    }
+    .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .top))
+    .onAppear { model.cancel() }
   }
 
   private func stack(_ subviews: SubviewsCollection) -> some View {
@@ -327,6 +336,55 @@ final class ContLazyModel {
   /// Past this many views a stack is a `LazyVStack`: planning and laying out every item cost each frame of a scroll,
   /// and each item built laid out every other (Code's navigator: 850 file rows, 85 ms frames at p95 as a VStack).
   static let rowLimit = 200
+
+  /// The stack is a `LazyVStack` (`rowLimit`); `nil` until it has views, then settled. Switching makes every view
+  /// again, under the change's animation: a folder opening across the limit crossfaded Code's whole file tree, the
+  /// old stack fading out over the new. So a stack that passes the limit with an animated change becomes lazy once the
+  /// change has played, without animation (the lazy stack builds what shows in the same frame, so nothing moves),
+  /// and a lazy one stays lazy until it empties: a stack that held hundreds of views is light rows, which a
+  /// `LazyVStack` handles at any count, and going back would show its rows as placeholders for a frame.
+  var isLong: Bool?
+  /// The change that brought the current count was animated (`countChanged`).
+  @ObservationIgnored var countChangeIsAnimated = false
+  @ObservationIgnored private var count = 0
+  @ObservationIgnored private var pendingLong: Task<Void, Never>?
+
+  /// The stack's views now number `count`: settles `isLong`.
+  func countChanged(_ count: Int) {
+    self.count = count
+    let animated = countChangeIsAnimated
+    countChangeIsAnimated = false
+    if count == 0 {
+      // Emptied (another project's tree on its way): the next views decide afresh.
+      pendingLong?.cancel()
+      pendingLong = nil
+      if isLong != nil { isLong = nil }
+      return
+    }
+    guard let isLong else {
+      self.isLong = count > Self.rowLimit
+      return
+    }
+    guard !isLong, count > Self.rowLimit else { return }
+    guard animated else {
+      becomeLong()
+      return
+    }
+    guard pendingLong == nil else { return }
+    pendingLong = Task { [weak self] in
+      // The kit's animations take 0.25 s.
+      await kitSleep(for: .milliseconds(400))
+      guard let self, !Task.isCancelled else { return }
+      self.pendingLong = nil
+      if self.count > Self.rowLimit { self.becomeLong() }
+    }
+  }
+
+  private func becomeLong() {
+    var transaction = Transaction()
+    transaction.disablesAnimations = true
+    withTransaction(transaction) { isLong = true }
+  }
   /// Past this many views a stack lets far ones go even when asked to keep them: built views still lay out.
   static let keptLimit = 300
 

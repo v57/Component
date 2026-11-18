@@ -40,6 +40,32 @@ import Testing
   #expect(redraws < 2 * ids.count, "\(redraws) placeholder redraws for \(ids.count) rows")
 }
 
+/// A stack becomes a `LazyVStack` past `rowLimit` views only once an animated change has played (switching rebuilds
+/// every view, which crossfaded a whole file tree as a folder opened), at once for a change without animation, and
+/// stays one as views go, until it empties.
+@MainActor @Test func lazyStackSettlesWhenItBecomesLong() async {
+  let model = ContLazyModel()
+  model.countChanged(190)
+  #expect(model.isLong == false)
+  // A folder opening across the limit, animated: the stack stays as it is while the change plays.
+  model.countChangeIsAnimated = true
+  model.countChanged(205)
+  #expect(model.isLong == false)
+  await kitSleep(for: .milliseconds(600))
+  #expect(model.isLong == true)
+  // Closing it again keeps the lazy stack.
+  model.countChanged(190)
+  #expect(model.isLong == true)
+  // Emptied, the next views decide afresh.
+  model.countChanged(0)
+  #expect(model.isLong == nil)
+  model.countChanged(150)
+  #expect(model.isLong == false)
+  // Without animation (a tree read in at once) it switches at once.
+  model.countChanged(900)
+  #expect(model.isLong == true)
+}
+
 /// A sticky section (`.kitSticky`) that may show at an edge is built while far off, at once and never let go; the
 /// others far off stay placeholders.
 @MainActor @Test func lazyStackBuildsPinnedViewsFarOff() {
